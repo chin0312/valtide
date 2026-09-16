@@ -1,0 +1,44 @@
+# Environment files
+.env
+.env.local
+.env.*
+!.env.example
+
+# Node.js
+node_modules/
+.next/
+out/
+dist/
+coverage/
+.turbo/
+
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+env/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.tox/
+.coverage
+htmlcov/
+
+# Foundry
+contracts/cache/
+contracts/out/
+broadcast/
+
+# IDE and operating system files
+.DS_Store
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# Local datasets
+data/raw/*
+!data/raw/.gitkeep
+data/processed/*
+!data/processed/.gitkeep
