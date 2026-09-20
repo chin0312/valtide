@@ -13,7 +13,7 @@ Valtide is built around one core product primitive:
 The system must therefore support two related but distinct functions:
 
 1. produce an independent challenger fair-value estimate with uncertainty;
-2. compare that estimate and other independent references against a production collateral valuation.
+2. compare that estimate and other independent references against a reference under test, preferably a production collateral valuation.
 
 The architecture should remain simple enough for rapid iteration while preserving clean module boundaries between:
 
@@ -59,7 +59,7 @@ The system should preserve the distinction between:
 ```text
 independent challenger estimate
               vs
-external evidence / production references
+external evidence / references under test
 ```
 
 This makes disagreement observable and auditable.
@@ -258,9 +258,12 @@ Responsibility:
 
 > Keep external references explicit rather than blending them invisibly into the challenger model.
 
+The **reference under test** is the generic reference that Valtide validates. In the primary product use case, this is a production collateral reference. During the hackathon, when a live production reference is unavailable, it may instead be a reconstructed protocol valuation methodology, a Chainlink reference, an OKX bounded/index reference, or another selected reference used for validation.
+
 Possible reference types:
 
 - production collateral reference,
+- reconstructed protocol valuation methodology,
 - stale / last trusted underlying,
 - Pyth constructed index,
 - OKX X-Perp Index or Mark Price,
@@ -280,11 +283,11 @@ Each reference should include:
 
 Responsibility:
 
-> Compare the production reference with the challenger estimate and independent evidence.
+> Compare the reference under test with the challenger estimate and independent evidence.
 
 Outputs include:
 
-- production-reference deviation,
+- reference-under-test deviation,
 - standardized deviation relative to model uncertainty,
 - source agreement / disagreement flags,
 - validation status,
@@ -354,9 +357,9 @@ Potential uses:
 
 - session-aware equity reference data,
 - current/live comparison,
-- production-reference simulation.
+- reference-under-test simulation.
 
-Chainlink is a data source / production reference, not Valtide's quantitative moat.
+Chainlink is a data source / possible reference under test, not Valtide's quantitative moat.
 
 Reference:
 
@@ -403,7 +406,7 @@ For a benchmark experiment against Pyth / OKX:
 
 - do not use Pyth's constructed index as a challenger feature,
 - do not use OKX's final X-Perp Index Price as a challenger feature,
-- do not train directly on the production reference being validated in a way that makes the model a trivial replication.
+- do not train directly on the reference under test in a way that makes the model a trivial replication.
 
 ### External evidence layer
 
@@ -412,7 +415,7 @@ After the challenger estimate is generated, the system may compare it with:
 - Pyth,
 - OKX,
 - Chainlink,
-- production reference,
+- reference under test,
 - raw token market,
 - other independent evidence.
 
@@ -452,9 +455,10 @@ sourceProvenance
 
 ### 8.2 Reference Observation
 
-Represents a named external / production reference.
+Represents a named external reference, including the reference under test.
 
 ```text
+referenceId
 source
 referenceType
 price
@@ -478,7 +482,7 @@ modelVersion
 ### 8.4 Validation Result
 
 ```text
-productionReference
+referenceUnderTest
 challengerEstimate
 externalReferences[]
 referenceDeviation
@@ -622,6 +626,9 @@ ValtideValidationFeed.sol
 
 ```solidity
 struct ValidationSnapshot {
+    bytes32 referenceId;
+    uint256 referencePriceE8;
+
     uint256 fairValueE8;
     uint256 lowerBoundE8;
     uint256 upperBoundE8;

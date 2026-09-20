@@ -11,7 +11,9 @@ Valtide is designed to validate tokenized-equity collateral valuations using an 
 The methodology has two layers:
 
 1. **Challenger valuation** — estimate a latent current equity value and uncertainty using point-in-time market information;
-2. **Reference validation** — test whether the production collateral reference is consistent with the challenger estimate and other independent evidence.
+2. **Reference validation** — test whether the reference under test is consistent with the challenger estimate and other independent evidence.
+
+The reference under test is the generic reference Valtide validates. In the primary product use case, it is a production collateral reference; when that reference is unavailable during the hackathon, it may be a reconstructed protocol valuation methodology, a Chainlink reference, an OKX bounded/index reference, or another selected reference.
 
 The product is therefore not asking only:
 
@@ -31,7 +33,9 @@ This is a nowcasting and model-validation problem, not a long-horizon equity for
 
 For an observation timestamp `t` during a closed, fragmented or lower-quality market period:
 
-> **Is the production collateral reference supported by independent evidence?**
+> **Is the reference under test supported by independent evidence?**
+
+In the primary real-world workflow, the reference under test is the production collateral reference.
 
 ### Supporting quantitative questions
 
@@ -39,7 +43,7 @@ For an observation timestamp `t` during a closed, fragmented or lower-quality ma
 2. Does the challenger estimate add information beyond simply using the raw tokenized-market price?
 3. How does the challenger perform relative to constructed references such as Pyth or exchange indices such as OKX X-Perps when comparable data are available?
 4. Are challenger uncertainty intervals calibrated?
-5. When Valtide flags a production reference as an outlier, does later liquid-market evidence support that challenge often enough to be useful?
+5. When Valtide flags the reference under test as an outlier, does later liquid-market evidence support that challenge often enough to be useful?
 
 ---
 
@@ -52,7 +56,7 @@ Let:
 - `Xt` = independent point-in-time market features,
 - `Ft` = Valtide challenger fair-value estimate,
 - `[Lt, Ut]` = Valtide prediction interval,
-- `Pt` = production collateral reference being validated,
+- `Pt` = reference under test at timestamp `t`, preferably the production collateral reference,
 - `Ej,t` = external reference `j` such as Pyth / OKX / Chainlink,
 - `B` = later liquid-market benchmark used only for evaluation.
 
@@ -61,7 +65,7 @@ The system intentionally distinguishes:
 ```text
 challenger estimate Ft
         from
-production reference Pt
+reference under test Pt
         from
 external evidence Ej,t
 ```
@@ -218,7 +222,7 @@ Subject to point-in-time availability:
 
 ## 7. Independence Policy
 
-The challenger model is valuable only if it is meaningfully independent from the production reference it validates.
+The challenger model is valuable only if it is meaningfully independent from the reference under test it validates.
 
 ### 7.1 Core benchmark model
 
@@ -226,13 +230,13 @@ If Valtide is being compared against Pyth or OKX X-Perp as external references:
 
 - do not use the final Pyth constructed index as a model feature,
 - do not use the final OKX X-Perp Index Price as a model feature,
-- do not mechanically transform the production collateral price into the output.
+- do not mechanically transform the reference under test into the output.
 
 ### 7.2 External evidence after inference
 
 After `Ft` is produced, Valtide may compare:
 
-- `Pt` production reference,
+- `Pt` reference under test,
 - Pyth constructed reference,
 - OKX X-Perp reference,
 - Chainlink reference,
@@ -355,9 +359,9 @@ It means only:
 
 ---
 
-## 11. Production-Reference Validation
+## 11. Reference-Under-Test Validation
 
-Let `Pt` be the production collateral reference being validated.
+Let `Pt` be the reference under test being validated. In the primary product use case, `Pt` is the production collateral reference.
 
 ### 11.1 Raw reference deviation
 
@@ -365,7 +369,7 @@ Let `Pt` be the production collateral reference being validated.
 referenceDeviation = Pt / Ft - 1
 ```
 
-This shows the difference between production valuation and the independent challenger center.
+This shows the difference between the reference-under-test valuation and the independent challenger center.
 
 ### 11.2 Standardized deviation
 
@@ -400,7 +404,8 @@ Valtide should preserve each external reference separately.
 Possible references:
 
 ```text
-production oracle
+reference under test
+production oracle / collateral reference
 Pyth 24/7 index
 OKX X-Perp index
 Chainlink equity reference
@@ -410,7 +415,7 @@ raw tokenized market
 ### Evidence questions
 
 - Do independent references cluster around Valtide?
-- Is the production reference the outlier?
+- Is the reference under test the outlier?
 - Is the tokenized market the outlier?
 - Are all references widely dispersed?
 - Are external references stale or low quality?
@@ -439,7 +444,7 @@ REVIEW
 
 A provisional V0 policy may combine:
 
-- standardized production-reference deviation,
+- standardized reference-under-test deviation,
 - whether `Pt` lies inside the Valtide interval,
 - availability and agreement of external evidence,
 - data-quality / staleness flags.
@@ -602,7 +607,7 @@ These strong baselines are intentionally difficult. Valtide should not define su
 
 Point-estimate accuracy alone is not enough because Valtide's product is model validation.
 
-Define an ex-post **production-reference error event** using the later benchmark `B` and a tolerance appropriate to the experiment.
+Define an ex-post **reference-under-test error event** using the later benchmark `B` and a tolerance appropriate to the experiment. In the primary product use case, this is a production-reference error event.
 
 Example research label:
 
@@ -626,7 +631,7 @@ Thresholds must be defined using training / validation data, not selected after 
 
 ### Important limitation
 
-A later benchmark may disagree with `Pt` because new information arrived after `t`.
+A later benchmark may disagree with the reference under test `Pt` because new information arrived after `t`.
 
 Therefore these classification metrics are diagnostic, not proof of oracle fault.
 
@@ -807,7 +812,7 @@ Do not:
 
 The strongest credible result may be:
 
-> **“Valtide adds measurable validation value in these specific market regimes, and it can identify when its own evidence is too uncertain to challenge the production reference.”**
+> **“Valtide adds measurable validation value in these specific market regimes, and it can identify when its own evidence is too uncertain to challenge the reference under test.”**
 
 That is more defensible than claiming Valtide is always the best price source.
 

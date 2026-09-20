@@ -22,6 +22,8 @@ Its core product question is:
 
 > **“Is the collateral valuation this protocol is relying on supported by independent evidence?”**
 
+In this document, the **reference under test** is the generic reference Valtide validates. In the primary product use case, it is the production collateral reference; when a live production reference is unavailable during the hackathon, it may be a reconstructed protocol valuation methodology, a Chainlink reference, an OKX bounded/index reference, or another selected reference.
+
 ---
 
 ## 2. Primary User
@@ -216,12 +218,14 @@ Valtide fair value             $185.70
 90% interval             $184.20–187.20
 ```
 
-### Step 4 — Validate the production reference
+### Step 4 — Validate the reference under test
+
+In the primary use case, the reference under test is the production collateral reference. During the hackathon, it may instead be a reconstructed or selected reference used for validation.
 
 Example:
 
 ```text
-Production reference deviation    +2.32%
+Reference-under-test deviation    +2.32%
 Standardized deviation              2.4σ
 Validation status                 REVIEW
 ```
@@ -257,7 +261,7 @@ The product should expose the following conceptual result fields.
 - market/session state,
 - last trusted underlying reference,
 - age of trusted reference,
-- production reference being validated,
+- reference under test being validated,
 - external reference set.
 
 ### Challenger valuation
@@ -273,7 +277,7 @@ The product should expose the following conceptual result fields.
 - observed token/reference move,
 - model-implied move,
 - residual token premium/discount,
-- production-reference deviation,
+- reference-under-test deviation,
 - standardized deviation.
 
 ### Validation result
@@ -300,11 +304,11 @@ The MVP should remain focused around model validation rather than becoming a gen
 
 Immediately answer:
 
-1. What is the production collateral reference?
+1. What is the reference under test, preferably the production collateral reference?
 2. What are the independent market references?
 3. What does Valtide estimate?
 4. How uncertain is the estimate?
-5. Is the production reference supported or challenged?
+5. Is the reference under test supported or challenged?
 
 ### View 2 — Reference Comparison
 
@@ -420,7 +424,7 @@ Where data access allows:
 
 5. Pyth 24/7 constructed index,
 6. OKX X-Perp Index / Mark reference or another relevant continuous benchmark,
-7. production collateral reference being validated.
+7. reference under test, preferably the production collateral reference.
 
 ### Ex-post benchmark
 
@@ -491,14 +495,18 @@ Minimum published state:
 
 ```text
 asset
-fairValue
-lowerBound
-upperBound
+referenceId
+referencePriceE8
+fairValueE8
+lowerBoundE8
+upperBoundE8
+referenceDeviationBps
 validationStatus
-referenceDeviation
 updatedAt
 modelVersion
 ```
+
+The asset remains the mapping key; `referenceId` identifies the reference under test.
 
 The contract must not present itself as a production-grade decentralized oracle guarantee.
 
@@ -512,7 +520,7 @@ The contract must not present itself as a production-grade decentralized oracle 
 - point-in-time historical dataset,
 - independent challenger estimator,
 - uncertainty interval,
-- production-reference validation,
+- reference-under-test validation,
 - basis / residual analysis,
 - external reference comparison,
 - historical replay,
@@ -525,7 +533,7 @@ The contract must not present itself as a production-grade decentralized oracle 
 
 - SPYx or second asset,
 - richer cross-market feature set,
-- multiple production-reference adapters,
+- multiple reference-under-test adapters,
 - alerts / webhooks,
 - configurable validation thresholds,
 - optional borrower-position / liquidation impact simulation.
