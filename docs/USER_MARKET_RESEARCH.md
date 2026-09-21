@@ -1,7 +1,6 @@
 # Valtide — User & Market Research
 
 **Version:** 1.3  
-**Last updated:** 20 Sep 2026  
 **Status:** Public reference
 
 ## 1. Executive Summary
@@ -32,7 +31,7 @@ The implication is important:
 
 > **Valtide should not compete as “another 24/7 stock-price oracle.”**
 
-A more defensible role is an **independent oracle / model-validation layer for tokenized-equity collateral**.
+A more defensible role is an **independent collateral-valuation control layer for tokenized equities on X Layer**.
 
 Valtide uses an independent challenger model to estimate fair value and uncertainty, but the product-level question is broader:
 
@@ -173,7 +172,7 @@ Valtide does not need to make those downstream policy decisions automatically.
 
 ### Primary job to be done
 
-> **When I manage a lending market using tokenized equities as collateral and my reference price becomes stale, uncertain or disagrees with other markets, help me independently determine whether that valuation is still supported by market evidence, so I can decide whether to continue normal operations, investigate the discrepancy or restrict additional risk exposure — and enforce that policy consistently onchain.**
+> **When I manage a lending market using tokenized equities as collateral and my reference price becomes stale, uncertain or disagrees with other markets, help me independently determine whether that valuation is still supported by market evidence, so I can decide whether to continue normal operations, investigate the discrepancy or restrict additional risk exposure — and have the consuming application apply that policy consistently onchain.**
 
 The job has four connected parts:
 
@@ -191,7 +190,7 @@ ACT / GUARD
 How should my own predefined risk policy respond to that evidence?
 ```
 
-Valtide performs validation, diagnosis and triage. The curator or consuming protocol owns the Policy Action. This separates independent evidence from downstream decisions such as `ALLOW`, `MONITOR`, `REQUIRE_REVIEW` or `RESTRICT_NEW_RISK`.
+Valtide performs validation, diagnosis and triage. The curator or consuming protocol owns the Policy Action, and the consumer enforces the resulting action. This separates independent evidence from downstream decisions such as `ALLOW`, `MONITOR`, `REQUIRE_REVIEW` or `RESTRICT_NEW_RISK`.
 
 ---
 
@@ -236,7 +235,7 @@ Public product availability and historical-access terms can vary by index and sh
 Sources:
 
 - [Pyth — Introducing 24/7 Indices](https://www.pyth.network/blog/24-7-finance-needs-24-7-price-infrastructure-introducing-pyth-indices)
-- [Pyth Indices](https://www.pyth.network/blog/24-7-finance-needs-24-7-price-infrastructure-introducing-pyth-indices)
+- [Pyth Indices](https://www.pyth.network/products/pyth-indices)
 - [Pyth — 24/7 Indices Expansion](https://www.pyth.network/blog/pyth-24-7-indices-expansion-amazon-meta-samsung-and-more)
 
 ### 5.3 OKX X-Perps: hybrid off-hours price construction plus controls
@@ -548,7 +547,7 @@ A negative result is preferable to cosmetic differentiation.
 
 Short form:
 
-> **Validate the reference. Understand the evidence. Enforce your own risk policy onchain.**
+> **Validate the reference. Understand the evidence. Apply your own risk policy onchain.**
 
 The central research question is now:
 
@@ -566,7 +565,7 @@ The central research question is now:
 
 ### Continuous pricing / benchmarks
 - [Pyth — Introducing 24/7 Indices](https://www.pyth.network/blog/24-7-finance-needs-24-7-price-infrastructure-introducing-pyth-indices)
-- [Pyth Indices](https://www.pyth.network/blog/24-7-finance-needs-24-7-price-infrastructure-introducing-pyth-indices)
+- [Pyth Indices](https://www.pyth.network/products/pyth-indices)
 - [OKX — How Stock and Commodity X-Perps Work](https://www.okx.com/en-us/help/how-do-stock-and-commodity-x-perps-work)
 - [Chainlink — 24/5 U.S. Equities Streams](https://chain.link/blog/chainlink-24-5-us-equities-streams)
 

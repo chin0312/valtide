@@ -31,7 +31,7 @@ The quantitative challenger fair-value model remains a component of the validati
 
 ## Jobs to be done
 
-> **When I manage a lending market using tokenized equities as collateral and my reference price becomes stale, uncertain or disagrees with other markets, help me independently determine whether that valuation is still supported by market evidence, so I can decide whether to continue normal operations, investigate the discrepancy or restrict additional risk exposure — and enforce that policy consistently onchain.**
+> **When I manage a lending market using tokenized equities as collateral and my reference price becomes stale, uncertain or disagrees with other markets, help me independently determine whether that valuation is still supported by market evidence, so I can decide whether to continue normal operations, investigate the discrepancy or restrict additional risk exposure — and have the consuming application apply that policy consistently onchain.**
 
 The product loop is:
 
@@ -44,9 +44,9 @@ VALIDATE → DIAGNOSE → TRIAGE → GUARD
 - **TRIAGE** — Is the evidence strong enough to support the reference, challenge it, or is the result inconclusive?
 - **GUARD** — How should my own predefined risk policy respond to that evidence?
 
-Valtide performs the first three jobs directly. For the fourth, it provides standardized onchain evidence and policy infrastructure while the curator or protocol defines the actual policy.
+Valtide performs the first three jobs directly. For the fourth, it provides standardized onchain evidence and policy infrastructure while the curator or protocol defines the actual policy. The consumer enforces the resulting action.
 
-> **Valtide determines the evidence state. The curator or protocol determines the policy action.**
+> **Valtide determines the evidence state. The curator or protocol determines the policy action. The consumer enforces the resulting action.**
 
 ## Evidence state and policy action
 
@@ -65,7 +65,7 @@ REQUIRE_REVIEW     require a human or protocol review
 RESTRICT_NEW_RISK  reject or limit additional exposure
 ```
 
-The mapping is configurable. One protocol may map `INCONCLUSIVE` to `MONITOR`; another may map it to `REQUIRE_REVIEW`. Valtide does not prescribe one universal mapping.
+The mapping is configurable and owned by the consuming application for its asset/reference pair. One protocol may map `INCONCLUSIVE` to `MONITOR`; another may map it to `REQUIRE_REVIEW`. Valtide does not prescribe one universal mapping.
 
 ## What Valtide is not
 
@@ -111,6 +111,8 @@ Human interface   → dashboard / historical evidence
 Machine interface → X Layer Registry + Risk Guard
 ```
 
+The Registry exposes the Evidence State, the Risk Guard evaluates the configured Policy Action, and the consumer contract performs the actual enforcement. Valtide does not directly control another protocol.
+
 ## Quantitative hypothesis
 
 Valtide tests whether tokenized-market price discovery and related point-in-time information can provide useful **independent evidence** beyond simple alternatives.
@@ -134,10 +136,10 @@ See [`Valuation Methodology`](./docs/METHODOLOGY.md) for the research design, un
 Primary research / validation asset:
 
 ```text
-NVDAx / NVDA
+NVDAx / NVDA (subject to actual data access)
 ```
 
-Secondary validation asset, if P0 succeeds:
+Secondary validation asset, P1 / stretch:
 
 ```text
 SPYx / SPY
@@ -164,6 +166,34 @@ working reference consumer
 ```
 
 X Layer is a required part of the intended MVP architecture, but these capabilities are not claims that implementation or deployment already exists.
+
+### Submission-critical P0
+
+The submission-critical slice is one complete, defensible vertical path:
+
+```text
+NVDAx / NVDA (or the best-supported fallback)
+        ↓
+one reference under test
+        ↓
+point-in-time market inputs
+        ↓
+simple challenger + uncertainty / abstention
+        ↓
+Evidence State
+        ↓
+Validation Registry → Risk Guard → reference consumer
+        ↓
+focused dashboard showing the same flow
+```
+
+Supporting P0 evidence includes simple baselines, point-in-time correctness, enough historical testing to demonstrate defensibility, and basic model / Evidence State metrics.
+
+### P1 / stretch
+
+Second assets such as SPYx, richer replay and backtest UX, additional comparators, configurable adapters, alerts, position-impact simulation and broader asset coverage should not block the vertical slice.
+
+> **One complete, defensible vertical slice is more important than several partially implemented features.**
 
 ## Architecture overview
 

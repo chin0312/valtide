@@ -1,7 +1,6 @@
 # Valtide — System Architecture
 
 **Version:** 0.3  
-**Last updated:** 20 Sep 2026  
 **Status:** Public architecture reference
 
 ## 1. Architecture Goal
@@ -74,7 +73,7 @@ No future market data may leak into historical inference.
 
 ### 2.5 Thin computation, strong protocol interface
 
-The X Layer contracts are an interoperability and control layer, not a statistical-computation engine, universal LTV engine or production liquidation oracle. The Registry proves that an authorized publisher committed a result at a time; the Risk Guard applies a curator-selected policy to that evidence.
+The X Layer contracts are an interoperability and control layer, not a statistical-computation engine, universal LTV engine or production liquidation oracle. The Registry proves that an authorized publisher committed a result at a time; the Risk Guard evaluates a policy owner-selected mapping for that evidence; the consumer performs enforcement.
 
 ---
 
@@ -116,6 +115,30 @@ Protocol / Vault / Agent Consumer
 Historical replay and backtesting remain offchain and share the same
 normalization, feature-building and validation semantics.
 ```
+
+### 3.1 Submission-critical vertical slice
+
+The intended Build a Market MVP is organized around one complete, defensible path rather than broad partial coverage:
+
+```text
+NVDAx / NVDA (or the best-supported fallback)
+        ↓
+one reference under test
+        ↓
+point-in-time market inputs
+        ↓
+simple challenger + uncertainty / abstention
+        ↓
+Evidence State
+        ↓
+Validation Registry → Risk Guard → reference consumer
+        ↓
+focused dashboard showing the same flow
+```
+
+Submission-critical P0 therefore requires the normalized snapshot, challenger, Evidence State, backend/API path, focused web interface, deployed Registry and Risk Guard, and a working reference-consumer flow on X Layer. Supporting P0 evidence includes simple baselines, point-in-time correctness, enough historical testing to demonstrate methodology, and basic model / Evidence State metrics.
+
+Second assets, multiple reference adapters, rich replay or backtest UX, multiple external comparators, portfolio analytics, position-level simulation, alerts, broad coverage and complex model families are P1 / stretch scope. They should not block the vertical slice.
 
 ---
 
@@ -182,6 +205,8 @@ Potential adapters include:
 - Chainlink market data,
 - Pyth / Pyth Pro,
 - OKX X-Perp reference data where accessible.
+
+The submission-critical path needs one supported asset adapter and one reference-under-test path. Additional adapters are P1 / stretch scope unless they are available without blocking the complete vertical slice.
 
 Each adapter should preserve:
 
@@ -291,7 +316,7 @@ The X Layer control plane consumes an approved offchain validation result. It do
 It consists conceptually of:
 
 - **ValtideValidationRegistry.sol** — stores and exposes auditable validation attestations per asset/reference pair;
-- **ValtideRiskGuard.sol** — maps Evidence State to a Policy Action selected by the curator or consuming protocol; and
+- **ValtideRiskGuard.sol** — evaluates a Policy Action mapping owned by the curator or consuming application; and
 - **DemoCollateralVault.sol** — a reference consumer proving that another X Layer application can consume the control result.
 
 The Registry should commit:
@@ -302,7 +327,17 @@ The Registry should commit:
 - evidence/model provenance,
 - observation, publication and expiry timestamps.
 
-The Risk Guard should expose the result of a configurable policy. Valtide determines the Evidence State; the consuming protocol determines what `ALLOW`, `MONITOR`, `REQUIRE_REVIEW` or `RESTRICT_NEW_RISK` means for its own operations.
+The Risk Guard should expose the result of a configurable policy. Conceptually, each policy is scoped by:
+
+```text
+policy owner / consuming application
+        +
+assetId
+        +
+referenceId
+```
+
+The exact storage layout is an implementation detail. Only the authorized policy owner should be able to create or modify its policy, and one application's policy must not automatically apply to another application. Valtide determines the Evidence State; the policy owner defines the mapping to `ALLOW`, `MONITOR`, `REQUIRE_REVIEW` or `RESTRICT_NEW_RISK`; the Risk Guard evaluates it; and the consumer enforces the resulting action.
 
 ---
 
@@ -385,7 +420,7 @@ For the core challenger-vs-Pyth experiment, Pyth should remain **outside** the c
 
 References:
 
-- [Pyth Indices](https://www.pyth.network/blog/24-7-finance-needs-24-7-price-infrastructure-introducing-pyth-indices)
+- [Pyth Indices](https://www.pyth.network/products/pyth-indices)
 - [Pyth Pro History API](https://docs.pyth.network/price-feeds/pro/api/history)
 
 ### 6.7 OKX X-Perps
@@ -625,6 +660,8 @@ Core UI surfaces:
 
 The UI should preserve disagreement visually instead of collapsing all references into one opaque score.
 
+For submission P0, the focused Validation Overview, Evidence State, Policy Action, Registry / Risk Guard state and reference-consumer flow are the required interface. Historical Replay, Model Evidence / Backtest and richer comparison surfaces remain supporting evidence or P1 / stretch scope.
+
 ---
 
 ## 13. X Layer Control Plane
@@ -710,6 +747,18 @@ struct ValidationPolicy {
 }
 ```
 
+Conceptually, each policy is scoped by:
+
+```text
+policy owner / consuming application
+        +
+assetId
+        +
+referenceId
+```
+
+The exact storage layout is an implementation detail. Only the authorized policy owner should be able to create or modify its policy, and one application's policy must not automatically apply to another application.
+
 A conceptual evaluation interface may resemble:
 
 ```solidity
@@ -734,7 +783,7 @@ Valtide evidence
 protocol policy
 ```
 
-The Risk Guard exposes the result of the policy. The consumer protocol decides how that result affects its own operations.
+The Risk Guard exposes the result of the policy. It does not directly control another protocol. The consumer protocol decides how the returned Policy Action affects its own operations and performs the actual enforcement.
 
 ### 13.3 DemoCollateralVault.sol
 

@@ -1,7 +1,6 @@
 # Valtide — Validation & Valuation Methodology
 
 **Version:** 0.3  
-**Last updated:** 20 Sep 2026  
 **Status:** Public research methodology
 
 ## 1. Objective
@@ -771,7 +770,7 @@ Potential sources include accessible U.S. equity historical data and Chainlink c
 
 ### Constructed / derivative comparators
 
-- [Pyth Indices](https://www.pyth.network/blog/24-7-finance-needs-24-7-price-infrastructure-introducing-pyth-indices)
+- [Pyth Indices](https://www.pyth.network/products/pyth-indices)
 - [Pyth Pro History API](https://docs.pyth.network/price-feeds/pro/api/history)
 - [OKX — Stock and Commodity X-Perps](https://www.okx.com/en-us/help/how-do-stock-and-commodity-x-perps-work)
 
