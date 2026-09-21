@@ -1,6 +1,6 @@
 # Valtide — Validation & Valuation Methodology
 
-**Version:** 0.2  
+**Version:** 0.3  
 **Last updated:** 20 Sep 2026  
 **Status:** Public research methodology
 
@@ -430,36 +430,54 @@ Source dependence should be documented where known.
 
 ---
 
-## 13. Validation Status
+## 13. Evidence State
 
-The product may summarize the result as:
-
-```text
-SUPPORT
-WATCH
-REVIEW
-```
-
-### Example initial policy
-
-A provisional V0 policy may combine:
-
-- standardized reference-under-test deviation,
-- whether `Pt` lies inside the Valtide interval,
-- availability and agreement of external evidence,
-- data-quality / staleness flags.
-
-Illustrative standardized thresholds:
+The validation engine should produce an **Evidence State**, not a policy recommendation:
 
 ```text
-|z_ref| < 1.0          SUPPORT
-1.0 ≤ |z_ref| < 2.0   WATCH
-|z_ref| ≥ 2.0          REVIEW
+SUPPORTED
+INCONCLUSIVE
+CHALLENGED
 ```
 
-These are research defaults, not financial-risk standards.
+### SUPPORTED
 
-They must be calibrated and may change after observing real residual distributions.
+Available independent evidence does not provide a material reason to challenge the reference under test.
+
+This does **not** mean that the reference is proven correct.
+
+Reasonable methodological conditions include:
+
+- the reference lies within an acceptable calibrated evidence range;
+- required evidence-quality conditions are satisfied; and
+- no material independent contradiction is present.
+
+### INCONCLUSIVE
+
+Valtide does not currently have sufficiently strong or consistent evidence to either support or materially challenge the reference under test.
+
+Use this state when, for example:
+
+- model uncertainty is too high;
+- token-market quality is poor;
+- required comparator data are unavailable;
+- independent references disagree materially;
+- data are stale; or
+- the observation is near an unresolved decision boundary.
+
+The ability to abstain is an important property of a credible validation system. It should not be forced into a binary answer when the evidence is weak.
+
+### CHALLENGED
+
+The reference under test is materially inconsistent with sufficiently strong independent evidence.
+
+This does **not** mean that the reference is definitely wrong. It means the evidence is strong enough to justify challenge and downstream investigation under a curator-defined policy.
+
+### Evidence State versus Policy Action
+
+Standardized deviation remains an input, but no single arbitrary z-score threshold should determine the result by itself. Evidence quality, uncertainty, source dependence, staleness and comparator availability also matter.
+
+The quant methodology determines the Evidence State. A curator or consuming protocol maps that state to its own Policy Action, such as `ALLOW`, `MONITOR`, `REQUIRE_REVIEW` or `RESTRICT_NEW_RISK`. Valtide does not prescribe one universal mapping.
 
 ### Reason codes
 
@@ -476,7 +494,7 @@ TOKEN_MARKET_QUALITY_LOW
 COMPARATOR_UNAVAILABLE
 ```
 
-Reason codes make the validation status auditable.
+Reason codes make the Evidence State auditable.
 
 ---
 
@@ -616,15 +634,18 @@ referenceWeak_t = 1
 if |Pt - B| exceeds a predefined / data-calibrated tolerance
 ```
 
-Then evaluate whether Valtide's `WATCH` / `REVIEW` states identified those events.
+Then evaluate whether Valtide's `CHALLENGED` states identified those events without treating `SUPPORTED` as proof that the reference was correct.
 
 Potential metrics:
 
+- decision coverage,
+- abstention / `INCONCLUSIVE` rate,
 - challenge precision,
 - challenge recall,
-- false-positive rate,
-- false-negative rate,
+- false-challenge rate,
+- false-support rate,
 - average later correction following a challenge,
+- performance conditional on non-inconclusive observations,
 - performance by regime.
 
 Thresholds must be defined using training / validation data, not selected after seeing the final test results.
@@ -750,7 +771,7 @@ Potential sources include accessible U.S. equity historical data and Chainlink c
 
 ### Constructed / derivative comparators
 
-- [Pyth Indices](https://www.pyth.network/products/pyth-indices)
+- [Pyth Indices](https://www.pyth.network/blog/24-7-finance-needs-24-7-price-infrastructure-introducing-pyth-indices)
 - [Pyth Pro History API](https://docs.pyth.network/price-feeds/pro/api/history)
 - [OKX — Stock and Commodity X-Perps](https://www.okx.com/en-us/help/how-do-stock-and-commodity-x-perps-work)
 
@@ -774,7 +795,7 @@ Proceed if prediction intervals are reasonably calibrated and not so wide that v
 
 ### Go test C — validation adds information
 
-Proceed if `WATCH` / `REVIEW` states identify meaningful disagreement events with acceptable false-positive behavior.
+Proceed if `CHALLENGED` states identify meaningful disagreement events with acceptable false-challenge behavior, while `INCONCLUSIVE` is used to abstain when evidence quality is insufficient.
 
 ### Stronger evidence
 
@@ -790,7 +811,7 @@ Reconsider the thesis if:
 - data quality is insufficient,
 - raw token price or simple blend consistently dominates,
 - Pyth / OKX references dominate without useful independent residual information,
-- challenge alerts are mostly noise,
+- `CHALLENGED` states are mostly noise or `INCONCLUSIVE` is almost never used when evidence is weak,
 - performance disappears out of sample,
 - intervals cannot be calibrated,
 - a production risk team would not use the evidence.
@@ -833,11 +854,11 @@ Compare with production + external references
         ↓
 Quantify disagreement
         ↓
-SUPPORT / WATCH / REVIEW
+SUPPORTED / INCONCLUSIVE / CHALLENGED
         ↓
 Historical replay and out-of-sample validation
 ```
 
 The key methodological principle is:
 
-> **Valtide does not need to replace the production oracle to be useful. It needs to independently detect when the production valuation is well supported, weakly supported or materially challenged.**
+> **Valtide does not need to replace the production oracle to be useful. It needs to independently determine whether the reference under test is SUPPORTED, INCONCLUSIVE or CHALLENGED, so a curator-defined policy can respond consistently.**

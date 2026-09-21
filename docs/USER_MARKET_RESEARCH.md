@@ -1,6 +1,6 @@
 # Valtide — User & Market Research
 
-**Version:** 1.2  
+**Version:** 1.3  
 **Last updated:** 20 Sep 2026  
 **Status:** Public reference
 
@@ -171,6 +171,28 @@ Relevant decisions may include:
 
 Valtide does not need to make those downstream policy decisions automatically.
 
+### Primary job to be done
+
+> **When I manage a lending market using tokenized equities as collateral and my reference price becomes stale, uncertain or disagrees with other markets, help me independently determine whether that valuation is still supported by market evidence, so I can decide whether to continue normal operations, investigate the discrepancy or restrict additional risk exposure — and enforce that policy consistently onchain.**
+
+The job has four connected parts:
+
+```text
+VALIDATE
+Is the reference I rely on still supported?
+
+DIAGNOSE
+Why are the reference, tokenized market and independent evidence disagreeing?
+
+TRIAGE
+Is the evidence strong enough to support the reference, challenge it, or is the result inconclusive?
+
+ACT / GUARD
+How should my own predefined risk policy respond to that evidence?
+```
+
+Valtide performs validation, diagnosis and triage. The curator or consuming protocol owns the Policy Action. This separates independent evidence from downstream decisions such as `ALLOW`, `MONITOR`, `REQUIRE_REVIEW` or `RESTRICT_NEW_RISK`.
+
 ---
 
 ## 5. Existing Market Infrastructure
@@ -214,7 +236,7 @@ Public product availability and historical-access terms can vary by index and sh
 Sources:
 
 - [Pyth — Introducing 24/7 Indices](https://www.pyth.network/blog/24-7-finance-needs-24-7-price-infrastructure-introducing-pyth-indices)
-- [Pyth Indices](https://www.pyth.network/products/pyth-indices)
+- [Pyth Indices](https://www.pyth.network/blog/24-7-finance-needs-24-7-price-infrastructure-introducing-pyth-indices)
 - [Pyth — 24/7 Indices Expansion](https://www.pyth.network/blog/pyth-24-7-indices-expansion-amazon-meta-samsung-and-more)
 
 ### 5.3 OKX X-Perps: hybrid off-hours price construction plus controls
@@ -284,6 +306,28 @@ Sources:
 - [Morpho — Collateral, LTV & Health](https://docs.morpho.org/developers/borrow/concepts/ltv/)
 - [Morpho — Ondo Case Study](https://morpho.org/stories/ondo)
 
+### 5.6 X Layer RWA and market-data infrastructure
+
+OKX has described Chainlink Data Streams as available on X Layer mainnet for high-speed market data, including 24/5 equities and tokenized-treasury pricing. The same official context identifies collateral valuation and automated risk-management applications as relevant uses.
+
+This matters to Valtide's positioning. X Layer already provides market-data and RWA infrastructure that applications can build on. Valtide adds an independent validation and control layer for those applications:
+
+```text
+X Layer market / RWA infrastructure
+                +
+       Valtide independent evidence
+                ↓
+       configurable policy control
+```
+
+Valtide complements existing data infrastructure rather than replacing Chainlink, Pyth or OKX pricing products. Where technically accessible, a Chainlink equity Data Stream on X Layer may serve as the reference under test, external comparison evidence, or a live ecosystem integration. The benchmark methodology must preserve independence when the stream is being evaluated.
+
+The [OKX Dev Day 2026 Builder Kit](https://www.okx.com/learn/okx-dev-day-builder-kit) also makes working X Layer integration part of the Build a Market context. For Valtide, that supports treating the attestation, policy-evaluation and reference-consumer flow as intended MVP architecture rather than as a separate integration concern. It does not imply that those components are already implemented or deployed.
+
+Source:
+
+- [OKX — Chainlink Data Streams on X Layer](https://web3.okx.com/learn/xlayer-chainlink-data-streams)
+
 ---
 
 ## 6. Competitive Landscape
@@ -308,9 +352,9 @@ Valtide is not claiming that no one validates oracle prices today. The hypothesi
 
 ### 7.1 Independent model-validation, not oracle replacement
 
-A production setup may use a conservative Chainlink-based methodology, a Pyth constructed index, an exchange index, or a custom oracle adapter.
+A production setup may use a conservative Chainlink-based methodology, a Pyth constructed index, an exchange index, or a custom oracle adapter. The generic reference being evaluated is the **reference under test**; a production collateral reference is the preferred real-world instance.
 
-Valtide independently evaluates that production reference against:
+Valtide independently evaluates that reference under test against:
 
 - its own challenger estimate,
 - the tokenized-equity market,
@@ -334,7 +378,7 @@ Tokenized market ───────► VALTIDE ◄────── External
                        $184 – $187
                            │
                            ▼
-                   REFERENCE: REVIEW
+                   EVIDENCE: CHALLENGED
 ```
 
 The challenger model remains important because Valtide needs an independent center of gravity. But the product is no longer “oracle #3.”
@@ -350,11 +394,21 @@ It should expose:
 - reference deviation,
 - token/reference basis,
 - residual token premium/discount,
-- validation status,
+- Evidence State,
 - reason codes,
 - historical calibration evidence.
 
-### 7.3 Cross-source disagreement is a feature, not a nuisance
+### 7.3 Evidence state is not policy action
+
+The validation result is an **Evidence State**, not a policy recommendation:
+
+- **SUPPORTED** — available independent evidence provides no material reason to challenge the reference under test;
+- **INCONCLUSIVE** — evidence is too uncertain, incomplete or inconsistent to support or materially challenge it; or
+- **CHALLENGED** — sufficiently strong independent evidence materially conflicts with it.
+
+The curator or consuming protocol then maps the Evidence State to its own Policy Action. This is the missing link between price information and risk action: Valtide makes evidence usable by policy, but does not decide the universal policy itself.
+
+### 7.4 Cross-source disagreement is a feature, not a nuisance
 
 A particularly valuable event is when:
 
@@ -391,6 +445,13 @@ Possible outcomes include:
 - providing evidence for a new market configuration.
 
 The ultimate policy choice remains with the curator or protocol.
+
+The product therefore has two consumption modes:
+
+- **Human:** a dashboard and historical evidence help a risk team validate, diagnose and triage a valuation;
+- **Machine:** an X Layer attestation and configurable guard allow a protocol, vault or agent to apply its own policy consistently.
+
+The value is not merely another number. It is an auditable bridge from independent evidence to a curator-defined action.
 
 ---
 
@@ -483,15 +544,15 @@ A negative result is preferable to cosmetic differentiation.
 
 ## 13. Current Product Thesis
 
-> **Valtide is an independent oracle and model-validation layer for tokenized-equity collateral. It combines a challenger fair-value model, uncertainty estimates and cross-market evidence to help DeFi risk teams determine whether their production collateral valuation remains supported.**
+> **Valtide is an independent collateral-valuation control layer for tokenized equities on X Layer. It combines a challenger fair-value model, uncertainty estimates and cross-market evidence to help DeFi risk teams determine whether a reference under test is supported, inconclusive or materially challenged, then make that evidence usable by their own policy.**
 
 Short form:
 
-> **Independent validation for tokenized-equity collateral.**
+> **Validate the reference. Understand the evidence. Enforce your own risk policy onchain.**
 
 The central research question is now:
 
-> **When production references, tokenized markets and constructed 24/7 prices disagree, can Valtide identify whether the production valuation is still supported by independent evidence?**
+> **When production references, tokenized markets and constructed 24/7 prices disagree, can Valtide identify the evidence state of the reference under test well enough for a curator-defined policy to act consistently?**
 
 ---
 
@@ -505,7 +566,7 @@ The central research question is now:
 
 ### Continuous pricing / benchmarks
 - [Pyth — Introducing 24/7 Indices](https://www.pyth.network/blog/24-7-finance-needs-24-7-price-infrastructure-introducing-pyth-indices)
-- [Pyth Indices](https://www.pyth.network/products/pyth-indices)
+- [Pyth Indices](https://www.pyth.network/blog/24-7-finance-needs-24-7-price-infrastructure-introducing-pyth-indices)
 - [OKX — How Stock and Commodity X-Perps Work](https://www.okx.com/en-us/help/how-do-stock-and-commodity-x-perps-work)
 - [Chainlink — 24/5 U.S. Equities Streams](https://chain.link/blog/chainlink-24-5-us-equities-streams)
 
