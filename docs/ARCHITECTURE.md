@@ -1,7 +1,6 @@
 # Valtide — System Architecture
 
-**Version:** 0.2  
-**Last updated:** 20 Sep 2026  
+**Version:** 0.3  
 **Status:** Public architecture reference
 
 ## 1. Architecture Goal
@@ -24,9 +23,11 @@ The architecture should remain simple enough for rapid iteration while preservin
 - historical replay / backtesting,
 - API delivery,
 - frontend visualization,
-- optional onchain publication.
+- onchain validation attestation,
+- curator-configured policy evaluation,
+- reference-consumer integration.
 
-The quantitative logic remains offchain. The X Layer contract only publishes a compact approved validation snapshot.
+The quantitative logic remains offchain. X Layer provides a strong protocol interface for attestations, policy evaluation and consumer integration without moving statistical computation onchain.
 
 ---
 
@@ -70,76 +71,74 @@ Historical replay must reconstruct only information that was available at the se
 
 No future market data may leak into historical inference.
 
-### 2.5 Thin onchain layer
+### 2.5 Thin computation, strong protocol interface
 
-The smart contract is an interoperability / publication layer, not a statistical-computation engine and not a production liquidation oracle.
+The X Layer contracts are an interoperability and control layer, not a statistical-computation engine, universal LTV engine or production liquidation oracle. The Registry proves that an authorized publisher committed a result at a time; the Risk Guard evaluates a policy owner-selected mapping for that evidence; the consumer performs enforcement.
 
 ---
 
 ## 3. High-Level Architecture
 
 ```text
-                         DATA SOURCES
-       ┌──────────────────────────────────────────────┐
-       │                                              │
-       │ Tokenized market      Underlying market     │
-       │ OKX / xStocks         Equity references     │
-       │                                              │
-       │ External references / comparators            │
-       │ Pyth / Chainlink / OKX X-Perp / others      │
-       │                                              │
-       └───────────────────┬──────────────────────────┘
-                           │
-                           ▼
-                  ┌──────────────────┐
-                  │ DATA ADAPTERS    │
-                  │ source-specific  │
-                  └────────┬─────────┘
-                           │
-                           ▼
-                  ┌──────────────────┐
-                  │ NORMALIZATION    │
-                  │ time / session   │
-                  │ units / actions  │
-                  │ provenance       │
-                  └────────┬─────────┘
-                           │
-                     Market Snapshot
-                           │
-             ┌─────────────┴─────────────┐
-             │                           │
-             ▼                           ▼
-   ┌──────────────────┐        ┌──────────────────┐
-   │ CHALLENGER MODEL │        │ REFERENCE SET    │
-   │ fair value       │        │ production ref   │
-   │ uncertainty      │        │ Pyth / OKX / etc │
-   └────────┬─────────┘        └────────┬─────────┘
-            │                           │
-            └─────────────┬─────────────┘
-                          ▼
-                 ┌──────────────────┐
-                 │ VALIDATION ENGINE│
-                 │ deviation        │
-                 │ agreement        │
-                 │ status / reasons │
-                 └────────┬─────────┘
-                          │
-                    Validation Result
-                          │
-          ┌───────────────┼────────────────┐
-          ▼               ▼                ▼
-   ┌────────────┐  ┌──────────────┐  ┌──────────────────┐
-   │ API        │  │ Replay /     │  │ X Layer         │
-   │ service    │  │ Backtest     │  │ Validation Feed │
-   └─────┬──────┘  └──────────────┘  └────────┬─────────┘
-         │                                     │
-         └──────────────────┬──────────────────┘
-                            ▼
-                     ┌──────────────┐
-                     │ Next.js Web  │
-                     │ validation UI│
-                     └──────────────┘
+OFFCHAIN VALIDATION PLANE
+
+Market / Reference Data
+          │
+          ▼
+   Data Adapters
+          │
+          ▼
+   Normalization
+          │
+          ▼
+     Quant Engine
+          │
+          ▼
+  Validation Engine
+          │
+          ├──────────────► API / Dashboard
+          │
+          ▼
+ Evidence State + Attestation
+          │
+          ▼
+X LAYER CONTROL PLANE
+
+ValtideValidationRegistry
+          │
+          ▼
+   ValtideRiskGuard
+          │
+          ▼
+Protocol / Vault / Agent Consumer
+
+Historical replay and backtesting remain offchain and share the same
+normalization, feature-building and validation semantics.
 ```
+
+### 3.1 Submission-critical vertical slice
+
+The intended Build a Market MVP is organized around one complete, defensible path rather than broad partial coverage:
+
+```text
+NVDAx / NVDA (or the best-supported fallback)
+        ↓
+one reference under test
+        ↓
+point-in-time market inputs
+        ↓
+simple challenger + uncertainty / abstention
+        ↓
+Evidence State
+        ↓
+Validation Registry → Risk Guard → reference consumer
+        ↓
+focused dashboard showing the same flow
+```
+
+Submission-critical P0 therefore requires the normalized snapshot, challenger, Evidence State, backend/API path, focused web interface, deployed Registry and Risk Guard, and a working reference-consumer flow on X Layer. Supporting P0 evidence includes simple baselines, point-in-time correctness, enough historical testing to demonstrate methodology, and basic model / Evidence State metrics.
+
+Second assets, multiple reference adapters, rich replay or backtest UX, multiple external comparators, portfolio analytics, position-level simulation, alerts, broad coverage and complex model families are P1 / stretch scope. They should not block the vertical slice.
 
 ---
 
@@ -161,8 +160,10 @@ valtide/
 │       └── metrics/
 │
 ├── contracts/
-│   ├── src/
-│   │   └── ValtideValidationFeed.sol
+│   ├── src/                    # intended X Layer control contracts
+│   │   ├── ValtideValidationRegistry.sol
+│   │   ├── ValtideRiskGuard.sol
+│   │   └── DemoCollateralVault.sol
 │   ├── script/
 │   └── test/
 │
@@ -204,6 +205,8 @@ Potential adapters include:
 - Chainlink market data,
 - Pyth / Pyth Pro,
 - OKX X-Perp reference data where accessible.
+
+The submission-critical path needs one supported asset adapter and one reference-under-test path. Additional adapters are P1 / stretch scope unless they are available without blocking the complete vertical slice.
 
 Each adapter should preserve:
 
@@ -290,7 +293,7 @@ Outputs include:
 - reference-under-test deviation,
 - standardized deviation relative to model uncertainty,
 - source agreement / disagreement flags,
-- validation status,
+- Evidence State: `SUPPORTED`, `INCONCLUSIVE` or `CHALLENGED`,
 - reason codes,
 - evidence summary.
 
@@ -305,6 +308,36 @@ Responsibility:
 It must reuse the same feature-building and validation logic used by the live path.
 
 This prevents a separate research pipeline from silently diverging from production inference.
+
+### 5.7 X Layer Control Plane
+
+The X Layer control plane consumes an approved offchain validation result. It does not reproduce the statistical model.
+
+It consists conceptually of:
+
+- **ValtideValidationRegistry.sol** — stores and exposes auditable validation attestations per asset/reference pair;
+- **ValtideRiskGuard.sol** — evaluates a Policy Action mapping owned by the curator or consuming application; and
+- **DemoCollateralVault.sol** — a reference consumer proving that another X Layer application can consume the control result.
+
+The Registry should commit:
+
+- the reference identity and price,
+- challenger fair value and calibrated bounds,
+- Evidence State,
+- evidence/model provenance,
+- observation, publication and expiry timestamps.
+
+The Risk Guard should expose the result of a configurable policy. Conceptually, each policy is scoped by:
+
+```text
+policy owner / consuming application
+        +
+assetId
+        +
+referenceId
+```
+
+The exact storage layout is an implementation detail. Only the authorized policy owner should be able to create or modify its policy, and one application's policy must not automatically apply to another application. Valtide determines the Evidence State; the policy owner defines the mapping to `ALLOW`, `MONITOR`, `REQUIRE_REVIEW` or `RESTRICT_NEW_RISK`; the Risk Guard evaluates it; and the consumer enforces the resulting action.
 
 ---
 
@@ -365,7 +398,17 @@ Reference:
 
 - [Chainlink — 24/5 U.S. Equities Streams](https://chain.link/blog/chainlink-24-5-us-equities-streams)
 
-### 6.5 Pyth
+### 6.5 X Layer ecosystem context
+
+OKX describes Chainlink Data Streams as available on X Layer mainnet for high-speed market data, including 24/5 equities and tokenized-treasury pricing. The same ecosystem context identifies RWA collateral valuation and automated risk-management applications as relevant uses.
+
+Valtide complements this infrastructure. A Chainlink equity Data Stream on X Layer may serve as the reference under test, external comparison evidence, or a live integration where technically accessible, but it must remain outside the independent challenger feature set when it is the benchmark being evaluated.
+
+Reference:
+
+- [OKX — Chainlink Data Streams on X Layer](https://web3.okx.com/learn/xlayer-chainlink-data-streams)
+
+### 6.6 Pyth
 
 Potential uses:
 
@@ -380,7 +423,7 @@ References:
 - [Pyth Indices](https://www.pyth.network/products/pyth-indices)
 - [Pyth Pro History API](https://docs.pyth.network/price-feeds/pro/api/history)
 
-### 6.6 OKX X-Perps
+### 6.7 OKX X-Perps
 
 Potential uses:
 
@@ -487,7 +530,8 @@ challengerEstimate
 externalReferences[]
 referenceDeviation
 standardizedDeviation
-validationStatus
+evidenceState
+evidenceHash
 reasonCodes[]
 evidenceSummary
 ```
@@ -547,9 +591,15 @@ Reference Registry
         ↓
 Validation Engine
         ↓
-Validation Result
+Evidence State + Validation Attestation
         ↓
-API / Web / optional X Layer publish
+API / Web
+        ↓
+X Layer Validation Registry
+        ↓
+X Layer Risk Guard
+        ↓
+Reference Consumer
 ```
 
 The live path and historical replay path should share the same normalization, feature-building and validation code wherever possible.
@@ -568,7 +618,8 @@ The backend is responsible for:
 - exposing Validation Results,
 - historical replay,
 - backtest result delivery,
-- onchain publication workflow.
+- onchain attestation workflow,
+- Risk Guard policy evaluation.
 
 The backend should **not** reimplement model equations or validation thresholds that belong in the quant package.
 
@@ -604,57 +655,181 @@ Core UI surfaces:
 3. **Basis / Residual Analysis**
 4. **Historical Replay**
 5. **Model Evidence / Backtest**
-6. **Onchain Publication State**
+6. **Evidence State / Policy Action**
+7. **X Layer Registry / Risk Guard State**
 
 The UI should preserve disagreement visually instead of collapsing all references into one opaque score.
 
+For submission P0, the focused Validation Overview, Evidence State, Policy Action, Registry / Risk Guard state and reference-consumer flow are the required interface. Historical Replay, Model Evidence / Backtest and richer comparison surfaces remain supporting evidence or P1 / stretch scope.
+
 ---
 
-## 13. X Layer Contract
+## 13. X Layer Control Plane
 
-### Purpose
+The X Layer contracts are a required part of the intended OKX Dev Day Build a Market MVP. They expose auditable validation evidence and configurable policy controls to other X Layer applications without embedding Valtide's statistical model in those applications.
 
-Publish the latest approved validation snapshot in a machine-readable form.
+The principle is:
 
-Recommended contract name:
+> **Thin computation, strong protocol interface.**
 
-```text
-ValtideValidationFeed.sol
-```
+### 13.1 ValtideValidationRegistry.sol
 
-### Conceptual snapshot
+Purpose:
+
+> **Store and expose auditable Valtide validation attestations on X Layer.**
+
+Conceptual state:
 
 ```solidity
-struct ValidationSnapshot {
+enum EvidenceState {
+    SUPPORTED,
+    INCONCLUSIVE,
+    CHALLENGED
+}
+
+struct ValidationAttestation {
     bytes32 referenceId;
     uint256 referencePriceE8;
 
     uint256 fairValueE8;
     uint256 lowerBoundE8;
     uint256 upperBoundE8;
+
     int32 referenceDeviationBps;
-    uint8 validationStatus;
-    uint64 updatedAt;
+    EvidenceState evidenceState;
+
+    bytes32 evidenceHash;
     bytes32 modelVersion;
+
+    uint64 observedAt;
+    uint64 publishedAt;
+    uint64 validUntil;
 }
 ```
 
-### Responsibilities
+The asset may remain the mapping key, so it does not need to be duplicated inside the struct.
 
-The contract should:
+`evidenceHash` commits the attestation to the corresponding offchain evidence, normalized observation and model result. It provides provenance and auditability; it does not make the offchain data objectively correct.
 
-- store the latest snapshot by asset,
-- restrict updates to an authorized publisher,
+`observedAt` is the market timestamp to which the validation refers. `publishedAt` is when the attestation was committed to X Layer. `validUntil` allows consumers to reject stale validations.
+
+The Registry should conceptually:
+
+- store the latest attestation per asset/reference pair,
+- restrict publishing to an authorized Valtide publisher,
 - emit an update event,
 - expose read methods,
-- expose update timestamp / freshness.
+- expose freshness and provenance fields.
 
-The contract should not:
+### 13.2 ValtideRiskGuard.sol
 
-- fetch external data,
-- run statistical inference,
-- automatically change another protocol's risk parameters,
-- trigger liquidation,
+Purpose:
+
+> **Translate Valtide Evidence States into a Policy Action defined by the consuming curator or protocol.**
+
+Conceptual state:
+
+```solidity
+enum PolicyAction {
+    ALLOW,
+    MONITOR,
+    REQUIRE_REVIEW,
+    RESTRICT_NEW_RISK
+}
+
+struct ValidationPolicy {
+    uint64 maxAge;
+
+    PolicyAction onSupported;
+    PolicyAction onInconclusive;
+    PolicyAction onChallenged;
+    PolicyAction onStale;
+}
+```
+
+Conceptually, each policy is scoped by:
+
+```text
+policy owner / consuming application
+        +
+assetId
+        +
+referenceId
+```
+
+The exact storage layout is an implementation detail. Only the authorized policy owner should be able to create or modify its policy, and one application's policy must not automatically apply to another application.
+
+A conceptual evaluation interface may resemble:
+
+```solidity
+function evaluate(
+    bytes32 assetId,
+    bytes32 referenceId
+)
+    external
+    view
+    returns (
+        EvidenceState evidenceState,
+        PolicyAction policyAction,
+        bool fresh
+    );
+```
+
+The exact implementation does not need to be frozen in the documentation. The important boundary is:
+
+```text
+Valtide evidence
+        ≠
+protocol policy
+```
+
+The Risk Guard exposes the result of the policy. It does not directly control another protocol. The consumer protocol decides how the returned Policy Action affects its own operations and performs the actual enforcement.
+
+### 13.3 DemoCollateralVault.sol
+
+The MVP should include a minimal reference consumer demonstrating composability. `DemoCollateralVault.sol` is not a full lending protocol and is not production infrastructure.
+
+Example behavior:
+
+```text
+SUPPORTED
+→ new risk allowed
+
+INCONCLUSIVE
+→ policy may require review
+
+CHALLENGED
+→ policy may restrict new risk
+```
+
+For the demo, prefer restricting **new exposure** rather than automatically liquidating existing borrowers.
+
+### 13.4 Control-plane boundaries
+
+Offchain:
+
+- market-data normalization,
+- feature engineering,
+- challenger estimation,
+- uncertainty calibration,
+- Evidence State generation,
+- historical backtesting.
+
+On X Layer:
+
+- validation attestation,
+- provenance commitment,
+- timestamps and freshness,
+- Evidence State availability,
+- curator-configured Policy Action,
+- consumer-facing risk controls.
+
+The contracts must not:
+
+- calculate the model onchain,
+- control user funds,
+- set universal LTVs,
+- liquidate positions,
 - claim production-oracle guarantees.
 
 ---
@@ -662,17 +837,19 @@ The contract should not:
 ## 14. Publishing Flow
 
 ```text
-Validation Result approved by backend
+Evidence State / Validation Attestation approved by backend
         ↓
 schema + sanity checks
         ↓
 authorized signer
         ↓
-ValtideValidationFeed.sol
+ValtideValidationRegistry.sol
         ↓
 ValidationUpdated event
         ↓
-frontend / external consumer verifies state
+ValtideRiskGuard.sol
+        ↓
+DemoCollateralVault.sol / external consumer evaluates policy
 ```
 
 Private keys must remain server-side and outside source control.
@@ -722,9 +899,9 @@ Return unavailable or degraded validation rather than fabricated precision.
 
 Do not force consensus. Preserve disagreement in the Validation Result.
 
-### Onchain publication failure
+### Onchain attestation or policy-evaluation failure
 
-Offchain validation remains valid. Publication state should be shown separately.
+Offchain validation remains valid, but consumers should treat missing or stale attestations and unavailable policy evaluation as explicit degraded states.
 
 ---
 
@@ -736,6 +913,8 @@ Offchain validation remains valid. Publication state should be shown separately.
 - Schema-validate model output before public delivery or publication.
 - Isolate the contract publisher wallet from user funds.
 - Clearly distinguish market source time from retrieval time.
+- Treat the Registry as provenance and availability infrastructure, not proof that the statistical model is correct.
+- Treat the Risk Guard as a policy interface, not a universal financial-policy engine.
 - Label Valtide as an independent reference / validation system, not a guaranteed liquidation oracle.
 
 ---
@@ -757,7 +936,11 @@ FastAPI backend
       ↓
 X Layer RPC
       ↓
-ValtideValidationFeed.sol
+ValtideValidationRegistry.sol
+      ↓
+ValtideRiskGuard.sol
+      ↓
+DemoCollateralVault.sol / protocol consumer
 ```
 
 This is sufficient if module contracts remain clean.
@@ -769,7 +952,7 @@ If scale or ownership requires it, the following can be independently deployed l
 - data ingestion service,
 - quant inference service,
 - replay / research service,
-- publisher service.
+- attestation / policy service.
 
 No product value depends on using microservices in the MVP.
 
@@ -777,6 +960,6 @@ No product value depends on using microservices in the MVP.
 
 ## 19. Architecture Principle
 
-> **Keep the challenger independent, keep disagreement visible, keep historical replay point-in-time correct, and keep the onchain layer thin.**
+> **Keep the challenger independent, keep disagreement visible, keep historical replay point-in-time correct, and keep the protocol interface strong without moving statistical computation onchain.**
 
 The architecture exists to make Valtide's validation claim auditable—not to maximize engineering complexity.

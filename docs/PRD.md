@@ -1,22 +1,22 @@
 # Valtide — Product Requirements Document
 
-**Version:** 0.4  
-**Last updated:** 20 Sep 2026  
+**Version:** 0.5  
 **Status:** Public working specification
 
 ## 1. Product Summary
 
-Valtide is an **independent oracle / model-validation layer for tokenized-equity collateral**.
+Valtide is an **independent collateral-valuation control layer for tokenized equities on X Layer**.
 
 It gives DeFi curators and lending-protocol risk teams an independent view of whether a production collateral valuation remains supported when traditional, tokenized and constructed references diverge.
 
-Valtide does this through three core capabilities:
+Valtide does this through four connected capabilities:
 
 1. an independent challenger fair-value estimate,
 2. calibrated uncertainty around that estimate,
-3. validation logic that compares the production reference against independent market evidence.
+3. validation logic that produces a standardized Evidence State, and
+4. an X Layer control interface through which a curator-configured policy can consume that evidence.
 
-Valtide is **not** a primary production oracle, lending protocol or automated LTV controller.
+Valtide is **not** a primary production oracle, lending protocol or automated LTV controller. It does not choose a universal policy action or automatically liquidate positions.
 
 Its core product question is:
 
@@ -42,7 +42,27 @@ Representative users include:
 
 ### Core job to be done
 
-> **“Give me an independent, explainable view of fair value, uncertainty and cross-market disagreement so I can validate my current collateral pricing assumptions.”**
+> **“When I manage a lending market using tokenized equities as collateral and my reference price becomes stale, uncertain or disagrees with other markets, help me independently determine whether that valuation is still supported by market evidence, so I can decide whether to continue normal operations, investigate the discrepancy or restrict additional risk exposure — and have the consuming application apply that policy consistently onchain.”**
+
+The product is structured around four jobs:
+
+```text
+VALIDATE
+Is the reference I rely on still supported?
+
+DIAGNOSE
+Why are the reference, tokenized market and independent evidence disagreeing?
+
+TRIAGE
+Is the evidence strong enough to support the reference, challenge it, or is the result inconclusive?
+
+GUARD
+How should my own predefined risk policy respond to that evidence?
+```
+
+Valtide performs the first three jobs directly. For the fourth, Valtide provides standardized onchain evidence and policy infrastructure while the curator or consuming protocol defines the actual policy action. The consumer contract enforces the resulting action.
+
+> **Valtide determines the Evidence State. The curator or protocol determines the Policy Action. The consumer enforces the resulting action.**
 
 ### Relevant workflows
 
@@ -140,9 +160,9 @@ Valtide should expose prediction intervals and calibration evidence.
 
 ### 6.3 Evidence over policy automation
 
-Valtide should show why a reference is supported or challenged.
+Valtide should show why a reference is supported, inconclusive or challenged.
 
-It should not claim to know a universal correct LTV or automatically control protocol parameters.
+It should not claim to know a universal correct LTV or automatically control protocol parameters. The consuming curator or protocol chooses how each Evidence State maps to its own Policy Action.
 
 ### 6.4 Point-in-time correctness
 
@@ -168,6 +188,8 @@ NVDAx is the preferred first research asset because:
 
 Historical Pyth / venue access should be verified before making the benchmark mandatory.
 
+The submission-critical path should use one supported NVDAx / NVDA asset and one selected reference under test. If the required NVDA inputs are not accessible, the team should use the best-supported fallback asset rather than block the complete vertical slice.
+
 ### P1 / fallback — SPYx
 
 SPYx is strategically important because:
@@ -176,6 +198,8 @@ SPYx is strategically important because:
 - the underlying is highly liquid and diversified,
 - OKX supports a SPY X-Perp,
 - it provides a useful lower-idiosyncratic-risk comparison.
+
+SPYx is a P1 expansion, not a prerequisite for the first end-to-end demo.
 
 ### Asset-selection rule
 
@@ -196,6 +220,8 @@ For replay mode, the user selects a historical observation.
 ### Step 2 — Inspect the reference set
 
 Valtide displays the major relevant references separately.
+
+For the submission-critical P0, the flow is centered on one reference under test and the minimum independent evidence required to make the challenger defensible. Additional external comparators are supporting evidence or P1 scope when they are not available without slowing the vertical slice.
 
 Example:
 
@@ -227,10 +253,18 @@ Example:
 ```text
 Reference-under-test deviation    +2.32%
 Standardized deviation              2.4σ
-Validation status                 REVIEW
+Evidence State                  CHALLENGED
 ```
 
-### Step 5 — Explain the disagreement
+### Step 5 — Triage and explain the disagreement
+
+Valtide assigns one Evidence State:
+
+- `SUPPORTED` — available independent evidence does not provide a material reason to challenge the reference under test;
+- `INCONCLUSIVE` — evidence is not sufficiently strong or consistent to support or materially challenge the reference; or
+- `CHALLENGED` — the reference under test is materially inconsistent with sufficiently strong independent evidence.
+
+These are evidence semantics, not action recommendations. Valtide determines the Evidence State. The curator or protocol determines the Policy Action. The consumer enforces the resulting action.
 
 The interface should show:
 
@@ -241,6 +275,8 @@ The interface should show:
 - reference age / market state,
 - uncertainty regime,
 - reason codes.
+
+The human user can then decide whether to continue normal operations, investigate the discrepancy, or restrict additional risk exposure.
 
 ### Step 6 — Historical evidence
 
@@ -282,11 +318,32 @@ The product should expose the following conceptual result fields.
 
 ### Validation result
 
-- `support`,
-- `watch`,
-- `review`,
+- Evidence State: `SUPPORTED`, `INCONCLUSIVE` or `CHALLENGED`,
 - reason codes,
 - optional evidence-agreement indicators.
+
+### Policy interface
+
+Policy Actions are configured by the curator or consuming protocol rather than generated by the quant model. Conceptually, each policy is scoped by:
+
+```text
+policy owner / consuming application
+        +
+assetId
+        +
+referenceId
+```
+
+The exact storage layout is an implementation detail, but only the authorized policy owner should be able to create or modify that application's mapping. One application's policy must not automatically apply to another application. Example actions include:
+
+```text
+ALLOW
+MONITOR
+REQUIRE_REVIEW
+RESTRICT_NEW_RISK
+```
+
+The mapping is configurable. For example, one protocol may map `INCONCLUSIVE` to `MONITOR`, while another may map it to `REQUIRE_REVIEW`. The Risk Guard evaluates the policy; the consuming protocol decides what the returned action does.
 
 ### Important interpretation rule
 
@@ -308,7 +365,8 @@ Immediately answer:
 2. What are the independent market references?
 3. What does Valtide estimate?
 4. How uncertain is the estimate?
-5. Is the reference under test supported or challenged?
+5. What is the Evidence State?
+6. What Policy Action would the configured policy return?
 
 ### View 2 — Reference Comparison
 
@@ -340,54 +398,78 @@ Show:
 - false challenge / missed challenge statistics where available,
 - regime-specific performance.
 
+The dashboard serves the human decision-maker. It should explain the Evidence State and show the configured Policy Action separately rather than presenting the action as a model output.
+
 ---
 
 ## 11. Functional Requirements
 
 ### P0 — Data
 
-- ingest tokenized-equity price history,
-- ingest underlying equity/reference history,
+- ingest the real or reproducible point-in-time inputs needed for one primary asset,
+- ingest the selected reference under test and the underlying equity/reference history,
 - normalize timestamps and sessions,
 - preserve source provenance,
 - account for corporate actions / token multipliers where necessary,
-- ingest at least one independent external constructed or derivative reference where accessible,
-- support historical replay without look-ahead leakage.
+- construct a normalized market snapshot for the demo.
 
 ### P0 — Quant
 
-- implement naive baselines,
-- implement an independent challenger estimator,
-- generate calibrated uncertainty intervals,
-- compute basis / residual analysis,
-- compute reference deviation and validation status,
-- run walk-forward evaluation,
+- implement simple baselines and an independent challenger estimator,
+- generate defensible calibrated uncertainty and explicit abstention,
+- compute reference deviation and Evidence State,
+- abstain with `INCONCLUSIVE` when evidence quality or uncertainty is insufficient,
 - expose model/version metadata.
 
 ### P0 — Backend
 
 - provide normalized market snapshots to the quant layer,
-- expose current valuation / validation results,
-- expose historical replay,
-- expose backtest metrics,
-- support publication of an approved validation snapshot to X Layer.
+- expose the current valuation / validation result required by the demo,
+- support publication of an approved validation attestation to X Layer,
+- expose configured Policy Action evaluation separately from the Evidence State.
 
 Exact service boundaries and API shapes are implementation contracts and may evolve as long as the public product semantics remain stable.
 
 ### P0 — Frontend
 
-- Validation Overview,
-- Reference Comparison,
-- Basis Analysis,
-- Historical Replay,
-- Model Evidence,
-- Onchain publication status.
+- a focused Validation Overview showing the selected asset, reference under test, evidence, uncertainty and Evidence State,
+- the configured Policy Action and X Layer Registry / Risk Guard status,
+- the same end-to-end flow demonstrated by the reference consumer.
+
+### Supporting P0 evidence
+
+The quant team should still provide enough research evidence to defend the vertical slice:
+
+- simple baseline comparisons,
+- point-in-time-correct validation,
+- enough historical testing to demonstrate methodology,
+- basic model and Evidence State metrics.
+
+Full historical replay UX, rich backtest dashboards and multiple external comparators are not submission blockers.
 
 ### P0 — X Layer
 
-Deploy a minimal contract that publishes the latest approved Valtide validation snapshot.
+The intended MVP requires an onchain control flow from validation through policy evaluation and a working consumer:
 
-The contract is a machine-readable reference layer, not a production liquidation oracle.
+```text
+offchain validation
+        ↓
+onchain validation attestation
+        ↓
+onchain policy evaluation
+        ↓
+working consumer flow
+```
+
+P0 includes:
+
+- `ValtideValidationRegistry.sol` for auditable validation attestations;
+- `ValtideRiskGuard.sol` for curator-configured Policy Action evaluation; and
+- a minimal `DemoCollateralVault.sol` reference consumer demonstrating composability.
+
+The intended submission path includes deployment of these contracts on X Layer and a working attestation → policy → consumer flow. The documentation does not claim that deployment has already happened.
+
+The contracts are a machine-readable control layer, not a production liquidation oracle or lending protocol.
 
 ---
 
@@ -413,18 +495,20 @@ The MVP will not:
 
 ### Required reference baselines
 
-At minimum:
+At minimum for the submission-critical slice:
 
-1. last trusted underlying / stale reference,
-2. raw tokenized-equity price,
-3. simple statistical blend,
-4. Valtide challenger estimate.
+1. one selected reference under test, preferably the production collateral reference,
+2. last trusted underlying / stale reference,
+3. raw tokenized-equity price,
+4. simple statistical blend,
+5. Valtide challenger estimate.
 
-Where data access allows:
+Supporting or P1 comparisons, where data access allows:
 
-5. Pyth 24/7 constructed index,
-6. OKX X-Perp Index / Mark reference or another relevant continuous benchmark,
-7. reference under test, preferably the production collateral reference.
+6. Pyth 24/7 constructed index,
+7. OKX X-Perp Index / Mark reference or another relevant continuous benchmark.
+
+The first four baselines are sufficient to support the submission-critical slice. Pyth, OKX and other additional references should not block the end-to-end demo.
 
 ### Ex-post benchmark
 
@@ -458,7 +542,7 @@ Stronger evidence:
 
 - Valtide is competitive with strong constructed references in defined regimes,
 - or it provides useful independent disagreement signals even when another reference has similar point accuracy,
-- validation alerts identify genuinely weak production-reference periods with acceptable false-positive rates.
+- Evidence State challenges identify genuinely weak production-reference periods with acceptable false-challenge rates.
 
 ### Product success
 
@@ -468,14 +552,19 @@ A risk professional should be able to understand:
 - what independent sources say,
 - what Valtide says,
 - how uncertain Valtide is,
-- why the status is `support`, `watch` or `review`,
+- why the Evidence State is `SUPPORTED`, `INCONCLUSIVE` or `CHALLENGED`,
+- what Policy Action the configured policy returns,
 - how the methodology performed historically.
 
 ---
 
 ## 15. Onchain Role
 
-The onchain component exists to make an approved Valtide validation snapshot machine-readable on X Layer.
+The onchain component is a required part of the intended OKX Dev Day Build a Market MVP. It turns an approved offchain validation result into an auditable Evidence State and evaluates a Policy Action configured by the curator or consuming protocol.
+
+The principle is:
+
+> **Thin computation, strong protocol interface.**
 
 Conceptual flow:
 
@@ -486,12 +575,26 @@ Valtide challenger + validation engine
         ↓
 Backend publisher
         ↓
-ValtideValidationFeed.sol
+ValtideValidationRegistry.sol
         ↓
-protocol / curator / agent can read
+ValtideRiskGuard.sol
+        ↓
+DemoCollateralVault.sol / protocol / curator / agent
 ```
 
-Minimum published state:
+### Evidence State
+
+The Registry stores one of:
+
+```text
+SUPPORTED
+INCONCLUSIVE
+CHALLENGED
+```
+
+These are evidence semantics, not policy recommendations. Valtide determines the Evidence State. The policy owner defines the Policy Action mapping. The consumer enforces the resulting action.
+
+### Minimum published state
 
 ```text
 asset
@@ -501,50 +604,129 @@ fairValueE8
 lowerBoundE8
 upperBoundE8
 referenceDeviationBps
-validationStatus
-updatedAt
+evidenceState
+evidenceHash
 modelVersion
+observedAt
+publishedAt
+validUntil
 ```
 
-The asset remains the mapping key; `referenceId` identifies the reference under test.
+The asset remains the mapping key; `referenceId` identifies the reference under test. `evidenceHash` commits the attestation to the corresponding offchain evidence, normalized observation and model result without claiming that a hash makes the offchain data objectively correct.
 
-The contract must not present itself as a production-grade decentralized oracle guarantee.
+### Policy Action
+
+The Risk Guard evaluates a policy owned by the consuming application. Conceptually, the policy is scoped by:
+
+```text
+policy owner / consuming application
+        +
+assetId
+        +
+referenceId
+```
+
+The exact storage layout is an implementation detail. Only the authorized policy owner should be able to create or modify its mapping, and one application's policy must not automatically apply to another application. The mapping may be:
+
+```text
+Evidence State       Example protocol policy
+------------------------------------------------
+SUPPORTED            ALLOW
+INCONCLUSIVE         REQUIRE_REVIEW
+CHALLENGED           RESTRICT_NEW_RISK
+STALE ATTESTATION    REQUIRE_REVIEW
+```
+
+Another protocol may choose `INCONCLUSIVE → MONITOR`. No single mapping is universal.
+
+Valtide publishes the Evidence State, the policy owner defines the mapping, the Risk Guard evaluates it, and the consuming protocol decides how to enforce the returned Policy Action.
+
+### Conceptual consumers
+
+`DemoCollateralVault.sol` is a reference consumer demonstrating that an X Layer application can read the Registry and Risk Guard without embedding Valtide's statistical model. Its intended demo behavior is:
+
+```text
+SUPPORTED
+→ new risk allowed
+
+INCONCLUSIVE
+→ policy may require review
+
+CHALLENGED
+→ policy may restrict new risk
+```
+
+The demo consumer is not a production protocol. The MVP should prefer restricting new exposure over automatically liquidating existing borrowers.
+
+### Boundaries
+
+Offchain components perform:
+
+- market-data normalization,
+- feature engineering,
+- challenger estimation,
+- uncertainty calibration,
+- Evidence State generation,
+- historical backtesting.
+
+X Layer components provide:
+
+- validation attestation,
+- provenance commitment,
+- timestamps and freshness,
+- Evidence State availability,
+- curator-configured Policy Action evaluation,
+- consumer-facing risk controls.
+
+The contract layer must not:
+
+- calculate the model onchain,
+- control user funds,
+- set universal LTVs,
+- liquidate positions,
+- claim production-oracle guarantees.
 
 ---
 
 ## 16. Priority Scope
 
-### P0 — Ship
+One complete, defensible vertical slice is more important than several partially implemented features.
 
-- one primary asset with reliable data,
-- point-in-time historical dataset,
-- independent challenger estimator,
-- uncertainty interval,
-- reference-under-test validation,
-- basis / residual analysis,
-- external reference comparison,
-- historical replay,
-- backtest / validation evidence,
-- API,
-- focused web interface,
-- minimal X Layer validation-feed contract.
+### Submission-critical P0
 
-### P1 — After P0 works
+- one primary asset: NVDAx / NVDA, subject to actual data access;
+- one reference under test;
+- real or reproducible point-in-time market inputs;
+- a simple independent challenger estimator;
+- defensible uncertainty and abstention logic;
+- Evidence State generation;
+- the backend/API path required by the demo;
+- a focused frontend demonstration;
+- X Layer `ValtideValidationRegistry.sol`;
+- X Layer `ValtideRiskGuard.sol`;
+- a minimal `DemoCollateralVault.sol` or equivalent reference consumer;
+- deployed X Layer contracts and a working attestation → policy → consumer flow.
 
-- SPYx or second asset,
-- richer cross-market feature set,
-- multiple reference-under-test adapters,
-- alerts / webhooks,
-- configurable validation thresholds,
-- optional borrower-position / liquidation impact simulation.
+### Supporting P0 evidence
 
-### P2 — Stretch
+- simple baselines;
+- point-in-time-correct validation;
+- enough historical testing to demonstrate methodology;
+- basic model and Evidence State metrics.
 
-- portfolio-level validation,
-- protocol-specific adapters,
-- scheduled onchain publication,
-- MCP / agent access,
-- broader tokenized-security coverage.
+Historical validation remains important, but a full research platform is not required before the end-to-end X Layer demo works.
+
+### P1 / stretch
+
+- SPYx or a second asset;
+- richer historical replay and backtest UX;
+- richer cross-market features and multiple external comparators;
+- multiple reference-under-test adapters;
+- alerts / webhooks;
+- configurable validation thresholds;
+- position-level or liquidation-impact simulation;
+- protocol-wide portfolio analytics;
+- broader asset coverage and complex model families.
 
 ---
 
@@ -568,11 +750,11 @@ Tokenized-equity markets are new.
 
 **Response:** keep the model simple, use walk-forward testing, report sample limitations and prioritize reproducibility.
 
-### Validation may create noisy alerts
+### Evidence states may be noisy or too often inconclusive
 
-A challenger that flags everything is useless.
+A validation system that challenges everything or abstains from everything is useless.
 
-**Response:** evaluate false positives, missed challenges and regime-specific performance.
+**Response:** evaluate decision coverage, abstention rate, false challenges, false support and regime-specific performance.
 
 ### The product may drift into generic risk analytics
 
@@ -586,19 +768,19 @@ Protocol exposure simulation is attractive but overlaps with mature incumbents.
 
 ### Public positioning
 
-> **Valtide is an independent oracle and model-validation layer for tokenized-equity collateral, helping DeFi risk teams determine whether production collateral valuations remain supported when traditional, tokenized and constructed markets diverge.**
+> **Valtide is an independent collateral-valuation control layer for tokenized equities on X Layer, helping DeFi risk teams determine whether a reference under test is supported, inconclusive or materially challenged when traditional, tokenized and constructed markets diverge.**
 
 ### Short pitch
 
-> **Independent validation for tokenized-equity collateral.**
+> **Validate the reference. Understand the evidence. Apply your own risk policy onchain.**
 
 ### Technical thesis
 
-> **Use an independent challenger model and calibrated uncertainty to turn cross-market price disagreement into an auditable validation signal.**
+> **Use an independent challenger model and calibrated uncertainty to turn cross-market price disagreement into an auditable Evidence State and configurable X Layer control.**
 
 ### What Valtide is not
 
-> **Not another 24/7 stock oracle. Not a universal LTV engine. Not another lending protocol.**
+> **Not another 24/7 stock oracle. Not a universal LTV engine. Not another lending protocol. Not an automatic liquidation engine.**
 
 ---
 
