@@ -1,4 +1,4 @@
-from .schemas import MarketSnapshot, ValuationResult
+from .schemas import MarketSnapshot, QuantEstimate
 from .service import QuantService
 from .runtime import FilterState, StateGapError
-__all__=["MarketSnapshot","ValuationResult","QuantService","FilterState","StateGapError"]
+__all__=["MarketSnapshot","QuantEstimate","QuantService","FilterState","StateGapError"]

@@ -1,6 +1,8 @@
-# Valtide Quant Service — P1a-C
+# Valtide Quant Package — P1a-C
 
-This package contains the **actual trained P1a-C deployment artifacts** and a Python runtime suitable for the Valtide FastAPI backend.
+This package owns **independent challenger estimation and uncertainty only**. It contains the actual trained P1a-C deployment artifacts and a sequential Python runtime that can be imported by the Valtide backend.
+
+It does not determine whether a reference under test is supported or challenged, assign an Evidence State, return a Policy Action, or expose a separate HTTP service. Those responsibilities belong to `apps/api`.
 
 ## Included trained artifacts
 
@@ -17,15 +19,31 @@ This package contains the **actual trained P1a-C deployment artifacts** and a Py
 - afterhours: `1.0122`
 - global fallback: `1.3450`
 
-Closed and overnight use the global fallback because contemporaneous NVDA labels are unavailable in those regimes.
+Closed/overnight intervals use the selected global fallback because contemporaneous NVDA labels are unavailable in those regimes; direct latent-state coverage in those regimes is not observable from this evaluation.
 
 The package also includes the completed calibration report and test interval metrics under `evidence/`.
 
 ## Independence
 
-The numerical fair value and interval do **not** use Pyth or another constructed estimator. An optional external comparator may be carried in the API response for display/comparison, but it cannot change `valtideFairValue`, interval bounds, or Kalman state.
+The numerical fair value and interval do **not** use Pyth or another constructed estimator. Optional external or reference-under-test fields may remain on `MarketSnapshot` for backend diagnostics, but they cannot change the challenger estimate, interval bounds, or carried Kalman state.
 
-The primary `challengeStatus` is computed against the last trusted underlying reference. A separate optional `externalComparatorStatus` is returned for Pyth/other comparators.
+The backend selects the reference under test and determines the product Evidence State. The quant package returns only quantitative output.
+
+## Architecture boundary
+
+```text
+MarketSnapshot
+      ↓
+P1a-C Quant Runtime
+      ↓
+Quant Estimate
+      ↓
+apps/api backend validation
+      ↓
+SUPPORTED / INCONCLUSIVE / CHALLENGED
+```
+
+`QuantEstimate` contains fair value, calibrated interval bounds, uncertainty, calibration metadata, model metadata and carried state. `apps/api` compares that estimate with the selected reference under test and owns the Evidence State.
 
 ## Causal update order
 
@@ -43,7 +61,7 @@ only then assimilate current NVDA (if available)
 carry state to next timestamp
 ```
 
-Thus current NVDA cannot leak into the challenger quote it is used to evaluate.
+Thus current NVDA cannot leak into the challenger quote it is used to evaluate. External comparator fields cannot alter the fair value, interval or carried state.
 
 ## Quick start
 
@@ -77,8 +95,8 @@ print(result.to_dict())
 
 ## Backend integration
 
-The scheduler/data coordinator should call `QuantService.update(snapshot)` exactly once per canonical 5-minute timestamp and store the returned `ValuationResult`.
+The scheduler/data coordinator should call `QuantService.update(snapshot)` exactly once per canonical 5-minute timestamp and pass the returned `QuantEstimate` to `apps/api` validation.
 
-`GET /api/valuation/{asset}` must be read-only and should return the cached result rather than advancing the filter.
+The canonical HTTP/API layer is `apps/api`; this package does not provide a second FastAPI application. Backend endpoints should be read-only when returning cached estimates and must not advance the filter implicitly.
 
 If the service restarts, either restore a saved `FilterState` or warm-start from a short ordered sequence of recent canonical snapshots.
