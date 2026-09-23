@@ -51,16 +51,22 @@ Action mapping. The consumer enforces the resulting action.
   evidence payload, such as the normalized observation and model result. It
   links the onchain attestation to provenance; it does not prove that the
   offchain evidence is objectively correct.
-- `observedAt` is the market timestamp being validated, `publishedAt` is set
-  by the Registry at publication time, and `validUntil` bounds Registry
-  freshness.
+- Callers submit `ValidationInput`, which contains the canonical validation
+  fields but no `publishedAt`. The Registry constructs the stored
+  `ValidationAttestation` and sets `publishedAt` to its own `block.timestamp`.
+- `observedAt` is the market timestamp being validated and `validUntil` bounds
+  Registry freshness. An existing pair cannot be overwritten by an older
+  `observedAt`; equal timestamps are allowed for retries or corrections.
 
 Registry freshness requires an existing attestation and
 `block.timestamp <= validUntil`. Risk Guard freshness additionally applies
 the policy owner's `maxAge` to `observedAt`, so a late publication cannot make
-an old market observation fresh. A missing attestation is returned as a safe
-`INCONCLUSIVE` sentinel with `fresh == false` and the policy's `onStale`
-action; it is never treated as default `SUPPORTED`.
+an old market observation fresh. `evaluate` and `evaluateFor` return
+`(evidenceState, policyAction, exists, fresh)`. A missing attestation has
+`exists == false`, `fresh == false`, and the policy's `onStale` action; its
+`INCONCLUSIVE` Evidence State is only an ABI-safe sentinel, not a published
+attestation. Existing stale attestations have `exists == true`, preserve their
+attested Evidence State, and return `fresh == false`.
 
 ## Local development
 
@@ -99,7 +105,8 @@ forge script script/DeployValtide.s.sol:DeployValtide \
 ```
 
 The intended first deployment target is X Layer testnet (chain ID `1952`).
-No deployment is claimed by this repository change.
+The deployment script rejects every other chain ID before broadcasting. No
+deployment is claimed by this repository change.
 
 `DemoCollateralVault` is a reference consumer for the hackathon vertical
 slice, not a production lending protocol or financial product.

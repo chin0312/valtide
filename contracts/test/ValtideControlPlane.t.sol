@@ -50,7 +50,7 @@ contract ValtideControlPlaneTest is Test {
     // ---------------------------------------------------------------------
 
     function testOnlyAuthorizedPublisherCanPublish() public {
-        ValtideValidationRegistry.ValidationAttestation memory attestation = _attestation(
+        ValtideValidationRegistry.ValidationInput memory attestation = _attestation(
             ValtideValidationRegistry.EvidenceState.SUPPORTED, block.timestamp - 60, block.timestamp + 900
         );
 
@@ -63,7 +63,7 @@ contract ValtideControlPlaneTest is Test {
     }
 
     function testOwnerCanAuthorizeAndRevokePublisher() public {
-        ValtideValidationRegistry.ValidationAttestation memory attestation = _attestation(
+        ValtideValidationRegistry.ValidationInput memory attestation = _attestation(
             ValtideValidationRegistry.EvidenceState.SUPPORTED, block.timestamp - 60, block.timestamp + 900
         );
 
@@ -86,7 +86,7 @@ contract ValtideControlPlaneTest is Test {
     function testPublishedAttestationIsRetrievableAndFresh() public {
         uint64 observedAt = uint64(block.timestamp - 60);
         uint64 validUntil = uint64(block.timestamp + 900);
-        ValtideValidationRegistry.ValidationAttestation memory attestation =
+        ValtideValidationRegistry.ValidationInput memory attestation =
             _attestation(ValtideValidationRegistry.EvidenceState.INCONCLUSIVE, observedAt, validUntil);
 
         vm.prank(publisher);
@@ -107,7 +107,7 @@ contract ValtideControlPlaneTest is Test {
     function testPublishingReplacesOnlyTheMatchingAssetReferencePair() public {
         _publish(ValtideValidationRegistry.EvidenceState.SUPPORTED);
 
-        ValtideValidationRegistry.ValidationAttestation memory other = _attestation(
+        ValtideValidationRegistry.ValidationInput memory other = _attestation(
             ValtideValidationRegistry.EvidenceState.CHALLENGED, block.timestamp - 60, block.timestamp + 900
         );
         other.referenceId = OTHER_REFERENCE_ID;
@@ -138,7 +138,7 @@ contract ValtideControlPlaneTest is Test {
     }
 
     function testRegistryRejectsInvalidStructure() public {
-        ValtideValidationRegistry.ValidationAttestation memory attestation = _attestation(
+        ValtideValidationRegistry.ValidationInput memory attestation = _attestation(
             ValtideValidationRegistry.EvidenceState.SUPPORTED, block.timestamp - 60, block.timestamp + 900
         );
 
@@ -170,6 +170,67 @@ contract ValtideControlPlaneTest is Test {
         attestation.validUntil = attestation.observedAt;
         vm.expectRevert(ValtideValidationRegistry.InvalidValidityWindow.selector);
         _publishInput(ASSET_ID, attestation);
+    }
+
+    function testRegistryRejectsOlderObservationForSamePair() public {
+        uint64 newerObservedAt = uint64(block.timestamp - 50);
+        uint64 olderObservedAt = uint64(block.timestamp - 60);
+
+        _publishInput(
+            ASSET_ID,
+            _attestation(ValtideValidationRegistry.EvidenceState.SUPPORTED, newerObservedAt, block.timestamp + 900)
+        );
+
+        vm.expectRevert(
+            abi.encodeWithSelector(
+                ValtideValidationRegistry.ObservationRollback.selector, newerObservedAt, olderObservedAt
+            )
+        );
+        _publishInput(
+            ASSET_ID,
+            _attestation(ValtideValidationRegistry.EvidenceState.CHALLENGED, olderObservedAt, block.timestamp + 900)
+        );
+    }
+
+    function testRegistryAllowsEqualObservationTimestampReplacement() public {
+        uint64 observedAt = uint64(block.timestamp - 60);
+        _publishInput(
+            ASSET_ID, _attestation(ValtideValidationRegistry.EvidenceState.SUPPORTED, observedAt, block.timestamp + 900)
+        );
+
+        ValtideValidationRegistry.ValidationInput memory replacement =
+            _attestation(ValtideValidationRegistry.EvidenceState.CHALLENGED, observedAt, block.timestamp + 900);
+        replacement.evidenceHash = keccak256(bytes("replacement-evidence"));
+
+        _publishInput(ASSET_ID, replacement);
+
+        (ValtideValidationRegistry.ValidationAttestation memory stored, bool exists) =
+            registry.getLatest(ASSET_ID, REFERENCE_ID);
+        assertTrue(exists);
+        assertEq(uint8(stored.evidenceState), uint8(ValtideValidationRegistry.EvidenceState.CHALLENGED));
+        assertEq(stored.evidenceHash, replacement.evidenceHash);
+        assertEq(stored.observedAt, observedAt);
+    }
+
+    function testRegistryRollbackProtectionDoesNotCrossReferencePairs() public {
+        uint64 newerObservedAt = uint64(block.timestamp - 50);
+        uint64 olderObservedAt = uint64(block.timestamp - 60);
+
+        _publishInput(
+            ASSET_ID,
+            _attestation(ValtideValidationRegistry.EvidenceState.SUPPORTED, newerObservedAt, block.timestamp + 900)
+        );
+
+        ValtideValidationRegistry.ValidationInput memory otherPair =
+            _attestation(ValtideValidationRegistry.EvidenceState.INCONCLUSIVE, olderObservedAt, block.timestamp + 900);
+        otherPair.referenceId = OTHER_REFERENCE_ID;
+        _publishInput(ASSET_ID, otherPair);
+
+        (ValtideValidationRegistry.ValidationAttestation memory stored, bool exists) =
+            registry.getLatest(ASSET_ID, OTHER_REFERENCE_ID);
+        assertTrue(exists);
+        assertEq(stored.observedAt, olderObservedAt);
+        assertEq(uint8(stored.evidenceState), uint8(ValtideValidationRegistry.EvidenceState.INCONCLUSIVE));
     }
 
     // ---------------------------------------------------------------------
@@ -204,13 +265,15 @@ contract ValtideControlPlaneTest is Test {
 
         _publish(ValtideValidationRegistry.EvidenceState.SUPPORTED);
 
-        (, ValtideRiskGuard.PolicyAction actionA, bool freshA) =
+        (, ValtideRiskGuard.PolicyAction actionA, bool existsA, bool freshA) =
             riskGuard.evaluateFor(policyOwnerA, ASSET_ID, REFERENCE_ID);
-        (, ValtideRiskGuard.PolicyAction actionB, bool freshB) =
+        (, ValtideRiskGuard.PolicyAction actionB, bool existsB, bool freshB) =
             riskGuard.evaluateFor(policyOwnerB, ASSET_ID, REFERENCE_ID);
 
         assertEq(uint8(actionA), uint8(ValtideRiskGuard.PolicyAction.ALLOW));
         assertEq(uint8(actionB), uint8(ValtideRiskGuard.PolicyAction.MONITOR));
+        assertTrue(existsA);
+        assertTrue(existsB);
         assertTrue(freshA);
         assertTrue(freshB);
     }
@@ -230,18 +293,25 @@ contract ValtideControlPlaneTest is Test {
         );
 
         _publish(ValtideValidationRegistry.EvidenceState.SUPPORTED);
-        (, ValtideRiskGuard.PolicyAction supportedAction,) = riskGuard.evaluateFor(policyOwnerA, ASSET_ID, REFERENCE_ID);
+        (, ValtideRiskGuard.PolicyAction supportedAction, bool supportedExists, bool supportedFresh) =
+            riskGuard.evaluateFor(policyOwnerA, ASSET_ID, REFERENCE_ID);
         assertEq(uint8(supportedAction), uint8(ValtideRiskGuard.PolicyAction.ALLOW));
+        assertTrue(supportedExists);
+        assertTrue(supportedFresh);
 
         _publish(ValtideValidationRegistry.EvidenceState.INCONCLUSIVE);
-        (, ValtideRiskGuard.PolicyAction inconclusiveAction,) =
+        (, ValtideRiskGuard.PolicyAction inconclusiveAction, bool inconclusiveExists, bool inconclusiveFresh) =
             riskGuard.evaluateFor(policyOwnerA, ASSET_ID, REFERENCE_ID);
         assertEq(uint8(inconclusiveAction), uint8(ValtideRiskGuard.PolicyAction.MONITOR));
+        assertTrue(inconclusiveExists);
+        assertTrue(inconclusiveFresh);
 
         _publish(ValtideValidationRegistry.EvidenceState.CHALLENGED);
-        (, ValtideRiskGuard.PolicyAction challengedAction,) =
+        (, ValtideRiskGuard.PolicyAction challengedAction, bool challengedExists, bool challengedFresh) =
             riskGuard.evaluateFor(policyOwnerA, ASSET_ID, REFERENCE_ID);
         assertEq(uint8(challengedAction), uint8(ValtideRiskGuard.PolicyAction.RESTRICT_NEW_RISK));
+        assertTrue(challengedExists);
+        assertTrue(challengedFresh);
     }
 
     function testRegistryValidityMakesEvidenceStale() public {
@@ -262,11 +332,16 @@ contract ValtideControlPlaneTest is Test {
         );
 
         vm.warp(block.timestamp + 61);
-        (ValtideValidationRegistry.EvidenceState evidenceState, ValtideRiskGuard.PolicyAction action, bool fresh) =
-            riskGuard.evaluateFor(policyOwnerA, ASSET_ID, REFERENCE_ID);
+        (
+            ValtideValidationRegistry.EvidenceState evidenceState,
+            ValtideRiskGuard.PolicyAction action,
+            bool exists,
+            bool fresh
+        ) = riskGuard.evaluateFor(policyOwnerA, ASSET_ID, REFERENCE_ID);
 
         assertEq(uint8(evidenceState), uint8(ValtideValidationRegistry.EvidenceState.CHALLENGED));
         assertEq(uint8(action), uint8(ValtideRiskGuard.PolicyAction.REQUIRE_REVIEW));
+        assertTrue(exists);
         assertFalse(fresh);
     }
 
@@ -288,10 +363,11 @@ contract ValtideControlPlaneTest is Test {
         );
 
         assertTrue(registry.isFresh(ASSET_ID, REFERENCE_ID));
-        (, ValtideRiskGuard.PolicyAction action, bool fresh) =
+        (, ValtideRiskGuard.PolicyAction action, bool exists, bool fresh) =
             riskGuard.evaluateFor(policyOwnerA, ASSET_ID, REFERENCE_ID);
 
         assertEq(uint8(action), uint8(ValtideRiskGuard.PolicyAction.REQUIRE_REVIEW));
+        assertTrue(exists);
         assertFalse(fresh);
     }
 
@@ -309,11 +385,16 @@ contract ValtideControlPlaneTest is Test {
             )
         );
 
-        (ValtideValidationRegistry.EvidenceState evidenceState, ValtideRiskGuard.PolicyAction action, bool fresh) =
-            riskGuard.evaluateFor(policyOwnerA, ASSET_ID, OTHER_REFERENCE_ID);
+        (
+            ValtideValidationRegistry.EvidenceState evidenceState,
+            ValtideRiskGuard.PolicyAction action,
+            bool exists,
+            bool fresh
+        ) = riskGuard.evaluateFor(policyOwnerA, ASSET_ID, OTHER_REFERENCE_ID);
 
         assertEq(uint8(evidenceState), uint8(ValtideValidationRegistry.EvidenceState.INCONCLUSIVE));
         assertEq(uint8(action), uint8(ValtideRiskGuard.PolicyAction.REQUIRE_REVIEW));
+        assertFalse(exists);
         assertFalse(fresh);
     }
 
@@ -337,6 +418,20 @@ contract ValtideControlPlaneTest is Test {
         assertEq(uint8(action), uint8(ValtideRiskGuard.PolicyAction.ALLOW));
     }
 
+    function testMissingAttestationRejectsAndReportsAbsence() public {
+        vm.expectRevert(
+            abi.encodeWithSelector(
+                DemoCollateralVault.NewExposureNotAllowed.selector,
+                ValtideValidationRegistry.EvidenceState.INCONCLUSIVE,
+                ValtideRiskGuard.PolicyAction.REQUIRE_REVIEW,
+                false,
+                false
+            )
+        );
+        vm.prank(user);
+        vault.requestNewExposure(100);
+    }
+
     function testInconclusivePathRequiresReview() public {
         _publish(ValtideValidationRegistry.EvidenceState.INCONCLUSIVE);
 
@@ -345,6 +440,7 @@ contract ValtideControlPlaneTest is Test {
                 DemoCollateralVault.NewExposureNotAllowed.selector,
                 ValtideValidationRegistry.EvidenceState.INCONCLUSIVE,
                 ValtideRiskGuard.PolicyAction.REQUIRE_REVIEW,
+                true,
                 true
             )
         );
@@ -360,6 +456,7 @@ contract ValtideControlPlaneTest is Test {
                 DemoCollateralVault.NewExposureNotAllowed.selector,
                 ValtideValidationRegistry.EvidenceState.CHALLENGED,
                 ValtideRiskGuard.PolicyAction.RESTRICT_NEW_RISK,
+                true,
                 true
             )
         );
@@ -378,6 +475,7 @@ contract ValtideControlPlaneTest is Test {
                 DemoCollateralVault.NewExposureNotAllowed.selector,
                 ValtideValidationRegistry.EvidenceState.SUPPORTED,
                 ValtideRiskGuard.PolicyAction.REQUIRE_REVIEW,
+                true,
                 false
             )
         );
@@ -416,10 +514,12 @@ contract ValtideControlPlaneTest is Test {
         (
             ValtideValidationRegistry.EvidenceState beforeState,
             ValtideRiskGuard.PolicyAction beforeAction,
+            bool beforeExists,
             bool beforeFresh
         ) = riskGuard.evaluateFor(address(vault), ASSET_ID, REFERENCE_ID);
         assertEq(uint8(beforeState), uint8(ValtideValidationRegistry.EvidenceState.CHALLENGED));
         assertEq(uint8(beforeAction), uint8(ValtideRiskGuard.PolicyAction.RESTRICT_NEW_RISK));
+        assertTrue(beforeExists);
         assertTrue(beforeFresh);
 
         vm.expectRevert(
@@ -427,6 +527,7 @@ contract ValtideControlPlaneTest is Test {
                 DemoCollateralVault.NewExposureNotAllowed.selector,
                 ValtideValidationRegistry.EvidenceState.CHALLENGED,
                 ValtideRiskGuard.PolicyAction.RESTRICT_NEW_RISK,
+                true,
                 true
             )
         );
@@ -447,10 +548,12 @@ contract ValtideControlPlaneTest is Test {
         (
             ValtideValidationRegistry.EvidenceState afterState,
             ValtideRiskGuard.PolicyAction afterAction,
+            bool afterExists,
             bool afterFresh
         ) = riskGuard.evaluateFor(address(vault), ASSET_ID, REFERENCE_ID);
         assertEq(uint8(afterState), uint8(ValtideValidationRegistry.EvidenceState.CHALLENGED));
         assertEq(uint8(afterAction), uint8(ValtideRiskGuard.PolicyAction.REQUIRE_REVIEW));
+        assertTrue(afterExists);
         assertTrue(afterFresh);
 
         vm.expectRevert(
@@ -458,6 +561,7 @@ contract ValtideControlPlaneTest is Test {
                 DemoCollateralVault.NewExposureNotAllowed.selector,
                 ValtideValidationRegistry.EvidenceState.CHALLENGED,
                 ValtideRiskGuard.PolicyAction.REQUIRE_REVIEW,
+                true,
                 true
             )
         );
@@ -481,19 +585,17 @@ contract ValtideControlPlaneTest is Test {
         _publishInput(ASSET_ID, _attestation(evidenceState, observedAt, validUntil));
     }
 
-    function _publishInput(bytes32 assetId, ValtideValidationRegistry.ValidationAttestation memory attestation)
-        internal
-    {
+    function _publishInput(bytes32 assetId, ValtideValidationRegistry.ValidationInput memory input) internal {
         vm.prank(publisher);
-        registry.publishValidation(assetId, attestation);
+        registry.publishValidation(assetId, input);
     }
 
     function _attestation(ValtideValidationRegistry.EvidenceState evidenceState, uint256 observedAt, uint256 validUntil)
         internal
         pure
-        returns (ValtideValidationRegistry.ValidationAttestation memory attestation)
+        returns (ValtideValidationRegistry.ValidationInput memory input)
     {
-        attestation = ValtideValidationRegistry.ValidationAttestation({
+        input = ValtideValidationRegistry.ValidationInput({
             referenceId: REFERENCE_ID,
             referencePriceE8: 185_00000000,
             fairValueE8: 185_70000000,
@@ -504,7 +606,6 @@ contract ValtideControlPlaneTest is Test {
             evidenceHash: keccak256(bytes("canonical-evidence")),
             modelVersion: keccak256(bytes("0.2.0")),
             observedAt: uint64(observedAt),
-            publishedAt: 123,
             validUntil: uint64(validUntil)
         });
     }

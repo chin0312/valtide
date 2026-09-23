@@ -15,6 +15,24 @@ contract ValtideValidationRegistry is Ownable {
         CHALLENGED
     }
 
+    struct ValidationInput {
+        bytes32 referenceId;
+        uint256 referencePriceE8;
+
+        uint256 fairValueE8;
+        uint256 lowerBoundE8;
+        uint256 upperBoundE8;
+
+        int32 referenceDeviationBps;
+        EvidenceState evidenceState;
+
+        bytes32 evidenceHash;
+        bytes32 modelVersion;
+
+        uint64 observedAt;
+        uint64 validUntil;
+    }
+
     struct ValidationAttestation {
         bytes32 referenceId;
         uint256 referencePriceE8;
@@ -47,6 +65,7 @@ contract ValtideValidationRegistry is Ownable {
     error InvalidValidityWindow();
     error UnauthorizedPublisher(address caller);
     error ZeroAddress();
+    error ObservationRollback(uint64 currentObservedAt, uint64 attemptedObservedAt);
 
     event PublisherAuthorizationUpdated(address indexed publisher, bool authorized);
     event ValidationUpdated(
@@ -72,12 +91,31 @@ contract ValtideValidationRegistry is Ownable {
 
     /// @notice Publish the latest attestation for an asset/reference pair.
     /// @dev `publishedAt` is always assigned by this contract.
-    function publishValidation(bytes32 assetId, ValidationAttestation calldata input) external {
+    function publishValidation(bytes32 assetId, ValidationInput calldata input) external {
         if (!isPublisher[msg.sender]) revert UnauthorizedPublisher(msg.sender);
         _validateInput(assetId, input);
 
-        ValidationAttestation memory attestation = input;
-        attestation.publishedAt = uint64(block.timestamp);
+        if (_hasAttestation[assetId][input.referenceId]) {
+            uint64 currentObservedAt = _latestValidation[assetId][input.referenceId].observedAt;
+            if (input.observedAt < currentObservedAt) {
+                revert ObservationRollback(currentObservedAt, input.observedAt);
+            }
+        }
+
+        ValidationAttestation memory attestation = ValidationAttestation({
+            referenceId: input.referenceId,
+            referencePriceE8: input.referencePriceE8,
+            fairValueE8: input.fairValueE8,
+            lowerBoundE8: input.lowerBoundE8,
+            upperBoundE8: input.upperBoundE8,
+            referenceDeviationBps: input.referenceDeviationBps,
+            evidenceState: input.evidenceState,
+            evidenceHash: input.evidenceHash,
+            modelVersion: input.modelVersion,
+            observedAt: input.observedAt,
+            publishedAt: uint64(block.timestamp),
+            validUntil: input.validUntil
+        });
 
         _latestValidation[assetId][input.referenceId] = attestation;
         _hasAttestation[assetId][input.referenceId] = true;
@@ -115,7 +153,7 @@ contract ValtideValidationRegistry is Ownable {
                 && block.timestamp <= _latestValidation[assetId][referenceId].validUntil;
     }
 
-    function _validateInput(bytes32 assetId, ValidationAttestation calldata input) internal view {
+    function _validateInput(bytes32 assetId, ValidationInput calldata input) internal view {
         if (assetId == bytes32(0) || input.referenceId == bytes32(0)) {
             revert InvalidIdentifier();
         }

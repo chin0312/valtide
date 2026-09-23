@@ -89,7 +89,12 @@ contract ValtideRiskGuard {
     function evaluate(bytes32 assetId, bytes32 referenceId)
         external
         view
-        returns (ValtideValidationRegistry.EvidenceState evidenceState, PolicyAction policyAction, bool fresh)
+        returns (
+            ValtideValidationRegistry.EvidenceState evidenceState,
+            PolicyAction policyAction,
+            bool exists,
+            bool fresh
+        )
     {
         return evaluateFor(msg.sender, assetId, referenceId);
     }
@@ -98,28 +103,33 @@ contract ValtideRiskGuard {
     function evaluateFor(address policyOwner, bytes32 assetId, bytes32 referenceId)
         public
         view
-        returns (ValtideValidationRegistry.EvidenceState evidenceState, PolicyAction policyAction, bool fresh)
+        returns (
+            ValtideValidationRegistry.EvidenceState evidenceState,
+            PolicyAction policyAction,
+            bool exists,
+            bool fresh
+        )
     {
         if (!_policyConfigured[policyOwner][assetId][referenceId]) {
             revert PolicyNotConfigured(policyOwner, assetId, referenceId);
         }
 
         ValidationPolicy memory policy = _policies[policyOwner][assetId][referenceId];
-        (ValtideValidationRegistry.ValidationAttestation memory attestation, bool exists) =
+        (ValtideValidationRegistry.ValidationAttestation memory attestation, bool attestationExists) =
             ValtideValidationRegistry(registry).getLatest(assetId, referenceId);
 
         // There is no fourth Evidence State for "missing". INCONCLUSIVE is a
-        // safe non-SUPPORTED sentinel; fresh=false and onStale carry the
-        // unavailable-attestation semantics to the consumer.
-        if (!exists) {
-            return (ValtideValidationRegistry.EvidenceState.INCONCLUSIVE, policy.onStale, false);
+        // safe non-SUPPORTED sentinel only; exists=false is the authoritative
+        // signal that no attestation has been published.
+        if (!attestationExists) {
+            return (ValtideValidationRegistry.EvidenceState.INCONCLUSIVE, policy.onStale, false, false);
         }
 
         if (!_isFresh(attestation, policy.maxAge)) {
-            return (attestation.evidenceState, policy.onStale, false);
+            return (attestation.evidenceState, policy.onStale, true, false);
         }
 
-        return (attestation.evidenceState, _actionFor(attestation.evidenceState, policy), true);
+        return (attestation.evidenceState, _actionFor(attestation.evidenceState, policy), true, true);
     }
 
     function _isFresh(ValtideValidationRegistry.ValidationAttestation memory attestation, uint64 maxAge)

@@ -17,7 +17,10 @@ contract DemoCollateralVault is Ownable {
     error InvalidDependency();
     error InvalidAmount();
     error NewExposureNotAllowed(
-        ValtideValidationRegistry.EvidenceState evidenceState, ValtideRiskGuard.PolicyAction policyAction, bool fresh
+        ValtideValidationRegistry.EvidenceState evidenceState,
+        ValtideRiskGuard.PolicyAction policyAction,
+        bool exists,
+        bool fresh
     );
 
     event PolicyConfigured(bytes32 indexed assetId, bytes32 indexed referenceId);
@@ -26,6 +29,7 @@ contract DemoCollateralVault is Ownable {
         uint256 amount,
         ValtideValidationRegistry.EvidenceState evidenceState,
         ValtideRiskGuard.PolicyAction policyAction,
+        bool exists,
         bool fresh
     );
 
@@ -51,14 +55,18 @@ contract DemoCollateralVault is Ownable {
     function requestNewExposure(uint256 amount) external returns (ValtideRiskGuard.PolicyAction policyAction) {
         if (amount == 0) revert InvalidAmount();
 
-        (ValtideValidationRegistry.EvidenceState evidenceState, ValtideRiskGuard.PolicyAction action, bool fresh) =
-            riskGuard.evaluate(assetId, referenceId);
+        (
+            ValtideValidationRegistry.EvidenceState evidenceState,
+            ValtideRiskGuard.PolicyAction action,
+            bool exists,
+            bool fresh
+        ) = riskGuard.evaluate(assetId, referenceId);
 
         if (action != ValtideRiskGuard.PolicyAction.ALLOW && action != ValtideRiskGuard.PolicyAction.MONITOR) {
-            revert NewExposureNotAllowed(evidenceState, action, fresh);
+            revert NewExposureNotAllowed(evidenceState, action, exists, fresh);
         }
 
-        emit ExposureRequested(msg.sender, amount, evidenceState, action, fresh);
+        emit ExposureRequested(msg.sender, amount, evidenceState, action, exists, fresh);
         return action;
     }
 }
