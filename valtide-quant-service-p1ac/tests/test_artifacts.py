@@ -23,3 +23,9 @@ def test_provenance_hashes_match_artifacts():
         artifact=ROOT/'artifacts'/name
         actual=hashlib.sha256(artifact.read_bytes()).hexdigest()
         assert actual==expected
+
+def test_packaged_artifacts_match_canonical_artifacts():
+    for name in ('p1a_runtime.json','p1a_c_calibrator.json'):
+        canonical=ROOT/'artifacts'/name
+        packaged=ROOT/'src'/'valtide_quant_service'/'model_artifacts'/name
+        assert canonical.read_bytes()==packaged.read_bytes()
