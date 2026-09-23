@@ -217,7 +217,8 @@ class ChallengerEstimate:
     lower_bound: float         # price-space interval (may be asymmetric)
     upper_bound: float
     state_m: float             # posterior mean in LOG space (NVDAx-only)
-    state_sd_log: float        # sqrt(P_t) in LOG space — the uncertainty scale
+    state_sd_log: float        # latent challenger-state uncertainty in LOG space
+    reference_predictive_sd_log: float  # reference-equivalent predictive uncertainty
     coverage_target: float
     state_P_after_nvda: float  # posterior variance AFTER folding NVDA, for next step
     state_m_after_nvda: float
@@ -390,13 +391,17 @@ z_support ≤ |z| < z_challenge → INCONCLUSIVE
 forces `INCONCLUSIVE` regardless of z — we do not trust the inputs enough to
 challenge:
 ```
-reference_age_seconds > max_reference_age_s → INCONCLUSIVE + UNDERLYING_REFERENCE_STALE
-token_volume < min_token_volume             → INCONCLUSIVE + TOKEN_MARKET_QUALITY_LOW
-state_sd_log > max_state_sd_log             → INCONCLUSIVE + MODEL_UNCERTAINTY_HIGH
-reference_under_test unavailable            → INCONCLUSIVE + COMPARATOR_UNAVAILABLE
-token_price unavailable                     → INCONCLUSIVE + TOKEN_DATA_UNAVAILABLE
-interval invalid / missing                  → error, not a fabricated result
+reference_age_seconds > max_reference_age_s     → INCONCLUSIVE + UNDERLYING_REFERENCE_STALE
+token_volume < min_token_volume                 → INCONCLUSIVE + TOKEN_MARKET_QUALITY_LOW
+reference_predictive_sd_log > max_state_sd_log  → INCONCLUSIVE + MODEL_UNCERTAINTY_HIGH
+reference_under_test unavailable                → INCONCLUSIVE + COMPARATOR_UNAVAILABLE
+token_price unavailable                         → INCONCLUSIVE + TOKEN_DATA_UNAVAILABLE
+interval invalid / missing                      → error, not a fabricated result
 ```
+`max_state_sd_log` is the current configuration-field name, but this quality
+gate is applied to `reference_predictive_sd_log`. The latter is the
+reference-equivalent predictive uncertainty used for standardized reference
+validation; it is distinct from latent `state_sd_log`.
 
 **Step 5 — Reason codes** (auditable; canonical names from METHODOLOGY §13 only):
 ```
