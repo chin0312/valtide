@@ -354,15 +354,22 @@ residual            = Tt / Ft - 1       # null when Tt is unavailable
 ```
 
 **Step 2 — Reference deviation + standardized deviation** (METHODOLOGY §11).
-The z-score is computed **in log space** using the state sd directly, NOT by
-reverse-engineering σ from asymmetric price bounds:
+The standardized reference deviation is computed **in log space** using the
+reference-equivalent predictive uncertainty reported by the quant runtime, NOT
+by reverse-engineering σ from asymmetric price bounds:
 ```
 Pt = reference_under_test
 reference_deviation = Pt / Ft - 1       # null when Pt is unavailable
 
-z = (ln(Pt) - state_m) / state_sd_log        # state_sd_log = sqrt(P_t)
+z_ref = (ln(Pt) - challenger_m_log) / reference_predictive_sd_log
 inside_interval = lower_bound <= Pt <= upper_bound
 ```
+`state_sd_log` is latent challenger-state uncertainty.
+`reference_predictive_sd_log` represents the uncertainty scale for comparing a
+candidate underlying/reference observation against the challenger. The
+lower/upper bounds are separate empirically calibrated reference-equivalent
+interval bounds; the calibration is not assumed to be Gaussian.
+
 Why log space: the filter lives in log space and the price interval is
 asymmetric (`exp` of a symmetric log interval). Computing z from `(upper-lower)/2`
 would be biased for P1a and meaningless for P1a-C's calibrated intervals.
