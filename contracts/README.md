@@ -1,0 +1,105 @@
+# Valtide X Layer Control Plane
+
+This directory contains the submission-critical onchain control plane for
+Valtide. It is an ordinary EVM-compatible Foundry project targeting the
+intended X Layer testnet deployment in a later step.
+
+## Architecture
+
+```text
+Offchain validation
+        ↓
+ValtideValidationRegistry
+        ↓ Evidence State
+ValtideRiskGuard
+        ↓ Policy Action
+DemoCollateralVault / consuming application
+        ↓ consumer-defined enforcement
+```
+
+The contracts follow the product ownership boundary:
+
+- `ValtideValidationRegistry` stores the latest authorized validation
+  attestation for an `assetId` and `referenceId` pair. It does not run a model
+  or determine policy.
+- `ValtideRiskGuard` evaluates a policy owned by the consuming application.
+  It maps the Registry's `SUPPORTED`, `INCONCLUSIVE`, or `CHALLENGED` Evidence
+  State to that application's configured Policy Action.
+- `DemoCollateralVault` is a minimal reference consumer. It demonstrates
+  configurable new-exposure gating and does not custody assets, lend, trade,
+  calculate LTV, or liquidate.
+
+Valtide determines Evidence State. The policy owner determines the Policy
+Action mapping. The consumer enforces the resulting action.
+
+## Data conventions
+
+- `assetId`, `referenceId`, and `modelVersion` are opaque `bytes32` values.
+  Recommended deterministic identifiers are:
+
+  ```solidity
+  keccak256(bytes("NVDAx"))
+  keccak256(bytes("OKX_NVDA_USD_INDEX"))
+  keccak256(bytes("0.2.0"))
+  ```
+
+- Prices use 8-decimal fixed-point integers (`E8`). For example, `$185.00`
+  is represented as `18_500_000_000`.
+- `referenceDeviationBps` is a signed basis-point value supplied by the
+  offchain validation layer. The Registry stores it and does not recompute it.
+- `evidenceHash` is the `keccak256` commitment of a canonical offchain
+  evidence payload, such as the normalized observation and model result. It
+  links the onchain attestation to provenance; it does not prove that the
+  offchain evidence is objectively correct.
+- `observedAt` is the market timestamp being validated, `publishedAt` is set
+  by the Registry at publication time, and `validUntil` bounds Registry
+  freshness.
+
+Registry freshness requires an existing attestation and
+`block.timestamp <= validUntil`. Risk Guard freshness additionally applies
+the policy owner's `maxAge` to `observedAt`, so a late publication cannot make
+an old market observation fresh. A missing attestation is returned as a safe
+`INCONCLUSIVE` sentinel with `fresh == false` and the policy's `onStale`
+action; it is never treated as default `SUPPORTED`.
+
+## Local development
+
+The project uses Solidity `^0.8.24`, `forge-std` `v1.9.7`, and OpenZeppelin
+Contracts `v5.0.2`.
+
+```bash
+cd contracts
+forge fmt --check
+forge build
+forge test -vvv
+```
+
+## Deployment configuration
+
+Deployment is intentionally separate from CI and is not performed by this
+repository setup. The deployment script reads:
+
+- `DEPLOYER_PRIVATE_KEY` — the deployer's private key, supplied only through
+  the local environment;
+- `PUBLISHER_ADDRESS` — the address authorized to publish attestations; and
+- `XLAYER_RPC_URL` — the RPC endpoint supplied to Foundry.
+
+The script deploys `ValtideValidationRegistry`, `ValtideRiskGuard`, and
+`DemoCollateralVault`, authorizes the configured publisher, and configures the
+Demo Vault's default 15-minute policy. It prints addresses and canonical demo
+identifiers, but no address is committed to source control.
+
+Example testnet command:
+
+```bash
+cd contracts
+forge script script/DeployValtide.s.sol:DeployValtide \
+  --rpc-url "$XLAYER_RPC_URL" \
+  --broadcast
+```
+
+The intended first deployment target is X Layer testnet (chain ID `1952`).
+No deployment is claimed by this repository change.
+
+`DemoCollateralVault` is a reference consumer for the hackathon vertical
+slice, not a production lending protocol or financial product.
