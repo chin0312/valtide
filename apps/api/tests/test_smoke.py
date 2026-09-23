@@ -1,10 +1,26 @@
-"""Phase 1 smoke tests: the app boots and the mock endpoints answer."""
+"""API smoke tests for computed-result and explicit data-unavailable paths."""
 
+import pytest
 from fastapi.testclient import TestClient
 
+from valtide_api import state_store
 from valtide_api.main import app
+from valtide_api.replay import replay
+from valtide_api.scenario import load_scenario
 
 client = TestClient(app)
+
+
+@pytest.fixture(autouse=True)
+def reset_state():
+    state_store.reset()
+    yield
+    state_store.reset()
+
+
+def _seed_scenario() -> None:
+    result = replay(load_scenario())[-1]
+    state_store.save_latest_result("NVDAx", result)
 
 
 def test_health():
@@ -13,11 +29,19 @@ def test_health():
     assert resp.json()["status"] == "ok"
 
 
-def test_valuation_shape():
+def test_valuation_returns_503_without_computed_result():
     resp = client.get("/api/valuation/NVDAx")
+
+    assert resp.status_code == 503
+    assert resp.json()["detail"] == "data_unavailable"
+
+
+def test_valuation_shape_from_computed_scenario_result():
+    _seed_scenario()
+    resp = client.get("/api/valuation/NVDAx")
+
     assert resp.status_code == 200
     body = resp.json()
-    # Fields the frontend depends on.
     for key in (
         "valtide_fair_value",
         "fair_value_lower",
@@ -40,3 +64,4 @@ def test_assets_list():
     resp = client.get("/api/assets")
     assert resp.status_code == 200
     assert resp.json()[0]["asset"] == "NVDAx"
+    assert resp.json()[0]["model_available"] is True

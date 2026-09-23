@@ -1,184 +1,158 @@
 # Valtide Backend — Team Guide
 
-**Owner:** Xin Tong · **Code:** `apps/api/` · **Status:** working end-to-end (37 tests green)
+**Owner:** Xin Tong · **Code:** `apps/api/` · **Status:** P1a-C integration in
+progress
 
-The one-liner:
-
-> The backend fetches prices, asks the model for an independent fair value,
-> compares it to the price we're checking, and says **SUPPORTED / INCONCLUSIVE /
-> CHALLENGED**. It holds no pricing math — that's the quant model.
-
----
+The backend orchestrates data, the packaged quant runtime, backend-owned
+validation, and the API. It does not contain pricing mathematics.
 
 ## 1. Who talks to whom
 
-```
-  James (Quant)              Backend (apps/api)               Kai Ze (Contracts)
- ┌────────────┐   params   ┌───────────────────────┐  publish ┌──────────────────┐
- │ fits model │ ─────────▶ │ fetch → model → verify │ ───────▶ │ Registry / Guard │
- └────────────┘            └──────────┬────────────┘          └──────────────────┘
-                                      │ JSON / HTTP
-                                      ▼
-                               Valerie (Frontend)
-```
-
-- James → backend: a small JSON of trained numbers (the *artifact*). Backend runs it, never trains.
-- Backend → Valerie: stable JSON. She never sees OKX/Alpaca/model internals.
-- Backend → Kai Ze: calls his contract to publish a result on-chain.
-
----
-
-## 2. What happens in one check
-
-```
- NVDAx token price ─┐
- NVDA stock price ──┼─▶ MarketSnapshot ─▶ quant model ─▶ fair value + interval
- reference price ───┘       (one clean       (NVDAx first,       │
-                             object)          so it's            ▼
-                                              independent)   validation ─▶ ValuationResult
-                                                                          (state + reasons)
-                                                                              │
-                                                                    cache ─▶ API ─▶ frontend
+```text
+market data
+    ↓
+backend MarketSnapshot
+    ↓
+packaged P1a-C QuantService
+    ↓
+QuantEstimate
+    ↓
+backend validation
+    ↓
+SUPPORTED / INCONCLUSIVE / CHALLENGED
+    ↓
+API / frontend and later X Layer publisher
 ```
 
-**Why "NVDAx first":** the model forms its opinion from the token, *then* looks
-at NVDA. So its estimate is independent of the price it's judging — otherwise the
-check is circular.
+The quant package owns fair value, calibrated intervals, uncertainty metadata,
+and carried state. The backend selects the reference under test, performs data
+quality checks, determines Evidence State, and exposes reason codes.
 
----
+## 2. The sequential check
 
-## 3. Two ways to run it
-
-| Mode | Source of data | Use | Endpoint |
-|---|---|---|---|
-| **Replay** | historical panel / scenario | the demo — shows the full story over time | `GET /api/replay/NVDAx` |
-| **Live** | DexScreener + Alpaca + X-Perp (real, now) | "what does it look like right now" | `GET /api/valuation/NVDAx/live` |
-
-Replay is the demo (a point-in-time weekend story). Live is a real-time bonus.
-**Neither needs the 402-blocked OKX OnchainOS API.**
-
----
-
-## 4. The decision (validation)
-
-```
-z = (ln(referencePrice) − fairValueLog) / uncertainty      # in log space
-
-|z| < 1      → SUPPORTED       reference agrees with us
-1 ≤ |z| < 2  → INCONCLUSIVE    not sure
-|z| ≥ 2      → CHALLENGED      reference is off
-
-then: if data is weak (stale >72h, thin volume, huge uncertainty)
-      → force INCONCLUSIVE  (we abstain rather than guess)
+```text
+predict prior state
+      ↓
+assimilate current NVDAx/token observation when available
+      ↓
+read challenger fair value and interval
+      ↓
+assimilate current NVDA only for the next timestamp
+      ↓
+backend validates the selected reference under test
 ```
 
-Reason codes explain every verdict. All thresholds sit in one `Thresholds` object
-— research defaults, to be recalibrated on James's real results.
+The quant runtime requires exact 5-minute state progression. A canonical panel
+row with no token observation is retained as `token_price=None`; the quant state
+advances without a fabricated measurement and backend validation returns
+`INCONCLUSIVE` with `TOKEN_DATA_UNAVAILABLE`.
 
----
+## 3. Reference-under-test semantics
 
-## 5. Where each piece lives (`valtide_api/`)
+The reference under test is an explicitly named observation, not a fallback
+slot. In live mode the intended reference is the OKX X-Perp index. If it cannot
+be fetched, the snapshot keeps that identity with a null value and validation
+returns `INCONCLUSIVE` with `COMPARATOR_UNAVAILABLE`. The backend never silently
+replaces it with stale NVDA.
 
+Historical replay may explicitly use `stale_nvda` or a scenario reference; the
+identity is then part of the snapshot and is valid for that replay.
+
+The latest available trusted underlying bar is an R0 anchor. It is not assumed
+to be an official regular-session close; exchange-calendar and US-holiday
+selection remain known limitations of the current adapter.
+
+## 4. Evidence State
+
+Validation is deterministic and threshold-driven, with quality and abstention
+gates. It uses the log-space standardized deviation, calibrated interval,
+underlying-reference freshness, reference-under-test freshness, token
+availability/quality, and model uncertainty.
+
+```text
+SUPPORTED      independent evidence provides no material reason to challenge
+INCONCLUSIVE   evidence is unavailable, weak, stale, or unresolved
+CHALLENGED     sufficiently strong evidence materially contradicts the reference
 ```
-config.py        settings from .env (keys, CORS)
+
+These are evidence semantics, not protocol policy actions. The consuming
+protocol decides what to do with them.
+
+Global fallback calibration is surfaced as `CALIBRATION_GLOBAL_FALLBACK`; it is
+not automatically treated as an abstention. Closed/overnight calibration limits
+must remain visible rather than being described as directly observed coverage.
+
+## 5. Where each piece lives
+
+```text
+config.py        settings from .env and CORS origins
 models.py        MarketSnapshot, ChallengerEstimate, ValuationResult, enums
 
 adapters/
-  okx.py         NVDAx candles (OKX OnchainOS)      ← historical fetch
-  equity.py      NVDA bars (Alpaca)
-  reference.py   X-Perp index (reference under test)
-  dexscreener.py live NVDAx price (no key, no OKX)
+  okx.py         NVDAx token candles
+  equity.py      latest available trusted NVDA bar
+  reference.py   OKX X-Perp reference under test
+  dexscreener.py live NVDAx quote
 
 session.py       timestamp → market session
-normalizer.py    the shared scale invariant (assert_scale)
-quant_runtime.py loads artifact, runs ONE Kalman step   ← only math on the backend
-validation.py    the SUPPORTED/INCONCLUSIVE/CHALLENGED engine (pure)
-
-scenario.py      loads scripted scenarios/*.json
-panel.py         loads James's p0_panel_5m.csv
-data_source.py   picks panel if present, else scenario
-replay.py        runs the pipeline over a sequence
-live.py          assembles a live snapshot + runs one inference
-state_store.py   in-memory cache of latest result
-publisher.py     publish to X Layer (Phase 3)
-
-routes/          one file per endpoint
-main.py          app wiring, CORS, startup seed
+normalizer.py    shared token/underlying scale invariant
+quant_runtime.py thin adapter around packaged QuantService
+validation.py    backend Evidence State engine
+panel.py         canonical 5-minute panel loader
+scenario.py      explicit scripted scenario loader
+data_source.py   panel/scenario source selection
+replay.py        sequential quant + validation pipeline
+live.py          cold-start live diagnostic
+state_store.py   in-memory computed-result cache
+publisher.py     X Layer publication boundary (not deployed yet)
+routes/          HTTP endpoints
+main.py          app wiring, CORS, and startup seed
 ```
-
-Flow of dependencies (no cycles):
-
-```
-adapters ─┐
-scenario ─┼─▶ replay/live ─▶ quant_runtime ─▶ validation ─▶ models
-panel  ───┘        ▲                                          ▲
-                   └────────── routes ──────────────────────┘
-```
-
----
 
 ## 6. API
 
 | Method | Route | What |
 |---|---|---|
 | GET | `/health` | liveness |
-| GET | `/api/assets` | supported assets |
-| GET | `/api/valuation/{asset}` | latest cached result (read-only) |
-| GET | `/api/valuation/{asset}/live` | on-demand result from live feeds |
-| GET | `/api/replay/{asset}` | the full time-series (demo) |
-| GET | `/api/backtest/{asset}` | evaluation metrics |
-| POST | `/api/publish/{asset}` | publish on-chain (503 until contracts) |
+| GET | `/api/assets` | supported assets and model availability |
+| GET | `/api/valuation/{asset}` | latest computed cached result |
+| GET | `/api/valuation/{asset}/live` | cold-start live diagnostic |
+| GET | `/api/replay/{asset}` | sequential scenario/panel results |
+| GET | `/api/backtest/{asset}` | scenario-derived evidence counts |
+| POST | `/api/publish/{asset}` | X Layer publication boundary |
 
-Swagger: `http://localhost:8000/docs`.
+A cold valuation cache returns `503 data_unavailable`. Publication returns `503`
+until Registry configuration and contracts are available.
 
----
+## 7. Current status and handoffs
 
-## 7. Status
+- The backend imports the merged P1a-C package through its public service
+  boundary.
+- The scripted scenario and canonical 5-minute panel are replayed through the
+  same inference path.
+- The focused API endpoint and live diagnostic are explicit about unavailable
+  data; no fabricated valuation is served.
+- X Layer publication is intentionally pending the Registry, RPC, ABI, and
+  publisher configuration.
+- Broader historical metrics, scheduler behavior, and deployment wiring remain
+  separate follow-up work; they do not alter the backend/quant boundary.
 
-**Works now:** whole pipeline, all 7 endpoints, replay demo arc, **live mode on
-real data**, CORS, 37 tests.
-
-**Placeholders (drop-in later):**
-- model = tuned mock until James's fitted artifact
-- demo data = scenario until James's panel CSV lands in `data/sample/`
-- publish = 503 until Kai Ze's contract
-
----
-
-## 8. What each teammate owes
-
-**James** — (1) fitted artifact JSON (`Q, R_nvda, R_nvdax` + state; schema in
-`BACKEND_PLAN.md §4`); (2) his `p0_panel_5m.csv` → drop in `data/sample/`,
-auto-used; (3) one sample step to verify the Python port.
-
-**Kai Ze** — X Layer RPC URL, deployed Registry address, contract ABI (Phase 3).
-
-**Valerie** — nothing blocking; build against `/api/valuation` + `/api/replay`
-now. Send your dev URL for CORS.
-
----
-
-## 9. Run it
+## 8. Run locally
 
 ```bash
 cd apps/api
-python -m venv .venv && source .venv/bin/activate
-pip install -e ".[dev,data]"
-pytest                                    # tests
-uvicorn valtide_api.main:app --reload     # serve; open http://localhost:8000/docs
+python -m pip install -e ../../valtide-quant-service-p1ac
+python -m pip install -e ".[dev]"
+pytest
+uvicorn valtide_api.main:app --reload
 ```
 
-Scripts (run from the repo root):
+From the repository root:
 
 ```bash
-python scripts/fetch_data.py   # pull a real NVDAx + NVDA + X-Perp sample into data/sample/
-python scripts/demo_value.py   # narrated value demo: stale oracle -> CHALLENGED -> proven right
+python scripts/demo_value.py
 ```
 
----
-
-## 10. Principle
-
-> Thin orchestration. Math stays in the quant runtime. The challenger stays
-> independent of the reference it judges. The demo runs on point-in-time replay.
-> Failures degrade to an honest "unavailable", never a fake number.
+> Thin orchestration. Quantitative computation stays in the packaged runtime;
+> validation stays in the backend; failures degrade to an honest unavailable
+> state rather than a fake number.

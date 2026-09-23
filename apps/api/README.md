@@ -1,8 +1,9 @@
 # Valtide API
 
-Backend orchestration & API layer. Fetches market data, runs the quant model's
-pre-fitted parameters, validates against the reference under test, and serves the
-result. See [`docs/BACKEND_PLAN.md`](../../docs/BACKEND_PLAN.md) for the full plan.
+Backend orchestration and validation layer. It normalizes market observations,
+calls the packaged P1a-C quant runtime, evaluates the selected reference under
+test, and serves the result through FastAPI. See
+[`docs/BACKEND_PLAN.md`](../../docs/BACKEND_PLAN.md) for the working plan.
 
 ## Setup
 
@@ -20,10 +21,11 @@ Credentials are read from the repo-root `.env` (see `.env.example`).
 uvicorn valtide_api.main:app --reload --port 8000
 ```
 
-- Health:      http://localhost:8000/health
-- Valuation:   http://localhost:8000/api/valuation/NVDAx
-- Assets:      http://localhost:8000/api/assets
-- Swagger UI:  http://localhost:8000/docs
+- Health: `http://localhost:8000/health`
+- Valuation: `http://localhost:8000/api/valuation/NVDAx`
+- Replay: `http://localhost:8000/api/replay/NVDAx`
+- Assets: `http://localhost:8000/api/assets`
+- Swagger UI: `http://localhost:8000/docs`
 
 ## Test
 
@@ -31,38 +33,47 @@ uvicorn valtide_api.main:app --reload --port 8000
 pytest
 ```
 
-## Status
+## Current boundary
 
-**Phases 1–2 complete** (39 tests passing). Full pipeline works end-to-end on
-scripted scenario data: adapters → normalize → quant runtime → validation → API.
-The `weekend_divergence` scenario produces a SUPPORTED → INCONCLUSIVE →
-CHALLENGED arc, and `/api/valuation/NVDAx` serves it.
+```text
+MarketSnapshot
+      ↓
+packaged QuantService / P1a-C runtime
+      ↓
+QuantEstimate
+      ↓
+backend validation
+      ↓
+SUPPORTED / INCONCLUSIVE / CHALLENGED
+```
 
-Running on production quant artifacts from PR #3:
-- **model** — trained P1a parameters with P1a-C session calibration
-- **data** — scripted scenario until real data flows (see OKX blocker in
-  `docs/BACKEND_ARCHITECTURE.md §10`)
-- **X Layer publish** — `POST /api/publish` returns 503 until Kai Ze's contracts
+The quant package owns challenger fair value, calibrated uncertainty, and
+carried state. The backend selects the reference under test and owns Evidence
+State and reason codes. The backend does not duplicate model equations or
+silently substitute a different reference.
 
-See [`docs/BACKEND_ARCHITECTURE.md`](../../docs/BACKEND_ARCHITECTURE.md) for the
-team overview and what's needed from whom.
+Replay uses the scripted scenario when no sample panel is available. A cold
+`/api/valuation/{asset}` cache returns `503 data_unavailable`; it never returns
+a fabricated valuation. `/api/valuation/{asset}/live` is a cold-start,
+on-demand diagnostic. X Layer publication remains a clear `503` placeholder
+until the Registry configuration and contracts are available.
 
 ## Layout
 
-```
+```text
 valtide_api/
-├── config.py        # settings from .env (+ CORS origins)
-├── models.py        # MarketSnapshot, ChallengerEstimate, ValuationResult, enums
-├── main.py          # FastAPI app, CORS, lifespan seed, router wiring
-├── session.py       # UTC -> market session
-├── normalizer.py    # raw adapters -> MarketSnapshot
-├── quant_runtime.py # loads artifact, runs one Kalman step
-├── validation.py    # Evidence State engine (pure)
-├── replay.py        # pipeline over a sequence (demo driver)
-├── scenario.py      # loads scenarios/*.json
-├── state_store.py   # in-memory cache
-├── publisher.py     # X Layer publish (Phase 3)
-├── mock_data.py     # frontend fallback result
+├── config.py        # settings from .env and CORS origins
+├── models.py        # canonical snapshots, estimates, results, and enums
+├── main.py          # FastAPI app, lifespan seed, and router wiring
+├── session.py       # UTC timestamp to market session
+├── normalizer.py    # shared token/underlying scale invariant
+├── quant_runtime.py # thin adapter around the packaged QuantService
+├── validation.py    # backend-owned Evidence State engine
+├── panel.py         # canonical 5-minute panel loader
+├── replay.py        # sequential quant and validation pipeline
+├── scenario.py      # scripted scenario loader
+├── state_store.py   # in-memory computed-result cache
+├── publisher.py     # X Layer publication boundary
 ├── routes/          # assets, valuation, replay, backtest, publish
-└── adapters/        # okx (token), equity (NVDA), reference (X-Perp)
+└── adapters/        # token, underlying, and reference-under-test sources
 ```

@@ -11,8 +11,9 @@ the NVDA X-Perp instId is "NVDA-USD". Verified response:
   {"code":"0","data":[{"instId":"NVDA-USD","idxPx":"228.51","ts":"1790089804702",...}]}
 Price is read from "idxPx"; "ts" is a millisecond UTC timestamp.
 
-If the index is unreachable this returns None; callers (panel/live) fall back to
-the stale NVDA close themselves.
+If the index is unreachable this returns None; callers preserve the intended
+reference identity and mark validation INCONCLUSIVE rather than substituting a
+different reference.
 """
 
 from __future__ import annotations
@@ -42,8 +43,9 @@ def get_okx_xperp_index(
 ) -> ReferenceObservation | None:
     """Fetch the OKX X-Perp index price via the v5 market-data API.
 
-    Returns None if the endpoint is unreachable or returns no data, so the
-    caller can fall back or mark the reference INCONCLUSIVE/COMPARATOR_UNAVAILABLE.
+    Returns None if the endpoint is unreachable or returns no data. The caller
+    then preserves the reference identity and marks validation
+    INCONCLUSIVE/COMPARATOR_UNAVAILABLE.
     """
     owns_client = client is None
     client = client or httpx.Client(timeout=15)

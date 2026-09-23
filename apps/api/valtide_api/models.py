@@ -31,8 +31,8 @@ class EvidenceState(str, Enum):
     """Canonical three-way validation decision (PRD vocabulary).
 
     This is what the X Layer contract enum and the frontend expect. The backend
-    summary's support/watch/review is the same decision under a different name;
-    we expose only this one.
+    determines the evidence state; a consuming protocol owns any policy action
+    taken in response.
     """
 
     SUPPORTED = "SUPPORTED"
@@ -49,7 +49,7 @@ class MarketSnapshot(BaseModel):
     asset: str = Field(examples=["NVDAx"])
     observation_ts: datetime
 
-    token_price: float
+    token_price: float | None
     token_volume: float | None = None
 
     # Current NVDA if the market is open, else None (weekend/overnight).
@@ -63,7 +63,7 @@ class MarketSnapshot(BaseModel):
 
     # The reference under test (Pt) — what we validate. Sourced explicitly; never
     # implicitly derived. See BACKEND_PLAN.md §3.
-    reference_under_test: float
+    reference_under_test: float | None
     reference_under_test_source: str = Field(examples=["nvda_live", "okx_xperp_index"])
     reference_under_test_ts: datetime | None = None
     reference_under_test_age_seconds: int | None = None
@@ -98,6 +98,9 @@ class ChallengerEstimate(BaseModel):
     # State AFTER folding in NVDA (if present), carried into the next step.
     state_m_after_nvda: float
     state_P_after_nvda: float
+    model_id: str
+    model_version: str
+    interval_semantics: str
 
 
 class ValuationResult(BaseModel):
@@ -111,7 +114,7 @@ class ValuationResult(BaseModel):
     market_state: str
 
     last_trusted_reference: float
-    token_price: float
+    token_price: float | None
     external_constructed_reference: float | None = None
 
     valtide_fair_value: float
@@ -119,16 +122,16 @@ class ValuationResult(BaseModel):
     fair_value_upper: float
     interval_coverage_target: float
 
-    observed_token_move_pct: float
+    observed_token_move_pct: float | None
     model_implied_move_pct: float
-    residual_premium_discount_pct: float
+    residual_premium_discount_pct: float | None
 
-    reference_under_test: float
+    reference_under_test: float | None
     reference_under_test_source: str
     reference_under_test_ts: datetime | None = None
     reference_under_test_age_seconds: int | None = None
-    reference_deviation_pct: float
-    standardized_deviation: float  # log-space z-score
+    reference_deviation_pct: float | None
+    standardized_deviation: float | None  # log-space z-score
 
     evidence_state: EvidenceState
     reason_codes: list[str] = Field(default_factory=list)

@@ -47,6 +47,10 @@ def _to_e8(x: float) -> int:
 
 def build_attestation(result: ValuationResult) -> dict:
     """Translate a ValuationResult into the Registry's field types (pure, testable)."""
+    if result.reference_under_test is None or result.reference_deviation_pct is None:
+        raise PublisherNotConfigured(
+            "cannot publish an attestation without a reference-under-test observation"
+        )
     return {
         "referencePriceE8": _to_e8(result.reference_under_test),
         "fairValueE8": _to_e8(result.valtide_fair_value),

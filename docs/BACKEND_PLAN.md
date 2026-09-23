@@ -63,15 +63,14 @@ validation logic uses to decide whether a deviation is meaningful.
 |---|---|---|
 | Fit the model parameters | James | R pipeline (offline) |
 | Export fitted params as an artifact | James | `p1a_runtime.json` |
-| Run the filter forward, one step per observation | Backend | quant runtime |
+| Run the filter forward, one step per observation | Quant package | `QuantService` |
 | Fetch + normalize data | Backend | `apps/api/adapters`, `normalizer` |
 | Validation / Evidence State | Backend | `apps/api/validation.py` |
 | Serve the API | Backend | `apps/api/main.py` |
 
-The Python quant **runtime** (loading params + running one filter step) should
-ideally live in `packages/quant/` so the same code serves live inference and
-Python-side replay. For the hackathon it may start inside `apps/api`, but kept
-in its own module (`quant_runtime.py`) so the move is trivial.
+The packaged Python quant service owns artifact loading and one-step execution.
+The backend keeps only a thin adapter in `quant_runtime.py`, so live inference
+and replay consume the same public `QuantService` interface.
 
 ---
 
@@ -110,12 +109,10 @@ bounded reference OKX publishes ~24/7, which gives the strongest demo story
 ("we independently validated a live production feed"). Fallbacks below remain if
 access proves unworkable.
 
-Fallbacks, in order:
-
-1. **Stale-NVDA bounded reference** — last trusted NVDA close, optionally with a
-   bounded tolerance band. Always available, weakest independent signal.
-2. **Scenario-defined reference** — a fixed value in the scenario fixture,
-   clearly labelled as illustrative. Zero dependencies; guarantees the demo runs.
+Historical replay may explicitly use a stale-NVDA or scenario-defined reference
+when that is the reference being evaluated. In live mode, an unavailable
+OKX X-Perp observation remains unavailable; it is never silently replaced by
+stale NVDA.
 
 ### Accessing the OKX X-Perp index
 
@@ -144,42 +141,34 @@ written; no OKX key is needed for the reference under test.
 
 ---
 
-## 4. The model artifact contract (agree with James)
+## 4. The packaged model artifact contract
 
-James's training run must export a JSON artifact the backend can load:
+The merged quant package owns the runtime artifact contract. Its packaged files
+are provenance-tracked and loaded by `QuantService.from_default_artifacts()`:
 
 ```json
 {
-  "modelId": "P1a",
-  "modelVersion": "0.1.0",
+  "schema_version": 2,
+  "model_family": "P1a",
+  "deployment_model_id": "P1a-C",
+  "model_version": "0.2.0",
   "asset": "NVDAx",
-  "bar": "5m",
-  "space": "log",
-  "params": {
-    "Q": 4.2e-6,
-    "R_nvda": 1.1e-6,
-    "R_nvdax": 9.5e-6
-  },
-  "initialState": {
-    "m0": 5.2134,
-    "P0": 1.0e-4
-  },
-  "intervalCoverageTarget": 0.90,
-  "calibrator": "gaussian"
+  "interval_level": 0.9,
+  "q_by_session": {"regular": "...", "closed": "..."},
+  "r_nvda": "...",
+  "r_nvdax": "...",
+  "calibration_artifact": "p1a_c_calibrator.json"
 }
 ```
 
-- `params` — the three fitted variances from `fit_p0()`.
-- `initialState` — `final_m` / `final_P` at the end of training, so the live
-  filter can resume. **Caveat (§10.S2):** if training ended days before the
-  demo, this state is stale; the runtime must warm up by replaying the candles
-  between training-end and "now" before its output is trusted.
-- `calibrator` — `"gaussian"` (P1a, ±1.645·σ log interval) or `"empirical"`
-  (P1a-C, asymmetric calibrated interval + a separate calibration file). The
-  backend treats this opaquely.
+- `q_by_session`, `r_nvda`, and `r_nvdax` are the fitted runtime variances.
+- `p1a_c_calibrator.json` contains the selected session-aware interval
+  calibration, including its global fallback and known closed/overnight limit.
+- `QuantEstimate` carries model identity and calibration metadata into the
+  backend; the backend does not re-read artifact fields or reproduce equations.
 
-Until James delivers this file, the backend uses a **mock artifact** with
-plausible numbers so nothing is blocked.
+The backend now loads the packaged P1a-C runtime artifacts from the merged quant
+package. Their provenance and byte-level integrity are owned by that package.
 
 ---
 
@@ -195,7 +184,7 @@ class MarketSnapshot(BaseModel):
     asset: str                          # "NVDAx"
     observation_ts: datetime            # UTC, the 5-min timestamp being evaluated
 
-    token_price: float                  # current NVDAx close (OKX)
+    token_price: float | None            # current NVDAx close (OKX), if observed
     token_volume: float | None          # optional, for later quality checks
 
     underlying_reference: float | None  # current NVDA if market open, else None
@@ -205,7 +194,7 @@ class MarketSnapshot(BaseModel):
     last_trusted_reference_ts: datetime
     reference_age_seconds: int          # observation_ts - last_trusted_reference_ts
 
-    reference_under_test: float         # Pt — see §3, sourced explicitly
+    reference_under_test: float | None   # Pt — see §3, sourced explicitly
     reference_under_test_source: str    # e.g. "nvda_live", "okx_xperp_index"
 
     market_state: MarketState           # enum, see session.py
@@ -232,6 +221,11 @@ class ChallengerEstimate:
     coverage_target: float
     state_P_after_nvda: float  # posterior variance AFTER folding NVDA, for next step
     state_m_after_nvda: float
+    interval_calibration_type: str
+    interval_calibration_source: str
+    model_id: str
+    model_version: str
+    interval_semantics: str
 ```
 
 ### 5.3 ValuationResult — output served to frontend / X Layer
@@ -243,7 +237,7 @@ class ValuationResult(BaseModel):
     market_state: str
 
     last_trusted_reference: float
-    token_price: float
+    token_price: float | None
     external_constructed_reference: float | None
 
     valtide_fair_value: float
@@ -251,14 +245,14 @@ class ValuationResult(BaseModel):
     fair_value_upper: float
     interval_coverage_target: float
 
-    observed_token_move_pct: float
+    observed_token_move_pct: float | None
     model_implied_move_pct: float
-    residual_premium_discount_pct: float
+    residual_premium_discount_pct: float | None
 
-    reference_under_test: float
+    reference_under_test: float | None
     reference_under_test_source: str
-    reference_deviation_pct: float
-    standardized_deviation: float           # log-space z-score (§7)
+    reference_deviation_pct: float | None
+    standardized_deviation: float | None    # log-space z-score (§7)
 
     evidence_state: EvidenceState           # SUPPORTED / INCONCLUSIVE / CHALLENGED
     reason_codes: list[str]
@@ -271,12 +265,9 @@ class ValuationResult(BaseModel):
     reference_age_seconds: int
 ```
 
-**Vocabulary note:** the docs use two names for the same three-way decision —
-`challengeStatus` (support/watch/review) in the backend summary, and
-`evidenceState` (SUPPORTED/INCONCLUSIVE/CHALLENGED) in the PRD, architecture and
-methodology. **We use `EvidenceState` as canonical** because that is what the X
-Layer contract enum and the frontend expect. Map internally if needed; never
-expose both.
+**Vocabulary note:** `EvidenceState` is the only backend validation-state
+vocabulary: `SUPPORTED`, `INCONCLUSIVE`, and `CHALLENGED`. The backend produces
+that evidence state; a consuming protocol owns any policy action.
 
 ---
 
@@ -308,16 +299,12 @@ apps/api/
 │   │
 │   ├── session.py            # market-session classifier
 │   ├── normalizer.py         # raw adapter output -> MarketSnapshot
-│   ├── quant_runtime.py      # loads artifact, runs one Kalman step (estimate)
+│   ├── quant_runtime.py      # adapts the public QuantService interface
 │   ├── validation.py         # snapshot + estimate -> ValuationResult (pure)
 │   ├── state_store.py        # persist m_t, P_t, last_processed_ts
 │   ├── replay.py             # drive inference over historical candles (demo path)
 │   ├── scheduler.py          # (P1) live 5-min loop
 │   └── publisher.py          # X Layer publish (web3)
-│
-├── artifacts/
-│   ├── mock_p1a_runtime.json # placeholder until James delivers the real one
-│   └── p1a_runtime.json      # James's real artifact (gitignored if large)
 │
 ├── scenarios/
 │   └── weekend_divergence.json  # scripted demo scenario (§8)
@@ -339,8 +326,9 @@ apps/api/
 - **`adapters/` isolated:** vendor schemas never leak past this folder. Swapping
   a provider touches only these files. `reference.py` is separate because the
   reference under test is a distinct concern from raw market data (§3).
-- **`quant_runtime.py` is the only place model math lives** on the backend, and
-  it only *runs* pre-fitted params — never fits them.
+- **`quant_runtime.py` is only an adapter** on the backend. Quantitative model
+  math and artifact loading live in the packaged quant service; the adapter
+  only translates snapshots and results.
 - **`replay.py` is a first-class module, not an afterthought** (§8): the demo is
   driven through replay, and `scheduler.py` (live loop) is P1.
 - **`state_store.py` separated:** stateful Kalman state, swappable (dict →
@@ -360,9 +348,9 @@ R0 = last_trusted_reference
 Tt = token_price
 Ft = valtide_fair_value          # = exp(state_m), NVDAx-only challenger (§3)
 
-observed_token_move = Tt / R0 - 1
+observed_token_move = Tt / R0 - 1       # null when Tt is unavailable
 model_implied_move  = Ft / R0 - 1
-residual            = Tt / Ft - 1
+residual            = Tt / Ft - 1       # null when Tt is unavailable
 ```
 
 **Step 2 — Reference deviation + standardized deviation** (METHODOLOGY §11).
@@ -370,7 +358,7 @@ The z-score is computed **in log space** using the state sd directly, NOT by
 reverse-engineering σ from asymmetric price bounds:
 ```
 Pt = reference_under_test
-reference_deviation = Pt / Ft - 1
+reference_deviation = Pt / Ft - 1       # null when Pt is unavailable
 
 z = (ln(Pt) - state_m) / state_sd_log        # state_sd_log = sqrt(P_t)
 inside_interval = lower_bound <= Pt <= upper_bound
@@ -378,6 +366,11 @@ inside_interval = lower_bound <= Pt <= upper_bound
 Why log space: the filter lives in log space and the price interval is
 asymmetric (`exp` of a symmetric log interval). Computing z from `(upper-lower)/2`
 would be biased for P1a and meaningless for P1a-C's calibrated intervals.
+
+If `Pt` is unavailable, the backend does not calculate a deviation or
+standardized score and returns `INCONCLUSIVE + COMPARATOR_UNAVAILABLE`. If
+`Tt` is unavailable, it returns `INCONCLUSIVE + TOKEN_DATA_UNAVAILABLE`; the
+quant state can still advance.
 
 **Step 3 — Base Evidence State** (backend summary §8 rule, PRD vocabulary):
 ```
@@ -394,19 +387,19 @@ reference_age_seconds > max_reference_age_s → INCONCLUSIVE + UNDERLYING_REFERE
 token_volume < min_token_volume             → INCONCLUSIVE + TOKEN_MARKET_QUALITY_LOW
 state_sd_log > max_state_sd_log             → INCONCLUSIVE + MODEL_UNCERTAINTY_HIGH
 reference_under_test unavailable            → INCONCLUSIVE + COMPARATOR_UNAVAILABLE
+token_price unavailable                     → INCONCLUSIVE + TOKEN_DATA_UNAVAILABLE
 interval invalid / missing                  → error, not a fabricated result
 ```
 
 **Step 5 — Reason codes** (auditable; canonical names from METHODOLOGY §13 only):
 ```
 not inside_interval          → REFERENCE_UNDER_TEST_OUTSIDE_INTERVAL
-|Tt - Ft|/Ft < agree_tol     → TOKEN_AND_CHALLENGER_AGREE
+|Tt - Ft|/Ft < agree_tol     → TOKEN_AND_CHALLENGER_AGREE (only when Tt exists)
 external ref present & tight  → EXTERNAL_REFERENCES_AGREE
 external refs dispersed       → EXTERNAL_REFERENCES_DISAGREE
+global fallback calibration   → CALIBRATION_GLOBAL_FALLBACK (diagnostic only)
 ```
-(Do not use the ad-hoc `REFERENCE_OUTSIDE_MODEL_RANGE` /
-`TOKEN_AND_EXTERNAL_REFERENCE_AGREE` names from the early chat mock; they drifted
-from the methodology.)
+(The backend does not emit the old ad-hoc reference or token state names.)
 
 **Thresholds are configuration, never bare literals:**
 ```python
@@ -432,11 +425,15 @@ So the **primary path is replay**, and the live scheduler is P1.
 
 ### Core inference function (shared by replay, scheduler, and one-shot)
 ```python
-def run_inference(snapshot: MarketSnapshot, prior: KalmanState,
+def run_inference(snapshot: MarketSnapshot, prior: KalmanState | None,
                   thresholds: Thresholds) -> tuple[ValuationResult, KalmanState]:
-    est = quant_runtime.estimate(snapshot, prior.m, prior.P)   # NVDAx-first (§3)
-    result = validation.validate(snapshot, est, snapshot.reference_under_test,
-                                 thresholds)
+    est = quant_runtime.estimate(
+        snapshot,
+        prior.m if prior else None,
+        prior.P if prior else None,
+        prior.last_ts if prior else None,
+    )   # NVDAx-first (§3)
+    result = validation.validate(snapshot, est, thresholds)
     new_state = KalmanState(m=est.state_m_after_nvda,
                             P=est.state_P_after_nvda,
                             last_ts=snapshot.observation_ts)
@@ -496,9 +493,10 @@ per asset:
 - `last_processed_timestamp` prevents double-processing a candle.
 
 ### S2 — State warm-up (explicit)
-James's `initialState` is from training-end. Before serving, the runtime replays
-candles from training-end to "now" so the filter reaches current state. Do not
-serve a valuation off a cold/stale resume without warm-up.
+The packaged runtime initializes from its trusted-reference anchor when no
+carried state is available. Replay then advances state one canonical 5-minute
+step at a time. A cold live call is explicitly diagnostic; it is not presented
+as an equivalent to a warmed sequential state.
 
 ### Failure handling (explicit, never silent)
 | Situation | Behaviour |
@@ -553,23 +551,25 @@ provenance, never as the primary live NVDA source.
 **Phase 1 — unblock the frontend (today, Sep 22)**
 1. `pyproject.toml` + package skeleton, runnable `uvicorn`, CORS configured.
 2. `models.py` — `MarketSnapshot`, `ChallengerEstimate`, `ValuationResult`, enums.
-3. `routes/valuation.py` returning a **mock** `ValuationResult` from a fixture.
-   → Valerie builds the whole dashboard against a stable shape immediately.
+3. `routes/valuation.py` serving only a computed replay/scheduler result, or an
+   explicit `503 data_unavailable` when no result exists.
 4. `adapters/okx.py` — port auth, fetch a real NVDAx candle, verify creds.
 
 **Phase 2 — real data & model (Sep 23)**
 5. `adapters/equity.py` (Alpaca) + `adapters/reference.py` (§3).
 6. `session.py` + tests.
 7. `normalizer.py` + tests (assert NVDAx/NVDA scale ≈ 1; multiplier = 1.0).
-8. `quant_runtime.py` — port one Kalman step (NVDAx-first update order),
-   returning `state_m` + `state_sd_log`; load `mock_p1a_runtime.json` until the
-   real artifact arrives; golden test vs James's R.
+8. `quant_runtime.py` — adapt the public P1a-C `QuantService` interface and
+   preserve its NVDAx-first update order; detailed runtime integrity tests stay
+   in the quant package.
 9. `validation.py` + tests (the core — test hardest; log-space z-score).
 10. `state_store.py` (in-memory) + `replay.py`.
-11. `scenarios/weekend_divergence.json`; `/api/valuation` serves replay output.
+11. `scenarios/weekend_divergence.json`; `/api/valuation` serves replay output
+   only after it has been computed.
 
 **Phase 3 — integration (Sep 23 night → 24)**
-12. Swap in James's real artifact; warm-up state; sanity-check vs his R output.
+12. Keep the packaged P1a-C artifacts and verify backend integration against the
+   quant package's public result contract.
 13. `routes/replay.py` + `routes/backtest.py` from shared historical data.
 14. `publisher.py` + `routes/publish.py` once Kai Ze gives RPC + contract ABI.
 15. Connect Valerie's frontend to the live API.
@@ -588,8 +588,8 @@ provenance, never as the primary live NVDA source.
    output to test the Python port against.
 2. **With James + Kai Ze:** what is the **reference under test** `Pt` for the
    demo (§3), and is the OKX X-Perp index accessible with our credentials.
-3. **With Valerie:** the `ValuationResult` shape (§5.3) + the mock endpoint, and
-   her dev origin for CORS.
+3. **With Valerie:** the `ValuationResult` shape (§5.3) + explicit unavailable
+   behavior, and her dev origin for CORS.
 4. **With Kai Ze:** X Layer RPC URL, deployed `ValtideValidationRegistry`
    address, and ABI — needed only for Phase 3 `publisher.py`.
 

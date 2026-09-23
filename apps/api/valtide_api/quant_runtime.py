@@ -1,50 +1,25 @@
-"""Adapter from backend snapshots to the trained P1a-C quant runtime.
+"""Thin adapter from backend snapshots to the packaged P1a-C quant service.
 
-The model implementation and artifacts live in ``valtide_quant_service`` (PR #3).
-This module only translates the backend's canonical objects and exposes the
-challenger state needed by the validation engine.
+The quant package owns model execution, calibrated intervals, and carried state.
+This module only translates backend objects at the integration boundary; product
+validation remains in :mod:`valtide_api.validation`.
 """
 
 from __future__ import annotations
 
 import math
 from datetime import datetime
-from functools import lru_cache
-from importlib.resources import files
-from pathlib import Path
 
-from valtide_quant_service.artifacts import P1aArtifact, load_p1a
-from valtide_quant_service.calibration import P1aCCalibrator
-from valtide_quant_service.runtime import FilterState, P1aCRuntime, StateGapError
-from valtide_quant_service.schemas import MarketSnapshot as QuantMarketSnapshot
+from valtide_quant_service import (
+    FilterState,
+    QuantService,
+    StateGapError,
+)
+from valtide_quant_service import (
+    MarketSnapshot as QuantMarketSnapshot,
+)
 
-from valtide_api.config import get_settings
 from valtide_api.models import ChallengerEstimate, MarketSnapshot
-
-ModelArtifact = P1aArtifact
-
-
-def _configured_path(value: str, filename: str):
-    if value:
-        path = Path(value)
-        if not path.is_absolute():
-            path = Path(__file__).resolve().parents[1] / path
-        return path
-    return files("valtide_quant_service").joinpath("model_artifacts", filename)
-
-
-@lru_cache
-def load_artifact(path: str | None = None) -> ModelArtifact:
-    """Load the exact trained P1a artifact packaged by the quant service."""
-    configured = path if path is not None else get_settings().model_artifact_path
-    return load_p1a(_configured_path(configured, "p1a_runtime.json"))
-
-
-@lru_cache
-def load_calibrator(path: str | None = None) -> P1aCCalibrator:
-    """Load the P1a-C empirical interval calibrator packaged by the quant service."""
-    configured = path if path is not None else get_settings().calibrator_artifact_path
-    return P1aCCalibrator(_configured_path(configured, "p1a_c_calibrator.json"))
 
 
 def estimate(
@@ -52,17 +27,23 @@ def estimate(
     prior_m: float | None = None,
     prior_P: float | None = None,
     prior_ts: datetime | None = None,
-    artifact: ModelArtifact | None = None,
-    calibrator: P1aCCalibrator | None = None,
 ) -> ChallengerEstimate:
-    """Run one P1a-C step while preserving its causal update order and calibration."""
-    art = artifact or load_artifact()
-    cal = calibrator or load_calibrator()
-    state = None
-    if prior_m is not None and prior_P is not None:
-        state = FilterState(prior_m, prior_P, prior_ts)
+    """Run one public P1a-C service update and translate its quantitative result.
 
-    runtime = P1aCRuntime(art, cal, state)
+    ``prior_m``/``prior_P``/``prior_ts`` are the backend's serialized carried
+    state. The packaged service then preserves its causal order: predict,
+    assimilate NVDAx, read the challenger estimate, and only then assimilate
+    current NVDA for the next timestamp.
+    """
+    if (prior_m is None) != (prior_P is None):
+        raise ValueError("prior_m and prior_P must be provided together")
+
+    state = (
+        FilterState(m=prior_m, P=prior_P, timestamp=prior_ts)
+        if prior_m is not None and prior_P is not None
+        else None
+    )
+    service = QuantService.from_default_artifacts(state=state)
     quant_snapshot = QuantMarketSnapshot(
         asset=snapshot.asset,
         timestamp=snapshot.observation_ts,
@@ -73,30 +54,25 @@ def estimate(
         last_trusted_reference_timestamp=snapshot.last_trusted_reference_ts,
         external_constructed_reference=snapshot.external_reference,
     )
-    result = runtime.step(quant_snapshot)
-    carried = runtime.state
-    if carried is None:  # pragma: no cover - runtime.step always creates state
-        raise RuntimeError("quant runtime did not return a carried state")
+    quant_result = service.update(quant_snapshot)
+    carried = quant_result.carried_state
 
     return ChallengerEstimate(
-        fair_value=result.fair_value,
-        lower_bound=result.primary_lower,
-        upper_bound=result.primary_upper,
-        state_m=result.challenger_m_log,
-        state_sd_log=math.sqrt(result.challenger_P_log),
-        reference_predictive_sd_log=result.reference_predictive_sd_log,
-        coverage_target=cal.level,
-        interval_calibration_type=result.calibration.calibration_type,
-        interval_calibration_source=result.calibration.source,
+        fair_value=quant_result.fair_value,
+        lower_bound=quant_result.lower_bound,
+        upper_bound=quant_result.upper_bound,
+        state_m=quant_result.challenger_m_log,
+        state_sd_log=math.sqrt(quant_result.challenger_P_log),
+        reference_predictive_sd_log=quant_result.reference_predictive_sd_log,
+        coverage_target=quant_result.interval_coverage_target,
+        interval_calibration_type=quant_result.interval_calibration_type,
+        interval_calibration_source=quant_result.interval_calibration_source,
         state_m_after_nvda=carried.m,
         state_P_after_nvda=carried.P,
+        model_id=quant_result.model_id,
+        model_version=quant_result.model_version,
+        interval_semantics=quant_result.interval_semantics,
     )
 
 
-__all__ = [
-    "ModelArtifact",
-    "StateGapError",
-    "estimate",
-    "load_artifact",
-    "load_calibrator",
-]
+__all__ = ["StateGapError", "estimate"]

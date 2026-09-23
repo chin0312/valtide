@@ -3,13 +3,13 @@
 Pulls the three live inputs (no OKX OnchainOS dependency):
   - NVDAx token price   -> DexScreener  (no key)
   - NVDA underlying      -> Alpaca
-  - reference under test -> OKX X-Perp index (public), else stale NVDA close
+  - reference under test -> OKX X-Perp index (public)
 
-then runs a single inference seeded from the model artifact's initial state.
+then runs a single cold-start inference.
 
 Caveat: this is a one-shot estimate seeded from the model's prior, not a warmed
-filter. A warmed sequence (replay / the P1 scheduler) gives production-quality
-state; live mode is for an on-demand "what does it look like right now" reading.
+    filter. A warmed sequence (replay / the P1 scheduler) gives a more informative
+    state; live mode is a cold-start / on-demand diagnostic.
 It is compute-only and does NOT mutate the cache.
 """
 
@@ -42,7 +42,7 @@ def build_live_snapshot(client: httpx.Client | None = None) -> MarketSnapshot:
     if quote is None:
         raise LiveDataUnavailable("NVDAx token price unavailable (DexScreener).")
 
-    last = equity.get_last_trusted_close("NVDA", client=client)
+    last = equity.get_latest_trusted_bar("NVDA", client=client)
     if last is None:
         raise LiveDataUnavailable("NVDA underlying unavailable (Alpaca — check key/feed).")
 
@@ -50,12 +50,12 @@ def build_live_snapshot(client: httpx.Client | None = None) -> MarketSnapshot:
     is_open = market_state == MarketState.REGULAR
     nvda_live = last.close if is_open else None
 
-    # Reference under test: X-Perp index if reachable, else the stale NVDA close.
+    # Keep the selected reference identity even when its observation is unavailable.
     ref = reference.get_okx_xperp_index(settings.okx_xperp_index_id, client=client)
     if ref is not None:
         pt, pt_source, pt_ts = ref.price, ref.source, ref.ts
     else:
-        pt, pt_source, pt_ts = last.close, "stale_nvda", last.ts
+        pt, pt_source, pt_ts = None, "okx_xperp_index", None
 
     assert_scale(quote.price, nvda_live)
 
@@ -72,7 +72,9 @@ def build_live_snapshot(client: httpx.Client | None = None) -> MarketSnapshot:
         reference_under_test=pt,
         reference_under_test_source=pt_source,
         reference_under_test_ts=pt_ts,
-        reference_under_test_age_seconds=max(0, int((now - pt_ts).total_seconds())),
+        reference_under_test_age_seconds=(
+            max(0, int((now - pt_ts).total_seconds())) if pt_ts is not None else None
+        ),
         market_state=market_state,
         external_reference=None,
         source_provenance={
@@ -86,14 +88,10 @@ def build_live_snapshot(client: httpx.Client | None = None) -> MarketSnapshot:
 def run_live_valuation(client: httpx.Client | None = None) -> ValuationResult:
     """Build a live snapshot and run one cold-start inference.
 
-    A one-shot live call has no warmed state, so we seed the filter at the CURRENT
-    token price (not the artifact's training-era m0, which would drag a cold
-    estimate toward a stale level). The filter then carries the artifact's
-    uncertainty P0. Semantically: "cold, the challenger's best guess is the token
-    price with model uncertainty; is the reference consistent with that?"
-
-    A warmed filter (replay / the P1 scheduler) gives a more informative estimate;
-    this endpoint is for an on-demand snapshot.
+    The merged quant runtime initializes from the latest trusted reference when it
+    is available and then performs one P1a-C step. This endpoint is a cold-start /
+    on-demand diagnostic, not an equivalent to a warmed sequential production
+    state. It does not mutate the cache.
     """
     snapshot = build_live_snapshot(client=client)
     result, _ = run_inference(snapshot, None)

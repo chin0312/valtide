@@ -1,12 +1,4 @@
-"""Validation engine — turns a challenger estimate + reference into an Evidence State.
-
-Pure, deterministic, no I/O. This is the heart of the product; it is the module
-to unit-test hardest. All logic and formulas trace to docs/BACKEND_PLAN.md §7,
-which in turn traces to METHODOLOGY §10-13.
-
-Key correctness point: the z-score is computed in LOG space using the state sd
-directly, NOT by reverse-engineering sigma from asymmetric price bounds.
-"""
+"""Backend-owned validation of a quant estimate against a selected reference."""
 
 from __future__ import annotations
 
@@ -23,20 +15,13 @@ from valtide_api.models import (
 
 @dataclass(frozen=True)
 class Thresholds:
-    """Validation thresholds. Research defaults — recalibrate on James's results.
-
-    No threshold should appear as a bare literal in the logic below; they all
-    live here so they are auditable and tunable in one place.
-    """
+    """Auditable research thresholds used by the validation layer."""
 
     z_support: float = 1.0
     z_challenge: float = 2.0
-    # A normal weekend gap (Fri close -> Sun/Mon) is ~50-64h. Auto-abstaining at
-    # 48h would make weekend validation — the core use case — impossible, so the
-    # default covers a normal weekend and only flags pathologically stale data.
     max_reference_age_s: int = 72 * 3600
-    min_token_volume: float = 0.0  # set once we observe real OKX volume
-    max_state_sd_log: float = 0.05  # ~5% 1-sigma; tune on James's results
+    min_token_volume: float = 0.0
+    max_state_sd_log: float = 0.05
     agree_tolerance: float = 0.01
 
 
@@ -44,44 +29,61 @@ def validate(
     snapshot: MarketSnapshot,
     estimate: ChallengerEstimate,
     thresholds: Thresholds | None = None,
-    model_id: str = "P1a",
-    model_version: str = "0.1.0",
-    interval_semantics: str = "reference_equivalent_predictive",
 ) -> ValuationResult:
-    """Produce a ValuationResult from a snapshot and challenger estimate.
+    """Produce a backend Evidence State from one quantitative estimate.
 
-    The reference under test (Pt) is taken from snapshot.reference_under_test.
+    Missing token or reference observations are explicit abstentions. The quant
+    state may still advance on a missing token, but the backend cannot claim
+    token agreement or compute a reference deviation without the corresponding
+    observation.
     """
     th = thresholds or Thresholds()
 
-    R0 = snapshot.last_trusted_reference
-    Tt = snapshot.token_price
-    Ft = estimate.fair_value
-    Pt = snapshot.reference_under_test
+    r0 = snapshot.last_trusted_reference
+    token = snapshot.token_price
+    fair = estimate.fair_value
+    reference = snapshot.reference_under_test
 
-    # --- Step 1: derived quantities (METHODOLOGY §10), price space ---
-    observed_token_move = Tt / R0 - 1
-    model_implied_move = Ft / R0 - 1
-    residual = Tt / Ft - 1
+    observed_token_move = token / r0 - 1 if token is not None else None
+    model_implied_move = fair / r0 - 1
+    residual = token / fair - 1 if token is not None else None
 
-    # --- Step 2: reference deviation + log-space z-score (METHODOLOGY §11) ---
-    reference_deviation = Pt / Ft - 1
-    z = (math.log(Pt) - estimate.state_m) / estimate.reference_predictive_sd_log
-    inside_interval = estimate.lower_bound <= Pt <= estimate.upper_bound
-
+    reference_deviation: float | None = None
+    standardized_deviation: float | None = None
+    inside_interval = False
     reason_codes: list[str] = []
 
-    # --- Step 3: base Evidence State from |z| (BACKEND_PLAN §7) ---
-    abs_z = abs(z)
-    if abs_z >= th.z_challenge:
-        state = EvidenceState.CHALLENGED
-    elif abs_z < th.z_support:
-        state = EvidenceState.SUPPORTED
-    else:
+    if token is None:
         state = EvidenceState.INCONCLUSIVE
+        reason_codes.append("TOKEN_DATA_UNAVAILABLE")
 
-    # --- Step 4: data-quality overrides -> force INCONCLUSIVE (METHODOLOGY §13) ---
-    # Any weak-evidence condition means we abstain rather than challenge.
+    if reference is None:
+        reason_codes.append("COMPARATOR_UNAVAILABLE")
+        state = EvidenceState.INCONCLUSIVE
+    elif estimate.reference_predictive_sd_log <= 0:
+        reason_codes.append("MODEL_UNCERTAINTY_INVALID")
+        state = EvidenceState.INCONCLUSIVE
+    else:
+        reference_deviation = reference / fair - 1
+        standardized_deviation = (
+            math.log(reference) - estimate.state_m
+        ) / estimate.reference_predictive_sd_log
+        inside_interval = estimate.lower_bound <= reference <= estimate.upper_bound
+
+        abs_z = abs(standardized_deviation)
+        if abs_z >= th.z_challenge:
+            state = EvidenceState.CHALLENGED
+        elif abs_z < th.z_support:
+            state = EvidenceState.SUPPORTED
+        else:
+            state = EvidenceState.INCONCLUSIVE
+
+        if not inside_interval:
+            reason_codes.append("REFERENCE_UNDER_TEST_OUTSIDE_INTERVAL")
+
+    # Data-quality gates are backend validation concerns, not quant outputs.
+    if token is None:
+        state = EvidenceState.INCONCLUSIVE
     if snapshot.reference_age_seconds > th.max_reference_age_s:
         state = EvidenceState.INCONCLUSIVE
         reason_codes.append("UNDERLYING_REFERENCE_STALE")
@@ -97,39 +99,42 @@ def validate(
     if estimate.reference_predictive_sd_log > th.max_state_sd_log:
         state = EvidenceState.INCONCLUSIVE
         reason_codes.append("MODEL_UNCERTAINTY_HIGH")
+    if estimate.interval_calibration_source == "global_fallback":
+        reason_codes.append("CALIBRATION_GLOBAL_FALLBACK")
 
-    # --- Step 5: descriptive reason codes (canonical METHODOLOGY §13 names) ---
-    if not inside_interval:
-        reason_codes.append("REFERENCE_UNDER_TEST_OUTSIDE_INTERVAL")
-    if abs(Tt - Ft) / Ft < th.agree_tolerance:
+    if token is not None and abs(token - fair) / fair < th.agree_tolerance:
         reason_codes.append("TOKEN_AND_CHALLENGER_AGREE")
 
     return ValuationResult(
         asset=snapshot.asset,
         timestamp=snapshot.observation_ts,
         market_state=snapshot.market_state.value,
-        last_trusted_reference=R0,
-        token_price=Tt,
+        last_trusted_reference=r0,
+        token_price=token,
         external_constructed_reference=snapshot.external_reference,
-        valtide_fair_value=Ft,
+        valtide_fair_value=fair,
         fair_value_lower=estimate.lower_bound,
         fair_value_upper=estimate.upper_bound,
         interval_coverage_target=estimate.coverage_target,
-        observed_token_move_pct=observed_token_move * 100,
+        observed_token_move_pct=(
+            observed_token_move * 100 if observed_token_move is not None else None
+        ),
         model_implied_move_pct=model_implied_move * 100,
-        residual_premium_discount_pct=residual * 100,
-        reference_under_test=Pt,
+        residual_premium_discount_pct=(residual * 100 if residual is not None else None),
+        reference_under_test=reference,
         reference_under_test_source=snapshot.reference_under_test_source,
         reference_under_test_ts=snapshot.reference_under_test_ts,
         reference_under_test_age_seconds=snapshot.reference_under_test_age_seconds,
-        reference_deviation_pct=reference_deviation * 100,
-        standardized_deviation=z,
+        reference_deviation_pct=(
+            reference_deviation * 100 if reference_deviation is not None else None
+        ),
+        standardized_deviation=standardized_deviation,
         evidence_state=state,
         reason_codes=reason_codes,
         confidence=None,
-        model_id=model_id,
-        model_version=model_version,
-        interval_semantics=interval_semantics,
+        model_id=estimate.model_id,
+        model_version=estimate.model_version,
+        interval_semantics=estimate.interval_semantics,
         interval_calibration_type=estimate.interval_calibration_type,
         interval_calibration_source=estimate.interval_calibration_source,
         reference_age_seconds=snapshot.reference_age_seconds,

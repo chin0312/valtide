@@ -37,10 +37,6 @@ class Settings(BaseSettings):
     xlayer_rpc_url: str | None = None
     publisher_private_key: str | None = None
 
-    # Optional overrides for the installed quant package's trained artifacts.
-    model_artifact_path: str = ""
-    calibrator_artifact_path: str = ""
-
     # CORS origins allowed to call the API from a browser (Valerie's Next.js app).
     # Comma-separated in the env var, e.g. "http://localhost:3000,https://valtide.app"
     cors_origins: str = "http://localhost:3000"

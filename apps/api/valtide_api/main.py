@@ -42,7 +42,10 @@ async def lifespan(app: FastAPI):
                 len(results),
             )
     except Exception:  # noqa: BLE001 - startup must not crash the app
-        logger.exception("Seed failed; /api/valuation will use the mock fallback")
+        logger.exception(
+            "Seed failed; /api/valuation will return 503 until a real or scenario "
+            "result is available"
+        )
     yield
 
 

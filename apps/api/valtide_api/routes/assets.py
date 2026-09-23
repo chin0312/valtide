@@ -1,6 +1,7 @@
 """GET /api/assets — supported assets and data availability.
 
-Phase 1: static list. Phase 2: reflects real adapter/model availability.
+The packaged P1a-C artifacts are the default model source for the supported MVP
+asset; live data availability is reported by the valuation routes.
 """
 
 from fastapi import APIRouter
@@ -23,6 +24,6 @@ def list_assets() -> list[AssetInfo]:
             asset="NVDAx",
             token_source="okx_onchainos",
             underlying_source="alpaca",
-            model_available=False,  # flips true once a real artifact is loaded
+            model_available=True,
         )
     ]

@@ -102,10 +102,14 @@ def get_stock_bars(
             client.close()
 
 
-def get_last_trusted_close(
+def get_latest_trusted_bar(
     symbol: str = "NVDA", lookback_days: int = 5, client: httpx.Client | None = None
 ) -> RawEquityBar | None:
-    """Return the most recent NVDA bar in the last `lookback_days` — this is R0."""
+    """Return the latest available trusted underlying bar in the lookback window.
+
+    This is an R0 anchor, not necessarily an official regular-session close.
+    Exchange-calendar and US-holiday selection remain outside this adapter.
+    """
     now = datetime.now(UTC)
     start = datetime.fromtimestamp(now.timestamp() - lookback_days * 86400, tz=UTC)
     # SIP restricts the most recent window on free plans; end slightly in the past.

@@ -23,10 +23,13 @@ def _estimate(fair_value: float = 185.70, sd_log: float = 0.008) -> ChallengerEs
         coverage_target=0.90,
         state_m_after_nvda=m,
         state_P_after_nvda=sd_log**2,
+        model_id="P1a-C",
+        model_version="0.2.0",
+        interval_semantics="reference_equivalent_predictive",
     )
 
 
-def _snapshot(reference_under_test: float, **overrides) -> MarketSnapshot:
+def _snapshot(reference_under_test: float | None, **overrides) -> MarketSnapshot:
     base = dict(
         asset="NVDAx",
         observation_ts=datetime(2026, 9, 20, 14, 0, tzinfo=UTC),
@@ -120,3 +123,32 @@ def test_custom_thresholds_respected():
     strict = Thresholds(z_support=0.5, z_challenge=1.0)
     result = validate(_snapshot(pt), est, thresholds=strict)
     assert result.evidence_state == EvidenceState.CHALLENGED
+
+
+def test_missing_token_is_inconclusive_without_token_derived_fields():
+    result = validate(_snapshot(190.00, token_price=None, token_volume=None), _estimate())
+
+    assert result.evidence_state == EvidenceState.INCONCLUSIVE
+    assert "TOKEN_DATA_UNAVAILABLE" in result.reason_codes
+    assert result.observed_token_move_pct is None
+    assert result.residual_premium_discount_pct is None
+    assert "TOKEN_AND_CHALLENGER_AGREE" not in result.reason_codes
+
+
+def test_missing_reference_is_inconclusive_without_deviation_fields():
+    result = validate(_snapshot(None), _estimate())
+
+    assert result.evidence_state == EvidenceState.INCONCLUSIVE
+    assert "COMPARATOR_UNAVAILABLE" in result.reason_codes
+    assert result.reference_deviation_pct is None
+    assert result.standardized_deviation is None
+    assert "REFERENCE_UNDER_TEST_OUTSIDE_INTERVAL" not in result.reason_codes
+
+
+def test_global_fallback_calibration_is_visible_without_forcing_abstention():
+    estimate = _estimate().model_copy(update={"interval_calibration_source": "global_fallback"})
+
+    result = validate(_snapshot(185.70), estimate)
+
+    assert result.evidence_state == EvidenceState.SUPPORTED
+    assert "CALIBRATION_GLOBAL_FALLBACK" in result.reason_codes

@@ -1,9 +1,7 @@
-"""GET /api/backtest/{asset} — aggregate + regime evaluation metrics.
+"""GET /api/backtest/{asset} — scenario-derived evidence counts.
 
-Phase 2 placeholder: returns the metric SHAPE the frontend/Model-Evidence view
-expects, computed from the scenario run where possible. Real walk-forward metrics
-(MAE/RMSE vs baselines, interval coverage, challenge precision/recall) come from
-James's historical results and are swapped in during Phase 3.
+Point-accuracy and coverage metrics require a point-in-time historical evaluator
+and are intentionally left null by this scenario route.
 """
 
 from __future__ import annotations
@@ -22,7 +20,7 @@ class BacktestMetrics(BaseModel):
     source: str  # "scenario" now; "historical" once real data is wired
     n_observations: int
     evidence_state_counts: dict[str, int]
-    # Placeholders until James's evaluation is wired in.
+    # Not computed by the scenario-only route.
     mae: float | None = None
     rmse: float | None = None
     interval_coverage: float | None = None
@@ -44,6 +42,6 @@ def get_backtest(asset: str) -> BacktestMetrics:
         source="scenario",
         n_observations=len(results),
         evidence_state_counts=counts,
-        note="Scenario-derived counts only. Point-accuracy metrics pending James's "
-        "historical evaluation (MAE/RMSE vs baselines, interval coverage).",
+        note="Scenario-derived counts only; point-accuracy metrics require "
+        "point-in-time historical evaluation.",
     )

@@ -1,122 +1,87 @@
-"""Quant runtime tests — verify the single Kalman step behaves correctly.
-
-These check internal consistency and the NVDAx-first update order. The eventual
-golden test (asserting equality with James's R output on a shared input) is added
-once he provides one sample step.
-"""
+"""Backend integration checks for the public P1a-C quant boundary."""
 
 import math
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 
 from valtide_api.models import MarketSnapshot, MarketState
-from valtide_api.quant_runtime import ModelArtifact, estimate, load_artifact, load_calibrator
-
-_ART = ModelArtifact(
-    model_family="P1a",
-    deployment_model_id="P1a-C",
-    model_version="test",
-    asset="NVDAx",
-    interval_level=0.90,
-    q_by_session={s: 4.2e-6 for s in ("regular", "premarket", "afterhours", "overnight", "closed")},
-    r_nvda=1.1e-6,
-    r_nvdax=9.5e-6,
-    trained_through_utc=None,
-)
+from valtide_api.quant_runtime import estimate
 
 
-def _snapshot(token_price: float, nvda: float | None) -> MarketSnapshot:
+def _snapshot(
+    token_price: float | None,
+    nvda: float | None,
+    *,
+    external: float | None = None,
+    observation_ts: datetime | None = None,
+) -> MarketSnapshot:
+    ts = observation_ts or datetime(2026, 9, 20, 14, 0, tzinfo=UTC)
     return MarketSnapshot(
         asset="NVDAx",
-        observation_ts=datetime(2026, 9, 20, 14, 0, tzinfo=UTC),
+        observation_ts=ts,
         token_price=token_price,
-        token_volume=50_000.0,
+        token_volume=50_000.0 if token_price is not None else None,
         underlying_reference=nvda,
-        underlying_reference_ts=None,
+        underlying_reference_ts=(ts if nvda is not None else None),
         last_trusted_reference=180.0,
         last_trusted_reference_ts=datetime(2026, 9, 19, 20, 0, tzinfo=UTC),
         reference_age_seconds=64_800,
         reference_under_test=190.0,
         reference_under_test_source="okx_xperp_index",
+        reference_under_test_ts=ts,
+        reference_under_test_age_seconds=0,
         market_state=MarketState.CLOSED,
+        external_reference=external,
     )
 
 
-def test_challenger_uses_nvdax_only():
-    # With no NVDA, the carried state equals the NVDAx-only posterior.
-    est = estimate(_snapshot(185.10, None), prior_m=math.log(185.0), prior_P=1e-4, artifact=_ART)
-    assert est.state_m == est.state_m_after_nvda
-    assert est.state_P_after_nvda == est.state_sd_log**2
+def test_default_runtime_returns_quant_only_p1ac_estimate():
+    result = estimate(_snapshot(185.10, None))
+
+    assert result.model_id == "P1a-C"
+    assert result.model_version
+    assert result.interval_semantics == "reference_equivalent_predictive"
+    assert result.lower_bound < result.fair_value < result.upper_bound
+    assert result.coverage_target == 0.9
 
 
-def test_fair_value_between_prior_and_observation():
-    # The filtered mean moves from the prior toward the NVDAx observation.
-    prior_m = math.log(185.0)
-    obs_m = math.log(185.10)
-    est = estimate(_snapshot(185.10, None), prior_m=prior_m, prior_P=1e-4, artifact=_ART)
-    assert prior_m <= est.state_m <= obs_m
+def test_current_nvda_changes_carried_state_only():
+    without_nvda = estimate(_snapshot(185.10, None))
+    with_nvda = estimate(_snapshot(185.10, 184.0))
+
+    assert without_nvda.fair_value == with_nvda.fair_value
+    assert without_nvda.lower_bound == with_nvda.lower_bound
+    assert without_nvda.upper_bound == with_nvda.upper_bound
+    assert without_nvda.state_m == with_nvda.state_m
+    assert without_nvda.state_m_after_nvda != with_nvda.state_m_after_nvda
 
 
-def test_interval_brackets_fair_value():
-    est = estimate(_snapshot(185.10, None), prior_m=math.log(185.0), prior_P=1e-4, artifact=_ART)
-    assert est.lower_bound < est.fair_value < est.upper_bound
+def test_external_comparator_cannot_change_quant_estimate():
+    without_external = estimate(_snapshot(185.10, None, external=None))
+    with_external = estimate(_snapshot(185.10, None, external=250.0))
+
+    assert with_external == without_external
 
 
-def test_nvda_changes_carried_state_only():
-    # Folding in NVDA must change the carried state but NOT the challenger read-off.
-    snap_no = _snapshot(185.10, None)
-    snap_yes = _snapshot(185.10, 184.0)
-    a = estimate(snap_no, prior_m=math.log(185.0), prior_P=1e-4, artifact=_ART)
-    b = estimate(snap_yes, prior_m=math.log(185.0), prior_P=1e-4, artifact=_ART)
-    # Challenger fair value identical (NVDAx-only) ...
-    assert a.fair_value == b.fair_value
-    assert a.state_m == b.state_m
-    # ... but the carried post-NVDA state differs.
-    assert a.state_m_after_nvda != b.state_m_after_nvda
+def test_missing_token_still_advances_quant_state():
+    result = estimate(_snapshot(None, None))
+
+    assert math.isfinite(result.fair_value)
+    assert result.state_m_after_nvda == result.state_m
+    assert result.state_P_after_nvda == result.state_sd_log**2
 
 
-def test_uncertainty_shrinks_after_observation():
-    # A measurement reduces variance: P1 < P_pred = P0 + Q.
-    prior_P = 1e-4
-    est = estimate(_snapshot(185.10, None), prior_m=math.log(185.0), prior_P=prior_P, artifact=_ART)
-    assert est.state_sd_log**2 < prior_P + _ART.q_by_session["closed"]
-
-
-def test_session_specific_process_variance_is_used():
-    regular = _snapshot(185.10, None).model_copy(update={"market_state": MarketState.REGULAR})
-    closed = _snapshot(185.10, None)
-    art = ModelArtifact(
-        model_family="P1a",
-        deployment_model_id="P1a-C",
-        model_version="test",
-        asset="NVDAx",
-        interval_level=0.90,
-        q_by_session={
-            "regular": 1e-3,
-            "premarket": 1e-6,
-            "afterhours": 1e-6,
-            "overnight": 1e-6,
-            "closed": 1e-8,
-        },
-        r_nvda=1.1e-6,
-        r_nvdax=9.5e-6,
-        trained_through_utc=None,
+def test_backend_passes_carried_state_to_next_five_minute_step():
+    first_ts = datetime(2026, 9, 20, 14, 0, tzinfo=UTC)
+    first = estimate(_snapshot(185.10, None, observation_ts=first_ts))
+    second = estimate(
+        _snapshot(
+            185.20,
+            None,
+            observation_ts=first_ts + timedelta(minutes=5),
+        ),
+        prior_m=first.state_m_after_nvda,
+        prior_P=first.state_P_after_nvda,
+        prior_ts=first_ts,
     )
-    a = estimate(regular, prior_m=math.log(185.0), prior_P=1e-4, artifact=art)
-    b = estimate(closed, prior_m=math.log(185.0), prior_P=1e-4, artifact=art)
-    assert a.fair_value != b.fair_value
 
-
-def test_default_artifacts_match_pr3_p1ac_contract():
-    artifact = load_artifact()
-    calibrator = load_calibrator()
-    assert artifact.deployment_model_id == "P1a-C"
-    assert set(artifact.q_by_session) == {
-        "regular",
-        "premarket",
-        "afterhours",
-        "overnight",
-        "closed",
-    }
-    assert artifact.q_by_session["regular"] == 3.02764671034894e-6
-    assert calibrator.bounds("regular").q_upper == 1.452
-    assert calibrator.bounds("closed").source == "global_fallback"
+    assert second.fair_value != first.fair_value

@@ -1,22 +1,4 @@
-"""Panel loader — turns James's p0_panel_5m.csv into MarketSnapshots.
-
-James's R pipeline emits a merged 5-minute panel with these columns (build_panel.R):
-    timestamp_utc, nvda_close, nvdax_close, nvdax_volume, nvda_available,
-    nvdax_available, nvda_log_price, nvdax_log_price, session_state,
-    time_since_nvda_min, ...
-
-This loader replays that panel through the same pipeline as everything else.
-
-Reference under test (Pt), per BACKEND_PLAN.md §3, self-contained in the panel:
-  - when NVDA is present (open market): Pt = NVDA close  (source "nvda_live")
-  - when NVDA is absent (weekend/overnight): Pt = last trusted NVDA close
-    carried forward  (source "stale_nvda")
-The live X-Perp index is used only in live mode; historical panels have no
-historical X-Perp series, so the panel validates against NVDA / stale-NVDA.
-
-Rows without a token price (nvdax_available == false) are skipped — there is no
-challenger input, so no validation is possible.
-"""
+"""Panel loader for James's canonical 5-minute market dataset."""
 
 from __future__ import annotations
 
@@ -28,6 +10,11 @@ from valtide_api.models import MarketSnapshot, MarketState
 from valtide_api.normalizer import assert_scale
 
 _NA = {"", "NA", "N/A", "NaN", "nan", "null", "None"}
+_FIVE_MINUTES = 300
+
+
+class PanelTimestampError(ValueError):
+    """Raised when a panel is not an ordered canonical 5-minute sequence."""
 
 
 def _num(value: str | None) -> float | None:
@@ -47,35 +34,55 @@ def _parse_ts(value: str) -> datetime:
 
 
 def load_panel_snapshots(path: str | Path) -> list[MarketSnapshot]:
-    """Build one MarketSnapshot per usable panel row (token price present)."""
+    """Build one snapshot per row after a trusted reference is established.
+
+    Missing token observations remain in the sequence as ``token_price=None``.
+    This preserves the quant runtime's 5-minute state transition without
+    fabricating a token price or silently introducing a state gap.
+    """
     path = Path(path)
     snapshots: list[MarketSnapshot] = []
-
     last_close: float | None = None
     last_close_ts: datetime | None = None
+    previous_ts: datetime | None = None
 
     with path.open(newline="") as f:
         for row in csv.DictReader(f):
             ts = _parse_ts(row["timestamp_utc"])
-            nvda = _num(row.get("nvda_close")) if _flag(row.get("nvda_available")) else None
-            nvdax = _num(row.get("nvdax_close")) if _flag(row.get("nvdax_available")) else None
+            if previous_ts is not None:
+                delta = (ts - previous_ts).total_seconds()
+                if delta != _FIVE_MINUTES:
+                    raise PanelTimestampError(
+                        "panel timestamps must advance by exactly 5 minutes; "
+                        f"got {delta:g} seconds between {previous_ts.isoformat()} "
+                        f"and {ts.isoformat()}"
+                    )
+            previous_ts = ts
 
-            # Update the last trusted close whenever NVDA is observed.
+            nvda = _num(row.get("nvda_close")) if _flag(row.get("nvda_available")) else None
+            nvdax = (
+                _num(row.get("nvdax_close")) if _flag(row.get("nvdax_available")) else None
+            )
+
             if nvda is not None:
                 last_close, last_close_ts = nvda, ts
 
-            # Need a token price (challenger input) and an established R0.
-            if nvdax is None or last_close is None or last_close_ts is None:
+            # A quant step needs an R0 anchor. Rows before the first trusted
+            # underlying observation cannot be represented honestly.
+            if last_close is None or last_close_ts is None:
                 continue
 
-            # Same unit-scale invariant the live path enforces (overlap rows only).
-            assert_scale(nvdax, nvda)
+            if nvdax is not None:
+                assert_scale(nvdax, nvda)
 
-            # Reference under test: live NVDA when open, else the stale close.
             if nvda is not None:
-                pt, pt_source = nvda, "nvda_live"
+                reference, reference_source = nvda, "nvda_live"
+                reference_ts = ts
+                reference_age = 0
             else:
-                pt, pt_source = last_close, "stale_nvda"
+                reference, reference_source = last_close, "stale_nvda"
+                reference_ts = last_close_ts
+                reference_age = int((ts - last_close_ts).total_seconds())
 
             snapshots.append(
                 MarketSnapshot(
@@ -88,12 +95,10 @@ def load_panel_snapshots(path: str | Path) -> list[MarketSnapshot]:
                     last_trusted_reference=last_close,
                     last_trusted_reference_ts=last_close_ts,
                     reference_age_seconds=int((ts - last_close_ts).total_seconds()),
-                    reference_under_test=pt,
-                    reference_under_test_source=pt_source,
-                    reference_under_test_ts=ts if nvda is not None else last_close_ts,
-                    reference_under_test_age_seconds=(
-                        0 if nvda is not None else int((ts - last_close_ts).total_seconds())
-                    ),
+                    reference_under_test=reference,
+                    reference_under_test_source=reference_source,
+                    reference_under_test_ts=reference_ts,
+                    reference_under_test_age_seconds=reference_age,
                     market_state=_market_state(row.get("session_state")),
                     source_provenance={"panel": path.name},
                 )

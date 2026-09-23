@@ -1,9 +1,4 @@
-"""Scenario loader — turns a scripted JSON scenario into MarketSnapshots.
-
-Lets the demo and dev environment run the full pipeline without live data or a
-real model artifact. See scenarios/weekend_divergence.json. Point-in-time correct:
-each step is independent; nothing looks ahead.
-"""
+"""Scenario loader — turns an explicit scripted scenario into MarketSnapshots."""
 
 from __future__ import annotations
 
@@ -37,17 +32,33 @@ def load_scenario(name: str = "weekend_divergence") -> list[MarketSnapshot]:
             MarketSnapshot(
                 asset=asset,
                 observation_ts=obs_ts,
-                token_price=float(step["token_price"]),
-                token_volume=step.get("token_volume"),
+                token_price=(
+                    float(step["token_price"])
+                    if step.get("token_price") is not None
+                    else None
+                ),
+                token_volume=(
+                    float(step["token_volume"])
+                    if step.get("token_volume") is not None
+                    else None
+                ),
                 underlying_reference=nvda,
                 underlying_reference_ts=obs_ts if nvda is not None else None,
                 last_trusted_reference=r0,
                 last_trusted_reference_ts=r0_ts,
                 reference_age_seconds=int((obs_ts - r0_ts).total_seconds()),
-                reference_under_test=float(step["reference_under_test"]),
+                reference_under_test=(
+                    float(step["reference_under_test"])
+                    if step.get("reference_under_test") is not None
+                    else None
+                ),
                 reference_under_test_source=ref_source,
-                reference_under_test_ts=obs_ts,
-                reference_under_test_age_seconds=0,
+                reference_under_test_ts=(
+                    obs_ts if step.get("reference_under_test") is not None else None
+                ),
+                reference_under_test_age_seconds=(
+                    0 if step.get("reference_under_test") is not None else None
+                ),
                 market_state=classify(obs_ts),
                 source_provenance={"scenario": name},
             )
