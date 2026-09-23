@@ -190,7 +190,7 @@ class MarketSnapshot(BaseModel):
     underlying_reference: float | None  # current NVDA if market open, else None
     underlying_reference_ts: datetime | None
 
-    last_trusted_reference: float       # most recent trusted NVDA close (R0)
+    last_trusted_reference: float       # latest available trusted underlying bar (R0)
     last_trusted_reference_ts: datetime
     reference_age_seconds: int          # observation_ts - last_trusted_reference_ts
 
@@ -407,11 +407,13 @@ global fallback calibration   → CALIBRATION_GLOBAL_FALLBACK (diagnostic only)
 class Thresholds:
     z_support: float = 1.0
     z_challenge: float = 2.0
-    max_reference_age_s: int = 48 * 3600
+    # Covers a normal weekend gap; research default subject to recalibration.
+    max_reference_age_s: int = 72 * 3600
     min_token_volume: float = 0.0      # set once we see real OKX volume
     max_state_sd_log: float = 0.05     # ~5% 1σ; tune on James's results
     agree_tolerance: float = 0.01
 ```
+The 72-hour reference-age default is intended to cover a normal weekend gap.
 These are **research defaults**, documented as such, to be re-calibrated on
 James's historical results before any accuracy claim.
 

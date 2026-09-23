@@ -1,7 +1,7 @@
 # Valtide Backend — Team Guide
 
-**Owner:** Xin Tong · **Code:** `apps/api/` · **Status:** P1a-C integration in
-progress
+**Owner:** Xin Tong · **Code:** `apps/api/` · **Status:** P1a-C backend
+integration complete; X Layer publication pending
 
 The backend orchestrates data, the packaged quant runtime, backend-owned
 validation, and the API. It does not contain pricing mathematics.

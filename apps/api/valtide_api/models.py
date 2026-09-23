@@ -56,7 +56,7 @@ class MarketSnapshot(BaseModel):
     underlying_reference: float | None = None
     underlying_reference_ts: datetime | None = None
 
-    # Most recent trusted NVDA close (R0) — always present.
+    # Latest available trusted underlying bar (R0) — always present.
     last_trusted_reference: float
     last_trusted_reference_ts: datetime
     reference_age_seconds: int
