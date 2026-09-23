@@ -19,6 +19,7 @@ def _estimate(fair_value: float = 185.70, sd_log: float = 0.008) -> ChallengerEs
         upper_bound=math.exp(m + 1.645 * sd_log),
         state_m=m,
         state_sd_log=sd_log,
+        reference_predictive_sd_log=sd_log,
         coverage_target=0.90,
         state_m_after_nvda=m,
         state_P_after_nvda=sd_log**2,
@@ -77,6 +78,15 @@ def test_stale_reference_forces_inconclusive():
     )
     assert result.evidence_state == EvidenceState.INCONCLUSIVE
     assert "UNDERLYING_REFERENCE_STALE" in result.reason_codes
+
+
+def test_stale_reference_under_test_forces_inconclusive():
+    result = validate(
+        _snapshot(190.00, reference_under_test_age_seconds=80 * 3600),
+        _estimate(),
+    )
+    assert result.evidence_state == EvidenceState.INCONCLUSIVE
+    assert "REFERENCE_UNDER_TEST_STALE" in result.reason_codes
 
 
 def test_high_uncertainty_forces_inconclusive():

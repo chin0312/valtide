@@ -14,8 +14,7 @@ from pathlib import Path
 from valtide_api.models import MarketSnapshot
 from valtide_api.session import classify
 
-_PACKAGE_ROOT = Path(__file__).resolve().parent.parent  # apps/api/
-_SCENARIO_DIR = _PACKAGE_ROOT / "scenarios"
+_SCENARIO_DIR = Path(__file__).resolve().parent / "scenarios"
 
 
 def _parse_ts(s: str) -> datetime:
@@ -47,6 +46,8 @@ def load_scenario(name: str = "weekend_divergence") -> list[MarketSnapshot]:
                 reference_age_seconds=int((obs_ts - r0_ts).total_seconds()),
                 reference_under_test=float(step["reference_under_test"]),
                 reference_under_test_source=ref_source,
+                reference_under_test_ts=obs_ts,
+                reference_under_test_age_seconds=0,
                 market_state=classify(obs_ts),
                 source_provenance={"scenario": name},
             )

@@ -90,6 +90,10 @@ def load_panel_snapshots(path: str | Path) -> list[MarketSnapshot]:
                     reference_age_seconds=int((ts - last_close_ts).total_seconds()),
                     reference_under_test=pt,
                     reference_under_test_source=pt_source,
+                    reference_under_test_ts=ts if nvda is not None else last_close_ts,
+                    reference_under_test_age_seconds=(
+                        0 if nvda is not None else int((ts - last_close_ts).total_seconds())
+                    ),
                     market_state=_market_state(row.get("session_state")),
                     source_provenance={"panel": path.name},
                 )

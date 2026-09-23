@@ -37,8 +37,9 @@ class Settings(BaseSettings):
     xlayer_rpc_url: str | None = None
     publisher_private_key: str | None = None
 
-    # Quant model artifact. Defaults to the mock until James delivers the real one.
-    model_artifact_path: str = "artifacts/mock_p1a_runtime.json"
+    # Optional overrides for the installed quant package's trained artifacts.
+    model_artifact_path: str = ""
+    calibrator_artifact_path: str = ""
 
     # CORS origins allowed to call the API from a browser (Valerie's Next.js app).
     # Comma-separated in the env var, e.g. "http://localhost:3000,https://valtide.app"

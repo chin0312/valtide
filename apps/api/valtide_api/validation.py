@@ -66,7 +66,7 @@ def validate(
 
     # --- Step 2: reference deviation + log-space z-score (METHODOLOGY §11) ---
     reference_deviation = Pt / Ft - 1
-    z = (math.log(Pt) - estimate.state_m) / estimate.state_sd_log
+    z = (math.log(Pt) - estimate.state_m) / estimate.reference_predictive_sd_log
     inside_interval = estimate.lower_bound <= Pt <= estimate.upper_bound
 
     reason_codes: list[str] = []
@@ -85,10 +85,16 @@ def validate(
     if snapshot.reference_age_seconds > th.max_reference_age_s:
         state = EvidenceState.INCONCLUSIVE
         reason_codes.append("UNDERLYING_REFERENCE_STALE")
+    if (
+        snapshot.reference_under_test_age_seconds is not None
+        and snapshot.reference_under_test_age_seconds > th.max_reference_age_s
+    ):
+        state = EvidenceState.INCONCLUSIVE
+        reason_codes.append("REFERENCE_UNDER_TEST_STALE")
     if snapshot.token_volume is not None and snapshot.token_volume < th.min_token_volume:
         state = EvidenceState.INCONCLUSIVE
         reason_codes.append("TOKEN_MARKET_QUALITY_LOW")
-    if estimate.state_sd_log > th.max_state_sd_log:
+    if estimate.reference_predictive_sd_log > th.max_state_sd_log:
         state = EvidenceState.INCONCLUSIVE
         reason_codes.append("MODEL_UNCERTAINTY_HIGH")
 
@@ -114,6 +120,8 @@ def validate(
         residual_premium_discount_pct=residual * 100,
         reference_under_test=Pt,
         reference_under_test_source=snapshot.reference_under_test_source,
+        reference_under_test_ts=snapshot.reference_under_test_ts,
+        reference_under_test_age_seconds=snapshot.reference_under_test_age_seconds,
         reference_deviation_pct=reference_deviation * 100,
         standardized_deviation=z,
         evidence_state=state,
@@ -122,5 +130,7 @@ def validate(
         model_id=model_id,
         model_version=model_version,
         interval_semantics=interval_semantics,
+        interval_calibration_type=estimate.interval_calibration_type,
+        interval_calibration_source=estimate.interval_calibration_source,
         reference_age_seconds=snapshot.reference_age_seconds,
     )

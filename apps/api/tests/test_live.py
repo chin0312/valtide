@@ -29,6 +29,8 @@ def test_build_live_snapshot_with_xperp(monkeypatch):
     assert snap.token_price == 185.1
     assert snap.reference_under_test == 190.0
     assert snap.reference_under_test_source == "okx_xperp_index"
+    assert snap.reference_under_test_ts is not None
+    assert snap.reference_under_test_age_seconds is not None
     assert snap.last_trusted_reference == 180.0
 
 

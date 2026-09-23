@@ -1,0 +1,15 @@
+{
+  "description": "Synthetic five-minute weekend sequence using the production P1a-C runtime contract.",
+  "asset": "NVDAx",
+  "last_trusted_reference": 180.0,
+  "last_trusted_reference_ts": "2026-09-18T20:00:00Z",
+  "reference_under_test_source": "okx_xperp_index",
+  "steps": [
+    { "observation_ts": "2026-09-19T14:00:00Z", "token_price": 180.0, "token_volume": 42000, "reference_under_test": 180.0 },
+    { "observation_ts": "2026-09-19T14:05:00Z", "token_price": 179.9, "token_volume": 39000, "reference_under_test": 180.0 },
+    { "observation_ts": "2026-09-19T14:10:00Z", "token_price": 179.7, "token_volume": 51000, "reference_under_test": 180.0 },
+    { "observation_ts": "2026-09-19T14:15:00Z", "token_price": 179.3, "token_volume": 60000, "reference_under_test": 180.0 },
+    { "observation_ts": "2026-09-19T14:20:00Z", "token_price": 178.8, "token_volume": 72000, "reference_under_test": 180.0 },
+    { "observation_ts": "2026-09-19T14:25:00Z", "token_price": 178.2, "token_volume": 68000, "reference_under_test": 180.0 }
+  ]
+}

@@ -9,7 +9,7 @@ result. See [`docs/BACKEND_PLAN.md`](../../docs/BACKEND_PLAN.md) for the full pl
 ```bash
 cd apps/api
 python -m venv .venv && source .venv/bin/activate
-pip install -e ".[dev]"
+pip install -e ../../valtide-quant-service-p1ac -e ".[dev]"
 ```
 
 Credentials are read from the repo-root `.env` (see `.env.example`).
@@ -33,13 +33,13 @@ pytest
 
 ## Status
 
-**Phases 1–2 complete** (25 tests passing). Full pipeline works end-to-end on
+**Phases 1–2 complete** (39 tests passing). Full pipeline works end-to-end on
 scripted scenario data: adapters → normalize → quant runtime → validation → API.
 The `weekend_divergence` scenario produces a SUPPORTED → INCONCLUSIVE →
 CHALLENGED arc, and `/api/valuation/NVDAx` serves it.
 
-Running on placeholders, swapped in later:
-- **model** — tuned mock artifact until James's fitted `p1a_runtime.json`
+Running on production quant artifacts from PR #3:
+- **model** — trained P1a parameters with P1a-C session calibration
 - **data** — scripted scenario until real data flows (see OKX blocker in
   `docs/BACKEND_ARCHITECTURE.md §10`)
 - **X Layer publish** — `POST /api/publish` returns 503 until Kai Ze's contracts

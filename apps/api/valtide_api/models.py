@@ -65,6 +65,8 @@ class MarketSnapshot(BaseModel):
     # implicitly derived. See BACKEND_PLAN.md §3.
     reference_under_test: float
     reference_under_test_source: str = Field(examples=["nvda_live", "okx_xperp_index"])
+    reference_under_test_ts: datetime | None = None
+    reference_under_test_age_seconds: int | None = None
 
     market_state: MarketState
 
@@ -87,8 +89,11 @@ class ChallengerEstimate(BaseModel):
     lower_bound: float  # price-space interval (may be asymmetric)
     upper_bound: float
     state_m: float  # posterior mean in LOG space (NVDAx-only)
-    state_sd_log: float  # sqrt(P_t) in LOG space — the uncertainty scale
+    state_sd_log: float  # sqrt(P_t) in LOG space — latent-state uncertainty
+    reference_predictive_sd_log: float  # sqrt(P_t + R_nvda), used for validation
     coverage_target: float
+    interval_calibration_type: str = "session_sym"
+    interval_calibration_source: str = "global"
 
     # State AFTER folding in NVDA (if present), carried into the next step.
     state_m_after_nvda: float
@@ -120,6 +125,8 @@ class ValuationResult(BaseModel):
 
     reference_under_test: float
     reference_under_test_source: str
+    reference_under_test_ts: datetime | None = None
+    reference_under_test_age_seconds: int | None = None
     reference_deviation_pct: float
     standardized_deviation: float  # log-space z-score
 
@@ -132,4 +139,6 @@ class ValuationResult(BaseModel):
     model_id: str
     model_version: str
     interval_semantics: str
+    interval_calibration_type: str = "session_sym"
+    interval_calibration_source: str = "global"
     reference_age_seconds: int

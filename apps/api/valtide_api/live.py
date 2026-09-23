@@ -15,7 +15,6 @@ It is compute-only and does NOT mutate the cache.
 
 from __future__ import annotations
 
-import math
 from datetime import UTC, datetime
 
 import httpx
@@ -24,10 +23,8 @@ from valtide_api.adapters import dexscreener, equity, reference
 from valtide_api.config import get_settings
 from valtide_api.models import MarketSnapshot, MarketState, ValuationResult
 from valtide_api.normalizer import assert_scale
-from valtide_api.quant_runtime import load_artifact
 from valtide_api.replay import run_inference
 from valtide_api.session import classify
-from valtide_api.state_store import KalmanState
 
 
 class LiveDataUnavailable(RuntimeError):
@@ -56,9 +53,9 @@ def build_live_snapshot(client: httpx.Client | None = None) -> MarketSnapshot:
     # Reference under test: X-Perp index if reachable, else the stale NVDA close.
     ref = reference.get_okx_xperp_index(settings.okx_xperp_index_id, client=client)
     if ref is not None:
-        pt, pt_source = ref.price, ref.source
+        pt, pt_source, pt_ts = ref.price, ref.source, ref.ts
     else:
-        pt, pt_source = last.close, "stale_nvda"
+        pt, pt_source, pt_ts = last.close, "stale_nvda", last.ts
 
     assert_scale(quote.price, nvda_live)
 
@@ -74,6 +71,8 @@ def build_live_snapshot(client: httpx.Client | None = None) -> MarketSnapshot:
         reference_age_seconds=int((now - last.ts).total_seconds()),
         reference_under_test=pt,
         reference_under_test_source=pt_source,
+        reference_under_test_ts=pt_ts,
+        reference_under_test_age_seconds=max(0, int((now - pt_ts).total_seconds())),
         market_state=market_state,
         external_reference=None,
         source_provenance={
@@ -97,7 +96,5 @@ def run_live_valuation(client: httpx.Client | None = None) -> ValuationResult:
     this endpoint is for an on-demand snapshot.
     """
     snapshot = build_live_snapshot(client=client)
-    art = load_artifact()
-    seed = KalmanState(m=math.log(snapshot.token_price), P=art.P0)
-    result, _ = run_inference(snapshot, seed, artifact=art)
+    result, _ = run_inference(snapshot, None)
     return result

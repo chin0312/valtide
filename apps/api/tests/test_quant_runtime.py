@@ -9,18 +9,18 @@ import math
 from datetime import UTC, datetime
 
 from valtide_api.models import MarketSnapshot, MarketState
-from valtide_api.quant_runtime import ModelArtifact, estimate
+from valtide_api.quant_runtime import ModelArtifact, estimate, load_artifact, load_calibrator
 
 _ART = ModelArtifact(
-    model_id="P1a",
+    model_family="P1a",
+    deployment_model_id="P1a-C",
     model_version="test",
-    Q=4.2e-6,
-    R_nvda=1.1e-6,
-    R_nvdax=9.5e-6,
-    m0=math.log(185.0),
-    P0=1e-4,
-    coverage_target=0.90,
-    calibrator="gaussian",
+    asset="NVDAx",
+    interval_level=0.90,
+    q_by_session={s: 4.2e-6 for s in ("regular", "premarket", "afterhours", "overnight", "closed")},
+    r_nvda=1.1e-6,
+    r_nvdax=9.5e-6,
+    trained_through_utc=None,
 )
 
 
@@ -78,4 +78,45 @@ def test_uncertainty_shrinks_after_observation():
     # A measurement reduces variance: P1 < P_pred = P0 + Q.
     prior_P = 1e-4
     est = estimate(_snapshot(185.10, None), prior_m=math.log(185.0), prior_P=prior_P, artifact=_ART)
-    assert est.state_sd_log**2 < prior_P + _ART.Q
+    assert est.state_sd_log**2 < prior_P + _ART.q_by_session["closed"]
+
+
+def test_session_specific_process_variance_is_used():
+    regular = _snapshot(185.10, None).model_copy(update={"market_state": MarketState.REGULAR})
+    closed = _snapshot(185.10, None)
+    art = ModelArtifact(
+        model_family="P1a",
+        deployment_model_id="P1a-C",
+        model_version="test",
+        asset="NVDAx",
+        interval_level=0.90,
+        q_by_session={
+            "regular": 1e-3,
+            "premarket": 1e-6,
+            "afterhours": 1e-6,
+            "overnight": 1e-6,
+            "closed": 1e-8,
+        },
+        r_nvda=1.1e-6,
+        r_nvdax=9.5e-6,
+        trained_through_utc=None,
+    )
+    a = estimate(regular, prior_m=math.log(185.0), prior_P=1e-4, artifact=art)
+    b = estimate(closed, prior_m=math.log(185.0), prior_P=1e-4, artifact=art)
+    assert a.fair_value != b.fair_value
+
+
+def test_default_artifacts_match_pr3_p1ac_contract():
+    artifact = load_artifact()
+    calibrator = load_calibrator()
+    assert artifact.deployment_model_id == "P1a-C"
+    assert set(artifact.q_by_session) == {
+        "regular",
+        "premarket",
+        "afterhours",
+        "overnight",
+        "closed",
+    }
+    assert artifact.q_by_session["regular"] == 3.02764671034894e-6
+    assert calibrator.bounds("regular").q_upper == 1.452
+    assert calibrator.bounds("closed").source == "global_fallback"
