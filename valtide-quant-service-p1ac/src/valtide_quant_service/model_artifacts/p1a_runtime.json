@@ -1,0 +1,21 @@
+{
+  "schema_version": 2,
+  "model_family": "P1a",
+  "deployment_model_id": "P1a-C",
+  "model_version": "0.2.0",
+  "asset": "NVDAx",
+  "interval_level": 0.9,
+  "q_by_session": {
+    "regular": 3.02764671034894e-06,
+    "premarket": 7.86357108842286e-07,
+    "afterhours": 5.90477911675377e-07,
+    "overnight": 6.25763548065996e-07,
+    "closed": 1.89747495170663e-07
+  },
+  "r_nvda": 9.03220206214169e-07,
+  "r_nvdax": 2.48888251957261e-06,
+  "theta": 1.0,
+  "trained_through_utc": "2026-06-23T14:15:00Z",
+  "calibration_artifact": "p1a_c_calibrator.json",
+  "notes": "Exact P1a parameter values from the completed diagnostics export; P1a-C run reused the completed full P1a fit and selected session_sym calibration."
+}

@@ -1,0 +1,141 @@
+{
+  "generated_at_utc": "2026-09-22 10:06:28 UTC",
+  "base_model": "P1a",
+  "selected_calibration_type": "session_sym",
+  "primary_level": 0.9,
+  "interval_target": "contemporaneous reference-equivalent predictive interval",
+  "note": "Empirical calibration is validated only where contemporaneous NVDA is observable. Closed/overnight intervals use the selected global fallback unless a session calibration exists; their true latent-state coverage is not directly observable.",
+  "crossfit": {
+    "initial_fraction": 0.5,
+    "folds": 4,
+    "score_count": 22441,
+    "selector_train_folds": "1,2,3",
+    "selector_validation_fold": 4
+  },
+  "calibrators": {
+    "0.50": {
+      "type": "session_sym",
+      "level": 0.5,
+      "n": 22441,
+      "global": {
+        "sym": 0.4788,
+        "lo": -0.4497,
+        "hi": 0.5103
+      },
+      "sessions": {
+        "regular": {
+          "n": 9313,
+          "sym": 0.5518,
+          "lo": -0.489,
+          "hi": 0.6134
+        },
+        "afterhours": {
+          "n": 5417,
+          "sym": 0.352,
+          "lo": -0.3782,
+          "hi": 0.3202
+        },
+        "premarket": {
+          "n": 7711,
+          "sym": 0.5013,
+          "lo": -0.4686,
+          "hi": 0.5386
+        }
+      },
+      "min_session_scores": 200
+    },
+    "0.80": {
+      "type": "session_sym",
+      "level": 0.8,
+      "n": 22441,
+      "global": {
+        "sym": 0.9744,
+        "lo": -0.9216,
+        "hi": 1.0226
+      },
+      "sessions": {
+        "regular": {
+          "n": 9313,
+          "sym": 1.0804,
+          "lo": -1.0093,
+          "hi": 1.144
+        },
+        "afterhours": {
+          "n": 5417,
+          "sym": 0.7298,
+          "lo": -0.7353,
+          "hi": 0.7147
+        },
+        "premarket": {
+          "n": 7711,
+          "sym": 1.0094,
+          "lo": -0.9645,
+          "hi": 1.0411
+        }
+      },
+      "min_session_scores": 200
+    },
+    "0.90": {
+      "type": "session_sym",
+      "level": 0.9,
+      "n": 22441,
+      "global": {
+        "sym": 1.345,
+        "lo": -1.2805,
+        "hi": 1.4003
+      },
+      "sessions": {
+        "regular": {
+          "n": 9313,
+          "sym": 1.452,
+          "lo": -1.3698,
+          "hi": 1.5286
+        },
+        "afterhours": {
+          "n": 5417,
+          "sym": 1.0122,
+          "lo": -0.9967,
+          "hi": 1.0312
+        },
+        "premarket": {
+          "n": 7711,
+          "sym": 1.3802,
+          "lo": -1.3258,
+          "hi": 1.4318
+        }
+      },
+      "min_session_scores": 200
+    },
+    "0.95": {
+      "type": "session_sym",
+      "level": 0.95,
+      "n": 22441,
+      "global": {
+        "sym": 1.7605,
+        "lo": -1.683,
+        "hi": 1.8305
+      },
+      "sessions": {
+        "regular": {
+          "n": 9313,
+          "sym": 1.901,
+          "lo": -1.8526,
+          "hi": 1.9483
+        },
+        "afterhours": {
+          "n": 5417,
+          "sym": 1.3661,
+          "lo": -1.3202,
+          "hi": 1.4656
+        },
+        "premarket": {
+          "n": 7711,
+          "sym": 1.7738,
+          "lo": -1.7273,
+          "hi": 1.8429
+        }
+      },
+      "min_session_scores": 200
+    }
+  }
+}
