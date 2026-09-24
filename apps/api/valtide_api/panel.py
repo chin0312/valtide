@@ -70,12 +70,44 @@ def load_panel_snapshots(path: str | Path) -> list[MarketSnapshot]:
                 _num(row.get("nvdax_close")) if _flag(row.get("nvdax_available")) else None
             )
 
-            if nvda is not None:
-                last_close, last_close_ts = nvda, ts
+            # Validate explicit provenance timestamps even on an anchor-only
+            # row that will not be emitted as a public snapshot.
+            if (
+                "reference_under_test_available" in row
+                and _flag(row.get("reference_under_test_available"))
+                and row.get("reference_under_test_ts")
+            ):
+                reference_ts = _parse_ts(row["reference_under_test_ts"])
+                if reference_ts > ts:
+                    raise PanelTimestampError(
+                        "reference-under-test timestamp must not be after its panel observation"
+                    )
 
-            # A quant step needs an R0 anchor. Rows before the first trusted
-            # underlying observation cannot be represented honestly.
-            if last_close is None or last_close_ts is None:
+            # Capture the strictly prior trusted anchor before constructing
+            # this row so current NVDA cannot become same-timestamp R0.
+            previous_last_close = last_close
+            previous_last_close_ts = last_close_ts
+            if previous_last_close is None or previous_last_close_ts is None:
+                explicit_anchor = _num(row.get("last_trusted_reference"))
+                explicit_anchor_ts = (
+                    _parse_ts(row["last_trusted_reference_ts"])
+                    if row.get("last_trusted_reference_ts")
+                    else None
+                )
+                if explicit_anchor is not None and explicit_anchor_ts is not None:
+                    if explicit_anchor_ts >= ts:
+                        raise PanelTimestampError(
+                            "last trusted reference timestamp must be strictly before "
+                            "its panel observation"
+                        )
+                    previous_last_close = explicit_anchor
+                    previous_last_close_ts = explicit_anchor_ts
+
+            # The first trusted underlying row establishes the anchor only;
+            # it is not a public/evaluable challenger observation.
+            if previous_last_close is None or previous_last_close_ts is None:
+                if nvda is not None:
+                    last_close, last_close_ts = nvda, ts
                 continue
 
             if nvdax is not None:
@@ -86,7 +118,13 @@ def load_panel_snapshots(path: str | Path) -> list[MarketSnapshot]:
                 reference_source,
                 reference_ts,
                 reference_age,
-            ) = _reference_fields(row, ts, nvda, last_close, last_close_ts)
+            ) = _reference_fields(
+                row,
+                ts,
+                nvda,
+                previous_last_close,
+                previous_last_close_ts,
+            )
 
             snapshots.append(
                 MarketSnapshot(
@@ -96,9 +134,9 @@ def load_panel_snapshots(path: str | Path) -> list[MarketSnapshot]:
                     token_volume=_num(row.get("nvdax_volume")),
                     underlying_reference=nvda,
                     underlying_reference_ts=ts if nvda is not None else None,
-                    last_trusted_reference=last_close,
-                    last_trusted_reference_ts=last_close_ts,
-                    reference_age_seconds=int((ts - last_close_ts).total_seconds()),
+                    last_trusted_reference=previous_last_close,
+                    last_trusted_reference_ts=previous_last_close_ts,
+                    reference_age_seconds=int((ts - previous_last_close_ts).total_seconds()),
                     reference_under_test=reference,
                     reference_under_test_source=reference_source,
                     reference_under_test_ts=reference_ts,
@@ -110,6 +148,11 @@ def load_panel_snapshots(path: str | Path) -> list[MarketSnapshot]:
                     },
                 )
             )
+
+            # Make the current underlying available as the trusted anchor for
+            # the next canonical observation, never for this one.
+            if nvda is not None:
+                last_close, last_close_ts = nvda, ts
     return snapshots
 
 

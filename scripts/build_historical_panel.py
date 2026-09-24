@@ -10,7 +10,7 @@ from __future__ import annotations
 import argparse
 import csv
 import sys
-from datetime import datetime
+from datetime import datetime, timedelta
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "apps" / "api"))
@@ -28,11 +28,15 @@ PANEL_COLUMNS = [
     "nvdax_available",
     "nvda_close",
     "nvda_available",
+    "last_trusted_reference",
+    "last_trusted_reference_ts",
     "reference_under_test",
     "reference_under_test_available",
     "reference_under_test_source",
     "reference_under_test_ts",
 ]
+
+UNDERLYING_LOOKBACK = timedelta(minutes=60)
 
 
 def _parse_datetime(value: str) -> datetime:
@@ -55,15 +59,20 @@ def build_rows(start, end, token_candles, underlying_bars, reference_candles) ->
     underlying_by_ts = {b.ts: b for b in underlying_bars}
     reference_by_ts = {c.ts: c for c in reference_candles}
     rows: list[dict[str, str]] = []
-    last_underlying = None
+    last_underlying = max(
+        (bar for bar in underlying_bars if bar.ts < start),
+        key=lambda bar: bar.ts,
+        default=None,
+    )
 
     for timestamp in iter_grid(start, end):
+        previous_last_underlying = last_underlying
         underlying = underlying_by_ts.get(timestamp)
-        if underlying is not None:
-            last_underlying = underlying
-        if last_underlying is None:
+        if previous_last_underlying is None:
             # No R0 anchor exists yet; dropping a pre-anchor row is different
             # from dropping a row with a missing token/reference observation.
+            if underlying is not None:
+                last_underlying = underlying
             continue
 
         token = token_by_ts.get(timestamp)
@@ -77,6 +86,10 @@ def build_rows(start, end, token_candles, underlying_bars, reference_candles) ->
                 "nvdax_available": str(token is not None).upper(),
                 "nvda_close": str(underlying.close) if underlying is not None else "",
                 "nvda_available": str(underlying is not None).upper(),
+                "last_trusted_reference": str(previous_last_underlying.close),
+                "last_trusted_reference_ts": previous_last_underlying.ts.isoformat().replace(
+                    "+00:00", "Z"
+                ),
                 "reference_under_test": str(ref.close) if ref is not None else "",
                 "reference_under_test_available": str(ref is not None).upper(),
                 "reference_under_test_source": "okx_xperp_index",
@@ -85,6 +98,8 @@ def build_rows(start, end, token_candles, underlying_bars, reference_candles) ->
                 ),
             }
         )
+        if underlying is not None:
+            last_underlying = underlying
     return rows
 
 
@@ -109,7 +124,10 @@ def build_panel(start: datetime, end: datetime, output: Path) -> int:
         raise RuntimeError("top NVDAx deployment did not include chain index and token address")
 
     token_candles = okx.get_historical_candles(chain_index, token_address, start, end)
-    underlying_bars = equity.get_stock_bars("NVDA", start, end)
+    # Fetch a small pre-range lookback so the first requested row can use a
+    # strictly prior trusted underlying bar as its causal anchor. The lookback
+    # is only for initialization; emitted panel rows remain within [start, end].
+    underlying_bars = equity.get_stock_bars("NVDA", start - UNDERLYING_LOOKBACK, end)
     reference_candles = reference.get_okx_xperp_index_candles(
         start=start,
         end=end,

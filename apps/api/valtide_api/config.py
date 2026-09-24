@@ -45,8 +45,11 @@ class Settings(BaseSettings):
     historical_panel_path: Path = (
         _ENV_FILE.parent / "data" / "generated" / "nvdax_historical_5m.csv"
     )
-    live_underlying_max_age_seconds: int = 15 * 60
-    live_reference_max_age_seconds: int = 15 * 60
+    # Current-measurement tolerance is kept near one canonical five-minute
+    # bucket. Older observations remain trusted anchors but are not assimilated
+    # as if they were measurements for the current bucket.
+    live_underlying_max_age_seconds: int = 6 * 60
+    live_reference_max_age_seconds: int = 6 * 60
 
     # CORS origins allowed to call the API from a browser (Valerie's Next.js app).
     # Comma-separated in the env var, e.g. "http://localhost:3000,https://valtide.app"

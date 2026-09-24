@@ -106,7 +106,9 @@ def get_okx_xperp_index_candles(
 
     owns_client = client is None
     client = client or httpx.Client(timeout=30, transport=httpx.HTTPTransport(retries=5))
-    cursor: str | None = str(end_ms)
+    # OKX's `after` cursor is exclusive. Start one millisecond after the
+    # requested inclusive end so a candle exactly at end_ms is not omitted.
+    cursor: str | None = str(end_ms + 1)
     seen_oldest = float("inf")
     out: dict[int, RawReferenceCandle] = {}
     try:

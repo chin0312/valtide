@@ -133,8 +133,18 @@ def test_invalid_initial_chronology_fails_without_backward_state(tmp_path):
 
 def test_scheduler_has_single_process_start_stop_lifecycle(tmp_path):
     calls: list[datetime] = []
-    boundary = datetime(2026, 9, 19, 14, 0, tzinfo=UTC)
+    clock_values = [
+        datetime(2026, 9, 19, 14, 2, tzinfo=UTC),
+        datetime(2026, 9, 19, 14, 5, 1, tzinfo=UTC),
+    ]
     sleep_calls = 0
+
+    def fake_now() -> datetime:
+        return (
+            clock_values.pop(0)
+            if clock_values
+            else datetime(2026, 9, 19, 14, 5, 1, tzinfo=UTC)
+        )
 
     def fake_tick(asset, canonical_ts, *, store):
         calls.append(canonical_ts)
@@ -158,7 +168,7 @@ def test_scheduler_has_single_process_start_stop_lifecycle(tmp_path):
             asset="NVDAx",
             store=RuntimeStore(tmp_path / "runtime.sqlite3"),
             tick=fake_tick,
-            now=lambda: boundary,
+            now=fake_now,
             sleep=fake_sleep,
         )
         await scheduler.start()
@@ -169,5 +179,5 @@ def test_scheduler_has_single_process_start_stop_lifecycle(tmp_path):
 
     asyncio.run(exercise())
     assert len(calls) == 1
-    assert calls[0] == boundary
+    assert calls[0] == datetime(2026, 9, 19, 14, 5, tzinfo=UTC)
     assert sleep_calls >= 1
