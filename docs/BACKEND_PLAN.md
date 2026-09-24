@@ -589,7 +589,7 @@ or gapped timestamps rather than hiding the data-quality problem.
 
 - **Python 3.11+**, FastAPI, Pydantic v2, `pydantic-settings`.
 - **Deps:** `pyproject.toml` (uv or poetry), pinned. `httpx` (OKX), `alpaca-py`
-  (NVDA), and `web3` only for the later X Layer publisher. The P0.5 scheduler
+  (NVDA), and `web3` for the X Layer publisher. The P0.5 scheduler
   uses the Python standard library and does not require APScheduler.
 - **Lint/format:** `ruff` + `ruff format`. **Types:** annotate; `mypy` on
   `valtide_api/` if time allows.
@@ -630,7 +630,8 @@ or gapped timestamps rather than hiding the data-quality problem.
    quant package's public result contract.
 13. `routes/replay.py` + `routes/backtest.py` from shared historical data;
     `scripts/build_historical_panel.py` joins point-in-time OKX/Alpaca sources.
-14. `publisher.py` + `routes/publish.py` once Kai Ze gives RPC + contract ABI.
+14. `publisher.py` + `routes/publish.py` use the public testnet deployment
+    manifest, bundled contract ABIs, and explicit runtime signer settings.
 15. Connect Valerie's frontend to the live API.
 
 **Phase 4 — P0.5 runtime hardening**
@@ -651,8 +652,9 @@ or gapped timestamps rather than hiding the data-quality problem.
    demo (§3), and is the OKX X-Perp index accessible with our credentials.
 3. **With Valerie:** the `ValuationResult` shape (§5.3) + explicit unavailable
    behavior, and her dev origin for CORS.
-4. **With Kai Ze:** X Layer RPC URL, deployed `ValtideValidationRegistry`
-   address, and ABI — needed only for Phase 3 `publisher.py`.
+4. **Deployment handoff:** the public X Layer testnet manifest supplies the
+   deployed addresses and IDs. The runtime signer and RPC remain local-only
+   settings; the backend does not use deployment/admin keys.
 
 ---
 
