@@ -30,7 +30,6 @@ from valtide_api.adapters import dexscreener, equity, reference
 from valtide_api.clock import FIVE_MINUTES, canonical_5m_boundary, require_canonical_5m
 from valtide_api.config import get_settings
 from valtide_api.models import MarketSnapshot, MarketState, ValuationResult
-from valtide_api.normalizer import assert_scale
 from valtide_api.replay import run_inference
 from valtide_api.session import classify
 
@@ -95,16 +94,15 @@ def build_live_snapshot(
     else:
         pt, pt_source, pt_ts, reference_age = None, "okx_xperp_index", None, None
 
-    try:
-        assert_scale(quote.price, underlying_current)
-    except ValueError as exc:
-        raise LiveDataUnavailable(f"live token/underlying scale check failed: {exc}") from exc
-
+    # A gross token/underlying unit mismatch is judged by validation
+    # (TOKEN_UNIT_SUSPECT), not fatally here; an economic depeg must reach the
+    # Evidence State, not raise a 503.
     return MarketSnapshot(
         asset="NVDAx",
         observation_ts=now,
         token_price=quote.price,
         token_volume=quote.volume_h24_usd,
+        token_liquidity_usd=quote.liquidity_usd,
         underlying_reference=underlying_current,
         underlying_reference_ts=last.ts if underlying_current is not None else None,
         last_trusted_reference=last.close,

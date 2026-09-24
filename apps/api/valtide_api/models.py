@@ -51,6 +51,9 @@ class MarketSnapshot(BaseModel):
 
     token_price: float | None
     token_volume: float | None = None
+    # DEX pool depth in USD when the token source reports it (live path). Used by
+    # validation as a market-quality floor; None where a source omits it.
+    token_liquidity_usd: float | None = None
 
     # Current NVDA if the market is open, else None (weekend/overnight).
     underlying_reference: float | None = None
@@ -70,8 +73,9 @@ class MarketSnapshot(BaseModel):
 
     market_state: MarketState
 
-    # P0: kept at 1.0; normalizer asserts NVDAx/NVDA scale ~= 1 instead of
-    # blindly rescaling (see James's pipeline README).
+    # P0: kept at 1.0; validation flags only a gross NVDAx/NVDA unit mismatch
+    # (TOKEN_UNIT_SUSPECT) instead of blindly rescaling (see James's pipeline
+    # README). A moderate economic divergence is judged as normal evidence.
     corporate_action_multiplier: float = 1.0
     external_reference: float | None = None  # optional Pyth, comparison only
 

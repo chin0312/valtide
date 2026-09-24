@@ -8,7 +8,6 @@ from pathlib import Path
 
 from valtide_api.clock import require_canonical_5m
 from valtide_api.models import MarketSnapshot, MarketState
-from valtide_api.normalizer import assert_scale
 
 _NA = {"", "NA", "N/A", "NaN", "nan", "null", "None"}
 _FIVE_MINUTES = 300
@@ -110,9 +109,9 @@ def load_panel_snapshots(path: str | Path) -> list[MarketSnapshot]:
                     last_close, last_close_ts = nvda, ts
                 continue
 
-            if nvdax is not None:
-                assert_scale(nvdax, nvda)
-
+            # A gross token/underlying unit mismatch is now judged per-snapshot by
+            # validation (TOKEN_UNIT_SUSPECT); a real economic depeg must survive
+            # panel assembly and reach the Evidence State, never crash the replay.
             (
                 reference,
                 reference_source,

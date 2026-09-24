@@ -189,6 +189,46 @@ def test_default_observation_values_the_settled_bar(monkeypatch):
     assert snap.observation_ts in {before, after}
 
 
+def test_gross_scale_divergence_does_not_raise(monkeypatch):
+    # A large token/underlying gap must reach validation, not blow up assembly.
+    observation_ts = datetime(2026, 9, 21, 14, 10, tzinfo=UTC)
+    _patch_sources(
+        monkeypatch,
+        quote=TokenQuote(price=185.1, source="dexscreener", ts=observation_ts),
+        bar=RawEquityBar(
+            ts=datetime(2026, 9, 21, 14, 5, tzinfo=UTC),
+            open=60, high=61, low=59, close=60.0, volume=1000,
+        ),
+        ref=ReferenceObservation(
+            price=60.0, source="okx_xperp_index", ts=observation_ts
+        ),
+    )
+    snap = build_live_snapshot(observation_ts=observation_ts)
+    assert snap.token_price == 185.1
+    assert snap.underlying_reference == 60.0
+
+
+def test_live_snapshot_carries_token_liquidity(monkeypatch):
+    observation_ts = datetime(2026, 9, 21, 14, 10, tzinfo=UTC)
+    _patch_sources(
+        monkeypatch,
+        quote=TokenQuote(
+            price=181.1, source="dexscreener", ts=observation_ts,
+            liquidity_usd=2_500_000.0, volume_h24_usd=6_000_000.0,
+        ),
+        bar=RawEquityBar(
+            ts=datetime(2026, 9, 21, 14, 5, tzinfo=UTC),
+            open=181, high=182, low=180, close=181.0, volume=1000,
+        ),
+        ref=ReferenceObservation(
+            price=181.2, source="okx_xperp_index", ts=observation_ts
+        ),
+    )
+    snap = build_live_snapshot(observation_ts=observation_ts)
+    assert snap.token_liquidity_usd == 2_500_000.0
+    assert snap.token_volume == 6_000_000.0
+
+
 def test_raises_when_token_price_unavailable(monkeypatch):
     _patch_sources(monkeypatch, quote=None, bar=None, ref=None)
     with pytest.raises(LiveDataUnavailable):
