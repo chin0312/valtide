@@ -78,7 +78,7 @@ jobs:
           python -m pip install -e "./apps/api[dev]"
 
       - name: Run Ruff
-        run: ruff check apps/api
+        run: ruff check apps/api scripts
 
       - name: Compile backend package
         run: python -m compileall -q apps/api/valtide_api

@@ -68,7 +68,7 @@ LIVE_SCHEDULER_ASSET=NVDAx
 VALTIDE_STATE_DB_PATH=/data/valtide.sqlite3
 
 PUBLISH_ENABLED=false
-CORS_ORIGINS=http://localhost:3000
+CORS_ORIGINS=http://localhost:5173,http://localhost:3000
 ```
 
 With `PUBLISH_ENABLED=false`, the initial Railway deployment does not require
@@ -85,7 +85,7 @@ image layer or deployment manifest.
 deployed. For example:
 
 ```text
-CORS_ORIGINS=http://localhost:3000,https://<frontend-domain>
+CORS_ORIGINS=http://localhost:5173,http://localhost:3000,https://<frontend-domain>
 ```
 
 Do not use `*` together with credentialed browser requests.
