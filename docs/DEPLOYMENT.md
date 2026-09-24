@@ -68,18 +68,27 @@ LIVE_SCHEDULER_ASSET=NVDAx
 VALTIDE_STATE_DB_PATH=/data/valtide.sqlite3
 
 PUBLISH_ENABLED=false
+AUTO_PUBLISH_ENABLED=false
 CORS_ORIGINS=http://localhost:5173,http://localhost:3000
 ```
 
-With `PUBLISH_ENABLED=false`, the initial Railway deployment does not require
-`PUBLISHER_PRIVATE_KEY`. The warmed scheduler, valuation/runtime APIs,
-Registry/RiskGuard read-only status, and deployment smoke can run without it.
-The scheduler never publishes automatically regardless of this setting.
+`PUBLISH_ENABLED` controls only the explicit `POST /api/publish/{asset}`
+fallback. `AUTO_PUBLISH_ENABLED` controls only scheduler-owned delivery after
+a successful warmed tick has already been persisted. Browser/API reads and
+diagnostic or replay routes never publish.
 
-Set `PUBLISHER_PRIVATE_KEY` only when `PUBLISH_ENABLED=true` is intentionally
-enabled for explicit publication. Do not upload it to Railway before that
-decision. It must never be committed, pasted into logs, or included in an
-image layer or deployment manifest.
+For the initial no-write deployment, keep both settings false; the warmed
+scheduler, valuation/runtime APIs, Registry/RiskGuard read-only status, and
+deployment smoke do not require `PUBLISHER_PRIVATE_KEY`. For the public demo
+configuration, set `AUTO_PUBLISH_ENABLED=true` while keeping
+`PUBLISH_ENABLED=false` so automatic delivery is enabled without exposing the
+manual HTTP write route.
+
+`PUBLISHER_PRIVATE_KEY` is required whenever either publication setting is
+true. It must be a dedicated X Layer testnet publisher signer, must not hold
+user funds, and must never be committed, pasted into logs, or included in an
+image layer or deployment manifest. Do not upload it to Railway until
+publication is intentionally enabled.
 
 `CORS_ORIGINS` must contain the actual frontend origin once the frontend is
 deployed. For example:
@@ -112,8 +121,15 @@ this deployment preparation.
 - OKX OnchainOS credentials are not required for the live scheduler path.
 - Alpaca credentials are still required for the NVDA underlying feed.
 - X Layer RPC access must be supplied through a Railway environment variable.
-- The publisher key is needed only when explicit publication is intentionally
-  enabled.
+- The publisher key is needed only when automatic or explicit publication is
+  intentionally enabled.
+
+The default `HISTORICAL_PANEL_PATH` points to `data/generated`, which is an
+ignored generated-data directory. There is currently no canonical historical
+panel artifact committed in this repository, so historical-panel backtests
+are not production-available in the image unless that artifact is supplied by
+a separate, reviewed deployment process. Automatic publication does not
+depend on historical-panel availability.
 
 ## Read-only smoke check
 
@@ -132,7 +148,14 @@ available, the script requires chain ID `1952`.
 ## Scope and safety
 
 This service runs the existing backend/quant vertical slice and the existing
-single-process warmed scheduler. It does not change quant logic, validation
-semantics, live-data semantics, publisher behavior, contract source, deployed
-addresses, or frontend code. It does not claim production readiness, an audit,
-mainnet deployment, or a production oracle.
+single-process warmed scheduler. Each successful canonical tick is persisted
+before optional scheduler-owned delivery is queued. One in-process publication
+worker serializes transactions and coalesces pending delivery to the newest
+observation, so a slow chain does not delay valuation ticks. A delivery failure
+is recorded separately and does not invalidate the operational valuation or
+stop the scheduler. On shutdown, the service waits for the bounded worker
+shutdown window; an in-flight Web3 worker thread cannot be force-cancelled.
+It does not change quant logic, validation semantics,
+live-data semantics, contract source, deployed addresses, or frontend code.
+It does not claim production readiness, an audit, mainnet deployment, or a
+production oracle.

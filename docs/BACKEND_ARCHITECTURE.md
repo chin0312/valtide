@@ -21,7 +21,7 @@ backend validation
     ↓
 SUPPORTED / INCONCLUSIVE / CHALLENGED
     ↓
-API / frontend and X Layer publisher
+API / frontend and scheduler-owned X Layer publisher
 ```
 
 The quant package owns fair value, calibrated intervals, uncertainty metadata,
@@ -105,7 +105,7 @@ replay.py        sequential quant + validation pipeline
 live.py          cold-start live diagnostic
 clock.py         canonical UTC five-minute boundaries
 scheduler.py     single-process warmed live scheduler
-runtime_store.py SQLite state/result persistence and tick status
+runtime_store.py SQLite state/result and publication status persistence
 state_store.py   in-memory compatibility cache for non-HTTP callers
 publisher.py     X Layer publication, read-back, and control-plane checks
 abis/            bundled Registry, RiskGuard, and DemoVault ABIs
@@ -151,10 +151,17 @@ and `502` for a chain, transaction, or read-back failure.
 - The public testnet deployment manifest is the source of truth for the
   Registry, RiskGuard, DemoVault, asset ID, reference ID, and model version.
 - Publication consumes only the latest warmed runtime result; replay, cold live
-  diagnostics, and frontend requests cannot publish directly.
-- `PUBLISH_ENABLED` defaults to false and the scheduler never publishes
-  automatically. A successful write is followed by Registry and RiskGuard
-  read-back verification.
+  diagnostics, GET requests, and frontend reads cannot publish directly.
+- After a successful new scheduler tick is persisted, `AUTO_PUBLISH_ENABLED`
+  may request the existing publisher to synchronize that result. Delivery
+  status is persisted separately from valuation state. A single in-process
+  publication worker serializes delivery, coalesces pending work to the newest
+  observation, and does not hold up the scheduler cadence. A delivery failure
+  does not invalidate the warmed result or stop the scheduler.
+- `PUBLISH_ENABLED` defaults to false and gates only the explicit POST fallback.
+  `AUTO_PUBLISH_ENABLED` is independent; a public demo can enable automatic
+  delivery while leaving the manual route disabled. A successful write is
+  followed by Registry and RiskGuard read-back verification.
 
 ## 8. Run locally
 

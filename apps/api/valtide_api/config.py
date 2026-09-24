@@ -43,6 +43,9 @@ class Settings(BaseSettings):
     publisher_private_key: str | None = None
     publish_validity_seconds: int = 15 * 60
     publish_enabled: bool = False
+    # Scheduler-owned delivery is independent from the explicit HTTP publish
+    # route. Keep both disabled by default for local/test safety.
+    auto_publish_enabled: bool = False
     deployment_manifest_path: Path = _ENV_FILE.parent / "deployments" / "xlayer-testnet.json"
 
     # P0.5 warmed live runtime. Disabled by default so local tests and one-shot
