@@ -36,7 +36,9 @@ PANEL_COLUMNS = [
     "reference_under_test_ts",
 ]
 
-UNDERLYING_LOOKBACK = timedelta(minutes=60)
+# Weekend and overnight tokenized-equity sessions need the most recent prior
+# regular-session underlying bar, which may be several calendar days earlier.
+UNDERLYING_LOOKBACK = timedelta(days=7)
 
 
 def _parse_datetime(value: str) -> datetime:
@@ -124,7 +126,7 @@ def build_panel(start: datetime, end: datetime, output: Path) -> int:
         raise RuntimeError("top NVDAx deployment did not include chain index and token address")
 
     token_candles = okx.get_historical_candles(chain_index, token_address, start, end)
-    # Fetch a small pre-range lookback so the first requested row can use a
+    # Fetch a causal pre-range lookback so the first requested row can use a
     # strictly prior trusted underlying bar as its causal anchor. The lookback
     # is only for initialization; emitted panel rows remain within [start, end].
     underlying_bars = equity.get_stock_bars("NVDA", start - UNDERLYING_LOOKBACK, end)

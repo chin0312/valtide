@@ -15,7 +15,7 @@ RawEquityBar objects.
 from __future__ import annotations
 
 from dataclasses import dataclass
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 
 import httpx
 
@@ -103,16 +103,23 @@ def get_stock_bars(
 
 
 def get_latest_trusted_bar(
-    symbol: str = "NVDA", lookback_days: int = 5, client: httpx.Client | None = None
+    symbol: str = "NVDA",
+    lookback_days: int = 5,
+    client: httpx.Client | None = None,
+    now: datetime | None = None,
 ) -> RawEquityBar | None:
     """Return the latest available trusted underlying bar in the lookback window.
 
     This is an R0 anchor, not necessarily an official regular-session close.
+    The end of the query is the current time; live.py decides whether the
+    returned observation is fresh enough for current-bucket assimilation.
     Exchange-calendar and US-holiday selection remain outside this adapter.
     """
-    now = datetime.now(UTC)
-    start = datetime.fromtimestamp(now.timestamp() - lookback_days * 86400, tz=UTC)
-    # SIP restricts the most recent window on free plans; end slightly in the past.
-    end = datetime.fromtimestamp(now.timestamp() - 900, tz=UTC)
+    query_now = now or datetime.now(UTC)
+    if query_now.tzinfo is None:
+        raise ValueError("trusted-bar query time must be timezone-aware")
+    query_now = query_now.astimezone(UTC)
+    start = query_now - timedelta(days=lookback_days)
+    end = query_now
     bars = get_stock_bars(symbol, start, end, client=client)
     return bars[-1] if bars else None

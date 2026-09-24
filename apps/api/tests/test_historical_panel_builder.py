@@ -8,6 +8,7 @@ from scripts.build_historical_panel import build_rows
 from valtide_api.adapters.equity import RawEquityBar
 from valtide_api.adapters.okx import RawCandle
 from valtide_api.adapters.reference import RawReferenceCandle
+from valtide_api.panel import load_panel_snapshots
 
 
 def test_panel_builder_preserves_grid_and_does_not_fill_token_or_reference():
@@ -63,4 +64,32 @@ def test_panel_builder_fetches_underlying_lookback_for_anchor(monkeypatch, tmp_p
 
     output = tmp_path / "panel.csv"
     assert historical_panel.build_panel(start, end, output) == 2
-    assert requested_ranges == [("NVDA", start - timedelta(minutes=60), end)]
+    assert requested_ranges == [("NVDA", start - timedelta(days=7), end)]
+
+
+def test_weekend_row_uses_prior_friday_anchor_without_forward_fill(tmp_path):
+    start = datetime(2026, 9, 19, 10, 0, tzinfo=UTC)
+    friday_anchor = RawEquityBar(
+        datetime(2026, 9, 18, 20, 0, tzinfo=UTC),
+        180,
+        181,
+        179,
+        180.0,
+        1000,
+    )
+    token = [RawCandle(start, 182, 183, 181, 182.0, 500, 91_000, 1)]
+    reference = [RawReferenceCandle(start, 181, 182, 180, 181.5, 1)]
+
+    rows = build_rows(start, start, token, [friday_anchor], reference)
+    output = tmp_path / "weekend_panel.csv"
+    historical_panel._write(output, rows)
+    snapshots = load_panel_snapshots(output)
+
+    assert len(snapshots) == 1
+    snapshot = snapshots[0]
+    assert snapshot.observation_ts == start
+    assert snapshot.last_trusted_reference == 180.0
+    assert snapshot.last_trusted_reference_ts == friday_anchor.ts
+    assert snapshot.underlying_reference is None
+    assert snapshot.token_price == 182.0
+    assert snapshot.reference_under_test == 181.5
