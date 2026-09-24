@@ -1,7 +1,7 @@
 # Valtide Backend — Team Guide
 
 **Owner:** Xin Tong · **Code:** `apps/api/` · **Status:** P1a-C backend
-integration complete; X Layer publication pending
+integration and X Layer testnet publisher complete
 
 The backend orchestrates data, the packaged quant runtime, backend-owned
 validation, and the API. It does not contain pricing mathematics.
@@ -21,7 +21,7 @@ backend validation
     ↓
 SUPPORTED / INCONCLUSIVE / CHALLENGED
     ↓
-API / frontend and later X Layer publisher
+API / frontend and X Layer publisher
 ```
 
 The quant package owns fair value, calibrated intervals, uncertainty metadata,
@@ -107,7 +107,8 @@ clock.py         canonical UTC five-minute boundaries
 scheduler.py     single-process warmed live scheduler
 runtime_store.py SQLite state/result persistence and tick status
 state_store.py   in-memory compatibility cache for non-HTTP callers
-publisher.py     X Layer publication boundary (not deployed yet)
+publisher.py     X Layer publication, read-back, and control-plane checks
+abis/            bundled Registry, RiskGuard, and DemoVault ABIs
 routes/          HTTP endpoints
 main.py          app wiring, CORS, restore, and scheduler lifecycle
 ```
@@ -123,10 +124,13 @@ main.py          app wiring, CORS, restore, and scheduler lifecycle
 | GET | `/api/replay/{asset}` | sequential scenario/panel results |
 | GET | `/api/backtest/{asset}` | scenario counts or historical-panel metrics |
 | GET | `/api/runtime/{asset}` | warmed runtime and scheduler status |
-| POST | `/api/publish/{asset}` | X Layer publication boundary |
+| GET | `/api/onchain/{asset}` | deployed control-plane status and evaluation |
+| GET | `/api/onchain/{asset}/enforcement` | read-only DemoVault gate simulation |
+| POST | `/api/publish/{asset}` | publish the latest warmed result when enabled |
 
-A cold valuation cache returns `503 data_unavailable`. Publication returns `503`
-until Registry configuration and contracts are available.
+A cold valuation cache returns `503 data_unavailable`. Publication returns
+`503` while disabled or unconfigured, `409` for a result that is not publishable,
+and `502` for a chain, transaction, or read-back failure.
 
 ## 7. Current status and handoffs
 
@@ -144,10 +148,13 @@ until Registry configuration and contracts are available.
   counts only and deliberately keep empirical metrics null.
 - The focused API endpoint and live diagnostic are explicit about unavailable
   data; no fabricated valuation is served.
-- X Layer publication is intentionally pending the Registry, RPC, ABI, and
-  publisher configuration.
-- X Layer publication and deployment wiring remain separate follow-up work;
-  they do not alter the backend/quant boundary.
+- The public testnet deployment manifest is the source of truth for the
+  Registry, RiskGuard, DemoVault, asset ID, reference ID, and model version.
+- Publication consumes only the latest warmed runtime result; replay, cold live
+  diagnostics, and frontend requests cannot publish directly.
+- `PUBLISH_ENABLED` defaults to false and the scheduler never publishes
+  automatically. A successful write is followed by Registry and RiskGuard
+  read-back verification.
 
 ## 8. Run locally
 

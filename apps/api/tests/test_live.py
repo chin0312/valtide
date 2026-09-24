@@ -247,6 +247,59 @@ def test_future_underlying_is_rejected(monkeypatch):
         build_live_snapshot(observation_ts=observation_ts)
 
 
+def test_underlying_query_is_capped_at_observation_boundary(monkeypatch):
+    observation_ts = datetime(2026, 9, 21, 14, 10, tzinfo=UTC)
+    all_bars = [
+        RawEquityBar(
+            ts=datetime(2026, 9, 21, 14, 5, tzinfo=UTC),
+            open=180,
+            high=181,
+            low=179,
+            close=180.0,
+            volume=1000,
+        ),
+        RawEquityBar(
+            ts=observation_ts,
+            open=181,
+            high=182,
+            low=180,
+            close=181.0,
+            volume=1000,
+        ),
+        RawEquityBar(
+            ts=observation_ts + FIVE_MINUTES,
+            open=182,
+            high=183,
+            low=181,
+            close=182.0,
+            volume=1000,
+        ),
+    ]
+    query_ends = []
+
+    def get_bars(*_args, now=None, **_kwargs):
+        query_ends.append(now)
+        return [bar for bar in all_bars if bar.ts <= now]
+
+    monkeypatch.setattr(live.dexscreener, "get_nvdax_price", lambda **_k: TokenQuote(
+        price=181.1, source="dexscreener", ts=observation_ts
+    ))
+    monkeypatch.setattr(live.equity, "get_trusted_bars", get_bars)
+    monkeypatch.setattr(
+        live.reference,
+        "get_confirmed_index_bar",
+        lambda *_a, **_k: ReferenceObservation(
+            price=181.2, source="okx_xperp_index", ts=observation_ts
+        ),
+    )
+
+    snapshot = build_live_snapshot(observation_ts=observation_ts)
+
+    assert query_ends == [observation_ts]
+    assert snapshot.last_trusted_reference_ts < observation_ts
+    assert snapshot.underlying_reference_ts == observation_ts
+
+
 def test_default_observation_values_the_settled_bar(monkeypatch):
     _patch_sources(
         monkeypatch,

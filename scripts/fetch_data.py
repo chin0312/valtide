@@ -1,11 +1,11 @@
-"""Fetch a small real data sample so the backend can be tested end-to-end.
+"""Fetch diagnostic data used to build a local historical replay panel.
 
 Pulls, for a recent window:
   - NVDAx 5-minute candles from OKX OnchainOS   (needs OKX key — you have it)
   - NVDA 5-minute bars from Alpaca              (needs Alpaca key)
   - the current OKX X-Perp NVDA index price     (public, no key)
 
-Writes CSVs to data/sample/. OKX + X-Perp work with what you have now; NVDA
+Writes CSVs to data/generated/diagnostics/. OKX + X-Perp work with what you have now; NVDA
 activates once ALPACA_API_KEY / ALPACA_API_SECRET are set in .env.
 
 Run from repo root:
@@ -25,7 +25,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "apps" / "api"))
 from valtide_api.adapters import dexscreener, equity, okx, reference
 from valtide_api.config import get_settings
 
-OUT_DIR = Path(__file__).resolve().parents[1] / "data" / "sample"
+OUT_DIR = Path(__file__).resolve().parents[1] / "data" / "generated" / "diagnostics"
 WINDOW_HOURS = 48
 
 
@@ -141,7 +141,7 @@ def main() -> None:
     _safe("nvda", lambda: fetch_nvda(start, end))
     _safe("xperp", fetch_xperp)
     _safe("dexscreener", fetch_dexscreener)
-    print("\nDone. Sample data in data/sample/")
+    print("\nDone. Diagnostic data in data/generated/diagnostics/")
 
 
 if __name__ == "__main__":

@@ -9,17 +9,14 @@ dependencies = [
     "pydantic>=2.7",
     "pydantic-settings>=2.3",
     "httpx>=0.27",
+    "web3>=6.20,<8",
     "tzdata; platform_system == 'Windows'",
     "valtide-quant-service==0.2.0",
 ]
 
 [project.optional-dependencies]
-# Installed as they become needed in later phases.
 data = [
     "alpaca-py>=0.21",   # NVDA underlying (same source as James's training)
-]
-chain = [
-    "web3>=6.20",        # X Layer publisher (Phase 3)
 ]
 schedule = [
     "apscheduler>=3.10", # live 5-min loop (P1)
@@ -50,4 +47,4 @@ where = ["."]
 include = ["valtide_api*"]
 
 [tool.setuptools.package-data]
-valtide_api = ["scenarios/*.json"]
+valtide_api = ["scenarios/*.json", "abis/*.json"]

@@ -33,9 +33,17 @@ class Settings(BaseSettings):
     # precise lookup; leave blank to fall back to symbol search.
     dexscreener_nvdax_address: str = ""
 
-    # X Layer publisher (Phase 3 — not required for Phase 1/2)
+    # X Layer publisher. The deployment manifest is the source of truth for
+    # deployed addresses and IDs; non-empty env values are explicit overrides.
     xlayer_rpc_url: str | None = None
+    xlayer_chain_id: int | None = None
+    registry_address: str | None = None
+    risk_guard_address: str | None = None
+    demo_vault_address: str | None = None
     publisher_private_key: str | None = None
+    publish_validity_seconds: int = 15 * 60
+    publish_enabled: bool = False
+    deployment_manifest_path: Path = _ENV_FILE.parent / "deployments" / "xlayer-testnet.json"
 
     # P0.5 warmed live runtime. Disabled by default so local tests and one-shot
     # diagnostics never start a background network loop implicitly.
@@ -74,6 +82,11 @@ class Settings(BaseSettings):
     @property
     def resolved_historical_panel_path(self) -> Path:
         path = self.historical_panel_path
+        return path if path.is_absolute() else _ENV_FILE.parent / path
+
+    @property
+    def resolved_deployment_manifest_path(self) -> Path:
+        path = self.deployment_manifest_path
         return path if path.is_absolute() else _ENV_FILE.parent / path
 
 

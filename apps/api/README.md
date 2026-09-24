@@ -2,7 +2,9 @@
 
 Backend orchestration and validation layer. It normalizes market observations,
 calls the packaged P1a-C quant runtime, evaluates the selected reference under
-test, and serves the result through FastAPI. See
+test, and serves the result through FastAPI. It also publishes the latest
+warmed result to the deployed X Layer testnet control plane when explicitly
+enabled. See
 [`docs/BACKEND_PLAN.md`](../../docs/BACKEND_PLAN.md) for the working plan.
 
 ## Setup
@@ -26,6 +28,8 @@ uvicorn valtide_api.main:app --reload --port 8000
 - Replay: `http://localhost:8000/api/replay/NVDAx`
 - Backtest: `http://localhost:8000/api/backtest/NVDAx?source=scenario`
 - Runtime status: `http://localhost:8000/api/runtime/NVDAx`
+- Onchain status: `http://localhost:8000/api/onchain/NVDAx`
+- DemoVault enforcement simulation: `http://localhost:8000/api/onchain/NVDAx/enforcement`
 - Assets: `http://localhost:8000/api/assets`
 - Swagger UI: `http://localhost:8000/docs`
 
@@ -62,8 +66,13 @@ boundaries and persists its carried state/latest result in SQLite. A restart
 restores that state; a failed tick preserves the last good result and reports
 the failure through `/api/runtime/{asset}`. `/api/valuation/{asset}/live` is a
 cold-start, on-demand diagnostic and is not equivalent to the warmed runtime.
-X Layer publication remains a clear `503` placeholder until the Registry
-configuration and contracts are available.
+X Layer publication is disabled by default. Enable it only with the local
+`PUBLISH_ENABLED=true`, `PUBLISHER_PRIVATE_KEY`, and `XLAYER_RPC_URL` settings.
+The public deployment manifest at `deployments/xlayer-testnet.json` supplies
+the testnet addresses and IDs; environment address values are optional explicit
+overrides. The publisher performs chain-ID, bytecode, linkage, policy,
+publisher-authorization, monotonic-observation, transaction, and read-back
+checks. The scheduler never publishes automatically.
 
 ## Layout
 
@@ -83,7 +92,8 @@ valtide_api/
 ├── runtime_store.py # SQLite state/result persistence and tick status
 ├── scenario.py      # scripted scenario loader
 ├── state_store.py   # in-memory computed-result cache
-├── publisher.py     # X Layer publication boundary
-├── routes/          # assets, valuation, replay, backtest, runtime, publish
+├── publisher.py     # X Layer publication and control-plane verification
+├── abis/            # bundled ABIs generated from the deployed contracts
+├── routes/          # assets, valuation, replay, backtest, runtime, publish, onchain
 └── adapters/        # token, underlying, and reference-under-test sources
 ```

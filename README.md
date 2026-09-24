@@ -231,15 +231,14 @@ X Layer's existing RWA and market-data infrastructure provides the ecosystem con
 ## Repository structure
 
 ```text
-apps/api/          backend and data services
-apps/web/          frontend application
-packages/quant/    quantitative models and backtesting
-contracts/         X Layer control-layer smart contracts
-data/sample/       small reproducible public samples
-data/raw/          local raw datasets, gitignored
-data/processed/    local processed datasets, gitignored
-scripts/           utility / data / deployment scripts
-docs/              canonical project documentation
+apps/api/                   backend and data services
+apps/web/                   frontend application
+valtide-quant-service-p1ac/ packaged quantitative runtime and artifacts
+contracts/                  X Layer control-layer smart contracts
+deployments/                public deployment manifests
+data/                       ignored generated/runtime diagnostics
+scripts/                    utility / data / deployment scripts
+docs/                       canonical project documentation
 ```
 
 ## Team
@@ -269,7 +268,10 @@ These four files are the canonical project references:
 
 ## Project status
 
-> Valtide is under active development for OKX Dev Day 2026. The repository currently contains the project specification and implementation scaffold; components will land incrementally during the hackathon.
+> Valtide is under active development for OKX Dev Day 2026. The repository
+> contains the backend/quant vertical slice and a testnet control-plane
+> deployment; production readiness and frontend integration remain out of
+> scope.
 
 | Area                    | Status       |
 | ----------------------- | ------------ |
@@ -278,13 +280,16 @@ These four files are the canonical project references:
 | Architecture            | drafted      |
 | Methodology             | drafted      |
 | Implementation          | in progress  |
-| Quant validation        | pending      |
-| X Layer deployment      | pending      |
-| Reference consumer      | pending      |
+| Quant validation        | P1a-C runtime integrated |
+| X Layer deployment      | testnet control plane deployed |
+| Reference consumer      | DemoCollateralVault deployed |
+| Backend publisher       | wired; credentialed testnet write smoke pending |
 
 ## Development
 
-Component-specific development instructions will be added as implementation lands. There is currently no frontend, backend, or quant package setup to install.
+Component-specific setup instructions live in `apps/api/README.md` and the
+packaged quant service README. Backend publication is testnet-only, disabled by
+default, and does not imply an audit or production deployment.
 
 ## Disclaimer
 

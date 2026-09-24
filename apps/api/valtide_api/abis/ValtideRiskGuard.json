@@ -1,0 +1,311 @@
+[
+  {
+    "type": "constructor",
+    "inputs": [
+      {
+        "name": "registry_",
+        "type": "address",
+        "internalType": "address"
+      }
+    ],
+    "stateMutability": "nonpayable"
+  },
+  {
+    "type": "function",
+    "name": "evaluate",
+    "inputs": [
+      {
+        "name": "assetId",
+        "type": "bytes32",
+        "internalType": "bytes32"
+      },
+      {
+        "name": "referenceId",
+        "type": "bytes32",
+        "internalType": "bytes32"
+      }
+    ],
+    "outputs": [
+      {
+        "name": "evidenceState",
+        "type": "uint8",
+        "internalType": "enum ValtideValidationRegistry.EvidenceState"
+      },
+      {
+        "name": "policyAction",
+        "type": "uint8",
+        "internalType": "enum ValtideRiskGuard.PolicyAction"
+      },
+      {
+        "name": "exists",
+        "type": "bool",
+        "internalType": "bool"
+      },
+      {
+        "name": "fresh",
+        "type": "bool",
+        "internalType": "bool"
+      }
+    ],
+    "stateMutability": "view"
+  },
+  {
+    "type": "function",
+    "name": "evaluateFor",
+    "inputs": [
+      {
+        "name": "policyOwner",
+        "type": "address",
+        "internalType": "address"
+      },
+      {
+        "name": "assetId",
+        "type": "bytes32",
+        "internalType": "bytes32"
+      },
+      {
+        "name": "referenceId",
+        "type": "bytes32",
+        "internalType": "bytes32"
+      }
+    ],
+    "outputs": [
+      {
+        "name": "evidenceState",
+        "type": "uint8",
+        "internalType": "enum ValtideValidationRegistry.EvidenceState"
+      },
+      {
+        "name": "policyAction",
+        "type": "uint8",
+        "internalType": "enum ValtideRiskGuard.PolicyAction"
+      },
+      {
+        "name": "exists",
+        "type": "bool",
+        "internalType": "bool"
+      },
+      {
+        "name": "fresh",
+        "type": "bool",
+        "internalType": "bool"
+      }
+    ],
+    "stateMutability": "view"
+  },
+  {
+    "type": "function",
+    "name": "getPolicy",
+    "inputs": [
+      {
+        "name": "policyOwner",
+        "type": "address",
+        "internalType": "address"
+      },
+      {
+        "name": "assetId",
+        "type": "bytes32",
+        "internalType": "bytes32"
+      },
+      {
+        "name": "referenceId",
+        "type": "bytes32",
+        "internalType": "bytes32"
+      }
+    ],
+    "outputs": [
+      {
+        "name": "policy",
+        "type": "tuple",
+        "internalType": "struct ValtideRiskGuard.ValidationPolicy",
+        "components": [
+          {
+            "name": "maxAge",
+            "type": "uint64",
+            "internalType": "uint64"
+          },
+          {
+            "name": "onSupported",
+            "type": "uint8",
+            "internalType": "enum ValtideRiskGuard.PolicyAction"
+          },
+          {
+            "name": "onInconclusive",
+            "type": "uint8",
+            "internalType": "enum ValtideRiskGuard.PolicyAction"
+          },
+          {
+            "name": "onChallenged",
+            "type": "uint8",
+            "internalType": "enum ValtideRiskGuard.PolicyAction"
+          },
+          {
+            "name": "onStale",
+            "type": "uint8",
+            "internalType": "enum ValtideRiskGuard.PolicyAction"
+          }
+        ]
+      },
+      {
+        "name": "configured",
+        "type": "bool",
+        "internalType": "bool"
+      }
+    ],
+    "stateMutability": "view"
+  },
+  {
+    "type": "function",
+    "name": "registry",
+    "inputs": [],
+    "outputs": [
+      {
+        "name": "",
+        "type": "address",
+        "internalType": "address"
+      }
+    ],
+    "stateMutability": "view"
+  },
+  {
+    "type": "function",
+    "name": "setPolicy",
+    "inputs": [
+      {
+        "name": "assetId",
+        "type": "bytes32",
+        "internalType": "bytes32"
+      },
+      {
+        "name": "referenceId",
+        "type": "bytes32",
+        "internalType": "bytes32"
+      },
+      {
+        "name": "policy",
+        "type": "tuple",
+        "internalType": "struct ValtideRiskGuard.ValidationPolicy",
+        "components": [
+          {
+            "name": "maxAge",
+            "type": "uint64",
+            "internalType": "uint64"
+          },
+          {
+            "name": "onSupported",
+            "type": "uint8",
+            "internalType": "enum ValtideRiskGuard.PolicyAction"
+          },
+          {
+            "name": "onInconclusive",
+            "type": "uint8",
+            "internalType": "enum ValtideRiskGuard.PolicyAction"
+          },
+          {
+            "name": "onChallenged",
+            "type": "uint8",
+            "internalType": "enum ValtideRiskGuard.PolicyAction"
+          },
+          {
+            "name": "onStale",
+            "type": "uint8",
+            "internalType": "enum ValtideRiskGuard.PolicyAction"
+          }
+        ]
+      }
+    ],
+    "outputs": [],
+    "stateMutability": "nonpayable"
+  },
+  {
+    "type": "event",
+    "name": "PolicyUpdated",
+    "inputs": [
+      {
+        "name": "policyOwner",
+        "type": "address",
+        "indexed": true,
+        "internalType": "address"
+      },
+      {
+        "name": "assetId",
+        "type": "bytes32",
+        "indexed": true,
+        "internalType": "bytes32"
+      },
+      {
+        "name": "referenceId",
+        "type": "bytes32",
+        "indexed": true,
+        "internalType": "bytes32"
+      },
+      {
+        "name": "maxAge",
+        "type": "uint64",
+        "indexed": false,
+        "internalType": "uint64"
+      },
+      {
+        "name": "onSupported",
+        "type": "uint8",
+        "indexed": false,
+        "internalType": "enum ValtideRiskGuard.PolicyAction"
+      },
+      {
+        "name": "onInconclusive",
+        "type": "uint8",
+        "indexed": false,
+        "internalType": "enum ValtideRiskGuard.PolicyAction"
+      },
+      {
+        "name": "onChallenged",
+        "type": "uint8",
+        "indexed": false,
+        "internalType": "enum ValtideRiskGuard.PolicyAction"
+      },
+      {
+        "name": "onStale",
+        "type": "uint8",
+        "indexed": false,
+        "internalType": "enum ValtideRiskGuard.PolicyAction"
+      }
+    ],
+    "anonymous": false
+  },
+  {
+    "type": "error",
+    "name": "InvalidIdentifier",
+    "inputs": []
+  },
+  {
+    "type": "error",
+    "name": "InvalidMaxAge",
+    "inputs": []
+  },
+  {
+    "type": "error",
+    "name": "InvalidRegistry",
+    "inputs": []
+  },
+  {
+    "type": "error",
+    "name": "PolicyNotConfigured",
+    "inputs": [
+      {
+        "name": "policyOwner",
+        "type": "address",
+        "internalType": "address"
+      },
+      {
+        "name": "assetId",
+        "type": "bytes32",
+        "internalType": "bytes32"
+      },
+      {
+        "name": "referenceId",
+        "type": "bytes32",
+        "internalType": "bytes32"
+      }
+    ]
+  }
+]

@@ -1,0 +1,298 @@
+[
+  {
+    "type": "constructor",
+    "inputs": [
+      {
+        "name": "initialOwner",
+        "type": "address",
+        "internalType": "address"
+      },
+      {
+        "name": "riskGuard_",
+        "type": "address",
+        "internalType": "address"
+      },
+      {
+        "name": "assetId_",
+        "type": "bytes32",
+        "internalType": "bytes32"
+      },
+      {
+        "name": "referenceId_",
+        "type": "bytes32",
+        "internalType": "bytes32"
+      }
+    ],
+    "stateMutability": "nonpayable"
+  },
+  {
+    "type": "function",
+    "name": "assetId",
+    "inputs": [],
+    "outputs": [
+      {
+        "name": "",
+        "type": "bytes32",
+        "internalType": "bytes32"
+      }
+    ],
+    "stateMutability": "view"
+  },
+  {
+    "type": "function",
+    "name": "configurePolicy",
+    "inputs": [
+      {
+        "name": "policy",
+        "type": "tuple",
+        "internalType": "struct ValtideRiskGuard.ValidationPolicy",
+        "components": [
+          {
+            "name": "maxAge",
+            "type": "uint64",
+            "internalType": "uint64"
+          },
+          {
+            "name": "onSupported",
+            "type": "uint8",
+            "internalType": "enum ValtideRiskGuard.PolicyAction"
+          },
+          {
+            "name": "onInconclusive",
+            "type": "uint8",
+            "internalType": "enum ValtideRiskGuard.PolicyAction"
+          },
+          {
+            "name": "onChallenged",
+            "type": "uint8",
+            "internalType": "enum ValtideRiskGuard.PolicyAction"
+          },
+          {
+            "name": "onStale",
+            "type": "uint8",
+            "internalType": "enum ValtideRiskGuard.PolicyAction"
+          }
+        ]
+      }
+    ],
+    "outputs": [],
+    "stateMutability": "nonpayable"
+  },
+  {
+    "type": "function",
+    "name": "owner",
+    "inputs": [],
+    "outputs": [
+      {
+        "name": "",
+        "type": "address",
+        "internalType": "address"
+      }
+    ],
+    "stateMutability": "view"
+  },
+  {
+    "type": "function",
+    "name": "referenceId",
+    "inputs": [],
+    "outputs": [
+      {
+        "name": "",
+        "type": "bytes32",
+        "internalType": "bytes32"
+      }
+    ],
+    "stateMutability": "view"
+  },
+  {
+    "type": "function",
+    "name": "renounceOwnership",
+    "inputs": [],
+    "outputs": [],
+    "stateMutability": "nonpayable"
+  },
+  {
+    "type": "function",
+    "name": "requestNewExposure",
+    "inputs": [
+      {
+        "name": "amount",
+        "type": "uint256",
+        "internalType": "uint256"
+      }
+    ],
+    "outputs": [
+      {
+        "name": "policyAction",
+        "type": "uint8",
+        "internalType": "enum ValtideRiskGuard.PolicyAction"
+      }
+    ],
+    "stateMutability": "nonpayable"
+  },
+  {
+    "type": "function",
+    "name": "riskGuard",
+    "inputs": [],
+    "outputs": [
+      {
+        "name": "",
+        "type": "address",
+        "internalType": "contract ValtideRiskGuard"
+      }
+    ],
+    "stateMutability": "view"
+  },
+  {
+    "type": "function",
+    "name": "transferOwnership",
+    "inputs": [
+      {
+        "name": "newOwner",
+        "type": "address",
+        "internalType": "address"
+      }
+    ],
+    "outputs": [],
+    "stateMutability": "nonpayable"
+  },
+  {
+    "type": "event",
+    "name": "ExposureRequested",
+    "inputs": [
+      {
+        "name": "user",
+        "type": "address",
+        "indexed": true,
+        "internalType": "address"
+      },
+      {
+        "name": "amount",
+        "type": "uint256",
+        "indexed": false,
+        "internalType": "uint256"
+      },
+      {
+        "name": "evidenceState",
+        "type": "uint8",
+        "indexed": false,
+        "internalType": "enum ValtideValidationRegistry.EvidenceState"
+      },
+      {
+        "name": "policyAction",
+        "type": "uint8",
+        "indexed": false,
+        "internalType": "enum ValtideRiskGuard.PolicyAction"
+      },
+      {
+        "name": "exists",
+        "type": "bool",
+        "indexed": false,
+        "internalType": "bool"
+      },
+      {
+        "name": "fresh",
+        "type": "bool",
+        "indexed": false,
+        "internalType": "bool"
+      }
+    ],
+    "anonymous": false
+  },
+  {
+    "type": "event",
+    "name": "OwnershipTransferred",
+    "inputs": [
+      {
+        "name": "previousOwner",
+        "type": "address",
+        "indexed": true,
+        "internalType": "address"
+      },
+      {
+        "name": "newOwner",
+        "type": "address",
+        "indexed": true,
+        "internalType": "address"
+      }
+    ],
+    "anonymous": false
+  },
+  {
+    "type": "event",
+    "name": "PolicyConfigured",
+    "inputs": [
+      {
+        "name": "assetId",
+        "type": "bytes32",
+        "indexed": true,
+        "internalType": "bytes32"
+      },
+      {
+        "name": "referenceId",
+        "type": "bytes32",
+        "indexed": true,
+        "internalType": "bytes32"
+      }
+    ],
+    "anonymous": false
+  },
+  {
+    "type": "error",
+    "name": "InvalidAmount",
+    "inputs": []
+  },
+  {
+    "type": "error",
+    "name": "InvalidDependency",
+    "inputs": []
+  },
+  {
+    "type": "error",
+    "name": "NewExposureNotAllowed",
+    "inputs": [
+      {
+        "name": "evidenceState",
+        "type": "uint8",
+        "internalType": "enum ValtideValidationRegistry.EvidenceState"
+      },
+      {
+        "name": "policyAction",
+        "type": "uint8",
+        "internalType": "enum ValtideRiskGuard.PolicyAction"
+      },
+      {
+        "name": "exists",
+        "type": "bool",
+        "internalType": "bool"
+      },
+      {
+        "name": "fresh",
+        "type": "bool",
+        "internalType": "bool"
+      }
+    ]
+  },
+  {
+    "type": "error",
+    "name": "OwnableInvalidOwner",
+    "inputs": [
+      {
+        "name": "owner",
+        "type": "address",
+        "internalType": "address"
+      }
+    ]
+  },
+  {
+    "type": "error",
+    "name": "OwnableUnauthorizedAccount",
+    "inputs": [
+      {
+        "name": "account",
+        "type": "address",
+        "internalType": "address"
+      }
+    ]
+  }
+]

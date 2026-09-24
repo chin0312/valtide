@@ -60,9 +60,10 @@ def build_live_snapshot(
         raise LiveDataUnavailable("NVDAx token price unavailable (DexScreener).")
 
     try:
-        # Cap the query at the valued bar's close so a newer bar can never be
-        # mistaken for this bar's underlying measurement.
-        bars = equity.get_trusted_bars("NVDA", client=client, now=now + FIVE_MINUTES)
+        # Alpaca's `end` bound can include the boundary itself. Cap the query at
+        # the valued bar so the next canonical boundary can never enter the
+        # underlying measurement set.
+        bars = equity.get_trusted_bars("NVDA", client=client, now=now)
     except (httpx.HTTPError, KeyError, TypeError, ValueError, RuntimeError) as exc:
         raise LiveDataUnavailable(
             "NVDA underlying unavailable (Alpaca — check key/feed)."
