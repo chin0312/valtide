@@ -29,6 +29,7 @@ htmlcov/
 # Foundry
 contracts/cache/
 contracts/out/
+contracts/broadcast/
 broadcast/
 
 # IDE and operating system files
