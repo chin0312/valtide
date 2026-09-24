@@ -20,7 +20,7 @@ export const EXAMPLE_DEMO_POLICY: OnchainPolicy = {
 const ACTION_MEANING: Record<PolicyAction, string> = {
   ALLOW: "The consuming application may permit new exposure.",
   MONITOR: "The consuming application may permit exposure while monitoring.",
-  REQUIRE_REVIEW: "The consuming application should require review before new exposure.",
+  REQUIRE_REVIEW: "New exposure should not proceed until review.",
   RESTRICT_NEW_RISK: "The consuming application should reject new exposure.",
 };
 
@@ -55,16 +55,18 @@ export function PolicyActionPanel({ current, policy, evaluation, policySource, s
 
         {scenarioMode ? (
           <ActionBlock
-            label="Policy action if this scenario were synced"
+            label="Curator mapping for this scenario Evidence State"
             action={projectedAction}
             description="This deterministic replay does not publish its state to the deployed Registry."
+            detail="This mapping applies to a fresh attestation. A stale attestation uses the configured STALE policy."
           />
         ) : (
           <div className="mt-4 grid gap-3 sm:grid-cols-2">
             <ActionBlock
-              label="Policy action once this evidence is synced"
+              label="Curator mapping for this Evidence State"
               action={projectedAction}
               description="The configured curator mapping for the current operational Evidence State."
+              detail="This mapping applies to a fresh attestation. A stale attestation uses the configured STALE policy."
             />
             <ActionBlock
               label="Current onchain enforced action"

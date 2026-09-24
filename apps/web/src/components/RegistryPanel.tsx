@@ -53,7 +53,7 @@ export function RegistryPanel({ controlPlane, enforcement, sync, mode = "operati
         <Detail label="Registry" value={shortHex(controlPlane.registry)} />
         <Detail label="RiskGuard" value={shortHex(controlPlane.risk_guard)} />
         <Detail label="DemoVault" value={shortHex(controlPlane.demo_vault)} />
-        <Detail label="Reference" value={shortHex(controlPlane.reference_id)} />
+        <Detail label="Reference ID" value={shortHex(controlPlane.reference_id)} />
       </div>
 
       <div className="mt-5 border-t pt-4" style={{ borderColor: "var(--color-line)" }}>
@@ -65,8 +65,8 @@ export function RegistryPanel({ controlPlane, enforcement, sync, mode = "operati
           <Detail label="Observed" value={unixDateTimeUTC(attestation?.observedAt)} />
           <Detail label="Published" value={unixDateTimeUTC(attestation?.publishedAt)} />
           <Detail label="Valid until" value={unixDateTimeUTC(attestation?.validUntil)} />
-          <Detail label="Model version" value={shortHex(attestation?.modelVersion ?? controlPlane.model_version)} />
-          <Detail label="Reference" value={shortHex(controlPlane.reference_id)} />
+          <Detail label="Model version hash" value={shortHex(attestation?.modelVersion ?? controlPlane.model_version)} />
+          <Detail label="Reference ID" value={shortHex(controlPlane.reference_id)} />
         </div>
       </div>
 
@@ -132,7 +132,7 @@ function SyncBanner({ sync }: { sync: OnchainSyncStatus }) {
 function enforcementOutcome(enforcement: OnchainEnforcement): string {
   if (enforcement.policy_action === "ALLOW") return "ALLOWED";
   if (enforcement.policy_action === "MONITOR") return "MONITORED";
-  if (enforcement.policy_action === "REQUIRE_REVIEW") return "REVIEW REQUIRED";
+  if (enforcement.policy_action === "REQUIRE_REVIEW") return "BLOCKED PENDING REVIEW";
   if (enforcement.policy_action === "RESTRICT_NEW_RISK") return "NEW EXPOSURE BLOCKED";
   return enforcement.expected_revert ? "NEW EXPOSURE BLOCKED" : "OUTCOME UNAVAILABLE";
 }

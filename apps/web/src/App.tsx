@@ -122,7 +122,7 @@ function DemoView({ backendUp }: { backendUp: boolean }) {
 
   return (
     <div className="space-y-6">
-      <StatusStrip r={r} provenance={provenance} onchainFresh={controlPlane.controlPlane?.fresh} />
+      <StatusStrip r={r} provenance={provenance} />
       <ValidationOverview r={r} />
       <div className="grid gap-6 lg:grid-cols-3">
         <div className="lg:col-span-2"><ReferenceComparison r={r} /></div>
