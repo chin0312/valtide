@@ -11,6 +11,7 @@ from __future__ import annotations
 import json
 import math
 import re
+from ast import literal_eval
 from dataclasses import dataclass
 from datetime import UTC, datetime
 from importlib import resources
@@ -68,6 +69,10 @@ class PublicationError(PublisherError):
 
 class ReadbackMismatchError(PublicationError):
     """Raised when the Registry does not contain the submitted payload."""
+
+
+class EnforcementVerificationError(ChainPreflightError):
+    """Raised when the DemoVault call does not match its configured policy."""
 
 
 @dataclass(frozen=True)
@@ -389,6 +394,89 @@ def _load_abi(name: str) -> list[dict[str, Any]]:
         raise PublisherNotConfigured(f"bundled ABI unavailable for {name}") from exc
 
 
+def _custom_error_abi(contract_name: str, error_name: str) -> tuple[str, list[str]]:
+    for entry in _load_abi(contract_name):
+        if entry.get("type") == "error" and entry.get("name") == error_name:
+            input_types = [str(item["type"]) for item in entry.get("inputs", [])]
+            signature = f"{error_name}({','.join(input_types)})"
+            selector = "0x" + bytes(_web3_class().keccak(text=signature)[:4]).hex()
+            return selector, input_types
+    raise PublisherNotConfigured(f"bundled ABI is missing error {error_name}")
+
+
+def _revert_data_candidates(value: Any, seen: set[int] | None = None) -> list[bytes]:
+    """Extract possible ABI revert payloads from Web3 exception shapes."""
+    seen = seen or set()
+    if value is None or id(value) in seen:
+        return []
+    seen.add(id(value))
+    if isinstance(value, bytes | bytearray | memoryview):
+        return [bytes(value)]
+    if isinstance(value, str):
+        candidates: list[bytes] = []
+        for match in re.finditer(r"0x[0-9a-fA-F]{8,}", value):
+            encoded = match.group(0)
+            if len(encoded) % 2 == 0:
+                candidates.append(bytes.fromhex(encoded[2:]))
+        for match in re.finditer(r"b(['\"])(.*?)\1", value):
+            try:
+                parsed = literal_eval(match.group(0))
+            except (SyntaxError, ValueError):
+                continue
+            if isinstance(parsed, bytes):
+                candidates.append(parsed)
+        return candidates
+    if isinstance(value, dict):
+        candidates = []
+        for key in ("data", "result", "return", "error", "originalError"):
+            if key in value:
+                candidates.extend(_revert_data_candidates(value[key], seen))
+        return candidates
+    if isinstance(value, list | tuple):
+        candidates = []
+        for item in value:
+            candidates.extend(_revert_data_candidates(item, seen))
+        return candidates
+    return []
+
+
+def _exception_revert_data(exc: Exception) -> list[bytes]:
+    values: list[Any] = [getattr(exc, "data", None), getattr(exc, "message", None)]
+    values.extend(getattr(exc, "args", ()))
+    candidates: list[bytes] = []
+    seen: set[int] = set()
+    for value in values:
+        candidates.extend(_revert_data_candidates(value, seen))
+    return candidates
+
+
+def _is_expected_demo_vault_revert(
+    exc: Exception,
+    w3: Any,
+    evaluation: dict[str, Any],
+) -> bool:
+    selector, input_types = _custom_error_abi(
+        "DemoCollateralVault", "NewExposureNotAllowed"
+    )
+    selector_bytes = bytes.fromhex(selector[2:])
+    for data in _exception_revert_data(exc):
+        if not data.startswith(selector_bytes):
+            continue
+        try:
+            decoded = w3.codec.decode(input_types, data[4:])
+        except Exception:
+            continue
+        evidence_code, policy_code, exists, fresh = decoded
+        if (
+            int(evidence_code) == evaluation["evidence_state_code"]
+            and int(policy_code) == evaluation["policy_action_code"]
+            and bool(exists) == evaluation["exists"]
+            and bool(fresh) == evaluation["fresh"]
+        ):
+            return True
+    return False
+
+
 def _checksum(w3: Any, address: str) -> str:
     return w3.to_checksum_address(address)
 
@@ -596,6 +684,10 @@ def _receipt_from_state(
     candidate: dict[str, Any],
     state: dict[str, Any],
 ) -> PublishReceipt:
+    attestation = state.get("attestation")
+    published_at = None
+    if isinstance(attestation, dict) and attestation.get("publishedAt"):
+        published_at = int(attestation["publishedAt"])
     return PublishReceipt(
         status=status,
         tx_hash=tx_hash,
@@ -604,9 +696,7 @@ def _receipt_from_state(
         reference_id=config.reference_id,
         observed_at=int(candidate["observedAt"]),
         valid_until=int(candidate["validUntil"]),
-        published_at=(
-            int(state["publishedAt"]) if state.get("exists") and state.get("publishedAt") else None
-        ),
+        published_at=published_at,
         evidence_hash=str(candidate["evidenceHash"]),
         evidence_state=_EVIDENCE_BY_CODE[int(candidate["evidenceState"])],
         policy_action=str(state["policy_action"]),
@@ -618,7 +708,8 @@ def _receipt_from_state(
 def _tx_hash(value: Any) -> str:
     if isinstance(value, str):
         return value if value.startswith("0x") else f"0x{value}"
-    return value.hex()
+    encoded = value.hex()
+    return encoded if encoded.startswith("0x") else f"0x{encoded}"
 
 
 def _assert_readback(candidate: dict[str, Any], actual: dict[str, Any]) -> None:
@@ -748,17 +839,40 @@ def check_demo_vault_enforcement(
     w3 = web3_client or connect_web3(config)
     _registry, guard, vault, _policy = _verify_deployment(w3, config)
     evaluation = _read_evaluation(w3, guard, config)
-    expected_revert = evaluation["policy_action_code"] not in (0, 1)
+    policy_action_code = evaluation["policy_action_code"]
+    if policy_action_code in (0, 1):
+        try:
+            returned_action = int(vault.functions.requestNewExposure(1).call())
+        except Exception as exc:
+            raise EnforcementVerificationError(
+                "DemoVault enforcement call failed unexpectedly"
+            ) from exc
+        if returned_action != policy_action_code:
+            raise EnforcementVerificationError(
+                "DemoVault returned an unexpected policy action"
+            )
+        return {
+            "expected_revert": False,
+            "reverted": False,
+            "returned_action_code": returned_action,
+            "passed": True,
+            **evaluation,
+        }
+
     try:
-        returned_action = int(vault.functions.requestNewExposure(1).call())
-        reverted = False
-    except Exception:
-        returned_action = None
-        reverted = True
-    return {
-        "expected_revert": expected_revert,
-        "reverted": reverted,
-        "returned_action_code": returned_action,
-        "passed": reverted == expected_revert,
-        **evaluation,
-    }
+        vault.functions.requestNewExposure(1).call()
+    except Exception as exc:
+        if not _is_expected_demo_vault_revert(exc, w3, evaluation):
+            raise EnforcementVerificationError(
+                "DemoVault did not return the expected NewExposureNotAllowed error"
+            ) from exc
+        return {
+            "expected_revert": True,
+            "reverted": True,
+            "returned_action_code": None,
+            "passed": True,
+            **evaluation,
+        }
+    raise EnforcementVerificationError(
+        "DemoVault permitted new exposure under a restrictive policy"
+    )
