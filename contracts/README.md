@@ -1,8 +1,7 @@
 # Valtide X Layer Control Plane
 
 This directory contains the submission-critical onchain control plane for
-Valtide. It is an ordinary EVM-compatible Foundry project targeting the
-intended X Layer testnet deployment in a later step.
+Valtide. It is an ordinary EVM-compatible Foundry project targeting X Layer.
 
 ## Architecture
 
@@ -93,7 +92,8 @@ repository setup. The deployment script reads:
 The script deploys `ValtideValidationRegistry`, `ValtideRiskGuard`, and
 `DemoCollateralVault`, authorizes the configured publisher, and configures the
 Demo Vault's default 15-minute policy. It prints addresses and canonical demo
-identifiers, but no address is committed to source control.
+identifiers. Private keys, RPC credentials, and other secrets remain local and
+are never recorded in the repository.
 
 Example testnet command:
 
@@ -104,9 +104,24 @@ forge script script/DeployValtide.s.sol:DeployValtide \
   --broadcast
 ```
 
-The intended first deployment target is X Layer testnet (chain ID `1952`).
-The deployment script rejects every other chain ID before broadcasting. No
-deployment is claimed by this repository change.
+The deployment script rejects every other chain ID before broadcasting.
+
+## TESTNET deployment
+
+The first Valtide control-plane deployment is recorded in
+[`deployments/xlayer-testnet.json`](../deployments/xlayer-testnet.json).
+
+Network: X Layer testnet, chain ID `1952`
+
+- `ValtideValidationRegistry`: `0x1A53C85C66EA212693d36bF842574643C4d9B635`
+- `ValtideRiskGuard`: `0x8e17a4eB93074ea74d05D9bc316d85AD3B540CE7`
+- `DemoCollateralVault`: `0x4beC6Bc1DF651f36758216cA02db62b5603349ce`
+- Deployer and Registry/DemoVault owner: `0xBb341F8AE72146CEE60Ca0cCFE8C3Db5c90fC30C`
+- Authorized publisher: `0xBb341F8AE72146CEE60Ca0cCFE8C3Db5c90fC30C`
+
+These are TESTNET contracts only. They are not production contracts, and no
+audit or security review is claimed. Backend publisher wiring and frontend
+integration are not included in this deployment record.
 
 `DemoCollateralVault` is a reference consumer for the hackathon vertical
 slice, not a production lending protocol or financial product.

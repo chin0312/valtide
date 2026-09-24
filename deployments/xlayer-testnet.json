@@ -1,0 +1,27 @@
+{
+  "network": "X Layer Testnet",
+  "chainId": 1952,
+  "deployer": "0xBb341F8AE72146CEE60Ca0cCFE8C3Db5c90fC30C",
+  "publisher": "0xBb341F8AE72146CEE60Ca0cCFE8C3Db5c90fC30C",
+  "contracts": {
+    "ValtideValidationRegistry": "0x1A53C85C66EA212693d36bF842574643C4d9B635",
+    "ValtideRiskGuard": "0x8e17a4eB93074ea74d05D9bc316d85AD3B540CE7",
+    "DemoCollateralVault": "0x4beC6Bc1DF651f36758216cA02db62b5603349ce"
+  },
+  "demo": {
+    "assetId": "0xd475b7977c1c808b1faa8fbe092d3f952b6007a6ec418a58f877a69a3945440c",
+    "referenceId": "0x53d122bd54a2ebc11b119ef6d5f1bbb7fca155dac4c7cfc997edd3182646850d",
+    "modelVersion": "0x177d57055bb57caacc5f72e04f893f984b95e26f8749bff5b374a6d1548ea727"
+  },
+  "deployment": {
+    "blockNumber": 41762007,
+    "timestamp": "2026-09-24T03:34:04Z",
+    "transactionHashes": [
+      "0xf4209e3264c5721a56371799ac1802815b4bb7d40d1bd7b58aa2f6682192e5bd",
+      "0x32324d791fac6191d227303ab7217dd8efebc27f30531f9f4cc87db35dc0e222",
+      "0xa1b4c3871f5129137db04555e53c9226f3fdd17b3673bc66a25fe6be0edb2873",
+      "0xed96cdccce9e61b29ece3b5554cd630b3f0bce1f3bc2e69ff9a82285f61a9367",
+      "0x1c580c1eba8c58189ac7c88c2e45ee239ef7c7e7eeb879fa3b0ff69d3de709d1"
+    ]
+  }
+}
