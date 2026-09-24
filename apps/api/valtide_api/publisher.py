@@ -11,6 +11,7 @@ from __future__ import annotations
 import json
 import math
 import re
+import time
 from ast import literal_eval
 from dataclasses import dataclass
 from datetime import UTC, datetime
@@ -41,6 +42,8 @@ _CANONICAL_ASSET_NAME = "NVDAx"
 _CANONICAL_REFERENCE_NAME = "OKX_NVDA_USD_INDEX"
 _CANONICAL_MODEL_VERSION = "0.2.0"
 _EVIDENCE_SCHEMA = "valtide-evidence-v1"
+_READBACK_ATTEMPTS = 5
+_READBACK_RETRY_DELAY_SECONDS = 1.0
 
 
 class PublisherError(RuntimeError):
@@ -737,6 +740,25 @@ def _assert_readback(candidate: dict[str, Any], actual: dict[str, Any]) -> None:
         raise ReadbackMismatchError("Registry read-back did not contain a published attestation")
 
 
+def _readback_after_publish(
+    registry: Any, config: DeploymentConfig, candidate: dict[str, Any]
+) -> dict[str, Any]:
+    """Read back a mined write, tolerating a short RPC read-after-write lag."""
+    for attempt in range(_READBACK_ATTEMPTS):
+        actual = _read_latest(registry, config)
+        try:
+            _assert_readback(candidate, actual)
+            return actual
+        except ReadbackMismatchError:
+            observed_at = int(actual.get("observedAt", 0) or 0)
+            if attempt == _READBACK_ATTEMPTS - 1 or (
+                actual.get("exists") and observed_at >= int(candidate["observedAt"])
+            ):
+                raise
+            time.sleep(_READBACK_RETRY_DELAY_SECONDS)
+    raise AssertionError("unreachable")
+
+
 def publish(
     result: ValuationResult,
     settings: Settings | None = None,
@@ -823,8 +845,7 @@ def publish(
     )
     if int(status or 0) != 1:
         raise PublicationError("X Layer publication transaction reverted")
-    actual = _read_latest(registry, config)
-    _assert_readback(candidate, actual)
+    _readback_after_publish(registry, config, candidate)
     state = read_control_plane(settings=settings, web3_client=w3)
     return _receipt_from_state("published", tx_hash, config, candidate, state)
 

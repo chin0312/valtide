@@ -5,6 +5,7 @@ from types import SimpleNamespace
 import pytest
 from web3 import Web3
 
+import valtide_api.publisher as publisher_module
 from valtide_api.config import Settings
 from valtide_api.models import EvidenceState, ValuationResult
 from valtide_api.publisher import (
@@ -219,6 +220,9 @@ class _FakeRegistryFunctions:
         self.registry = registry
 
     def getLatest(self, _asset_id, _reference_id):
+        if self.registry.exists and self.registry.stale_reads_after_commit:
+            self.registry.stale_reads_after_commit -= 1
+            return _FakeCall((None, False))
         return _FakeCall((self.registry.attestation, self.registry.exists))
 
     def isFresh(self, _asset_id, _reference_id):
@@ -242,6 +246,7 @@ class _FakeRegistry:
         self.input_tuple = None
         self.published_at = 777
         self.mismatch_field = None
+        self.stale_reads_after_commit = 0
 
     def commit_input(self):
         input_tuple = self.input_tuple
@@ -498,6 +503,20 @@ def test_publish_success_exercises_signed_write_and_readback(
     assert actual["modelVersion"] == candidate["modelVersion"]
     assert actual["observedAt"] == candidate["observedAt"]
     assert actual["validUntil"] == candidate["validUntil"]
+
+
+def test_publish_retries_transient_stale_readback(
+    result, publisher_settings, fake_chain, monkeypatch
+):
+    _config, w3 = fake_chain
+    w3.eth.registry.stale_reads_after_commit = 1
+    monkeypatch.setattr(publisher_module.time, "sleep", lambda _seconds: None)
+
+    receipt = publish(result, settings=publisher_settings, web3_client=w3)
+
+    assert receipt.status == "published"
+    assert receipt.tx_hash == "0x" + "ab" * 32
+    assert receipt.published_at == 777
 
 
 def test_receipt_without_attestation_keeps_published_at_none(deployment_config):
