@@ -15,9 +15,12 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "apps" / "api"))
 
-from valtide_api.adapters import equity, okx, reference  # noqa: E402
-from valtide_api.clock import FIVE_MINUTES, require_canonical_5m  # noqa: E402
-from valtide_api.session import classify  # noqa: E402
+# The path bootstrap intentionally precedes these first-party imports.
+# isort: off
+from valtide_api.adapters import equity, okx, reference
+from valtide_api.clock import FIVE_MINUTES, require_canonical_5m
+from valtide_api.session import classify
+# isort: on
 
 
 PANEL_COLUMNS = [

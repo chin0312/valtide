@@ -78,13 +78,70 @@ jobs:
           python -m pip install -e "./apps/api[dev]"
 
       - name: Run Ruff
-        run: ruff check apps/api
+        run: ruff check apps/api scripts
 
       - name: Compile backend package
         run: python -m compileall -q apps/api/valtide_api
 
       - name: Run deterministic demo
         run: python scripts/demo_value.py
+
+      - name: Build Railway container
+        run: docker build -t valtide-api:test .
+
+      - name: Smoke Railway container
+        run: |
+          set -Eeuo pipefail
+
+          container_name="valtide-api-ci-${GITHUB_RUN_ID:-local}"
+          cleanup() {
+            exit_code=$?
+            if [ "$exit_code" -ne 0 ]; then
+              echo "::group::safe container logs"
+              docker logs "$container_name" || true
+              echo "::endgroup::"
+            fi
+            docker rm -f "$container_name" >/dev/null 2>&1 || true
+            exit "$exit_code"
+          }
+          trap cleanup EXIT
+
+          docker run --detach \
+            --name "$container_name" \
+            --env PORT=8000 \
+            --env LIVE_SCHEDULER_ENABLED=false \
+            --env PUBLISH_ENABLED=false \
+            --publish 127.0.0.1:8000:8000 \
+            valtide-api:test
+
+          for attempt in $(seq 1 30); do
+            health_code="$(curl --silent --show-error --output /dev/null \
+              --write-out '%{http_code}' http://127.0.0.1:8000/health || true)"
+            if [ "$health_code" = "200" ]; then
+              break
+            fi
+            if [ "$attempt" -eq 30 ]; then
+              echo "container did not become healthy (last HTTP status: $health_code)"
+              exit 1
+            fi
+            sleep 2
+          done
+
+          health_code="$(curl --silent --show-error --output /dev/null \
+            --write-out '%{http_code}' http://127.0.0.1:8000/health || true)"
+          if [ "$health_code" != "200" ]; then
+            echo "GET /health returned HTTP $health_code"
+            exit 1
+          fi
+
+          assets_code="$(curl --silent --show-error --output /dev/null \
+            --write-out '%{http_code}' http://127.0.0.1:8000/api/assets || true)"
+          if [ "$assets_code" != "200" ]; then
+            echo "GET /api/assets returned HTTP $assets_code"
+            exit 1
+          fi
+
+          echo "container smoke passed: /health=200 /api/assets=200"
 
   contracts:
     name: Valtide Contracts
