@@ -30,6 +30,11 @@ export function unixTimeUTC(seconds: number | null | undefined): string {
   return timeUTC(new Date(seconds * 1000).toISOString());
 }
 
+export function unixDateTimeUTC(seconds: number | null | undefined): string {
+  if (seconds == null || Number.isNaN(seconds) || seconds <= 0) return DASH;
+  return `${new Date(seconds * 1000).toISOString().slice(0, 16).replace("T", " ")} UTC`;
+}
+
 export function ageLabel(seconds: number | null | undefined): string {
   if (seconds == null || Number.isNaN(seconds)) return DASH;
   if (seconds < 60) return `${seconds}s`;

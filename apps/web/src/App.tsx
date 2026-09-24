@@ -9,6 +9,7 @@ import { ValidationOverview } from "./views/ValidationOverview";
 import { ReferenceComparison } from "./views/ReferenceComparison";
 import { HistoricalReplay } from "./views/HistoricalReplay";
 import { ModelEvidence } from "./views/ModelEvidence";
+import { deriveOnchainSync } from "./lib/onchain";
 
 type Mode = "live" | "demo";
 
@@ -80,23 +81,24 @@ function LiveView({ backendUp }: { backendUp: boolean }) {
           {runtime.data?.last_error && <p className="mx-auto mt-2 max-w-xl text-xs" style={{ color: "var(--color-inconclusive)" }}>Scheduler: {runtime.data.last_error}</p>}
         </Message>
         <DiagnosticCard requested={diagnosticRequested} onRun={() => setDiagnosticRequested(true)} query={diagnostic} />
-        <RegistryPanel {...controlPlane} />
+        <RegistryPanel {...controlPlane} mode="operational" />
       </div>
     );
   }
 
   const r = operational.data;
+  const sync = deriveOnchainSync(r, controlPlane.controlPlane);
   return (
     <div className="space-y-6">
       <StatusStrip r={r} provenance="cached" runtime={runtime.data} onchainFresh={controlPlane.controlPlane?.fresh} />
       <ValidationOverview r={r} />
       <div className="grid gap-6 lg:grid-cols-3">
         <div className="lg:col-span-2"><ReferenceComparison r={r} /></div>
-        <PolicyActionPanel current={r.evidence_state} policy={controlPlane.controlPlane?.policy} evaluation={controlPlane.controlPlane} policySource={controlPlane.controlPlane ? "X Layer RiskGuard" : "Unavailable — no frontend default"} />
+        <PolicyActionPanel current={r.evidence_state} policy={controlPlane.controlPlane?.policy} evaluation={controlPlane.controlPlane} sync={sync} policySource={controlPlane.controlPlane ? "X Layer RiskGuard" : "Unavailable — no frontend default"} />
       </div>
       <div className="grid gap-6 lg:grid-cols-3">
         <div className="lg:col-span-2"><ModelEvidence /></div>
-        <RegistryPanel {...controlPlane} />
+        <RegistryPanel {...controlPlane} sync={sync} mode="operational" />
       </div>
       <DiagnosticCard requested={diagnosticRequested} onRun={() => setDiagnosticRequested(true)} query={diagnostic} />
       <Footer r={r} label="warmed operational result, polled every 20s" />
@@ -124,13 +126,13 @@ function DemoView({ backendUp }: { backendUp: boolean }) {
       <ValidationOverview r={r} />
       <div className="grid gap-6 lg:grid-cols-3">
         <div className="lg:col-span-2"><ReferenceComparison r={r} /></div>
-        <PolicyActionPanel current={r.evidence_state} policy={policy} policySource={policySource} />
+        <PolicyActionPanel current={r.evidence_state} policy={policy} policySource={policySource} scenarioMode />
       </div>
       <div className="grid gap-6 lg:grid-cols-3">
         <div className="lg:col-span-2">
           <HistoricalReplay results={data.results} index={index} setIndex={setIndex} playing={playing} setPlaying={setPlaying} />
         </div>
-        <RegistryPanel {...controlPlane} />
+        <RegistryPanel {...controlPlane} mode="demo" />
       </div>
       <ModelEvidence />
       <Footer r={r} label="deterministic scenario replay" />

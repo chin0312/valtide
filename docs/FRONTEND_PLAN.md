@@ -77,7 +77,7 @@ source of truth; the shapes in §3 are copied from `apps/api/valtide_api/models.
 | GET | `/api/runtime/{asset}` | warm scheduler status | freshness / status strip |
 | GET | `/api/onchain/{asset}` | deployed Registry, RiskGuard policy, and evaluation | X Layer Control Plane |
 | GET | `/api/onchain/{asset}/enforcement` | read-only DemoVault enforcement check | consumer enforcement status |
-| POST | `/api/publish/{asset}` | explicit X Layer attestation publication | backend-controlled publisher action |
+| POST | `/api/publish/{asset}` | backend-controlled X Layer attestation publication | not called by the browser |
 
 `/api/replay/{asset}` query params: `source=auto|panel|scenario`,
 `scenario=weekend_divergence` (default), optional `timestamp=<ISO>` to return a
@@ -88,7 +88,42 @@ single step. It also sets an `X-Valtide-Source` response header.
 "Runtime not warmed yet" and do not substitute the cold-start diagnostic. The
 `/live` endpoint is a one-off, read-only diagnostic and returns `503` when a live
 input (Alpaca key, DexScreener) is missing. X Layer status is read through the
-deployed control-plane endpoints; the browser never holds the publisher signer.
+deployed control-plane endpoints; publication is backend-controlled, the browser
+never holds the publisher signer, and the frontend only observes publication and
+synchronization state.
+
+### Operational workflow
+
+The frontend represents the final risk-control workflow rather than a contract
+debugger:
+
+```text
+Operational Validation
+        ↓
+backend-controlled onchain synchronization
+        ↓
+ValtideValidationRegistry
+        ↓
+RiskGuard policy evaluation
+        ↓
+DemoCollateralVault enforcement
+```
+
+The warmed result from `/api/valuation/{asset}` is the current operational
+evidence. The Registry attestation from `/api/onchain/{asset}` is a separate
+generation and is compared by observation timestamp and Evidence State. The
+frontend must distinguish `SYNCED`, `BEHIND`, `NO_ATTESTATION`, and `MISMATCH`;
+Registry freshness is not synchronization. When the generations differ, show
+the current operational Evidence State separately from the currently enforced
+onchain Policy Action.
+
+Policy configuration belongs to the consuming protocol or curator. The current
+hackathon frontend reads the deployed policy and does not edit it. The browser
+does not publish attestations or hold a signer key. Publication may be
+backend-controlled manually or automatically in a later backend change; this
+document does not claim scheduler auto-publication is deployed. `DemoVault` is
+a reference consumer demonstrating composability, not the Valtide product
+itself.
 
 ---
 
@@ -160,6 +195,21 @@ interface OnchainEvaluation {
   fresh: boolean;
 }
 ```
+
+The UI also derives a typed sync status by comparing the operational result's
+`timestamp` and `evidence_state` with the Registry attestation's `observedAt`
+and Evidence State:
+
+```text
+SYNCED         timestamps and Evidence State match
+BEHIND         Registry attestation is older than the operational result
+NO_ATTESTATION no Registry attestation exists
+MISMATCH       same-time state disagreement or a different/newer generation
+```
+
+`fresh` is the RiskGuard/Registry freshness decision. `synced` is whether the
+attestation represents the current operational observation; neither is a
+substitute for the other.
 
 `/api/onchain/{asset}` also returns the X Layer network/chain ID, Registry,
 RiskGuard, and DemoVault addresses, plus attestation timestamps and model
@@ -272,8 +322,10 @@ reason codes include `REFERENCE_UNDER_TEST_OUTSIDE_INTERVAL`.
    turning CHALLENGED → `RESTRICT_NEW_RISK`. Stress: Valtide reports evidence;
    the curator owns the action.
 5. **X Layer.** Show the deployed Registry/RiskGuard/DemoVault read-only panel:
-   attestation existence/freshness, Evidence State, configured Policy Action,
-   and the consumer enforcement check. The browser does not sign or publish.
+   operational-versus-Registry sync state, attestation existence/freshness,
+   Evidence State, configured Policy Action, and the consumer enforcement check.
+   The browser does not sign or publish; Demo mode must label this as the live
+   deployed control plane, not a result driven by the scenario replay.
 6. **Credibility.** Flip to Historical Model Evidence backed by
    `/api/backtest/NVDAx?source=historical` for coverage, error metrics, and
    historical Evidence State counts. If unavailable, say so; never substitute
@@ -390,7 +442,8 @@ historical source is unavailable, show an explicit unavailable state.
 4. **View 1** driven by the last replay step, incl. the compact basis/why summary.
 5. **View 2** σ-scaled custom-SVG number-line, then **View 3** scrubber + recharts
    escalation chart over the full sequence.
-6. Policy Action panel sourced from the deployed X Layer policy + read-only
-   Registry/RiskGuard/DemoVault status panel.
+6. Policy Action panel sourced from the deployed X Layer policy, with current
+   operational evidence separated from the currently enforced onchain action,
+   plus the read-only Registry/RiskGuard/DemoVault status panel.
 7. P1: full Basis Analysis view, Model Evidence panel, and the historical-panel
    benchmark reveal (§4).

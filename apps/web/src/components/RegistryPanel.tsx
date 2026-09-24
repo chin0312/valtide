@@ -1,29 +1,33 @@
 import type { OnchainControlPlane, OnchainEnforcement } from "../api/types";
+import type { OnchainSyncStatus } from "../lib/onchain";
 import { Panel } from "../components/ui";
-import { unixTimeUTC } from "../lib/format";
+import { unixDateTimeUTC } from "../lib/format";
 
 interface RegistryPanelProps {
   controlPlane?: OnchainControlPlane;
   enforcement?: OnchainEnforcement;
+  sync?: OnchainSyncStatus;
+  mode?: "operational" | "demo";
   isLoading?: boolean;
   isError?: boolean;
   errorDetail?: string;
 }
 
-export function RegistryPanel({ controlPlane, enforcement, isLoading, isError, errorDetail }: RegistryPanelProps) {
+export function RegistryPanel({ controlPlane, enforcement, sync, mode = "operational", isLoading, isError, errorDetail }: RegistryPanelProps) {
   if (isLoading) {
-    return <Panel title="X Layer Control Plane" subtitle="Read-only Registry → RiskGuard → DemoVault status">Loading deployed control-plane state…</Panel>;
+    return <Panel title="X Layer Control Plane" subtitle="Backend publisher → Registry → RiskGuard → DemoVault">Loading deployed control-plane state…</Panel>;
   }
 
   if (!controlPlane) {
     return (
-      <Panel title="X Layer Control Plane" subtitle="Read-only Registry → RiskGuard → DemoVault status">
+      <Panel title="X Layer Control Plane" subtitle="Backend publisher → Registry → RiskGuard → DemoVault">
         <div className="rounded-lg px-3 py-3 text-sm" style={{ background: "var(--color-inconclusive-soft)", border: "1px solid var(--color-inconclusive-line)", color: "var(--color-inconclusive)" }}>
           <strong>Control-plane status unavailable.</strong>
           <div className="mt-1" style={{ color: "var(--color-ink-dim)" }}>{isError ? errorDetail ?? "The backend could not read the deployed X Layer contracts." : "No onchain response has been loaded."}</div>
         </div>
+        {mode === "demo" && <p className="mt-3 text-xs" style={{ color: "var(--color-muted)" }}>Live deployed control plane — not driven by this scenario replay.</p>}
         <p className="mt-3 text-xs" style={{ color: "var(--color-muted)" }}>
-          The browser is read-only and holds no signer key. Publication remains an explicit backend operation.
+          Publication is backend-controlled. The browser is read-only and never holds the publisher signer.
         </p>
       </Panel>
     );
@@ -31,8 +35,16 @@ export function RegistryPanel({ controlPlane, enforcement, isLoading, isError, e
 
   const attestation = controlPlane.attestation;
   return (
-    <Panel title="X Layer Control Plane" subtitle="Deployed Registry → curator policy → RiskGuard → DemoVault">
-      <div className="flex flex-wrap items-center justify-between gap-3 rounded-lg px-3 py-2.5" style={{ background: "var(--color-supported-soft)", border: "1px solid var(--color-supported-line)" }}>
+    <Panel title="X Layer Control Plane" subtitle="Backend publisher → Registry → curator policy → RiskGuard → DemoVault">
+      {mode === "demo" ? (
+        <div className="rounded-lg px-3 py-2.5 text-sm" style={{ background: "var(--color-panel-2)", border: "1px solid var(--color-line)", color: "var(--color-ink-dim)" }}>
+          <strong className="text-ink">Live deployed control plane</strong> — not driven by this scenario replay.
+        </div>
+      ) : sync ? (
+        <SyncBanner sync={sync} />
+      ) : null}
+
+      <div className="mt-4 flex flex-wrap items-center justify-between gap-3 rounded-lg px-3 py-2.5" style={{ background: "var(--color-supported-soft)", border: "1px solid var(--color-supported-line)" }}>
         <div className="text-sm font-semibold" style={{ color: "var(--color-supported)" }}>{controlPlane.network}</div>
         <div className="text-xs tnum" style={{ color: "var(--color-ink-dim)" }}>chain {controlPlane.chain_id} · deployed</div>
       </div>
@@ -45,38 +57,42 @@ export function RegistryPanel({ controlPlane, enforcement, isLoading, isError, e
       </div>
 
       <div className="mt-5 border-t pt-4" style={{ borderColor: "var(--color-line)" }}>
-        <div className="mb-2 text-xs font-semibold uppercase tracking-wide" style={{ color: "var(--color-ink-dim)" }}>Latest attestation</div>
+        <SectionTitle>Registry attestation</SectionTitle>
         <div className="grid gap-x-4 gap-y-2 sm:grid-cols-2">
-          <Detail label="Exists" value={controlPlane.exists ? "Yes" : "No attestation published"} />
+          <Detail label="Attestation exists" value={controlPlane.exists ? "Yes" : "No attestation published"} />
           <Detail label="Registry fresh" value={controlPlane.registry_fresh ? "Yes" : "No"} />
           <Detail label="Evidence State" value={controlPlane.exists ? controlPlane.evidence_state : "—"} />
-          <Detail label="RiskGuard Action" value={controlPlane.policy_action} />
-          <Detail label="Observed" value={unixTimeUTC(attestation?.observedAt)} />
-          <Detail label="Published" value={unixTimeUTC(attestation?.publishedAt)} />
-          <Detail label="Valid until" value={unixTimeUTC(attestation?.validUntil)} />
+          <Detail label="Observed" value={unixDateTimeUTC(attestation?.observedAt)} />
+          <Detail label="Published" value={unixDateTimeUTC(attestation?.publishedAt)} />
+          <Detail label="Valid until" value={unixDateTimeUTC(attestation?.validUntil)} />
           <Detail label="Model version" value={shortHex(attestation?.modelVersion ?? controlPlane.model_version)} />
+          <Detail label="Reference" value={shortHex(controlPlane.reference_id)} />
         </div>
       </div>
 
       <div className="mt-5 border-t pt-4" style={{ borderColor: "var(--color-line)" }}>
-        <div className="mb-2 text-xs font-semibold uppercase tracking-wide" style={{ color: "var(--color-ink-dim)" }}>Configured policy</div>
+        <SectionTitle>Curator policy</SectionTitle>
         <div className="grid gap-x-4 gap-y-2 sm:grid-cols-2">
           <Detail label="Max observation age" value={`${controlPlane.policy.max_age}s`} />
           <Detail label="SUPPORTED" value={controlPlane.policy.on_supported} />
           <Detail label="INCONCLUSIVE" value={controlPlane.policy.on_inconclusive} />
           <Detail label="CHALLENGED" value={controlPlane.policy.on_challenged} />
           <Detail label="STALE" value={controlPlane.policy.on_stale} />
-          <Detail label="Evaluation freshness" value={controlPlane.fresh ? "Fresh" : "Stale / unavailable"} />
+          <Detail label="Current RiskGuard action" value={controlPlane.policy_action} />
         </div>
+        <p className="mt-2 text-xs" style={{ color: "var(--color-muted)" }}>The deployed consuming application owns this mapping; the frontend reads it but does not edit it.</p>
       </div>
 
       <div className="mt-5 border-t pt-4" style={{ borderColor: "var(--color-line)" }}>
-        <div className="mb-2 text-xs font-semibold uppercase tracking-wide" style={{ color: "var(--color-ink-dim)" }}>Consumer enforcement</div>
+        <SectionTitle>Consumer enforcement</SectionTitle>
         {enforcement ? (
           <div className="rounded-lg px-3 py-2.5 text-sm" style={{ background: enforcement.passed ? "var(--color-supported-soft)" : "var(--color-inconclusive-soft)", border: `1px solid ${enforcement.passed ? "var(--color-supported-line)" : "var(--color-inconclusive-line)"}`, color: enforcement.passed ? "var(--color-supported)" : "var(--color-inconclusive)" }}>
             <strong>{enforcement.passed ? "DemoVault enforcement verified" : "DemoVault enforcement check failed"}</strong>
             <div className="mt-1 text-xs" style={{ color: "var(--color-ink-dim)" }}>
-              Evidence {enforcement.exists ? enforcement.evidence_state : "not published"} → {enforcement.policy_action} · {enforcement.expected_revert ? "new exposure rejected" : "demo exposure permitted"}
+              Registry Evidence: {enforcement.exists ? enforcement.evidence_state : "no attestation"} · RiskGuard: {enforcement.policy_action} · {enforcementOutcome(enforcement)}
+            </div>
+            <div className="mt-1 text-xs" style={{ color: "var(--color-ink-dim)" }}>
+              Enforcement readback: {enforcement.exists ? "attestation exists" : "attestation absent"} · {enforcement.fresh ? "fresh" : "stale"}
             </div>
           </div>
         ) : (
@@ -85,16 +101,50 @@ export function RegistryPanel({ controlPlane, enforcement, isLoading, isError, e
       </div>
 
       <p className="mt-4 text-xs" style={{ color: "var(--color-muted)" }}>
-        Read-only browser view. No private key is exposed and no publication transaction is initiated here.
+        Publication is backend-controlled. The browser is read-only, never holds the publisher signer, and never initiates a publication transaction.
       </p>
     </Panel>
   );
+}
+
+function SyncBanner({ sync }: { sync: OnchainSyncStatus }) {
+  const tone = sync.state === "SYNCED" ? "supported" : sync.state === "BEHIND" ? "inconclusive" : "challenged";
+  const colors = tone === "supported"
+    ? { fg: "var(--color-supported)", soft: "var(--color-supported-soft)", line: "var(--color-supported-line)" }
+    : tone === "inconclusive"
+      ? { fg: "var(--color-inconclusive)", soft: "var(--color-inconclusive-soft)", line: "var(--color-inconclusive-line)" }
+      : { fg: "var(--color-challenged)", soft: "var(--color-challenged-soft)", line: "var(--color-challenged-line)" };
+  return (
+    <div className="rounded-lg px-3 py-2.5 text-sm" style={{ background: colors.soft, border: `1px solid ${colors.line}`, color: colors.fg }}>
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <strong>Onchain sync · {sync.state}</strong>
+        <span className="text-xs" style={{ color: "var(--color-ink-dim)" }}>freshness is separate from sync</span>
+      </div>
+      <div className="mt-1 text-xs" style={{ color: "var(--color-ink-dim)" }}>{sync.detail}</div>
+      <div className="mt-2 grid gap-x-4 gap-y-1 text-xs sm:grid-cols-2">
+        <span>Operational observed: <strong className="text-ink">{unixDateTimeUTC(sync.operationalObservedAt)}</strong></span>
+        <span>Registry observed: <strong className="text-ink">{unixDateTimeUTC(sync.registryObservedAt)}</strong></span>
+      </div>
+    </div>
+  );
+}
+
+function enforcementOutcome(enforcement: OnchainEnforcement): string {
+  if (enforcement.policy_action === "ALLOW") return "ALLOWED";
+  if (enforcement.policy_action === "MONITOR") return "MONITORED";
+  if (enforcement.policy_action === "REQUIRE_REVIEW") return "REVIEW REQUIRED";
+  if (enforcement.policy_action === "RESTRICT_NEW_RISK") return "NEW EXPOSURE BLOCKED";
+  return enforcement.expected_revert ? "NEW EXPOSURE BLOCKED" : "OUTCOME UNAVAILABLE";
 }
 
 function shortHex(value: string | undefined): string {
   if (!value) return "—";
   if (value.length <= 14) return value;
   return `${value.slice(0, 8)}…${value.slice(-6)}`;
+}
+
+function SectionTitle({ children }: { children: string }) {
+  return <div className="mb-2 text-xs font-semibold uppercase tracking-wide" style={{ color: "var(--color-ink-dim)" }}>{children}</div>;
 }
 
 function Detail({ label, value }: { label: string; value: string }) {
