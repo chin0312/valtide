@@ -60,9 +60,10 @@ class Settings(BaseSettings):
     # candle for the exact valued bar (ts == observation_ts, age 0).
     live_underlying_max_age_seconds: int = 6 * 60
 
-    # CORS origins allowed to call the API from a browser (Valerie's Next.js app).
-    # Comma-separated in the env var, e.g. "http://localhost:3000,https://valtide.app"
-    cors_origins: str = "http://localhost:3000"
+    # CORS origins allowed to call the API from a browser (the apps/web dashboard).
+    # Comma-separated in the env var, e.g. "http://localhost:5173,https://valtide.app"
+    # Defaults cover the Vite dev server (5173) and a Next.js dev server (3000).
+    cors_origins: str = "http://localhost:5173,http://localhost:3000"
 
     model_config = SettingsConfigDict(
         env_file=_ENV_FILE,
