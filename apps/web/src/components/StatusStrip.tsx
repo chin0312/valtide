@@ -1,5 +1,5 @@
 import type { RuntimeStatus, ValuationResult } from "../api/types";
-import { sessionLabel, staleness, timeUTC } from "../lib/format";
+import { ageLabel, sessionLabel, staleness } from "../lib/format";
 
 export type Provenance = "cached" | "diagnostic" | "demo-scenario" | "demo-fixture";
 
@@ -21,6 +21,7 @@ export function StatusStrip({
   runtime?: RuntimeStatus;
   onchainFresh?: boolean;
 }) {
+  const operationalAgeSeconds = relativeAgeSeconds(r.timestamp);
   const referenceAge = staleness(r.reference_under_test_age_seconds);
   const anchorAge = staleness(r.reference_age_seconds);
   const prov = PROVENANCE[provenance];
@@ -29,10 +30,14 @@ export function StatusStrip({
       <span className="font-semibold text-ink">{r.asset}</span>
       <Item label="Validating" value={r.reference_under_test_source} />
       <Item label="Session" value={sessionLabel(r.market_state)} />
-      <Item label="Observed" value={timeUTC(r.timestamp)} />
+      <Item
+        label="Operational observation"
+        value={`${ageLabel(operationalAgeSeconds)} ago`}
+        title={`UTC observation timestamp: ${r.timestamp}`}
+      />
 
-      <AgeTag label="reference under test" age={referenceAge} title="Display-level age of the reference being validated; the authoritative onchain freshness decision is shown in the control-plane panel." />
-      <AgeTag label="trusted anchor" age={anchorAge} title="Display-level age of the latest trusted underlying anchor used by the challenger." />
+      <AgeTag label="Reference source lag:" age={referenceAge} status={false} title="Age of the reference-under-test source relative to this valuation observation; it is not the wall-clock age of the operational result." />
+      <AgeTag label="Trusted anchor age:" age={anchorAge} status={false} title="Age of the latest trusted underlying anchor at this valuation observation; it is not the wall-clock age of the operational result." />
 
       {runtime && (
         <span className="text-xs" style={{ color: "var(--color-ink-dim)" }} title="Warmed live scheduler status">
@@ -69,18 +74,25 @@ export function StatusStrip({
   );
 }
 
-function AgeTag({ label, age, title }: { label: string; age: ReturnType<typeof staleness>; title: string }) {
+function AgeTag({ label, age, status = true, title }: { label: string; age: ReturnType<typeof staleness>; status?: boolean; title: string }) {
+  const display = status ? age.label : age.label.split(" · ")[0];
   return (
     <span className="inline-flex items-center gap-1.5 rounded-full px-2.5 py-0.5 text-xs font-medium" style={{ background: age.soft, color: age.fg, border: `1px solid ${age.line}` }} title={title}>
-      {label} {age.label}
+      {label} {display}
     </span>
   );
 }
 
-function Item({ label, value }: { label: string; value: string }) {
+function Item({ label, value, title }: { label: string; value: string; title?: string }) {
   return (
-    <span style={{ color: "var(--color-ink-dim)" }}>
+    <span style={{ color: "var(--color-ink-dim)" }} title={title}>
       {label}: <span className="tnum font-medium text-ink">{value}</span>
     </span>
   );
+}
+
+function relativeAgeSeconds(timestamp: string): number | null {
+  const observedMs = Date.parse(timestamp);
+  if (!Number.isFinite(observedMs)) return null;
+  return Math.max(0, Math.floor((Date.now() - observedMs) / 1000));
 }

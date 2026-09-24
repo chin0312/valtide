@@ -156,7 +156,7 @@ interface ValuationResult {
   reference_under_test: number | null;          // the price being validated
   reference_under_test_source: string;
   reference_under_test_ts: string | null;
-  reference_under_test_age_seconds: number | null;
+  reference_under_test_age_seconds: number | null; // source lag at observation, not current result age
   reference_deviation_pct: number | null;       // ref vs. fair value
   standardized_deviation: number | null;        // log-space z-score (σ)
 
@@ -169,7 +169,7 @@ interface ValuationResult {
   interval_semantics: string;
   interval_calibration_type: string;
   interval_calibration_source: string;
-  reference_age_seconds: number;
+  reference_age_seconds: number; // trusted anchor age at observation, not current result age
 }
 ```
 
@@ -280,8 +280,13 @@ For a "is my data stale?" product, the UI must never look staler than it is.
 
 - Use react-query with `refetchInterval` on `/api/valuation/{asset}` and
   `/api/runtime/{asset}` (e.g. 15–30s) when in live mode.
-- Always render a **"last updated Ns ago"** indicator derived from
-  `result.timestamp` / `RuntimeStatus.last_result_timestamp`, and surface
+- Always render operational observation recency from `result.timestamp` relative
+  to the browser clock (for example, `Operational observation: 6m ago`), and
+  keep the exact UTC timestamp available. Label
+  `reference_under_test_age_seconds` as reference source lag at the observation
+  and `reference_age_seconds` as trusted-anchor age at the observation; neither
+  is the wall-clock age of the persisted operational result. Keep onchain
+  attestation freshness separate and surface
   `RuntimeStatus.last_tick_status` / `last_error` when the scheduler is degraded.
 - The scenario replay is static — no polling; fetch once.
 
