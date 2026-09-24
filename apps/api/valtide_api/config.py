@@ -37,6 +37,21 @@ class Settings(BaseSettings):
     xlayer_rpc_url: str | None = None
     publisher_private_key: str | None = None
 
+    # P0.5 warmed live runtime. Disabled by default so local tests and one-shot
+    # diagnostics never start a background network loop implicitly.
+    live_scheduler_enabled: bool = False
+    live_scheduler_asset: str = "NVDAx"
+    valtide_state_db_path: Path = _ENV_FILE.parent / "data" / "runtime" / "valtide.sqlite3"
+    historical_panel_path: Path = (
+        _ENV_FILE.parent / "data" / "generated" / "nvdax_historical_5m.csv"
+    )
+    # Underlying current-measurement tolerance, kept near one canonical
+    # five-minute bucket. Older underlying bars remain trusted anchors but are
+    # not assimilated as if they were measurements for the current bucket. The
+    # reference under test needs no such tolerance: it is the confirmed OKX index
+    # candle for the exact valued bar (ts == observation_ts, age 0).
+    live_underlying_max_age_seconds: int = 6 * 60
+
     # CORS origins allowed to call the API from a browser (Valerie's Next.js app).
     # Comma-separated in the env var, e.g. "http://localhost:3000,https://valtide.app"
     cors_origins: str = "http://localhost:3000"
@@ -50,6 +65,16 @@ class Settings(BaseSettings):
     @property
     def cors_origin_list(self) -> list[str]:
         return [o.strip() for o in self.cors_origins.split(",") if o.strip()]
+
+    @property
+    def resolved_state_db_path(self) -> Path:
+        path = self.valtide_state_db_path
+        return path if path.is_absolute() else _ENV_FILE.parent / path
+
+    @property
+    def resolved_historical_panel_path(self) -> Path:
+        path = self.historical_panel_path
+        return path if path.is_absolute() else _ENV_FILE.parent / path
 
 
 @lru_cache

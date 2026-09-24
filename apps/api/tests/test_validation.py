@@ -145,6 +145,40 @@ def test_missing_reference_is_inconclusive_without_deviation_fields():
     assert "REFERENCE_UNDER_TEST_OUTSIDE_INTERVAL" not in result.reason_codes
 
 
+def test_gross_unit_mismatch_forces_inconclusive():
+    # Token at ~3x the current underlying is a unit/feed bug, not economics.
+    result = validate(_snapshot(185.70, underlying_reference=60.0), _estimate())
+    assert result.evidence_state == EvidenceState.INCONCLUSIVE
+    assert "TOKEN_UNIT_SUSPECT" in result.reason_codes
+
+
+def test_moderate_depeg_is_challenged_not_unit_suspect():
+    # A real ~2.7% divergence stays economics: judged as CHALLENGED via z, and
+    # never silenced as a unit problem or a 503.
+    result = validate(_snapshot(190.00, underlying_reference=185.00), _estimate())
+    assert result.evidence_state == EvidenceState.CHALLENGED
+    assert "TOKEN_UNIT_SUSPECT" not in result.reason_codes
+
+
+def test_low_liquidity_forces_inconclusive():
+    # The floor is inert by default; exercise the gate with an explicit threshold.
+    strict = Thresholds(min_token_liquidity_usd=25_000.0)
+    result = validate(
+        _snapshot(185.70, token_liquidity_usd=1_000.0), _estimate(), thresholds=strict
+    )
+    assert result.evidence_state == EvidenceState.INCONCLUSIVE
+    assert "TOKEN_MARKET_QUALITY_LOW" in result.reason_codes
+
+
+def test_healthy_liquidity_does_not_abstain():
+    strict = Thresholds(min_token_liquidity_usd=25_000.0)
+    result = validate(
+        _snapshot(185.70, token_liquidity_usd=2_000_000.0), _estimate(), thresholds=strict
+    )
+    assert result.evidence_state == EvidenceState.SUPPORTED
+    assert "TOKEN_MARKET_QUALITY_LOW" not in result.reason_codes
+
+
 def test_global_fallback_calibration_is_visible_without_forcing_abstention():
     estimate = _estimate().model_copy(update={"interval_calibration_source": "global_fallback"})
 

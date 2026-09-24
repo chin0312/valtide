@@ -1,0 +1,278 @@
+"""Durable single-process runtime state for warmed live inference."""
+
+from __future__ import annotations
+
+import sqlite3
+import threading
+from dataclasses import dataclass
+from datetime import UTC, datetime
+from functools import lru_cache
+from pathlib import Path
+from typing import Any
+
+from valtide_api.clock import require_canonical_5m
+from valtide_api.config import get_settings
+from valtide_api.models import ValuationResult
+from valtide_api.state_store import KalmanState
+
+
+class RuntimeStateIntegrityError(RuntimeError):
+    """Raised when persisted runtime state cannot be trusted safely."""
+
+
+@dataclass(frozen=True)
+class RuntimeRecord:
+    asset: str
+    state: KalmanState | None
+    latest_result: ValuationResult | None
+    updated_at: datetime | None
+    last_tick_status: str | None
+    last_tick_error: str | None
+    last_tick_attempt_at: datetime | None
+    last_gap_steps: int
+
+
+def _parse_datetime(value: str | None, label: str) -> datetime | None:
+    if value is None:
+        return None
+    try:
+        parsed = datetime.fromisoformat(value.replace("Z", "+00:00"))
+    except ValueError as exc:
+        raise RuntimeStateIntegrityError(f"invalid persisted {label}: {value!r}") from exc
+    if parsed.tzinfo is None:
+        raise RuntimeStateIntegrityError(f"persisted {label} must be timezone-aware")
+    return parsed.astimezone(UTC)
+
+
+class RuntimeStore:
+    """SQLite-backed state store with one connection for the MVP process."""
+
+    def __init__(self, path: str | Path):
+        self.path = str(path)
+        if self.path != ":memory:":
+            db_path = Path(self.path)
+            db_path.parent.mkdir(parents=True, exist_ok=True)
+        self._lock = threading.RLock()
+        self._connection = sqlite3.connect(self.path, check_same_thread=False)
+        self._connection.row_factory = sqlite3.Row
+        self._initialize()
+
+    def _initialize(self) -> None:
+        with self._lock, self._connection:
+            self._connection.execute(
+                """
+                CREATE TABLE IF NOT EXISTS runtime_state (
+                    asset TEXT PRIMARY KEY,
+                    state_m REAL,
+                    state_p REAL,
+                    state_last_ts TEXT,
+                    latest_result_json TEXT,
+                    latest_result_ts TEXT,
+                    updated_at TEXT,
+                    last_tick_status TEXT,
+                    last_tick_error TEXT,
+                    last_tick_attempt_at TEXT,
+                    last_gap_steps INTEGER NOT NULL DEFAULT 0
+                )
+                """
+            )
+
+    def load_runtime(self, asset: str) -> RuntimeRecord | None:
+        with self._lock:
+            row = self._connection.execute(
+                "SELECT * FROM runtime_state WHERE asset = ?", (asset,)
+            ).fetchone()
+        if row is None:
+            return None
+
+        state_values = (row["state_m"], row["state_p"], row["state_last_ts"])
+        if any(value is not None for value in state_values) and not all(
+            value is not None for value in state_values
+        ):
+            raise RuntimeStateIntegrityError(f"partial persisted state for asset {asset}")
+
+        state: KalmanState | None = None
+        if all(value is not None for value in state_values):
+            last_ts = _parse_datetime(row["state_last_ts"], "state_last_ts")
+            assert last_ts is not None
+            try:
+                last_ts = require_canonical_5m(last_ts, "persisted state_last_ts")
+            except ValueError as exc:
+                raise RuntimeStateIntegrityError(str(exc)) from exc
+            state = KalmanState(
+                m=float(row["state_m"]),
+                P=float(row["state_p"]),
+                last_ts=last_ts,
+            )
+
+        latest_result = None
+        if row["latest_result_json"] is not None:
+            try:
+                latest_result = ValuationResult.model_validate_json(row["latest_result_json"])
+            except (TypeError, ValueError) as exc:
+                raise RuntimeStateIntegrityError(
+                    f"invalid persisted latest_result_json for asset {asset}"
+                ) from exc
+            try:
+                result_timestamp = require_canonical_5m(
+                    latest_result.timestamp, "persisted latest_result.timestamp"
+                )
+            except ValueError as exc:
+                raise RuntimeStateIntegrityError(str(exc)) from exc
+            if state is not None and result_timestamp != state.last_ts:
+                raise RuntimeStateIntegrityError(
+                    f"persisted state/result timestamps disagree for asset {asset}"
+                )
+
+        return RuntimeRecord(
+            asset=asset,
+            state=state,
+            latest_result=latest_result,
+            updated_at=_parse_datetime(row["updated_at"], "updated_at"),
+            last_tick_status=row["last_tick_status"],
+            last_tick_error=row["last_tick_error"],
+            last_tick_attempt_at=_parse_datetime(
+                row["last_tick_attempt_at"], "last_tick_attempt_at"
+            ),
+            last_gap_steps=int(row["last_gap_steps"] or 0),
+        )
+
+    def save_runtime(
+        self,
+        asset: str,
+        state: KalmanState,
+        result: ValuationResult,
+        *,
+        tick_status: str = "success",
+        tick_error: str | None = None,
+        tick_attempt_at: datetime | None = None,
+        gap_steps: int = 0,
+    ) -> None:
+        if state.last_ts is None:
+            raise RuntimeStateIntegrityError("cannot persist state without last_ts")
+        try:
+            last_ts = require_canonical_5m(state.last_ts, "state.last_ts")
+        except ValueError as exc:
+            raise RuntimeStateIntegrityError(str(exc)) from exc
+        try:
+            result_ts = require_canonical_5m(result.timestamp, "result.timestamp")
+        except ValueError as exc:
+            raise RuntimeStateIntegrityError(str(exc)) from exc
+        if result_ts != last_ts:
+            raise RuntimeStateIntegrityError("state and result timestamps must match")
+        attempt_at = tick_attempt_at or datetime.now(UTC)
+        updated_at = datetime.now(UTC)
+        with self._lock, self._connection:
+            self._connection.execute(
+                """
+                INSERT INTO runtime_state (
+                    asset, state_m, state_p, state_last_ts, latest_result_json,
+                    latest_result_ts, updated_at, last_tick_status, last_tick_error,
+                    last_tick_attempt_at, last_gap_steps
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                ON CONFLICT(asset) DO UPDATE SET
+                    state_m = excluded.state_m,
+                    state_p = excluded.state_p,
+                    state_last_ts = excluded.state_last_ts,
+                    latest_result_json = excluded.latest_result_json,
+                    latest_result_ts = excluded.latest_result_ts,
+                    updated_at = excluded.updated_at,
+                    last_tick_status = excluded.last_tick_status,
+                    last_tick_error = excluded.last_tick_error,
+                    last_tick_attempt_at = excluded.last_tick_attempt_at,
+                    last_gap_steps = excluded.last_gap_steps
+                """,
+                (
+                    asset,
+                    state.m,
+                    state.P,
+                    last_ts.isoformat(),
+                    result.model_dump_json(),
+                    result.timestamp.isoformat(),
+                    updated_at.isoformat(),
+                    tick_status,
+                    tick_error,
+                    attempt_at.isoformat(),
+                    gap_steps,
+                ),
+            )
+
+    def record_tick_status(
+        self,
+        asset: str,
+        status: str,
+        *,
+        error: str | None = None,
+        attempt_at: datetime | None = None,
+        gap_steps: int = 0,
+    ) -> None:
+        attempt_at = attempt_at or datetime.now(UTC)
+        updated_at = datetime.now(UTC)
+        with self._lock, self._connection:
+            self._connection.execute(
+                """
+                INSERT INTO runtime_state (
+                    asset, updated_at, last_tick_status, last_tick_error,
+                    last_tick_attempt_at, last_gap_steps
+                ) VALUES (?, ?, ?, ?, ?, ?)
+                ON CONFLICT(asset) DO UPDATE SET
+                    updated_at = excluded.updated_at,
+                    last_tick_status = excluded.last_tick_status,
+                    last_tick_error = excluded.last_tick_error,
+                    last_tick_attempt_at = excluded.last_tick_attempt_at,
+                    last_gap_steps = excluded.last_gap_steps
+                """,
+                (
+                    asset,
+                    updated_at.isoformat(),
+                    status,
+                    error,
+                    attempt_at.isoformat(),
+                    gap_steps,
+                ),
+            )
+
+    def reset_runtime(self, asset: str) -> None:
+        with self._lock, self._connection:
+            self._connection.execute("DELETE FROM runtime_state WHERE asset = ?", (asset,))
+
+    def raw_status(self, asset: str) -> dict[str, Any] | None:
+        """Read status columns without parsing state, for corruption diagnostics."""
+        with self._lock:
+            row = self._connection.execute(
+                """
+                SELECT state_last_ts, latest_result_ts, last_tick_status,
+                       last_tick_error, last_tick_attempt_at, last_gap_steps
+                FROM runtime_state WHERE asset = ?
+                """,
+                (asset,),
+            ).fetchone()
+        return dict(row) if row is not None else None
+
+    def close(self) -> None:
+        with self._lock:
+            self._connection.close()
+
+
+def get_runtime_store() -> RuntimeStore:
+    """Return the process-wide store configured by the environment."""
+    return _get_runtime_store(str(get_settings().resolved_state_db_path))
+
+
+@lru_cache(maxsize=8)
+def _get_runtime_store(path: str) -> RuntimeStore:
+    return RuntimeStore(path)
+
+
+def clear_runtime_store_cache() -> None:
+    """Clear the cached store factory; useful for tests and controlled shutdown."""
+    _get_runtime_store.cache_clear()
+
+
+__all__ = [
+    "RuntimeRecord",
+    "RuntimeStateIntegrityError",
+    "RuntimeStore",
+    "clear_runtime_store_cache",
+    "get_runtime_store",
+]

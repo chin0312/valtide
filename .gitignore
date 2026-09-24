@@ -44,3 +44,6 @@ data/raw/*
 !data/raw/.gitkeep
 data/processed/*
 !data/processed/.gitkeep
+data/runtime/
+data/generated/
+*.sqlite3
