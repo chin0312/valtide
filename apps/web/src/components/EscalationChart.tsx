@@ -11,7 +11,7 @@ import {
 import type { ValuationResult } from "../api/types";
 import { timeUTC } from "../lib/format";
 
-// Time-series: the confidence range as a band, fair value + reference-under-test
+// Time-series: the calibrated interval as a band, fair value + reference-under-test
 // as lines. Y-domain is fitted tightly to the data so the (small) divergence is
 // actually visible — a naive 0-based axis would flatten everything.
 export function EscalationChart({

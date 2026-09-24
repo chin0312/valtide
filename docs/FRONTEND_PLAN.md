@@ -25,7 +25,7 @@ recharts            the time-series escalation chart in View 3 ONLY
 (custom SVG)        the reference number-line in View 2 — see §4A, do NOT use recharts
 @tanstack/react-query   data fetching + refetch/freshness (see §4B)
 zod (optional)      only if you want runtime response validation; a plain typed
-                    fetch wrapper is perfectly adequate for a 6-endpoint surface
+                    fetch wrapper is perfectly adequate for this small endpoint surface
 ```
 
 Rationale: fastest path to a polished, static-deployable demo; no SSR needed
@@ -70,22 +70,25 @@ source of truth; the shapes in §3 are copied from `apps/api/valtide_api/models.
 | ------ | ---- | ------- | ------------ |
 | GET | `/health` | liveness | boot check |
 | GET | `/api/assets` | supported assets + sources | asset selector |
-| GET | `/api/valuation/{asset}` | latest **cached** result (never advances filter) | live overview (warm) |
-| GET | `/api/valuation/{asset}/live` | on-demand live inference (needs keys; 503 if unavailable) | "value now" button |
+| GET | `/api/valuation/{asset}` | latest **persisted/warmed** result (never advances filter) | primary operational overview |
+| GET | `/api/valuation/{asset}/live` | on-demand cold-start diagnostic (needs keys; 503 if unavailable) | optional "run live diagnostic" |
 | GET | `/api/replay/{asset}` | full historical/scenario sequence (or one step via `timestamp=`) | **the demo** |
-| GET | `/api/backtest/{asset}` | MAE / RMSE / coverage / state counts | Model Evidence panel |
+| GET | `/api/backtest/{asset}?source=historical` | historical MAE / RMSE / coverage / state counts | Historical Model Evidence panel |
 | GET | `/api/runtime/{asset}` | warm scheduler status | freshness / status strip |
-| POST | `/api/publish/{asset}` | X Layer attestation | Registry action (503 = "publication pending") |
+| GET | `/api/onchain/{asset}` | deployed Registry, RiskGuard policy, and evaluation | X Layer Control Plane |
+| GET | `/api/onchain/{asset}/enforcement` | read-only DemoVault enforcement check | consumer enforcement status |
+| POST | `/api/publish/{asset}` | explicit X Layer attestation publication | backend-controlled publisher action |
 
 `/api/replay/{asset}` query params: `source=auto|panel|scenario`,
 `scenario=weekend_divergence` (default), optional `timestamp=<ISO>` to return a
 single step. It also sets an `X-Valtide-Source` response header.
 
-**Degraded states are first-class, not errors.** `POST /publish` returns `503`
-until the X Layer contracts deploy — render "Publication pending" cleanly, never
-a crash. `GET /valuation/{asset}` returns `503 data_unavailable` on a cold cache;
-`GET /valuation/{asset}/live` returns `503` when a live input (Alpaca key,
-DexScreener) is missing.
+**Degraded states are first-class, not errors.** `GET /valuation/{asset}` returns
+`503 data_unavailable` when the warmed runtime has no persisted result; render
+"Runtime not warmed yet" and do not substitute the cold-start diagnostic. The
+`/live` endpoint is a one-off, read-only diagnostic and returns `503` when a live
+input (Alpaca key, DexScreener) is missing. X Layer status is read through the
+deployed control-plane endpoints; the browser never holds the publisher signer.
 
 ---
 
@@ -139,19 +142,38 @@ Supporting shapes: `AssetInfo { asset, token_source, underlying_source, model_av
 `BacktestMetrics { asset, source, n_observations, evidence_state_counts, n_evaluable, mae, rmse, interval_coverage, note }`,
 `RuntimeStatus { asset, scheduler_enabled, has_state, has_live_result, last_state_timestamp, last_result_timestamp, last_tick_status, last_tick_attempt_at, last_error, last_gap_steps }`.
 
+The X Layer read models are:
+
+```ts
+interface OnchainPolicy {
+  max_age: number;
+  on_supported: "ALLOW" | "MONITOR" | "REQUIRE_REVIEW" | "RESTRICT_NEW_RISK";
+  on_inconclusive: "ALLOW" | "MONITOR" | "REQUIRE_REVIEW" | "RESTRICT_NEW_RISK";
+  on_challenged: "ALLOW" | "MONITOR" | "REQUIRE_REVIEW" | "RESTRICT_NEW_RISK";
+  on_stale: "ALLOW" | "MONITOR" | "REQUIRE_REVIEW" | "RESTRICT_NEW_RISK";
+}
+
+interface OnchainEvaluation {
+  evidence_state: EvidenceState;
+  policy_action: string;
+  exists: boolean;
+  fresh: boolean;
+}
+```
+
+`/api/onchain/{asset}` also returns the X Layer network/chain ID, Registry,
+RiskGuard, and DemoVault addresses, plus attestation timestamps and model
+version when an attestation exists. The browser shortens addresses for display.
+
 ### Interpretation rules (get these right or the demo misleads)
 
 - **Evidence State is not a Policy Action.** Valtide reports the state; the
   curator's policy maps state → action. Render them as two distinct things.
-- The **Policy Action mapping is frontend-owned config in P0** (no backend
-  endpoint yet). Ship a default map and make it visibly editable:
-  ```ts
-  const POLICY = {
-    SUPPORTED:    "ALLOW",
-    INCONCLUSIVE: "MONITOR",       // another curator might pick REQUIRE_REVIEW
-    CHALLENGED:   "RESTRICT_NEW_RISK",
-  };
-  ```
+- The **Policy Action mapping is not frontend-owned**. Read the configured
+  curator/application policy from `/api/onchain/{asset}` and display its
+  `SUPPORTED`, `INCONCLUSIVE`, `CHALLENGED`, and `STALE` mappings. If Demo mode
+  cannot reach that endpoint, an explicitly labelled example demo policy may be
+  shown; it must never be presented as the deployed policy.
 - `residual_premium_discount_pct` is **not** automatically a mispricing/arb — it
   is the part of the token price the challenger doesn't explain. Label it neutrally.
 - `confidence` is `null` in P0 by design. Do not invent a 0–100 score.
@@ -249,11 +271,13 @@ reason codes include `REFERENCE_UNDER_TEST_OUTSIDE_INTERVAL`.
 4. **Policy, separately.** The Policy Action panel shows the *curator's* mapping
    turning CHALLENGED → `RESTRICT_NEW_RISK`. Stress: Valtide reports evidence;
    the curator owns the action.
-5. **X Layer.** Show the Registry/Guard panel with "Publication pending" (503
-   today) — the machine interface exists; attestation lands when contracts deploy.
-6. **Credibility.** Flip to Model Evidence backed by `/api/backtest` for
-   coverage / error metrics and evidence-state counts. "This isn't a guess —
-   here's how the challenger tracks ground truth."
+5. **X Layer.** Show the deployed Registry/RiskGuard/DemoVault read-only panel:
+   attestation existence/freshness, Evidence State, configured Policy Action,
+   and the consumer enforcement check. The browser does not sign or publish.
+6. **Credibility.** Flip to Historical Model Evidence backed by
+   `/api/backtest/NVDAx?source=historical` for coverage, error metrics, and
+   historical Evidence State counts. If unavailable, say so; never substitute
+   scenario counts as performance evidence.
 
 ### The benchmark reveal — bind it to real data or cut it
 
@@ -281,8 +305,10 @@ curl -s "http://localhost:8000/api/replay/NVDAx?source=scenario&scenario=weekend
 ```
 
 The demo must be physically incapable of failing because of a network/CORS/key
-issue. A **live** variant (`/valuation/NVDAx/live`) is a bonus when keys are
-configured, but the fixture-backed scenario replay is the backbone.
+issue. The warmed operational result (`/valuation/NVDAx`) is the primary live
+view when available. A **live** variant (`/valuation/NVDAx/live`) is an explicit
+cold-start diagnostic only; it is never silently substituted for operational
+state or treated as publishable.
 
 ---
 
@@ -315,10 +341,10 @@ A single horizontal **number-line**: shaded challenger band
 when the reference under test sits outside the band. Do not hide disagreement in
 a composite score.
 
-### View 3 — Historical Replay — P0
-Scrubber + play control over the replay sequence; animate the escalation and the
-band walking away, then "reveal" the benchmark. This is the primary credibility
-mechanism.
+### View 3 — Deterministic Scenario Replay — P0
+Scrubber + play control over the scenario sequence; animate the Evidence State
+progression and the band walking away. The scenario demonstrates behavior but has
+no empirical future ground truth and is not a performance track record.
 
 ### View 4 — Basis Analysis — P0-lite / P1
 The **DIAGNOSE** job ("why do they disagree?") is the product's moat over a dumb
@@ -328,9 +354,10 @@ View 1 as P0**: `reason_codes` rendered as human-readable chips plus one line of
 `residual_premium_discount_pct`. The **full** Basis Analysis view (source ages,
 market session, liquidity context, richer breakdown) is P1.
 
-### View 5 — Model Evidence — P1
-From `/api/backtest`: MAE / RMSE, interval coverage, evidence-state counts,
-performance vs. baselines where available.
+### View 5 — Historical Model Evidence — P1
+From `/api/backtest?source=historical`: MAE / RMSE, interval coverage,
+evidence-state counts, and performance versus baselines where available. If the
+historical source is unavailable, show an explicit unavailable state.
 
 ---
 
@@ -343,8 +370,9 @@ performance vs. baselines where available.
   Verify contrast at projector quality; the same triad must be used everywhere.
 - Always show **provenance & freshness** (source, timestamp, age, market_state).
   Trust is the product; hide nothing.
-- Render **degraded states deliberately** (publication pending, data unavailable,
-  live inputs missing) rather than as failures.
+- Render **degraded states deliberately** (runtime not warmed, onchain status
+  unavailable, historical evidence unavailable, live inputs missing) rather than
+  as failures.
 - **Two-column mental model** in every relevant place:
   *Evidence (Valtide)* on the left, *Action (curator policy)* on the right.
 - Format helpers: percentages to 2dp, σ to 1dp, timestamps as UTC, collapse
@@ -362,6 +390,7 @@ performance vs. baselines where available.
 4. **View 1** driven by the last replay step, incl. the compact basis/why summary.
 5. **View 2** σ-scaled custom-SVG number-line, then **View 3** scrubber + recharts
    escalation chart over the full sequence.
-6. Policy Action config panel (frontend-owned map) + X Layer status panel (503-aware).
+6. Policy Action panel sourced from the deployed X Layer policy + read-only
+   Registry/RiskGuard/DemoVault status panel.
 7. P1: full Basis Analysis view, Model Evidence panel, and the historical-panel
    benchmark reveal (§4).

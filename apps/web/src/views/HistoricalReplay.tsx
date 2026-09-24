@@ -6,8 +6,8 @@ import { Panel } from "../components/ui";
 import { money, sigma, timeUTC } from "../lib/format";
 import { EVIDENCE } from "../lib/evidence";
 
-// Step through a real point-in-time sequence and watch the verdict change as the
-// reference price drifts away from the model's fair value.
+// Step through the deterministic scenario and watch the Evidence State change as
+// the reference price drifts away from the challenger's calibrated interval.
 export function HistoricalReplay({
   results,
   index,
@@ -36,8 +36,8 @@ export function HistoricalReplay({
 
   return (
     <Panel
-      title="How the verdict changed over time"
-      subtitle="Each point is a 5-minute snapshot. The reference price barely moves while the tokenized market drifts — press play to watch the verdict escalate."
+      title="Deterministic scenario replay"
+      subtitle="Each point is a 5-minute snapshot. This scenario shows state progression only; it has no empirical future ground truth or model track record."
     >
       <Legend />
       <EscalationChart results={results} index={index} onSelect={setIndex} />

@@ -11,7 +11,7 @@ interface Marker {
   emphasize?: boolean;
 }
 
-// Plotted relative to the model's confidence range (FRONTEND_PLAN §4A): the range
+// Plotted relative to the model's calibrated interval (FRONTEND_PLAN §4A): the range
 // is a fixed visual width so the reference visibly crosses the edge as it
 // diverges — a raw-price axis would hide the whole story inside a $0.90 window.
 export function ReferenceNumberLine({ r }: { r: ValuationResult }) {
@@ -29,7 +29,7 @@ export function ReferenceNumberLine({ r }: { r: ValuationResult }) {
   return (
     <div className="w-full">
       <div className="relative h-72 select-none">
-        {/* the model's 90% confidence range — the only filled region */}
+        {/* the model's 90% calibrated interval — the only filled region */}
         <div
           className="absolute rounded-lg"
           style={{
@@ -54,7 +54,7 @@ export function ReferenceNumberLine({ r }: { r: ValuationResult }) {
         ))}
       </div>
       <p className="mt-2 text-center text-xs" style={{ color: "var(--color-ink-dim)" }}>
-        Shaded band = Valtide's 90% confidence range. A dot outside it disagrees with the model.
+        Shaded band = Valtide's 90% calibrated interval. A reference outside it is a diagnostic signal, not a universal price verdict.
       </p>
     </div>
   );

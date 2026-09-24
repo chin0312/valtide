@@ -1,9 +1,9 @@
-import { useState } from "react";
+import { useState, type ReactNode } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { ApiError, fetchDemoReplay, fetchHealth, fetchLiveValuation, fetchRuntime } from "./api/client";
+import { ApiError, fetchDemoReplay, fetchHealth, fetchLiveDiagnostic, fetchOnchain, fetchOnchainEnforcement, fetchOperationalValuation, fetchRuntime } from "./api/client";
 import type { ValuationResult } from "./api/types";
 import { StatusStrip, type Provenance } from "./components/StatusStrip";
-import { PolicyActionPanel } from "./components/PolicyActionPanel";
+import { EXAMPLE_DEMO_POLICY, PolicyActionPanel } from "./components/PolicyActionPanel";
 import { RegistryPanel } from "./components/RegistryPanel";
 import { ValidationOverview } from "./views/ValidationOverview";
 import { ReferenceComparison } from "./views/ReferenceComparison";
@@ -24,13 +24,13 @@ export default function App() {
         <div>
           <h1 className="text-2xl font-bold tracking-tight text-ink">Valtide</h1>
           <p className="mt-0.5 text-sm" style={{ color: "var(--color-ink-dim)" }}>
-            Is this tokenized-equity collateral price still supported by the market?
+            Can this tokenized-equity collateral reference be independently supported?
           </p>
         </div>
         <ModeToggle mode={mode} onChange={setManualMode} backendUp={!!health.data} />
       </header>
 
-      {mode === "live" ? <LiveView /> : <DemoView />}
+      {mode === "live" ? <LiveView backendUp={!!health.data} /> : <DemoView backendUp={!!health.data} />}
     </div>
   );
 }
@@ -51,7 +51,7 @@ function ModeToggle({ mode, onChange, backendUp }: { mode: Mode; onChange: (m: M
             className="px-3 py-1.5 text-sm font-medium capitalize disabled:cursor-not-allowed disabled:opacity-40"
             style={mode === m ? { background: "var(--color-accent)", color: "#fff" } : { background: "#fff", color: "var(--color-ink-dim)" }}
           >
-            {m}
+            {m === "live" ? "Operational" : "Demo"}
           </button>
         ))}
       </div>
@@ -59,84 +59,132 @@ function ModeToggle({ mode, onChange, backendUp }: { mode: Mode; onChange: (m: M
   );
 }
 
-/** Live mode: real pipeline — DexScreener + Alpaca + OKX → quant runtime → validation. */
-function LiveView() {
-  const live = useQuery({ queryKey: ["live"], queryFn: fetchLiveValuation, refetchInterval: 20_000, retry: 0 });
-  const runtime = useQuery({ queryKey: ["runtime"], queryFn: fetchRuntime, refetchInterval: 20_000, retry: 0 });
+/** Operational mode: the latest persisted/warmed result is the primary view. */
+function LiveView({ backendUp }: { backendUp: boolean }) {
+  const operational = useQuery({ queryKey: ["valuation", "operational", "NVDAx"], queryFn: fetchOperationalValuation, refetchInterval: 20_000, retry: 0, enabled: backendUp });
+  const runtime = useQuery({ queryKey: ["runtime", "NVDAx"], queryFn: fetchRuntime, refetchInterval: 20_000, retry: 0, enabled: backendUp });
+  const controlPlane = useControlPlaneQueries(backendUp);
+  const [diagnosticRequested, setDiagnosticRequested] = useState(false);
+  const diagnostic = useQuery({ queryKey: ["valuation", "diagnostic", "NVDAx"], queryFn: fetchLiveDiagnostic, retry: 0, enabled: diagnosticRequested });
 
-  if (live.isLoading) return <Message>Running live inference through the pipeline…</Message>;
-  if (live.isError || !live.data) {
-    const detail = live.error instanceof ApiError ? live.error.detail : "backend unreachable";
+  if (operational.isLoading) return <Message>Loading the warmed operational state…</Message>;
+
+  if (operational.isError || !operational.data) {
     return (
-      <Message>
-        <div className="font-medium text-ink">Live inference unavailable</div>
-        <p className="mx-auto mt-1 max-w-md text-sm">
-          {detail}. The live path needs the backend running with market-data access (Alpaca / DexScreener /
-          OKX). Switch to <strong>Demo</strong> above to see the flow on the bundled scenario.
-        </p>
-      </Message>
+      <div className="space-y-6">
+        <Message>
+          <div className="font-medium text-ink">Runtime not warmed yet</div>
+          <p className="mx-auto mt-1 max-w-xl text-sm">
+            The operational endpoint has no persisted result to show. Valtide will not substitute a cold-start diagnostic for the publisher/control-plane state.
+          </p>
+          {runtime.data?.last_error && <p className="mx-auto mt-2 max-w-xl text-xs" style={{ color: "var(--color-inconclusive)" }}>Scheduler: {runtime.data.last_error}</p>}
+        </Message>
+        <DiagnosticCard requested={diagnosticRequested} onRun={() => setDiagnosticRequested(true)} query={diagnostic} />
+        <RegistryPanel {...controlPlane} />
+      </div>
     );
   }
 
-  const r = live.data;
+  const r = operational.data;
   return (
     <div className="space-y-6">
-      <StatusStrip r={r} provenance="live" runtime={runtime.data} />
+      <StatusStrip r={r} provenance="cached" runtime={runtime.data} onchainFresh={controlPlane.controlPlane?.fresh} />
       <ValidationOverview r={r} />
       <div className="grid gap-6 lg:grid-cols-3">
         <div className="lg:col-span-2"><ReferenceComparison r={r} /></div>
-        <PolicyActionPanel current={r.evidence_state} />
+        <PolicyActionPanel current={r.evidence_state} policy={controlPlane.controlPlane?.policy} evaluation={controlPlane.controlPlane} policySource={controlPlane.controlPlane ? "X Layer RiskGuard" : "Unavailable — no frontend default"} />
       </div>
       <div className="grid gap-6 lg:grid-cols-3">
-        <div className="lg:col-span-2"><ModelEvidence results={[r]} source="scenario" /></div>
-        <RegistryPanel />
+        <div className="lg:col-span-2"><ModelEvidence /></div>
+        <RegistryPanel {...controlPlane} />
       </div>
-      <Footer r={r} live />
+      <DiagnosticCard requested={diagnosticRequested} onRun={() => setDiagnosticRequested(true)} query={diagnostic} />
+      <Footer r={r} label="warmed operational result, polled every 20s" />
     </div>
   );
 }
 
 /** Demo mode: point-in-time scenario replay (backend if up, else bundled fixture). */
-function DemoView() {
+function DemoView({ backendUp }: { backendUp: boolean }) {
   const { data, isLoading } = useQuery({ queryKey: ["demo-replay"], queryFn: () => fetchDemoReplay(), staleTime: Infinity });
+  const controlPlane = useControlPlaneQueries(backendUp);
   const [index, setIndex] = useState(0);
   const [playing, setPlaying] = useState(false);
 
   if (isLoading || !data) return <Message>Loading demo scenario…</Message>;
 
   const r = data.results[Math.min(index, data.results.length - 1)];
-  const provenance: Provenance = data.source === "live" ? "demo-scenario" : "demo-fixture";
+  const provenance: Provenance = data.source === "backend-scenario" ? "demo-scenario" : "demo-fixture";
+  const policy = controlPlane.controlPlane?.policy ?? EXAMPLE_DEMO_POLICY;
+  const policySource = controlPlane.controlPlane ? "X Layer DemoVault policy" : "Example demo policy (onchain unavailable)";
 
   return (
     <div className="space-y-6">
-      <StatusStrip r={r} provenance={provenance} />
+      <StatusStrip r={r} provenance={provenance} onchainFresh={controlPlane.controlPlane?.fresh} />
       <ValidationOverview r={r} />
       <div className="grid gap-6 lg:grid-cols-3">
         <div className="lg:col-span-2"><ReferenceComparison r={r} /></div>
-        <PolicyActionPanel current={r.evidence_state} />
+        <PolicyActionPanel current={r.evidence_state} policy={policy} policySource={policySource} />
       </div>
       <div className="grid gap-6 lg:grid-cols-3">
         <div className="lg:col-span-2">
           <HistoricalReplay results={data.results} index={index} setIndex={setIndex} playing={playing} setPlaying={setPlaying} />
         </div>
-        <RegistryPanel />
+        <RegistryPanel {...controlPlane} />
       </div>
-      <ModelEvidence results={data.results} source="scenario" />
-      <Footer r={r} />
+      <ModelEvidence />
+      <Footer r={r} label="deterministic scenario replay" />
     </div>
   );
 }
 
-function Footer({ r, live }: { r: ValuationResult; live?: boolean }) {
+function Footer({ r, label }: { r: ValuationResult; label: string }) {
   return (
     <footer className="pt-2 text-center text-xs" style={{ color: "var(--color-muted)" }}>
       Model {r.model_id} {r.model_version} · reference {r.reference_under_test_source}
-      {live ? " · live inference, updates every 20s" : ""} · hackathon research prototype, not a production oracle
+      {` · ${label}`} · hackathon research prototype, not a production oracle
     </footer>
   );
 }
 
-function Message({ children }: { children: React.ReactNode }) {
+function DiagnosticCard({ requested, onRun, query }: { requested: boolean; onRun: () => void; query: { isFetching: boolean; isError: boolean; error: unknown; data?: ValuationResult } }) {
+  return (
+    <section className="card-shadow rounded-2xl bg-white p-6" style={{ border: "1px solid var(--color-line)" }}>
+      <div className="flex flex-wrap items-start justify-between gap-4">
+        <div>
+          <h2 className="text-base font-semibold text-ink">Cold-start live diagnostic</h2>
+          <p className="mt-0.5 max-w-2xl text-sm" style={{ color: "var(--color-ink-dim)" }}>
+            One-off, read-only inference from live market inputs. It does not warm the runtime or publish an attestation.
+          </p>
+        </div>
+        <button onClick={onRun} disabled={query.isFetching} className="rounded-lg px-4 py-2 text-sm font-semibold text-white disabled:opacity-50" style={{ background: "var(--color-accent)" }}>
+          {query.isFetching ? "Running…" : requested ? "Run again" : "Run live diagnostic"}
+        </button>
+      </div>
+      {query.isError && <p className="mt-3 text-sm" style={{ color: "var(--color-inconclusive)" }}>{query.error instanceof ApiError ? query.error.detail : "Diagnostic unavailable."}</p>}
+      {query.data && (
+        <div className="mt-4 space-y-4 border-t pt-4" style={{ borderColor: "var(--color-line)" }}>
+          <StatusStrip r={query.data} provenance="diagnostic" />
+          <ValidationOverview r={query.data} />
+        </div>
+      )}
+    </section>
+  );
+}
+
+function useControlPlaneQueries(enabled: boolean) {
+  const onchain = useQuery({ queryKey: ["onchain", "NVDAx"], queryFn: fetchOnchain, refetchInterval: 30_000, retry: 0, enabled });
+  const enforcement = useQuery({ queryKey: ["onchain", "NVDAx", "enforcement"], queryFn: fetchOnchainEnforcement, refetchInterval: 30_000, retry: 0, enabled });
+  return {
+    controlPlane: onchain.data,
+    enforcement: enforcement.data,
+    isLoading: enabled && (onchain.isLoading || enforcement.isLoading),
+    isError: onchain.isError || enforcement.isError,
+    errorDetail: onchain.error instanceof ApiError ? onchain.error.detail : enforcement.error instanceof ApiError ? enforcement.error.detail : undefined,
+  };
+}
+
+function Message({ children }: { children: ReactNode }) {
   return (
     <div className="card-shadow rounded-2xl bg-white p-10 text-center" style={{ border: "1px solid var(--color-line)", color: "var(--color-ink-dim)" }}>
       {children}

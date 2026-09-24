@@ -13,6 +13,8 @@ export function ValidationOverview({ r }: { r: ValuationResult }) {
   const dev = r.reference_deviation_pct;
   const dir = dev == null ? "" : dev >= 0 ? "above" : "below";
   const negligible = dev != null && Math.abs(dev) < 0.005;
+  const outsideInterval = r.reference_under_test != null && (r.reference_under_test < r.fair_value_lower || r.reference_under_test > r.fair_value_upper);
+  const coverage = `${Math.round(r.interval_coverage_target * 100)}%`;
   const fallbackCalibration = r.reason_codes.includes("CALIBRATION_GLOBAL_FALLBACK");
 
   return (
@@ -28,32 +30,34 @@ export function ValidationOverview({ r }: { r: ValuationResult }) {
       <div className="p-6">
         {/* economic magnitude first; σ is secondary */}
         <p className="mb-4 text-[15px] leading-relaxed text-ink">
-          The reference price of <strong>{money(r.reference_under_test)}</strong>{" "}
-          {dev == null ? "is compared against " : negligible ? "is in line with " : (
-            <>is <strong style={{ color: s.fg }}>{pct(Math.abs(dev))}</strong> {dir} </>
+          {r.reference_under_test == null ? (
+            <>No reference under test is available at this observation. Valtide's independent challenger estimate is <strong>{money(r.valtide_fair_value)}</strong> ({coverage} calibrated interval {money(r.fair_value_lower)}–{money(r.fair_value_upper)}).</>
+          ) : (
+            <>The reference under test at <strong>{money(r.reference_under_test)}</strong>{" "}
+              {dev == null ? "is compared against " : negligible ? "is close to " : (
+                <>is <strong style={{ color: s.fg }}>{pct(Math.abs(dev))}</strong> {dir} </>
+              )}
+              Valtide's independent challenger estimate of <strong>{money(r.valtide_fair_value)}</strong>{" "}
+              ({coverage} calibrated interval {money(r.fair_value_lower)}–{money(r.fair_value_upper)}), so it is {outsideInterval ? "outside" : "inside"} Valtide's {coverage} calibrated challenger interval.
+            </>
           )}
-          Valtide's independent estimate of <strong>{money(r.valtide_fair_value)}</strong>{" "}
-          (90% range {money(r.fair_value_lower)}–{money(r.fair_value_upper)})
-          {dev != null && !negligible && (
-            <>, so it falls {r.standardized_deviation != null && Math.abs(r.standardized_deviation) > 1 ? "outside" : "near the edge of"} the model's confidence range</>
-          )}.
         </p>
 
         {fallbackCalibration && (
           <div className="mb-4 flex items-start gap-2 rounded-lg px-3 py-2 text-sm" style={{ background: "var(--color-inconclusive-soft)", border: "1px solid var(--color-inconclusive-line)", color: "var(--color-inconclusive)" }}>
             <span aria-hidden>⚠</span>
             <span>
-              The confidence range uses a <strong>global fallback calibration</strong> (no session-specific
-              fit yet), so treat the width of the range — and the σ figure — with caution.
+              The calibrated interval uses a <strong>global fallback calibration</strong> (no session-specific
+              fit yet), so treat the width of the interval — and the σ figure — with caution.
             </span>
           </div>
         )}
 
         <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
           <Figure label="Reference under test" value={money(r.reference_under_test)} sub={r.reference_under_test_source} hint="The price being validated — the value a protocol currently relies on." />
-          <Figure label="Valtide estimate" value={money(r.valtide_fair_value)} sub={`90% range ${money(r.fair_value_lower)} – ${money(r.fair_value_upper)}`} accent="var(--color-supported)" hint="An independent challenger estimate with a calibrated uncertainty range — not a definitive fair value." />
+          <Figure label="Valtide challenger estimate" value={money(r.valtide_fair_value)} sub={`${coverage} calibrated interval ${money(r.fair_value_lower)} – ${money(r.fair_value_upper)}`} accent="var(--color-supported)" hint="An independent challenger estimate with a calibrated uncertainty interval — not a definitive fair value." />
           <Figure label="Tokenized market" value={money(r.token_price)} sub="depth / volume not in result" accent="var(--color-token)" hint="The traded NVDAx price. Weigh it by market quality — thin books produce unreliable prices. Depth/volume are captured on the live path but not yet exposed on the public result payload." />
-          <Figure label="Deviation" value={pct(dev)} sub={`${sigma(r.standardized_deviation)} vs model range`} accent={s.fg} hint="Economic gap from the estimate. The σ figure depends on the model's confidence range, which is currently a fallback calibration." />
+          <Figure label="Deviation" value={pct(dev)} sub={`${sigma(r.standardized_deviation)} diagnostic`} accent={s.fg} hint="Economic gap from the challenger estimate. The Evidence State also uses interval bounds and evidence quality." />
         </div>
 
         <div className="mt-5 grid gap-5 border-t pt-5 md:grid-cols-2" style={{ borderColor: "var(--color-line)" }}>

@@ -141,7 +141,19 @@ jobs:
             exit 1
           fi
 
-          echo "container smoke passed: /health=200 /api/assets=200"
+
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: npm
+          cache-dependency-path: apps/web/package-lock.json
+
+      - name: Build frontend
+        working-directory: apps/web
+        run: |
+          npm ci
+          npm run build
 
   contracts:
     name: Valtide Contracts

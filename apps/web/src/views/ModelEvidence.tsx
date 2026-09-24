@@ -1,66 +1,63 @@
 import { useQuery } from "@tanstack/react-query";
-import type { EvidenceState, ValuationResult } from "../api/types";
-import { fetchBacktest } from "../api/client";
+import type { EvidenceState } from "../api/types";
+import { fetchHistoricalBacktest } from "../api/client";
 import { Panel } from "../components/ui";
 import { EVIDENCE } from "../lib/evidence";
 
 const STATES: EvidenceState[] = ["SUPPORTED", "INCONCLUSIVE", "CHALLENGED"];
 
-// Track record. Pulls real metrics from /api/backtest; falls back to the loaded
-// sequence's own verdict distribution when the backend is unreachable, and is
-// explicit that accuracy metrics need historical ground truth (not in a scenario).
-export function ModelEvidence({ results, source }: { results: ValuationResult[]; source: string }) {
+// Historical evidence is deliberately separate from the deterministic scenario.
+// Scenario verdict counts are not future ground truth and must not be presented
+// as a track record or accuracy result.
+export function ModelEvidence() {
   const { data, isError } = useQuery({
-    queryKey: ["backtest", source],
-    queryFn: () => fetchBacktest(source),
+    queryKey: ["backtest", "historical"],
+    queryFn: fetchHistoricalBacktest,
     staleTime: 60_000,
     retry: 0,
   });
 
-  // Offline fallback: count verdicts from the sequence we already have.
-  const counts =
-    data?.evidence_state_counts ??
-    results.reduce<Record<string, number>>((acc, r) => {
-      acc[r.evidence_state] = (acc[r.evidence_state] ?? 0) + 1;
-      return acc;
-    }, {});
-  const total = Object.values(counts).reduce((a, b) => a + b, 0) || 1;
-
-  const hasMetrics = data && data.mae != null && data.interval_coverage != null;
+  const counts = data?.evidence_state_counts ?? {};
+  const total = data ? Object.values(counts).reduce((a, b) => a + b, 0) : 0;
+  const hasMetrics = data && data.mae != null && data.rmse != null && data.interval_coverage != null;
 
   return (
-    <Panel title="Track record" subtitle="How the model has behaved — and how to judge it">
-      <div className="mb-2 text-xs font-medium" style={{ color: "var(--color-ink-dim)" }}>
-        Verdicts across this {data ? data.source : source} window ({total})
-      </div>
-      <div className="flex h-3 overflow-hidden rounded-full" style={{ border: "1px solid var(--color-line)" }}>
-        {STATES.map((s) => {
-          const w = ((counts[s] ?? 0) / total) * 100;
-          return w > 0 ? <div key={s} style={{ width: `${w}%`, background: EVIDENCE[s].fg }} title={`${s}: ${counts[s]}`} /> : null;
-        })}
-      </div>
-      <div className="mt-2 flex flex-wrap gap-x-4 gap-y-1 text-xs">
-        {STATES.map((s) => (
-          <span key={s} className="inline-flex items-center gap-1.5" style={{ color: "var(--color-ink-dim)" }}>
-            <span className="inline-block h-2 w-2 rounded-full" style={{ background: EVIDENCE[s].fg }} />
-            {s} {counts[s] ?? 0}
-          </span>
-        ))}
-      </div>
+    <Panel title="Historical model evidence" subtitle="Historical diagnostics, separate from the deterministic scenario replay">
+      {isError || !data ? (
+        <div className="rounded-lg px-3 py-3 text-sm" style={{ background: "var(--color-panel-2)", border: "1px solid var(--color-line)", color: "var(--color-ink-dim)" }}>
+          Historical model evidence unavailable. Scenario verdicts are not empirical performance evidence.
+        </div>
+      ) : (
+        <>
+          <div className="mb-2 text-xs font-medium" style={{ color: "var(--color-ink-dim)" }}>
+            Evidence States across historical observations ({total})
+          </div>
+          <div className="flex h-3 overflow-hidden rounded-full" style={{ border: "1px solid var(--color-line)" }}>
+            {STATES.map((s) => {
+              const w = total ? ((counts[s] ?? 0) / total) * 100 : 0;
+              return w > 0 ? <div key={s} style={{ width: `${w}%`, background: EVIDENCE[s].fg }} title={`${s}: ${counts[s]}`} /> : null;
+            })}
+          </div>
+          <div className="mt-2 flex flex-wrap gap-x-4 gap-y-1 text-xs">
+            {STATES.map((s) => (
+              <span key={s} className="inline-flex items-center gap-1.5" style={{ color: "var(--color-ink-dim)" }}>
+                <span className="inline-block h-2 w-2 rounded-full" style={{ background: EVIDENCE[s].fg }} />
+                {s} {counts[s] ?? 0}
+              </span>
+            ))}
+          </div>
 
-      <div className="mt-4 grid grid-cols-3 gap-3">
-        <Metric label="Interval coverage" value={hasMetrics ? `${(data!.interval_coverage! * 100).toFixed(0)}%` : "—"} hint="How often the true price landed inside the 90% range. Should be near 90%." />
-        <Metric label="Mean abs. error" value={hasMetrics ? `$${data!.mae!.toFixed(2)}` : "—"} hint="Average absolute error of the estimate vs the eventual trusted price." />
-        <Metric label="Evaluable points" value={data ? String(data.n_evaluable) : "—"} hint="Observations with a later ground-truth price to score against." />
-      </div>
+          <div className="mt-4 grid grid-cols-2 gap-3 lg:grid-cols-5">
+            <Metric label="Observations" value={String(data.n_observations)} hint="Rows in the historical replay." />
+            <Metric label="Evaluable points" value={String(data.n_evaluable)} hint="Rows with a legitimate contemporaneous trusted benchmark." />
+            <Metric label="MAE" value={hasMetrics ? `$${data.mae!.toFixed(2)}` : "—"} hint="Mean absolute error against the historical benchmark." />
+            <Metric label="RMSE" value={hasMetrics ? `$${data.rmse!.toFixed(2)}` : "—"} hint="Root mean squared error against the historical benchmark." />
+            <Metric label="Interval coverage" value={hasMetrics ? `${(data.interval_coverage! * 100).toFixed(0)}%` : "—"} hint="Historical share of benchmark observations inside the calibrated interval." />
+          </div>
 
-      <p className="mt-3 text-xs" style={{ color: "var(--color-muted)" }}>
-        {isError
-          ? "Backend unreachable — showing the verdict mix from the loaded demo sequence. Accuracy metrics require the live backend."
-          : hasMetrics
-            ? data!.note
-            : "Accuracy metrics (coverage, error vs. the later benchmark, false-challenge rate) need historical ground-truth data and aren't available for this illustrative scenario. Run the backend against the historical panel to populate them."}
-      </p>
+          <p className="mt-3 text-xs" style={{ color: "var(--color-muted)" }}>{data.note} These are historical diagnostics, not production guarantees.</p>
+        </>
+      )}
     </Panel>
   );
 }

@@ -25,6 +25,11 @@ export function timeUTC(iso: string | null | undefined): string {
   return `${d.toISOString().slice(11, 16)} UTC`;
 }
 
+export function unixTimeUTC(seconds: number | null | undefined): string {
+  if (seconds == null || Number.isNaN(seconds) || seconds <= 0) return DASH;
+  return timeUTC(new Date(seconds * 1000).toISOString());
+}
+
 export function ageLabel(seconds: number | null | undefined): string {
   if (seconds == null || Number.isNaN(seconds)) return DASH;
   if (seconds < 60) return `${seconds}s`;

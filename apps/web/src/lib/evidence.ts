@@ -12,59 +12,37 @@ export interface EvidenceStyle {
   fg: string;
   soft: string;
   line: string;
-  policyDefault: string;
 }
 
 export const EVIDENCE: Record<EvidenceState, EvidenceStyle> = {
   SUPPORTED: {
     label: "SUPPORTED",
-    headline: "Reference price looks supported",
+    headline: "Reference under test is supported",
     description:
-      "Independent market evidence gives no material reason to doubt the reference price.",
+      "Available independent evidence provides no material reason to challenge the reference under test.",
     icon: "✓",
     fg: "var(--color-supported)",
     soft: "var(--color-supported-soft)",
     line: "var(--color-supported-line)",
-    policyDefault: "ALLOW",
   },
   INCONCLUSIVE: {
     label: "INCONCLUSIVE",
     headline: "Evidence is inconclusive",
     description:
-      "The evidence isn't strong enough to confirm or challenge the reference price.",
+      "The evidence is not strong enough to support or materially challenge the reference under test.",
     icon: "?",
     fg: "var(--color-inconclusive)",
     soft: "var(--color-inconclusive-soft)",
     line: "var(--color-inconclusive-line)",
-    policyDefault: "MONITOR",
   },
   CHALLENGED: {
     label: "CHALLENGED",
-    headline: "Reference price is challenged",
+    headline: "Reference under test is challenged",
     description:
-      "The reference price is materially inconsistent with independent market evidence.",
+      "The reference under test is materially inconsistent with sufficiently strong independent evidence; that is not proof it is objectively wrong.",
     icon: "!",
     fg: "var(--color-challenged)",
     soft: "var(--color-challenged-soft)",
     line: "var(--color-challenged-line)",
-    policyDefault: "RESTRICT_NEW_RISK",
   },
 };
-
-export const POLICY_OPTIONS = [
-  "ALLOW",
-  "MONITOR",
-  "REQUIRE_REVIEW",
-  "RESTRICT_NEW_RISK",
-] as const;
-export type PolicyAction = (typeof POLICY_OPTIONS)[number];
-
-// Plain-language reading of how far the reference sits from fair value.
-export function likelihoodPhrase(z: number | null): string {
-  if (z == null) return "no comparison available";
-  const a = Math.abs(z);
-  if (a < 1) return "well within the normal range";
-  if (a < 2) return "at the edge of the normal range";
-  if (a < 3) return "outside the normal range";
-  return "far outside the normal range — very unlikely to be chance";
-}

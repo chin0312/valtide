@@ -1,6 +1,7 @@
 // Mirrors apps/api/valtide_api/models.py. Keep in sync with /docs on the backend.
 
 export type EvidenceState = "SUPPORTED" | "INCONCLUSIVE" | "CHALLENGED";
+export type PolicyAction = "ALLOW" | "MONITOR" | "REQUIRE_REVIEW" | "RESTRICT_NEW_RISK";
 
 export interface ValuationResult {
   asset: string;
@@ -69,4 +70,60 @@ export interface RuntimeStatus {
   last_tick_attempt_at: string | null;
   last_error: string | null;
   last_gap_steps: number;
+}
+
+export interface OnchainPolicy {
+  max_age: number;
+  on_supported: PolicyAction;
+  on_inconclusive: PolicyAction;
+  on_challenged: PolicyAction;
+  on_stale: PolicyAction;
+}
+
+export interface OnchainEvaluation {
+  evidence_state_code: number;
+  evidence_state: EvidenceState;
+  policy_action_code: number;
+  policy_action: PolicyAction;
+  exists: boolean;
+  fresh: boolean;
+}
+
+export interface OnchainAttestation {
+  exists: boolean;
+  referenceId: string;
+  referencePriceE8: number;
+  fairValueE8: number;
+  lowerBoundE8: number;
+  upperBoundE8: number;
+  referenceDeviationBps: number;
+  evidenceState: number;
+  evidenceHash: string;
+  modelVersion: string;
+  observedAt: number;
+  publishedAt: number;
+  validUntil: number;
+}
+
+export interface OnchainControlPlane extends OnchainEvaluation {
+  configured: boolean;
+  deployed: boolean;
+  network: string;
+  chain_id: number;
+  registry: string;
+  risk_guard: string;
+  demo_vault: string;
+  asset_id: string;
+  reference_id: string;
+  model_version: string;
+  policy: OnchainPolicy;
+  attestation: OnchainAttestation | null;
+  registry_fresh: boolean;
+}
+
+export interface OnchainEnforcement extends OnchainEvaluation {
+  expected_revert: boolean;
+  reverted: boolean;
+  returned_action_code: number | null;
+  passed: boolean;
 }
