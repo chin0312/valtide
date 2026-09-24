@@ -102,18 +102,18 @@ def get_stock_bars(
             client.close()
 
 
-def get_latest_trusted_bar(
+def get_trusted_bars(
     symbol: str = "NVDA",
     lookback_days: int = 5,
     client: httpx.Client | None = None,
     now: datetime | None = None,
-) -> RawEquityBar | None:
-    """Return the latest available trusted underlying bar in the lookback window.
+) -> list[RawEquityBar]:
+    """Return trusted underlying bars in the lookback window, ascending by ts.
 
-    This is an R0 anchor, not necessarily an official regular-session close.
-    The end of the query is the current time; live.py decides whether the
-    returned observation is fresh enough for current-bucket assimilation.
-    Exchange-calendar and US-holiday selection remain outside this adapter.
+    These are R0 anchor candidates, not necessarily official regular-session
+    closes. The end of the query is the current time; live.py decides which bar
+    is the current-bucket measurement and which strictly-prior bar is the trusted
+    anchor. Exchange-calendar and US-holiday selection remain outside this adapter.
     """
     query_now = now or datetime.now(UTC)
     if query_now.tzinfo is None:
@@ -121,5 +121,15 @@ def get_latest_trusted_bar(
     query_now = query_now.astimezone(UTC)
     start = query_now - timedelta(days=lookback_days)
     end = query_now
-    bars = get_stock_bars(symbol, start, end, client=client)
+    return get_stock_bars(symbol, start, end, client=client)
+
+
+def get_latest_trusted_bar(
+    symbol: str = "NVDA",
+    lookback_days: int = 5,
+    client: httpx.Client | None = None,
+    now: datetime | None = None,
+) -> RawEquityBar | None:
+    """Return the latest available trusted underlying bar in the lookback window."""
+    bars = get_trusted_bars(symbol, lookback_days, client=client, now=now)
     return bars[-1] if bars else None

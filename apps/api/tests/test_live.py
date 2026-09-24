@@ -17,10 +17,15 @@ from valtide_api.clock import FIVE_MINUTES, canonical_5m_boundary, is_canonical_
 from valtide_api.live import LiveDataUnavailable, build_live_snapshot, run_live_valuation
 
 
-def _patch_sources(monkeypatch, *, quote, bar, ref):
-    """Patch the three live sources. `ref` is the confirmed index candle for the bar."""
+def _patch_sources(monkeypatch, *, quote, bar, ref, bars=None):
+    """Patch the three live sources. `ref` is the confirmed index candle for the bar.
+
+    `bar` is the single latest trusted bar (back-compat); pass `bars` to supply the
+    full ascending window when the current-bucket and trusted-anchor bars differ.
+    """
+    trusted = bars if bars is not None else ([bar] if bar is not None else [])
     monkeypatch.setattr(live.dexscreener, "get_nvdax_price", lambda **k: quote)
-    monkeypatch.setattr(live.equity, "get_latest_trusted_bar", lambda *a, **k: bar)
+    monkeypatch.setattr(live.equity, "get_trusted_bars", lambda *a, **k: trusted)
     monkeypatch.setattr(live.reference, "get_confirmed_index_bar", lambda *a, **k: ref)
 
 
@@ -129,6 +134,43 @@ def test_current_enough_underlying_is_assimilable(monkeypatch):
     assert snap.last_trusted_reference == 181.0
     assert snap.last_trusted_reference_ts == snap.underlying_reference_ts
     assert snap.reference_age_seconds == 300
+
+
+def test_cold_start_anchor_is_strictly_prior_bar_not_same_timestamp(monkeypatch):
+    """Regression (PR #5): on the first warmed/cold-start tick the trusted anchor
+    must be the NVDA bar strictly before T, never NVDA@T. With bars at 14:05 and
+    14:10, challenger@14:10 initializes from the 14:05 anchor while NVDA@14:10 is
+    used only as the underlying_reference for post-challenger assimilation."""
+    observation_ts = datetime(2026, 9, 21, 14, 10, tzinfo=UTC)
+    _patch_sources(
+        monkeypatch,
+        quote=TokenQuote(price=181.1, source="dexscreener", ts=observation_ts),
+        bar=None,
+        bars=[
+            RawEquityBar(
+                ts=datetime(2026, 9, 21, 14, 5, tzinfo=UTC),
+                open=180, high=181, low=179, close=180.0, volume=1000,
+            ),
+            RawEquityBar(
+                ts=datetime(2026, 9, 21, 14, 10, tzinfo=UTC),
+                open=181, high=182, low=180, close=181.0, volume=1000,
+            ),
+        ],
+        ref=ReferenceObservation(
+            price=181.2, source="okx_xperp_index", ts=observation_ts
+        ),
+    )
+
+    snap = build_live_snapshot(observation_ts=observation_ts)
+
+    # Trusted anchor R0 = strictly prior NVDA (14:05), never the same-timestamp bar.
+    assert snap.last_trusted_reference == 180.0
+    assert snap.last_trusted_reference_ts == datetime(2026, 9, 21, 14, 5, tzinfo=UTC)
+    assert snap.last_trusted_reference_ts < observation_ts
+    assert snap.reference_age_seconds == 300
+    # NVDA@T is only the current underlying measurement for post-challenger assimilation.
+    assert snap.underlying_reference == 181.0
+    assert snap.underlying_reference_ts == observation_ts
 
 
 def test_stale_underlying_remains_anchor_but_is_not_current_measurement(monkeypatch):

@@ -62,14 +62,20 @@ def build_live_snapshot(
     try:
         # Cap the query at the valued bar's close so a newer bar can never be
         # mistaken for this bar's underlying measurement.
-        last = equity.get_latest_trusted_bar("NVDA", client=client, now=now + FIVE_MINUTES)
+        bars = equity.get_trusted_bars("NVDA", client=client, now=now + FIVE_MINUTES)
     except (httpx.HTTPError, KeyError, TypeError, ValueError, RuntimeError) as exc:
         raise LiveDataUnavailable(
             "NVDA underlying unavailable (Alpaca — check key/feed)."
         ) from exc
-    if last is None:
+    if not bars:
         raise LiveDataUnavailable("NVDA underlying unavailable (Alpaca — check key/feed).")
 
+    # The latest bar at or before the valued bar's close is the current-bucket
+    # underlying measurement (NVDA@T). The trusted anchor must be strictly before
+    # T, exactly as the historical panel builder joins it: otherwise NVDA@T would
+    # seed the cold-start challenger@T init before the intended post-challenger
+    # assimilation, reintroducing same-timestamp leakage on the first warmed tick.
+    last = bars[-1]
     market_state = classify(now)
     underlying_age = int((now - last.ts).total_seconds())
     if underlying_age < 0:
@@ -82,6 +88,13 @@ def build_live_snapshot(
         if is_open and underlying_age <= settings.live_underlying_max_age_seconds
         else None
     )
+
+    # Trusted anchor R0 = latest NVDA strictly before T. When the only bar is at
+    # T itself (a degenerate cold start with no prior history), fall back to it;
+    # there is nothing earlier to anchor on.
+    prior = [b for b in bars if b.ts < now]
+    anchor = prior[-1] if prior else last
+    anchor_age = int((now - anchor.ts).total_seconds())
 
     # Reference under test: the confirmed OKX X-Perp index candle opening at the
     # valued bar (ts == now, age 0), identical to the historical panel join. When
@@ -105,9 +118,9 @@ def build_live_snapshot(
         token_liquidity_usd=quote.liquidity_usd,
         underlying_reference=underlying_current,
         underlying_reference_ts=last.ts if underlying_current is not None else None,
-        last_trusted_reference=last.close,
-        last_trusted_reference_ts=last.ts,
-        reference_age_seconds=underlying_age,
+        last_trusted_reference=anchor.close,
+        last_trusted_reference_ts=anchor.ts,
+        reference_age_seconds=anchor_age,
         reference_under_test=pt,
         reference_under_test_source=pt_source,
         reference_under_test_ts=pt_ts,
