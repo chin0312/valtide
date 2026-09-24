@@ -1,4 +1,4 @@
-"""Panel loader for James's canonical 5-minute market dataset."""
+"""Loader for canonical five-minute historical market panels."""
 
 from __future__ import annotations
 
@@ -6,6 +6,7 @@ import csv
 from datetime import UTC, datetime
 from pathlib import Path
 
+from valtide_api.clock import require_canonical_5m
 from valtide_api.models import MarketSnapshot, MarketState
 from valtide_api.normalizer import assert_scale
 
@@ -34,11 +35,13 @@ def _parse_ts(value: str) -> datetime:
 
 
 def load_panel_snapshots(path: str | Path) -> list[MarketSnapshot]:
-    """Build one snapshot per row after a trusted reference is established.
+    """Build one snapshot per canonical row after an R0 anchor is established.
 
     Missing token observations remain in the sequence as ``token_price=None``.
     This preserves the quant runtime's 5-minute state transition without
-    fabricating a token price or silently introducing a state gap.
+    fabricating a token price or silently introducing a state gap. New real
+    panels should provide explicit reference-under-test columns; older fixtures
+    retain their explicit stale-NVDA fallback semantics.
     """
     path = Path(path)
     snapshots: list[MarketSnapshot] = []
@@ -48,7 +51,10 @@ def load_panel_snapshots(path: str | Path) -> list[MarketSnapshot]:
 
     with path.open(newline="") as f:
         for row in csv.DictReader(f):
-            ts = _parse_ts(row["timestamp_utc"])
+            try:
+                ts = require_canonical_5m(_parse_ts(row["timestamp_utc"]), "panel timestamp")
+            except ValueError as exc:
+                raise PanelTimestampError(str(exc)) from exc
             if previous_ts is not None:
                 delta = (ts - previous_ts).total_seconds()
                 if delta != _FIVE_MINUTES:
@@ -75,14 +81,12 @@ def load_panel_snapshots(path: str | Path) -> list[MarketSnapshot]:
             if nvdax is not None:
                 assert_scale(nvdax, nvda)
 
-            if nvda is not None:
-                reference, reference_source = nvda, "nvda_live"
-                reference_ts = ts
-                reference_age = 0
-            else:
-                reference, reference_source = last_close, "stale_nvda"
-                reference_ts = last_close_ts
-                reference_age = int((ts - last_close_ts).total_seconds())
+            (
+                reference,
+                reference_source,
+                reference_ts,
+                reference_age,
+            ) = _reference_fields(row, ts, nvda, last_close, last_close_ts)
 
             snapshots.append(
                 MarketSnapshot(
@@ -99,15 +103,59 @@ def load_panel_snapshots(path: str | Path) -> list[MarketSnapshot]:
                     reference_under_test_source=reference_source,
                     reference_under_test_ts=reference_ts,
                     reference_under_test_age_seconds=reference_age,
-                    market_state=_market_state(row.get("session_state")),
-                    source_provenance={"panel": path.name},
+                    market_state=_market_state(row.get("session_state"), ts),
+                    source_provenance={
+                        "panel": path.name,
+                        "reference_under_test": reference_source,
+                    },
                 )
             )
     return snapshots
 
 
-def _market_state(value: str | None) -> MarketState:
+def _reference_fields(
+    row: dict[str, str],
+    timestamp: datetime,
+    current_underlying: float | None,
+    last_close: float,
+    last_close_ts: datetime,
+) -> tuple[float | None, str, datetime | None, int | None]:
+    """Read an explicit reference-under-test when present, else legacy fields."""
+    if "reference_under_test_available" in row:
+        source = (row.get("reference_under_test_source") or "reference_under_test").strip()
+        available = _flag(row.get("reference_under_test_available"))
+        if not available:
+            return None, source, None, None
+        reference = _num(row.get("reference_under_test"))
+        if reference is None:
+            return None, source, None, None
+        reference_ts = (
+            _parse_ts(row["reference_under_test_ts"])
+            if row.get("reference_under_test_ts")
+            else timestamp
+        )
+        if reference_ts > timestamp:
+            raise PanelTimestampError(
+                "reference-under-test timestamp must not be after its panel observation"
+            )
+        age = int((timestamp - reference_ts).total_seconds())
+        return reference, source, reference_ts, age
+
+    if current_underlying is not None:
+        return current_underlying, "nvda_live", timestamp, 0
+    return last_close, "stale_nvda", last_close_ts, max(
+        0, int((timestamp - last_close_ts).total_seconds())
+    )
+
+
+def _market_state(value: str | None, timestamp: datetime) -> MarketState:
+    if not value:
+        from valtide_api.session import classify
+
+        return classify(timestamp)
     try:
         return MarketState((value or "").strip().lower())
     except ValueError:
-        return MarketState.CLOSED
+        from valtide_api.session import classify
+
+        return classify(timestamp)

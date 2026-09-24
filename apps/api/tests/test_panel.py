@@ -68,6 +68,30 @@ def test_panel_replays_through_quant_and_validation(tmp_path):
     assert results[2].token_price == 180.3
 
 
+def test_explicit_reference_columns_do_not_fill_missing_observations(tmp_path):
+    columns = (
+        "timestamp_utc,nvda_close,nvda_volume,nvdax_close,nvdax_volume,"
+        "nvda_available,nvdax_available,session_state,"
+        "reference_under_test,reference_under_test_available,"
+        "reference_under_test_source,reference_under_test_ts"
+    )
+    rows = [
+        "2026-09-20T14:00:00Z,180.0,1000,180.1,500,TRUE,TRUE,closed,"
+        "190.0,TRUE,okx_xperp_index,2026-09-20T14:00:00Z",
+        "2026-09-20T14:05:00Z,NA,NA,NA,NA,FALSE,FALSE,closed,"
+        ",FALSE,okx_xperp_index,",
+        "2026-09-20T14:10:00Z,NA,NA,180.3,900,FALSE,TRUE,closed,"
+        ",FALSE,okx_xperp_index,",
+    ]
+    snapshots = load_panel_snapshots(_write(tmp_path, "\n".join([columns, *rows]) + "\n"))
+
+    assert snapshots[0].reference_under_test == 190.0
+    assert snapshots[1].reference_under_test is None
+    assert snapshots[1].reference_under_test_source == "okx_xperp_index"
+    assert snapshots[1].token_price is None
+    assert snapshots[2].reference_under_test is None
+
+
 def test_non_five_minute_panel_fails_explicitly(tmp_path):
     bad_rows = [
         "2026-09-20T14:00:00Z,180.0,1000,180.1,500,TRUE,TRUE,closed,0",
@@ -75,3 +99,27 @@ def test_non_five_minute_panel_fails_explicitly(tmp_path):
     ]
     with pytest.raises(PanelTimestampError, match="exactly 5 minutes"):
         load_panel_snapshots(_write(tmp_path, "\n".join([_COLS, *bad_rows]) + "\n"))
+
+
+def test_noncanonical_panel_boundary_fails_explicitly(tmp_path):
+    rows = [
+        "2026-09-20T14:02:00Z,180.0,1000,180.1,500,TRUE,TRUE,closed,0",
+        "2026-09-20T14:07:00Z,NA,NA,180.3,900,FALSE,TRUE,closed,5",
+    ]
+    with pytest.raises(PanelTimestampError, match="canonical 5-minute"):
+        load_panel_snapshots(_write(tmp_path, "\n".join([_COLS, *rows]) + "\n"))
+
+
+def test_panel_rejects_future_reference_observation(tmp_path):
+    columns = (
+        "timestamp_utc,nvda_close,nvda_volume,nvdax_close,nvdax_volume,"
+        "nvda_available,nvdax_available,session_state,"
+        "reference_under_test,reference_under_test_available,"
+        "reference_under_test_source,reference_under_test_ts"
+    )
+    rows = [
+        "2026-09-20T14:00:00Z,180.0,1000,180.1,500,TRUE,TRUE,closed,"
+        "190.0,TRUE,okx_xperp_index,2026-09-20T14:05:00Z",
+    ]
+    with pytest.raises(PanelTimestampError, match="must not be after"):
+        load_panel_snapshots(_write(tmp_path, "\n".join([columns, *rows]) + "\n"))

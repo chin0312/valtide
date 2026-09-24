@@ -2,9 +2,9 @@
 
 from fastapi import APIRouter, HTTPException
 
-from valtide_api import state_store
 from valtide_api.live import LiveDataUnavailable, run_live_valuation
 from valtide_api.models import SUPPORTED_ASSETS, ValuationResult
+from valtide_api.runtime_store import RuntimeStateIntegrityError, get_runtime_store
 
 router = APIRouter(prefix="/api", tags=["valuation"])
 
@@ -18,10 +18,13 @@ def get_valuation(asset: str) -> ValuationResult:
     """
     if asset not in SUPPORTED_ASSETS:
         raise HTTPException(status_code=404, detail=f"asset '{asset}' not supported")
-    cached = state_store.get_latest_result(asset)
-    if cached is None:
+    try:
+        record = get_runtime_store().load_runtime(asset)
+    except RuntimeStateIntegrityError as exc:
+        raise HTTPException(status_code=503, detail="runtime_state_unavailable") from exc
+    if record is None or record.latest_result is None:
         raise HTTPException(status_code=503, detail="data_unavailable")
-    return cached
+    return record.latest_result
 
 
 @router.get("/valuation/{asset}/live", response_model=ValuationResult)
