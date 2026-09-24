@@ -9,7 +9,7 @@ from fastapi.testclient import TestClient
 from valtide_api import state_store
 from valtide_api.main import app
 from valtide_api.replay import replay, run_inference
-from valtide_api.runtime_store import RuntimeStore
+from valtide_api.runtime_store import RuntimeStateIntegrityError, RuntimeStore
 from valtide_api.scenario import load_scenario
 
 client = TestClient(app)
@@ -129,3 +129,90 @@ def test_runtime_status_exposes_publication_delivery_without_secrets(monkeypatch
     assert body["last_publish_error"] == "PublicationError"
     assert "publisher_private_key" not in body
     assert "xlayer_rpc_url" not in body
+
+
+def test_runtime_status_reports_corrupt_publication_without_hiding_runtime(monkeypatch):
+    import valtide_api.routes.runtime as runtime_route
+
+    class CorruptPublicationStore:
+        def load_runtime(self, asset):  # noqa: ARG002
+            return SimpleNamespace(
+                state=None,
+                latest_result=None,
+                last_tick_status="success",
+                last_tick_attempt_at=None,
+                last_tick_error=None,
+                last_gap_steps=0,
+            )
+
+        def load_publication(self, asset):  # noqa: ARG002
+            raise RuntimeStateIntegrityError("secret-looking corruption detail")
+
+        def raw_status(self, asset):  # noqa: ARG002
+            return {}
+
+    monkeypatch.setattr(
+        runtime_route,
+        "get_settings",
+        lambda: SimpleNamespace(
+            live_scheduler_enabled=False,
+            live_scheduler_asset="NVDAx",
+            auto_publish_enabled=True,
+        ),
+    )
+    monkeypatch.setattr(runtime_route, "get_runtime_store", CorruptPublicationStore)
+
+    response = client.get("/api/runtime/NVDAx")
+
+    assert response.status_code == 200
+    body = response.json()
+    assert body["last_tick_status"] == "success"
+    assert body["last_publish_status"] == "invalid"
+    assert body["last_publish_error"] == (
+        "RuntimeStateIntegrityError: publication state is invalid"
+    )
+    assert "secret-looking corruption detail" not in response.text
+
+
+def test_runtime_status_reports_publication_when_runtime_state_is_corrupt(monkeypatch):
+    import valtide_api.routes.runtime as runtime_route
+
+    publication = SimpleNamespace(
+        last_publish_status="published",
+        last_publish_attempt_at=datetime(2026, 9, 19, 13, 5, tzinfo=UTC),
+        last_publish_observation_ts=datetime(2026, 9, 19, 13, 5, tzinfo=UTC),
+        last_published_observation_ts=datetime(2026, 9, 19, 13, 5, tzinfo=UTC),
+        last_published_at=1_800_000_000,
+        last_publish_tx_hash="0x" + "11" * 32,
+        last_publish_error=None,
+    )
+
+    class CorruptRuntimeStore:
+        def load_runtime(self, asset):  # noqa: ARG002
+            raise RuntimeStateIntegrityError("secret-looking corruption detail")
+
+        def load_publication(self, asset):  # noqa: ARG002
+            return publication
+
+        def raw_status(self, asset):  # noqa: ARG002
+            return {"last_gap_steps": 1}
+
+    monkeypatch.setattr(
+        runtime_route,
+        "get_settings",
+        lambda: SimpleNamespace(
+            live_scheduler_enabled=False,
+            live_scheduler_asset="NVDAx",
+            auto_publish_enabled=True,
+        ),
+    )
+    monkeypatch.setattr(runtime_route, "get_runtime_store", CorruptRuntimeStore)
+
+    response = client.get("/api/runtime/NVDAx")
+
+    assert response.status_code == 200
+    body = response.json()
+    assert body["last_error"] == "RuntimeStateIntegrityError: runtime state is invalid"
+    assert body["last_publish_status"] == "published"
+    assert body["last_publish_tx_hash"] == "0x" + "11" * 32
+    assert "secret-looking corruption detail" not in response.text

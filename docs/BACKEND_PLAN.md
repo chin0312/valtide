@@ -481,9 +481,11 @@ the next boundary. It is the **only** thing that advances warmed live state;
 API reads never do. A tick restores the prior SQLite state, inserts hidden
 no-measurement transitions for elapsed gaps, processes the real observation,
 and atomically persists the new state/result. When `AUTO_PUBLISH_ENABLED=true`,
-the scheduler then calls the existing publisher for that newly persisted
-successful result; publication delivery is downstream of valuation. Hidden
-warm-up rows are never returned as public observations.
+the scheduler enqueues that newly persisted successful result for one
+serialized in-process publication worker. The worker coalesces pending work to
+the newest observation, so publication delivery is downstream of valuation and
+does not delay the next scheduler cadence. Hidden warm-up rows are never
+returned as public observations.
 
 The live scheduler is disabled by default. A one-shot `/api/valuation/{asset}/live`
 call is a cold-start diagnostic and does not mutate the warmed cache.
@@ -513,7 +515,9 @@ call is a cold-start diagnostic and does not mutate the warmed cache.
   state/result timestamps, last tick status/error, hidden gap-step count, and
   optional scheduler-publication status. Publication status never includes
   signer or RPC secrets.
-- `/api/publish` requires server-side authorization and is the only write path.
+- `/api/publish` requires server-side authorization and is the only explicit
+  HTTP write path; scheduler-owned automatic delivery uses the same publisher
+  through its serialized worker when `AUTO_PUBLISH_ENABLED=true`.
 - **CORS:** `main.py` must add `CORSMiddleware` with Valerie's Next.js origin
   (`http://localhost:3000` in dev) or the browser cannot call the API at all.
   Allowed origins come from `config.py`, not hardcoded.

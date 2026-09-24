@@ -234,6 +234,35 @@ def _scheduler_with_publisher(
     )
 
 
+def test_scheduler_publication_worker_start_stop_is_idempotent(tmp_path, monkeypatch):
+    store = RuntimeStore(tmp_path / "runtime.sqlite3")
+    scheduler = _scheduler_with_publisher(
+        store,
+        lambda *args, **kwargs: None,
+        monkeypatch,
+    )
+
+    async def exercise() -> None:
+        await scheduler.start()
+        scheduler_task = scheduler._task
+        publication_task = scheduler._publication_task
+        assert scheduler.running
+        assert scheduler.publication_running
+
+        await scheduler.start()
+        assert scheduler._task is scheduler_task
+        assert scheduler._publication_task is publication_task
+
+        await scheduler.stop()
+        assert not scheduler.running
+        assert not scheduler.publication_running
+        assert scheduler._task is None
+        assert scheduler._publication_task is None
+        assert scheduler._publication_wakeup is None
+
+    asyncio.run(exercise())
+
+
 def test_auto_publish_disabled_does_not_call_publisher(tmp_path, monkeypatch):
     timestamp = _ANCHOR + timedelta(minutes=5)
     builder, _ = _builder_for([_snapshot(timestamp)])
@@ -542,6 +571,150 @@ def test_newest_pending_observation_supersedes_older_pending_publication(
         await scheduler.stop()
 
     asyncio.run(exercise())
+
+
+def test_failed_in_flight_publication_still_delivers_newest_pending_observation(
+    tmp_path, monkeypatch
+):
+    first_ts = _ANCHOR + timedelta(minutes=5)
+    second_ts = first_ts + timedelta(minutes=5)
+    third_ts = second_ts + timedelta(minutes=5)
+    snapshots = [_snapshot(first_ts), _snapshot(second_ts), _snapshot(third_ts)]
+    builder, _ = _builder_for(snapshots)
+    store = RuntimeStore(tmp_path / "runtime.sqlite3")
+    publication_started = threading.Event()
+    release_publication = threading.Event()
+    published: list[datetime] = []
+
+    def fake_tick(asset, canonical_ts, *, store):
+        return run_live_tick(asset, canonical_ts, store=store, snapshot_builder=builder)
+
+    def failing_first_publish(result, *, settings):  # noqa: ARG001
+        published.append(result.timestamp)
+        if result.timestamp == first_ts:
+            publication_started.set()
+            assert release_publication.wait(timeout=5)
+            raise PublicationError("synthetic first publication failure")
+        return SimpleNamespace(
+            status="published",
+            published_at=int(result.timestamp.timestamp()) + 1,
+            tx_hash="0xrecovered",
+        )
+
+    scheduler = _scheduler_with_publisher(
+        store,
+        failing_first_publish,
+        monkeypatch,
+        tick=fake_tick,
+    )
+
+    async def exercise() -> None:
+        await scheduler.start()
+        await scheduler._process_tick(first_ts)
+        await _wait_for_thread_event(publication_started)
+        await scheduler._process_tick(second_ts)
+        await scheduler._process_tick(third_ts)
+
+        release_publication.set()
+        await _wait_until(
+            lambda: published == [first_ts, third_ts]
+            and (publication := store.load_publication("NVDAx")) is not None
+            and publication.last_publish_status == "published"
+        )
+        await scheduler.stop()
+
+    asyncio.run(exercise())
+
+    assert published == [first_ts, third_ts]
+
+
+def test_successful_publication_generation_replaces_stale_transaction_metadata(
+    tmp_path,
+):
+    first_ts = _ANCHOR + timedelta(minutes=5)
+    second_ts = first_ts + timedelta(minutes=5)
+    store = RuntimeStore(tmp_path / "runtime.sqlite3")
+
+    store.record_publication_success(
+        "NVDAx",
+        first_ts,
+        status="published",
+        published_at=1_800_000_010,
+        tx_hash="0x" + "11" * 32,
+    )
+    store.record_publication_success(
+        "NVDAx",
+        second_ts,
+        status="already_published",
+        published_at=1_800_000_020,
+        tx_hash=None,
+    )
+
+    publication = store.load_publication("NVDAx")
+
+    assert publication is not None
+    assert publication.last_published_observation_ts == second_ts
+    assert publication.last_published_at == 1_800_000_020
+    assert publication.last_publish_tx_hash is None
+
+
+def test_successful_publication_generation_does_not_inherit_published_at(
+    tmp_path,
+):
+    first_ts = _ANCHOR + timedelta(minutes=5)
+    second_ts = first_ts + timedelta(minutes=5)
+    store = RuntimeStore(tmp_path / "runtime.sqlite3")
+
+    store.record_publication_success(
+        "NVDAx",
+        first_ts,
+        status="published",
+        published_at=1_800_000_030,
+        tx_hash="0x" + "22" * 32,
+    )
+    store.record_publication_success(
+        "NVDAx",
+        second_ts,
+        status="already_published",
+        published_at=None,
+        tx_hash=None,
+    )
+
+    publication = store.load_publication("NVDAx")
+
+    assert publication is not None
+    assert publication.last_published_observation_ts == second_ts
+    assert publication.last_published_at is None
+    assert publication.last_publish_tx_hash is None
+
+
+def test_failed_newer_publication_preserves_previous_success_generation(tmp_path):
+    first_ts = _ANCHOR + timedelta(minutes=5)
+    second_ts = first_ts + timedelta(minutes=5)
+    store = RuntimeStore(tmp_path / "runtime.sqlite3")
+
+    store.record_publication_success(
+        "NVDAx",
+        first_ts,
+        status="published",
+        published_at=1_800_000_040,
+        tx_hash="0x" + "33" * 32,
+    )
+    store.record_publication_failure(
+        "NVDAx",
+        second_ts,
+        error="PublicationError",
+    )
+
+    publication = store.load_publication("NVDAx")
+
+    assert publication is not None
+    assert publication.last_publish_status == "failed"
+    assert publication.last_publish_error == "PublicationError"
+    assert publication.last_publish_observation_ts == second_ts
+    assert publication.last_published_observation_ts == first_ts
+    assert publication.last_published_at == 1_800_000_040
+    assert publication.last_publish_tx_hash == "0x" + "33" * 32
 
 
 def test_publication_status_persists_across_runtime_store_restart(tmp_path):

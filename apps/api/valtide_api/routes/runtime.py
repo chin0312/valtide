@@ -45,6 +45,44 @@ def _parse_optional(value: str | None) -> datetime | None:
     return parsed.astimezone(UTC) if parsed.tzinfo else None
 
 
+def _load_publication_status(store, asset: str):
+    try:
+        return store.load_publication(asset), None
+    except RuntimeStateIntegrityError:
+        return None, "RuntimeStateIntegrityError: publication state is invalid"
+
+
+def _publication_fields(settings, publication, publication_error: str | None):
+    if publication_error is not None:
+        return {
+            "auto_publish_enabled": settings.auto_publish_enabled,
+            "last_publish_status": "invalid",
+            "last_publish_attempt_at": None,
+            "last_publish_observation_ts": None,
+            "last_published_observation_ts": None,
+            "last_published_at": None,
+            "last_publish_tx_hash": None,
+            "last_publish_error": publication_error,
+        }
+
+    return {
+        "auto_publish_enabled": settings.auto_publish_enabled,
+        "last_publish_status": publication.last_publish_status if publication else None,
+        "last_publish_attempt_at": (
+            publication.last_publish_attempt_at if publication else None
+        ),
+        "last_publish_observation_ts": (
+            publication.last_publish_observation_ts if publication else None
+        ),
+        "last_published_observation_ts": (
+            publication.last_published_observation_ts if publication else None
+        ),
+        "last_published_at": publication.last_published_at if publication else None,
+        "last_publish_tx_hash": publication.last_publish_tx_hash if publication else None,
+        "last_publish_error": publication.last_publish_error if publication else None,
+    }
+
+
 @router.get("/runtime/{asset}", response_model=RuntimeStatus)
 def get_runtime(asset: str) -> RuntimeStatus:
     if asset not in SUPPORTED_ASSETS:
@@ -54,10 +92,19 @@ def get_runtime(asset: str) -> RuntimeStatus:
     store = get_runtime_store()
     try:
         record = store.load_runtime(asset)
-        publication = store.load_publication(asset)
-    except RuntimeStateIntegrityError as exc:
+    except RuntimeStateIntegrityError:
+        runtime_error = "RuntimeStateIntegrityError: runtime state is invalid"
         raw = store.raw_status(asset) or {}
-        publication = store.load_publication(asset)
+    else:
+        runtime_error = None
+        raw = {}
+
+    publication, publication_error = _load_publication_status(store, asset)
+    publication_fields = _publication_fields(
+        settings, publication, publication_error
+    )
+
+    if runtime_error is not None:
         return RuntimeStatus(
             asset=asset,
             scheduler_enabled=(
@@ -69,22 +116,9 @@ def get_runtime(asset: str) -> RuntimeStatus:
             last_result_timestamp=_parse_optional(raw.get("latest_result_ts")),
             last_tick_status=raw.get("last_tick_status"),
             last_tick_attempt_at=_parse_optional(raw.get("last_tick_attempt_at")),
-            last_error=f"RuntimeStateIntegrityError: {exc}",
+            last_error=runtime_error,
             last_gap_steps=int(raw.get("last_gap_steps") or 0),
-            auto_publish_enabled=settings.auto_publish_enabled,
-            last_publish_status=publication.last_publish_status if publication else None,
-            last_publish_attempt_at=(
-                publication.last_publish_attempt_at if publication else None
-            ),
-            last_publish_observation_ts=(
-                publication.last_publish_observation_ts if publication else None
-            ),
-            last_published_observation_ts=(
-                publication.last_published_observation_ts if publication else None
-            ),
-            last_published_at=publication.last_published_at if publication else None,
-            last_publish_tx_hash=publication.last_publish_tx_hash if publication else None,
-            last_publish_error=publication.last_publish_error if publication else None,
+            **publication_fields,
         )
 
     return RuntimeStatus(
@@ -102,16 +136,5 @@ def get_runtime(asset: str) -> RuntimeStatus:
         last_tick_attempt_at=record.last_tick_attempt_at if record else None,
         last_error=record.last_tick_error if record else None,
         last_gap_steps=record.last_gap_steps if record else 0,
-        auto_publish_enabled=settings.auto_publish_enabled,
-        last_publish_status=publication.last_publish_status if publication else None,
-        last_publish_attempt_at=publication.last_publish_attempt_at if publication else None,
-        last_publish_observation_ts=(
-            publication.last_publish_observation_ts if publication else None
-        ),
-        last_published_observation_ts=(
-            publication.last_published_observation_ts if publication else None
-        ),
-        last_published_at=publication.last_published_at if publication else None,
-        last_publish_tx_hash=publication.last_publish_tx_hash if publication else None,
-        last_publish_error=publication.last_publish_error if publication else None,
+        **publication_fields,
     )

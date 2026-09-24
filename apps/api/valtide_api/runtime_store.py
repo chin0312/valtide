@@ -265,12 +265,8 @@ class RuntimeStore:
                     last_publish_attempt_at = excluded.last_publish_attempt_at,
                     last_publish_observation_ts = excluded.last_publish_observation_ts,
                     last_published_observation_ts = excluded.last_published_observation_ts,
-                    last_published_at = COALESCE(
-                        excluded.last_published_at, publication_state.last_published_at
-                    ),
-                    last_publish_tx_hash = COALESCE(
-                        excluded.last_publish_tx_hash, publication_state.last_publish_tx_hash
-                    )
+                    last_published_at = excluded.last_published_at,
+                    last_publish_tx_hash = excluded.last_publish_tx_hash
                 """,
                 (
                     asset,

@@ -149,9 +149,13 @@ available, the script requires chain ID `1952`.
 
 This service runs the existing backend/quant vertical slice and the existing
 single-process warmed scheduler. Each successful canonical tick is persisted
-before optional scheduler-owned delivery is attempted. A delivery failure is
-recorded separately and does not invalidate the operational valuation or stop
-the scheduler. It does not change quant logic, validation semantics,
+before optional scheduler-owned delivery is queued. One in-process publication
+worker serializes transactions and coalesces pending delivery to the newest
+observation, so a slow chain does not delay valuation ticks. A delivery failure
+is recorded separately and does not invalidate the operational valuation or
+stop the scheduler. On shutdown, the service waits for the bounded worker
+shutdown window; an in-flight Web3 worker thread cannot be force-cancelled.
+It does not change quant logic, validation semantics,
 live-data semantics, contract source, deployed addresses, or frontend code.
 It does not claim production readiness, an audit, mainnet deployment, or a
 production oracle.

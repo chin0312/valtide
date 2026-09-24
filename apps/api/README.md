@@ -73,9 +73,11 @@ requires `PUBLISHER_PRIVATE_KEY` and `XLAYER_RPC_URL` when enabled. The public
 deployment manifest at `deployments/xlayer-testnet.json` supplies the testnet
 addresses and IDs; environment address values are optional explicit overrides.
 After a successful warmed scheduler tick is persisted, automatic delivery may
-call the same publisher and records its status separately in SQLite. A
-publication failure leaves the warmed valuation intact and does not stop the
-scheduler. The publisher performs chain-ID, bytecode, linkage, policy,
+enqueue the same publisher on one serialized in-process worker and records its
+status separately in SQLite. Pending work coalesces to the newest observation,
+so publication latency does not hold up future valuation ticks. A publication
+failure leaves the warmed valuation intact and does not stop the scheduler. The
+publisher performs chain-ID, bytecode, linkage, policy,
 publisher-authorization, monotonic-observation, transaction, and read-back
 checks. API reads, replay, and cold diagnostics never publish.
 

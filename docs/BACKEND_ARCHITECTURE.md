@@ -154,7 +154,9 @@ and `502` for a chain, transaction, or read-back failure.
   diagnostics, GET requests, and frontend reads cannot publish directly.
 - After a successful new scheduler tick is persisted, `AUTO_PUBLISH_ENABLED`
   may request the existing publisher to synchronize that result. Delivery
-  status is persisted separately from valuation state, and a delivery failure
+  status is persisted separately from valuation state. A single in-process
+  publication worker serializes delivery, coalesces pending work to the newest
+  observation, and does not hold up the scheduler cadence. A delivery failure
   does not invalidate the warmed result or stop the scheduler.
 - `PUBLISH_ENABLED` defaults to false and gates only the explicit POST fallback.
   `AUTO_PUBLISH_ENABLED` is independent; a public demo can enable automatic
