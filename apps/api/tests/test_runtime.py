@@ -1,6 +1,7 @@
 """Persistence, scheduler, and warmed-tick integration tests."""
 
 import asyncio
+import threading
 from datetime import UTC, datetime, timedelta
 from types import SimpleNamespace
 
@@ -177,6 +178,9 @@ def test_scheduler_has_single_process_start_stop_lifecycle(tmp_path):
         await scheduler.start()
         await asyncio.sleep(0)
         assert scheduler.running
+        scheduler_task = scheduler._task
+        await scheduler.start()
+        assert scheduler._task is scheduler_task
         await scheduler.stop()
         assert not scheduler.running
 
@@ -188,7 +192,30 @@ def test_scheduler_has_single_process_start_stop_lifecycle(tmp_path):
     assert sleep_calls >= 1
 
 
-def _scheduler_with_publisher(store, publisher_fn, monkeypatch, *, enabled=True):
+async def _blocked_sleep(_delay: float) -> None:
+    await asyncio.Event().wait()
+
+
+async def _wait_until(predicate, *, attempts: int = 100) -> None:
+    for _ in range(attempts):
+        if predicate():
+            return
+        await asyncio.sleep(0.01)
+    raise AssertionError("condition did not become true")
+
+
+async def _wait_for_thread_event(event: threading.Event) -> None:
+    await _wait_until(event.is_set)
+
+
+def _scheduler_with_publisher(
+    store,
+    publisher_fn,
+    monkeypatch,
+    *,
+    enabled=True,
+    tick=run_live_tick,
+):
     monkeypatch.setattr(
         scheduler_module,
         "get_settings",
@@ -201,6 +228,8 @@ def _scheduler_with_publisher(store, publisher_fn, monkeypatch, *, enabled=True)
     return LiveScheduler(
         asset="NVDAx",
         store=store,
+        tick=tick,
+        sleep=_blocked_sleep,
         publisher_fn=publisher_fn,
     )
 
@@ -218,7 +247,12 @@ def test_auto_publish_disabled_does_not_call_publisher(tmp_path, monkeypatch):
         monkeypatch,
         enabled=False,
     )
-    asyncio.run(scheduler._publish_if_enabled(tick))
+    async def exercise() -> None:
+        await scheduler.start()
+        scheduler._publish_if_enabled(tick)
+        await scheduler.stop()
+
+    asyncio.run(exercise())
 
     assert calls == []
     assert store.load_publication("NVDAx") is None
@@ -245,7 +279,18 @@ def test_auto_publish_persists_tick_before_publishing_and_records_success(tmp_pa
         )
 
     scheduler = _scheduler_with_publisher(store, fake_publish, monkeypatch)
-    asyncio.run(scheduler._publish_if_enabled(tick))
+    async def exercise() -> None:
+        await scheduler.start()
+        scheduler._publish_if_enabled(tick)
+        await _wait_until(
+            lambda: (
+                (publication := store.load_publication("NVDAx")) is not None
+                and publication.last_publish_status == "published"
+            )
+        )
+        await scheduler.stop()
+
+    asyncio.run(exercise())
 
     assert calls == [tick.result]
     publication = store.load_publication("NVDAx")
@@ -270,7 +315,18 @@ def test_auto_publish_already_published_records_idempotent_status(tmp_path, monk
         )
 
     scheduler = _scheduler_with_publisher(store, fake_publish, monkeypatch)
-    asyncio.run(scheduler._publish_if_enabled(tick))
+    async def exercise() -> None:
+        await scheduler.start()
+        scheduler._publish_if_enabled(tick)
+        await _wait_until(
+            lambda: (
+                (publication := store.load_publication("NVDAx")) is not None
+                and publication.last_publish_status == "already_published"
+            )
+        )
+        await scheduler.stop()
+
+    asyncio.run(exercise())
 
     publication = store.load_publication("NVDAx")
     assert publication is not None
@@ -297,8 +353,14 @@ def test_failed_or_already_processed_tick_does_not_publish(tmp_path, monkeypatch
         monkeypatch,
     )
 
-    asyncio.run(scheduler._publish_if_enabled(duplicate))
-    asyncio.run(scheduler._publish_if_enabled(failed))
+    async def exercise() -> None:
+        await scheduler.start()
+        scheduler._publish_if_enabled(duplicate)
+        scheduler._publish_if_enabled(failed)
+        await asyncio.sleep(0.05)
+        await scheduler.stop()
+
+    asyncio.run(exercise())
 
     assert calls == []
     assert store.load_publication("NVDAx") is None
@@ -322,21 +384,164 @@ def test_auto_publish_failure_preserves_successful_runtime_and_scheduler_continu
         return SimpleNamespace(status="published", published_at=1_800_000_002, tx_hash="0x22")
 
     scheduler = _scheduler_with_publisher(store, fake_publish, monkeypatch)
-    asyncio.run(scheduler._publish_if_enabled(first))
+    async def exercise() -> None:
+        await scheduler.start()
+        scheduler._publish_if_enabled(first)
+        await _wait_until(
+            lambda: (
+                (publication := store.load_publication("NVDAx")) is not None
+                and publication.last_publish_status == "failed"
+            )
+        )
+        failed_publication = store.load_publication("NVDAx")
+        assert failed_publication is not None
+        assert failed_publication.last_publish_error == "PublicationError"
 
+        second = run_live_tick("NVDAx", second_ts, store=store, snapshot_builder=builder)
+        scheduler._publish_if_enabled(second)
+        await _wait_until(
+            lambda: (
+                (publication := store.load_publication("NVDAx")) is not None
+                and publication.last_publish_status == "published"
+                and publication.last_published_observation_ts == second_ts
+            )
+        )
+        await scheduler.stop()
+        return second
+
+    second = asyncio.run(exercise())
     failed_publication = store.load_publication("NVDAx")
     assert failed_publication is not None
-    assert failed_publication.last_publish_status == "failed"
-    assert failed_publication.last_publish_error == "PublicationError"
-    assert store.load_runtime("NVDAx").latest_result == first.result
+    assert failed_publication.last_publish_status == "published"
+    assert failed_publication.last_publish_error is None
+    assert store.load_runtime("NVDAx").latest_result == second.result
 
-    second = run_live_tick("NVDAx", second_ts, store=store, snapshot_builder=builder)
-    asyncio.run(scheduler._publish_if_enabled(second))
-
-    successful_publication = store.load_publication("NVDAx")
     assert calls == 2
     assert second.status == "success"
-    assert successful_publication.last_publish_status == "published"
+
+
+def test_slow_publication_does_not_block_next_tick_and_stays_serialized(tmp_path, monkeypatch):
+    first_ts = _ANCHOR + timedelta(minutes=5)
+    second_ts = first_ts + timedelta(minutes=5)
+    snapshots = [_snapshot(first_ts), _snapshot(second_ts)]
+    builder, _ = _builder_for(snapshots)
+    store = RuntimeStore(tmp_path / "runtime.sqlite3")
+    publication_started = threading.Event()
+    release_publication = threading.Event()
+    lock = threading.Lock()
+    published: list[datetime] = []
+    active_calls = 0
+    max_active_calls = 0
+
+    def fake_tick(asset, canonical_ts, *, store):
+        return run_live_tick(asset, canonical_ts, store=store, snapshot_builder=builder)
+
+    def slow_publish(result, *, settings):  # noqa: ARG001
+        nonlocal active_calls, max_active_calls
+        with lock:
+            active_calls += 1
+            max_active_calls = max(max_active_calls, active_calls)
+            published.append(result.timestamp)
+        try:
+            if result.timestamp == first_ts:
+                publication_started.set()
+                assert release_publication.wait(timeout=5)
+            return SimpleNamespace(
+                status="published",
+                published_at=int(result.timestamp.timestamp()) + 1,
+                tx_hash="0xslow",
+            )
+        finally:
+            with lock:
+                active_calls -= 1
+
+    scheduler = _scheduler_with_publisher(
+        store,
+        slow_publish,
+        monkeypatch,
+        tick=fake_tick,
+    )
+
+    async def exercise() -> None:
+        await scheduler.start()
+        first = await scheduler._process_tick(first_ts)
+        assert first.status == "success"
+        await _wait_for_thread_event(publication_started)
+
+        second = await scheduler._process_tick(second_ts)
+        assert second.status == "success"
+        assert store.load_runtime("NVDAx").state.last_ts == second_ts
+        with lock:
+            assert published == [first_ts]
+
+        release_publication.set()
+        await _wait_until(lambda: published == [first_ts, second_ts])
+        assert max_active_calls == 1
+        await scheduler.stop()
+
+    asyncio.run(exercise())
+
+
+def test_newest_pending_observation_supersedes_older_pending_publication(
+    tmp_path, monkeypatch
+):
+    first_ts = _ANCHOR + timedelta(minutes=5)
+    second_ts = first_ts + timedelta(minutes=5)
+    third_ts = second_ts + timedelta(minutes=5)
+    snapshots = [_snapshot(first_ts), _snapshot(second_ts), _snapshot(third_ts)]
+    builder, _ = _builder_for(snapshots)
+    store = RuntimeStore(tmp_path / "runtime.sqlite3")
+    publication_started = threading.Event()
+    release_publication = threading.Event()
+    lock = threading.Lock()
+    published: list[datetime] = []
+    active_calls = 0
+    max_active_calls = 0
+
+    def fake_tick(asset, canonical_ts, *, store):
+        return run_live_tick(asset, canonical_ts, store=store, snapshot_builder=builder)
+
+    def slow_publish(result, *, settings):  # noqa: ARG001
+        nonlocal active_calls, max_active_calls
+        with lock:
+            active_calls += 1
+            max_active_calls = max(max_active_calls, active_calls)
+            published.append(result.timestamp)
+        try:
+            if result.timestamp == first_ts:
+                publication_started.set()
+                assert release_publication.wait(timeout=5)
+            return SimpleNamespace(
+                status="published",
+                published_at=int(result.timestamp.timestamp()) + 1,
+                tx_hash="0xcoalesced",
+            )
+        finally:
+            with lock:
+                active_calls -= 1
+
+    scheduler = _scheduler_with_publisher(
+        store,
+        slow_publish,
+        monkeypatch,
+        tick=fake_tick,
+    )
+
+    async def exercise() -> None:
+        await scheduler.start()
+        await scheduler._process_tick(first_ts)
+        await _wait_for_thread_event(publication_started)
+        await scheduler._process_tick(second_ts)
+        await scheduler._process_tick(third_ts)
+        with lock:
+            assert published == [first_ts]
+
+        release_publication.set()
+        await _wait_until(lambda: published == [first_ts, third_ts])
+        assert max_active_calls == 1
+        await scheduler.stop()
+
+    asyncio.run(exercise())
 
 
 def test_publication_status_persists_across_runtime_store_restart(tmp_path):

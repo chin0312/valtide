@@ -31,6 +31,7 @@ from valtide_api.runtime_store import (
 from valtide_api.state_store import KalmanState, save_latest_result, save_state
 
 logger = logging.getLogger("valtide.runtime")
+_PUBLICATION_SHUTDOWN_TIMEOUT_SECONDS = 5.0
 
 SnapshotBuilder = Callable[..., MarketSnapshot]
 NowProvider = Callable[[], datetime]
@@ -180,37 +181,89 @@ class LiveScheduler:
         self._auto_publish_enabled = bool(getattr(settings, "auto_publish_enabled", False))
         self._publisher_fn = publisher_fn or publisher_module.publish
         self._task: asyncio.Task[None] | None = None
+        self._publication_task: asyncio.Task[None] | None = None
+        self._publication_wakeup: asyncio.Event | None = None
+        self._pending_publication: ValuationResult | None = None
+        self._publication_stop_requested = False
 
     @property
     def running(self) -> bool:
         return self._task is not None and not self._task.done()
 
+    @property
+    def publication_running(self) -> bool:
+        return self._publication_task is not None and not self._publication_task.done()
+
     async def start(self) -> None:
-        if not self.running:
-            self._task = asyncio.create_task(self._run(), name="valtide-live-scheduler")
+        if self._task is not None or self._publication_task is not None:
+            return
+        self._publication_stop_requested = False
+        self._publication_wakeup = asyncio.Event()
+        if self._auto_publish_enabled:
+            self._publication_task = asyncio.create_task(
+                self._publication_worker(),
+                name="valtide-publication-worker",
+            )
+            if self._pending_publication is not None:
+                self._publication_wakeup.set()
+        self._task = asyncio.create_task(self._run(), name="valtide-live-scheduler")
 
     async def stop(self) -> None:
-        if self._task is None:
+        scheduler_task = self._task
+        self._task = None
+        if scheduler_task is not None:
+            scheduler_task.cancel()
+            try:
+                await scheduler_task
+            except asyncio.CancelledError:
+                pass
+
+        publication_task = self._publication_task
+        self._publication_stop_requested = True
+        self._pending_publication = None
+        if self._publication_wakeup is not None:
+            self._publication_wakeup.set()
+        if publication_task is not None:
+            try:
+                await asyncio.wait_for(
+                    asyncio.shield(publication_task),
+                    timeout=_PUBLICATION_SHUTDOWN_TIMEOUT_SECONDS,
+                )
+            except TimeoutError:
+                logger.warning(
+                    "publication worker shutdown timed out; abandoning its await while "
+                    "the underlying thread finishes"
+                )
+                publication_task.cancel()
+                try:
+                    await publication_task
+                except asyncio.CancelledError:
+                    pass
+            except asyncio.CancelledError:
+                pass
+            finally:
+                self._publication_task = None
+                self._publication_wakeup = None
+
+    def _publish_if_enabled(self, tick: TickResult) -> None:
+        """Queue a newly persisted result without waiting for blockchain delivery."""
+        if not self._auto_publish_enabled or tick.status != "success" or tick.result is None:
             return
-        self._task.cancel()
-        try:
-            await self._task
-        except asyncio.CancelledError:
-            pass
-        finally:
-            self._task = None
+
+        result = tick.result
+        pending = self._pending_publication
+        if pending is None or result.timestamp > pending.timestamp:
+            self._pending_publication = result
+            if self._publication_wakeup is not None:
+                self._publication_wakeup.set()
 
     @staticmethod
     def _safe_publication_error(exc: Exception) -> str:
         """Return a non-sensitive publication error identifier for storage/logs."""
         return type(exc).__name__
 
-    async def _publish_if_enabled(self, tick: TickResult) -> None:
-        """Deliver a newly persisted successful tick without blocking the loop."""
-        if not self._auto_publish_enabled or tick.status != "success" or tick.result is None:
-            return
-
-        result = tick.result
+    async def _publish_one(self, result: ValuationResult) -> None:
+        """Publish one result; the worker is the only caller of this method."""
         self.store.record_publication_attempt(self.asset, result.timestamp)
         try:
             receipt = await asyncio.to_thread(
@@ -262,6 +315,47 @@ class LiveScheduler:
             status,
         )
 
+    async def _publication_worker(self) -> None:
+        """Serialize publication and coalesce pending results to the newest one."""
+        while True:
+            wakeup = self._publication_wakeup
+            if wakeup is None:
+                return
+            await wakeup.wait()
+            wakeup.clear()
+            if self._publication_stop_requested:
+                return
+
+            while self._pending_publication is not None:
+                result = self._pending_publication
+                self._pending_publication = None
+                await self._publish_one(result)
+                if self._publication_stop_requested:
+                    self._pending_publication = None
+                    return
+
+    async def _process_tick(self, canonical_ts: datetime) -> TickResult:
+        """Run one valuation tick and enqueue delivery without awaiting it."""
+        result = await asyncio.to_thread(
+            self._tick,
+            self.asset,
+            canonical_ts,
+            store=self.store,
+        )
+        evidence = result.result.evidence_state.value if result.result else None
+        logger.info(
+            "live tick asset=%s canonical_ts=%s status=%s evidence=%s "
+            "state_restored=%s gap_steps=%d",
+            self.asset,
+            canonical_ts.isoformat(),
+            result.status,
+            evidence,
+            result.state_restored,
+            result.gap_steps,
+        )
+        self._publish_if_enabled(result)
+        return result
+
     async def _run(self) -> None:
         while True:
             # Wait for the next completed boundary. Starting at the current
@@ -273,24 +367,7 @@ class LiveScheduler:
             # Value the bar that just settled, not the one now forming: its
             # confirmed reference candle exists, so the comparator is present.
             canonical_ts = canonical_5m_boundary(self._now()) - FIVE_MINUTES
-            result = await asyncio.to_thread(
-                self._tick,
-                self.asset,
-                canonical_ts,
-                store=self.store,
-            )
-            evidence = result.result.evidence_state.value if result.result else None
-            logger.info(
-                "live tick asset=%s canonical_ts=%s status=%s evidence=%s "
-                "state_restored=%s gap_steps=%d",
-                self.asset,
-                canonical_ts.isoformat(),
-                result.status,
-                evidence,
-                result.state_restored,
-                result.gap_steps,
-            )
-            await self._publish_if_enabled(result)
+            await self._process_tick(canonical_ts)
 
 
 __all__ = ["LiveScheduler", "TickResult", "run_live_tick"]
