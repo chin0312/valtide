@@ -13,6 +13,6 @@ RUN python -m pip install --upgrade pip \
     && python -m pip install --no-cache-dir ./valtide-quant-service-p1ac \
     && python -m pip install --no-cache-dir ./apps/api
 
-# Shell form is intentional so Railway's PORT environment variable expands.
-# Keep one process: the application owns the single live scheduler lifecycle.
-CMD uvicorn valtide_api.main:app --host 0.0.0.0 --port ${PORT:-8000}
+# Use exec so Uvicorn receives Railway/container signals directly. Keep one
+# process: the application owns the single live scheduler lifecycle.
+CMD ["sh", "-c", "exec uvicorn valtide_api.main:app --host 0.0.0.0 --port ${PORT:-8000}"]

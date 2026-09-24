@@ -62,19 +62,33 @@ ALPACA_API_SECRET
 ALPACA_FEED=iex
 
 XLAYER_RPC_URL
-PUBLISHER_PRIVATE_KEY
 
 LIVE_SCHEDULER_ENABLED=true
 LIVE_SCHEDULER_ASSET=NVDAx
 VALTIDE_STATE_DB_PATH=/data/valtide.sqlite3
 
 PUBLISH_ENABLED=false
+CORS_ORIGINS=http://localhost:3000
 ```
 
-`PUBLISHER_PRIVATE_KEY` is the authorized testnet publisher key. It must never
-be committed, pasted into logs, or included in an image layer or deployment
-manifest. `PUBLISH_ENABLED=false` keeps the explicit publish API disabled.
+With `PUBLISH_ENABLED=false`, the initial Railway deployment does not require
+`PUBLISHER_PRIVATE_KEY`. The warmed scheduler, valuation/runtime APIs,
+Registry/RiskGuard read-only status, and deployment smoke can run without it.
 The scheduler never publishes automatically regardless of this setting.
+
+Set `PUBLISHER_PRIVATE_KEY` only when `PUBLISH_ENABLED=true` is intentionally
+enabled for explicit publication. Do not upload it to Railway before that
+decision. It must never be committed, pasted into logs, or included in an
+image layer or deployment manifest.
+
+`CORS_ORIGINS` must contain the actual frontend origin once the frontend is
+deployed. For example:
+
+```text
+CORS_ORIGINS=http://localhost:3000,https://<frontend-domain>
+```
+
+Do not use `*` together with credentialed browser requests.
 
 ### Optional variables and defaults
 
@@ -97,8 +111,9 @@ this deployment preparation.
 - The DexScreener NVDAx path does not require an API key.
 - OKX OnchainOS credentials are not required for the live scheduler path.
 - Alpaca credentials are still required for the NVDA underlying feed.
-- X Layer RPC access and the publisher key must be supplied through Railway
-  environment variables only.
+- X Layer RPC access must be supplied through a Railway environment variable.
+- The publisher key is needed only when explicit publication is intentionally
+  enabled.
 
 ## Read-only smoke check
 
