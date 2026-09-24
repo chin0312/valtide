@@ -39,11 +39,7 @@ broadcast/
 *.swp
 *.swo
 
-# Local datasets
-data/raw/*
-!data/raw/.gitkeep
-data/processed/*
-!data/processed/.gitkeep
+# Generated/runtime data
 data/runtime/
 data/generated/
 *.sqlite3
