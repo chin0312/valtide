@@ -23,6 +23,8 @@ from datetime import UTC, datetime
 
 import httpx
 
+from valtide_api.clock import require_canonical_5m
+
 _V5_BASE_URL = "https://www.okx.com"
 
 # The X-Perp index instId to confirm from the builder kit. Placeholder default.
@@ -182,3 +184,38 @@ def get_okx_xperp_index_candles(
     finally:
         if owns_client:
             client.close()
+
+
+def get_confirmed_index_bar(
+    boundary: datetime,
+    index_id: str = _DEFAULT_INDEX_ID,
+    client: httpx.Client | None = None,
+) -> ReferenceObservation | None:
+    """Return the confirmed X-Perp index candle opening exactly at ``boundary``.
+
+    This mirrors the historical panel join (scripts/build_historical_panel.py):
+    bar T's reference under test is the confirmed OKX index candle whose open is
+    T, valued at its close, with ``ts == T`` so its age relative to bar T is zero.
+    Live and backtest therefore consume the reference identically.
+
+    The candle only reaches ``confirm=1`` after it closes (T + 5m), so callers
+    must value a settled bar. Returns None when the candle is not yet confirmed or
+    the endpoint is unreachable; the caller then preserves the reference identity
+    and marks validation INCONCLUSIVE / COMPARATOR_UNAVAILABLE rather than
+    substituting a different reference.
+    """
+    boundary = require_canonical_5m(boundary, "reference boundary")
+    try:
+        candles = get_okx_xperp_index_candles(
+            index_id=index_id, start=boundary, end=boundary, client=client
+        )
+    except ReferenceHistoryUnavailable:
+        return None
+    for candle in candles:
+        # get_okx_xperp_index_candles already filters to confirm==1 and the exact
+        # [boundary, boundary] window; the equality guard is a defensive contract.
+        if candle.ts == boundary:
+            return ReferenceObservation(
+                price=candle.close, source="okx_xperp_index", ts=candle.ts
+            )
+    return None

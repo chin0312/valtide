@@ -3,9 +3,16 @@
 Pulls the three live inputs (no OKX OnchainOS dependency):
   - NVDAx token price   -> DexScreener  (no key)
   - NVDA underlying      -> Alpaca
-  - reference under test -> OKX X-Perp index (public)
+  - reference under test -> OKX X-Perp confirmed index candle (public)
 
 then runs a single cold-start inference.
+
+Timing: we value the most recently *settled* canonical bar (the boundary one
+step before the current one). Its reference under test is the confirmed OKX index
+candle whose open equals that boundary, exactly as the historical panel builder
+joins it, so the live and backtest pipelines consume identical, causally-clean
+inputs. A bar's confirmed candle exists only after it closes, which is why the
+current forming bar is never valued.
 
 Caveat: this is a one-shot estimate seeded from the model's prior, not a warmed
     filter. A warmed sequence (replay / the P1 scheduler) gives a more informative
@@ -20,7 +27,7 @@ from datetime import UTC, datetime
 import httpx
 
 from valtide_api.adapters import dexscreener, equity, reference
-from valtide_api.clock import canonical_5m_boundary, require_canonical_5m
+from valtide_api.clock import FIVE_MINUTES, canonical_5m_boundary, require_canonical_5m
 from valtide_api.config import get_settings
 from valtide_api.models import MarketSnapshot, MarketState, ValuationResult
 from valtide_api.normalizer import assert_scale
@@ -38,7 +45,10 @@ def build_live_snapshot(
 ) -> MarketSnapshot:
     """Assemble a MarketSnapshot from the live sources. Raises if a required one fails."""
     settings = get_settings()
-    now = observation_ts or canonical_5m_boundary(datetime.now(UTC))
+    # Value the most recently settled bar. The current forming bar has no
+    # confirmed reference candle yet, so valuing it would always drop the
+    # comparator; one boundary back is settled and its candle is confirmed.
+    now = observation_ts or (canonical_5m_boundary(datetime.now(UTC)) - FIVE_MINUTES)
     try:
         now = require_canonical_5m(now, "observation_ts")
     except ValueError as exc:
@@ -51,7 +61,9 @@ def build_live_snapshot(
         raise LiveDataUnavailable("NVDAx token price unavailable (DexScreener).")
 
     try:
-        last = equity.get_latest_trusted_bar("NVDA", client=client)
+        # Cap the query at the valued bar's close so a newer bar can never be
+        # mistaken for this bar's underlying measurement.
+        last = equity.get_latest_trusted_bar("NVDA", client=client, now=now + FIVE_MINUTES)
     except (httpx.HTTPError, KeyError, TypeError, ValueError, RuntimeError) as exc:
         raise LiveDataUnavailable(
             "NVDA underlying unavailable (Alpaca — check key/feed)."
@@ -72,17 +84,14 @@ def build_live_snapshot(
         else None
     )
 
-    # Keep the selected reference identity even when its observation is unavailable.
-    ref = reference.get_okx_xperp_index(settings.okx_xperp_index_id, client=client)
+    # Reference under test: the confirmed OKX X-Perp index candle opening at the
+    # valued bar (ts == now, age 0), identical to the historical panel join. When
+    # it is not yet confirmed or unreachable, keep the reference identity and let
+    # validation mark COMPARATOR_UNAVAILABLE rather than substituting NVDA.
+    ref = reference.get_confirmed_index_bar(now, settings.okx_xperp_index_id, client=client)
     if ref is not None:
-        raw_reference_age = int((now - ref.ts).total_seconds())
-        reference_age = raw_reference_age if raw_reference_age >= 0 else None
-        reference_is_current = (
-            reference_age is not None
-            and reference_age <= settings.live_reference_max_age_seconds
-        )
-        pt = ref.price if reference_is_current else None
-        pt_source, pt_ts = ref.source, ref.ts
+        pt, pt_source, pt_ts = ref.price, ref.source, ref.ts
+        reference_age = int((now - ref.ts).total_seconds())
     else:
         pt, pt_source, pt_ts, reference_age = None, "okx_xperp_index", None, None
 

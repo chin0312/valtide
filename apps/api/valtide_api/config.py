@@ -45,11 +45,12 @@ class Settings(BaseSettings):
     historical_panel_path: Path = (
         _ENV_FILE.parent / "data" / "generated" / "nvdax_historical_5m.csv"
     )
-    # Current-measurement tolerance is kept near one canonical five-minute
-    # bucket. Older observations remain trusted anchors but are not assimilated
-    # as if they were measurements for the current bucket.
+    # Underlying current-measurement tolerance, kept near one canonical
+    # five-minute bucket. Older underlying bars remain trusted anchors but are
+    # not assimilated as if they were measurements for the current bucket. The
+    # reference under test needs no such tolerance: it is the confirmed OKX index
+    # candle for the exact valued bar (ts == observation_ts, age 0).
     live_underlying_max_age_seconds: int = 6 * 60
-    live_reference_max_age_seconds: int = 6 * 60
 
     # CORS origins allowed to call the API from a browser (Valerie's Next.js app).
     # Comma-separated in the env var, e.g. "http://localhost:3000,https://valtide.app"

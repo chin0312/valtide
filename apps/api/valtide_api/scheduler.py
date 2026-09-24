@@ -8,7 +8,12 @@ from collections.abc import Awaitable, Callable
 from dataclasses import dataclass
 from datetime import UTC, datetime, timedelta
 
-from valtide_api.clock import canonical_5m_boundary, next_5m_boundary, require_canonical_5m
+from valtide_api.clock import (
+    FIVE_MINUTES,
+    canonical_5m_boundary,
+    next_5m_boundary,
+    require_canonical_5m,
+)
 from valtide_api.config import get_settings
 from valtide_api.live import build_live_snapshot
 from valtide_api.models import MarketSnapshot, ValuationResult
@@ -197,7 +202,9 @@ class LiveScheduler:
             now = self._now()
             next_boundary = next_5m_boundary(now)
             await self._sleep(max(0.0, (next_boundary - now).total_seconds() + 1.0))
-            canonical_ts = canonical_5m_boundary(self._now())
+            # Value the bar that just settled, not the one now forming: its
+            # confirmed reference candle exists, so the comparator is present.
+            canonical_ts = canonical_5m_boundary(self._now()) - FIVE_MINUTES
             result = await asyncio.to_thread(
                 self._tick,
                 self.asset,

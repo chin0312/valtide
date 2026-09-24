@@ -179,5 +179,7 @@ def test_scheduler_has_single_process_start_stop_lifecycle(tmp_path):
 
     asyncio.run(exercise())
     assert len(calls) == 1
-    assert calls[0] == datetime(2026, 9, 19, 14, 5, tzinfo=UTC)
+    # The scheduler values the just-settled bar, one boundary before the clock's
+    # current 14:05 boundary.
+    assert calls[0] == datetime(2026, 9, 19, 14, 0, tzinfo=UTC)
     assert sleep_calls >= 1
