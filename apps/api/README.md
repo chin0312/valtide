@@ -66,13 +66,18 @@ boundaries and persists its carried state/latest result in SQLite. A restart
 restores that state; a failed tick preserves the last good result and reports
 the failure through `/api/runtime/{asset}`. `/api/valuation/{asset}/live` is a
 cold-start, on-demand diagnostic and is not equivalent to the warmed runtime.
-X Layer publication is disabled by default. Enable it only with the local
-`PUBLISH_ENABLED=true`, `PUBLISHER_PRIVATE_KEY`, and `XLAYER_RPC_URL` settings.
-The public deployment manifest at `deployments/xlayer-testnet.json` supplies
-the testnet addresses and IDs; environment address values are optional explicit
-overrides. The publisher performs chain-ID, bytecode, linkage, policy,
+X Layer publication is disabled by default. The explicit
+`POST /api/publish/{asset}` fallback is gated by `PUBLISH_ENABLED`; scheduler-
+owned delivery is independently gated by `AUTO_PUBLISH_ENABLED`. Either path
+requires `PUBLISHER_PRIVATE_KEY` and `XLAYER_RPC_URL` when enabled. The public
+deployment manifest at `deployments/xlayer-testnet.json` supplies the testnet
+addresses and IDs; environment address values are optional explicit overrides.
+After a successful warmed scheduler tick is persisted, automatic delivery may
+call the same publisher and records its status separately in SQLite. A
+publication failure leaves the warmed valuation intact and does not stop the
+scheduler. The publisher performs chain-ID, bytecode, linkage, policy,
 publisher-authorization, monotonic-observation, transaction, and read-back
-checks. The scheduler never publishes automatically.
+checks. API reads, replay, and cold diagnostics never publish.
 
 ## Layout
 
@@ -89,7 +94,7 @@ valtide_api/
 ├── replay.py        # sequential quant and validation pipeline + state warm-up
 ├── clock.py         # canonical UTC five-minute boundaries
 ├── scheduler.py     # single-process warmed live scheduler
-├── runtime_store.py # SQLite state/result persistence and tick status
+├── runtime_store.py # SQLite state/result and publication status persistence
 ├── scenario.py      # scripted scenario loader
 ├── state_store.py   # in-memory computed-result cache
 ├── publisher.py     # X Layer publication and control-plane verification

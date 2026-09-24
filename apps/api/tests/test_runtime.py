@@ -2,8 +2,11 @@
 
 import asyncio
 from datetime import UTC, datetime, timedelta
+from types import SimpleNamespace
 
+import valtide_api.scheduler as scheduler_module
 from valtide_api.models import MarketSnapshot, MarketState
+from valtide_api.publisher import PublicationError
 from valtide_api.runtime_store import RuntimeStore
 from valtide_api.scheduler import LiveScheduler, TickResult, run_live_tick
 
@@ -183,3 +186,178 @@ def test_scheduler_has_single_process_start_stop_lifecycle(tmp_path):
     # current 14:05 boundary.
     assert calls[0] == datetime(2026, 9, 19, 14, 0, tzinfo=UTC)
     assert sleep_calls >= 1
+
+
+def _scheduler_with_publisher(store, publisher_fn, monkeypatch, *, enabled=True):
+    monkeypatch.setattr(
+        scheduler_module,
+        "get_settings",
+        lambda: SimpleNamespace(
+            auto_publish_enabled=enabled,
+            publish_enabled=False,
+            live_scheduler_asset="NVDAx",
+        ),
+    )
+    return LiveScheduler(
+        asset="NVDAx",
+        store=store,
+        publisher_fn=publisher_fn,
+    )
+
+
+def test_auto_publish_disabled_does_not_call_publisher(tmp_path, monkeypatch):
+    timestamp = _ANCHOR + timedelta(minutes=5)
+    builder, _ = _builder_for([_snapshot(timestamp)])
+    store = RuntimeStore(tmp_path / "runtime.sqlite3")
+    tick = run_live_tick("NVDAx", timestamp, store=store, snapshot_builder=builder)
+    calls = []
+
+    scheduler = _scheduler_with_publisher(
+        store,
+        lambda *args, **kwargs: calls.append((args, kwargs)),
+        monkeypatch,
+        enabled=False,
+    )
+    asyncio.run(scheduler._publish_if_enabled(tick))
+
+    assert calls == []
+    assert store.load_publication("NVDAx") is None
+
+
+def test_auto_publish_persists_tick_before_publishing_and_records_success(tmp_path, monkeypatch):
+    timestamp = _ANCHOR + timedelta(minutes=5)
+    builder, _ = _builder_for([_snapshot(timestamp)])
+    store = RuntimeStore(tmp_path / "runtime.sqlite3")
+    tick = run_live_tick("NVDAx", timestamp, store=store, snapshot_builder=builder)
+    calls = []
+
+    def fake_publish(result, *, settings):
+        assert settings.auto_publish_enabled is True
+        assert settings.publish_enabled is False
+        persisted = store.load_runtime("NVDAx")
+        assert persisted is not None
+        assert persisted.latest_result == result
+        calls.append(result)
+        return SimpleNamespace(
+            status="published",
+            published_at=1_800_000_000,
+            tx_hash="0x" + "11" * 32,
+        )
+
+    scheduler = _scheduler_with_publisher(store, fake_publish, monkeypatch)
+    asyncio.run(scheduler._publish_if_enabled(tick))
+
+    assert calls == [tick.result]
+    publication = store.load_publication("NVDAx")
+    assert publication is not None
+    assert publication.last_publish_status == "published"
+    assert publication.last_published_observation_ts == timestamp
+    assert publication.last_published_at == 1_800_000_000
+    assert publication.last_publish_tx_hash == "0x" + "11" * 32
+
+
+def test_auto_publish_already_published_records_idempotent_status(tmp_path, monkeypatch):
+    timestamp = _ANCHOR + timedelta(minutes=5)
+    builder, _ = _builder_for([_snapshot(timestamp)])
+    store = RuntimeStore(tmp_path / "runtime.sqlite3")
+    tick = run_live_tick("NVDAx", timestamp, store=store, snapshot_builder=builder)
+
+    def fake_publish(result, *, settings):  # noqa: ARG001
+        return SimpleNamespace(
+            status="already_published",
+            published_at=1_800_000_001,
+            tx_hash=None,
+        )
+
+    scheduler = _scheduler_with_publisher(store, fake_publish, monkeypatch)
+    asyncio.run(scheduler._publish_if_enabled(tick))
+
+    publication = store.load_publication("NVDAx")
+    assert publication is not None
+    assert publication.last_publish_status == "already_published"
+    assert publication.last_publish_tx_hash is None
+
+
+def test_failed_or_already_processed_tick_does_not_publish(tmp_path, monkeypatch):
+    first_ts = _ANCHOR + timedelta(minutes=5)
+    second_ts = first_ts + timedelta(minutes=5)
+    good_builder, _ = _builder_for([_snapshot(first_ts)])
+    store = RuntimeStore(tmp_path / "runtime.sqlite3")
+    run_live_tick("NVDAx", first_ts, store=store, snapshot_builder=good_builder)
+    duplicate = run_live_tick("NVDAx", first_ts, store=store, snapshot_builder=good_builder)
+
+    def failing_builder(*, observation_ts):  # noqa: ARG001
+        raise RuntimeError("synthetic source outage")
+
+    failed = run_live_tick("NVDAx", second_ts, store=store, snapshot_builder=failing_builder)
+    calls = []
+    scheduler = _scheduler_with_publisher(
+        store,
+        lambda *args, **kwargs: calls.append((args, kwargs)),
+        monkeypatch,
+    )
+
+    asyncio.run(scheduler._publish_if_enabled(duplicate))
+    asyncio.run(scheduler._publish_if_enabled(failed))
+
+    assert calls == []
+    assert store.load_publication("NVDAx") is None
+
+
+def test_auto_publish_failure_preserves_successful_runtime_and_scheduler_continues(
+    tmp_path, monkeypatch
+):
+    first_ts = _ANCHOR + timedelta(minutes=5)
+    second_ts = first_ts + timedelta(minutes=5)
+    builder, _ = _builder_for([_snapshot(first_ts), _snapshot(second_ts)])
+    store = RuntimeStore(tmp_path / "runtime.sqlite3")
+    first = run_live_tick("NVDAx", first_ts, store=store, snapshot_builder=builder)
+    calls = 0
+
+    def fake_publish(result, *, settings):  # noqa: ARG001
+        nonlocal calls
+        calls += 1
+        if calls == 1:
+            raise PublicationError("synthetic publisher outage")
+        return SimpleNamespace(status="published", published_at=1_800_000_002, tx_hash="0x22")
+
+    scheduler = _scheduler_with_publisher(store, fake_publish, monkeypatch)
+    asyncio.run(scheduler._publish_if_enabled(first))
+
+    failed_publication = store.load_publication("NVDAx")
+    assert failed_publication is not None
+    assert failed_publication.last_publish_status == "failed"
+    assert failed_publication.last_publish_error == "PublicationError"
+    assert store.load_runtime("NVDAx").latest_result == first.result
+
+    second = run_live_tick("NVDAx", second_ts, store=store, snapshot_builder=builder)
+    asyncio.run(scheduler._publish_if_enabled(second))
+
+    successful_publication = store.load_publication("NVDAx")
+    assert calls == 2
+    assert second.status == "success"
+    assert successful_publication.last_publish_status == "published"
+
+
+def test_publication_status_persists_across_runtime_store_restart(tmp_path):
+    timestamp = _ANCHOR + timedelta(minutes=5)
+    path = tmp_path / "runtime.sqlite3"
+    store = RuntimeStore(path)
+    store.record_publication_attempt("NVDAx", timestamp)
+    store.record_publication_success(
+        "NVDAx",
+        timestamp,
+        status="published",
+        published_at=1_800_000_003,
+        tx_hash="0x" + "33" * 32,
+    )
+    store.close()
+
+    restarted = RuntimeStore(path)
+    publication = restarted.load_publication("NVDAx")
+
+    assert publication is not None
+    assert publication.last_publish_status == "published"
+    assert publication.last_publish_observation_ts == timestamp
+    assert publication.last_published_at == 1_800_000_003
+    assert publication.last_publish_tx_hash == "0x" + "33" * 32

@@ -480,8 +480,10 @@ five-minute boundary, runs one live tick in a worker thread, and sleeps until
 the next boundary. It is the **only** thing that advances warmed live state;
 API reads never do. A tick restores the prior SQLite state, inserts hidden
 no-measurement transitions for elapsed gaps, processes the real observation,
-and atomically persists the new state/result. Hidden warm-up rows are never
-returned as public observations.
+and atomically persists the new state/result. When `AUTO_PUBLISH_ENABLED=true`,
+the scheduler then calls the existing publisher for that newly persisted
+successful result; publication delivery is downstream of valuation. Hidden
+warm-up rows are never returned as public observations.
 
 The live scheduler is disabled by default. A one-shot `/api/valuation/{asset}/live`
 call is a cold-start diagnostic and does not mutate the warmed cache.
@@ -497,7 +499,7 @@ call is a cold-start diagnostic and does not mutate the warmed cache.
 | GET | `/api/valuation/{asset}/live` | cold-start live diagnostic | no |
 | GET | `/api/replay/{asset}?timestamp=` | point-in-time historical result | replay/store |
 | GET | `/api/backtest/{asset}?source=` | scenario counts or historical metrics | replay |
-| GET | `/api/runtime/{asset}` | warmed state/scheduler/tick status | SQLite |
+| GET | `/api/runtime/{asset}` | warmed state/scheduler/tick and publication status | SQLite |
 | POST | `/api/publish/{asset}` | publish attestation to X Layer | writes chain |
 
 - `/api/valuation`, `/api/replay`, and `/api/backtest` **never** advance the
@@ -508,7 +510,9 @@ call is a cold-start diagnostic and does not mutate the warmed cache.
   returns `503 data_unavailable` when none exists. Scenario files are never a
   hidden fallback for this endpoint.
 - `/api/runtime/{asset}` exposes whether state/result exist, the last canonical
-  state/result timestamps, last tick status/error, and hidden gap-step count.
+  state/result timestamps, last tick status/error, hidden gap-step count, and
+  optional scheduler-publication status. Publication status never includes
+  signer or RPC secrets.
 - `/api/publish` requires server-side authorization and is the only write path.
 - **CORS:** `main.py` must add `CORSMiddleware` with Valerie's Next.js origin
   (`http://localhost:3000` in dev) or the browser cannot call the API at all.
@@ -557,7 +561,7 @@ an equivalent to a warmed sequential state.
 | Live source/tick failure | preserve the last durable state/result; expose failure via `/api/runtime/{asset}` |
 | Non-canonical or gapped replay | fail explicitly; never round, forward-fill, or fabricate timestamps |
 | Model returns invalid interval | return error; **never fabricate bounds** |
-| X Layer publish fails | offchain result stays valid; publish error surfaced separately |
+| X Layer publish fails | offchain result stays valid; publication error/status is persisted separately and the scheduler continues |
 
 Theme: degrade explicitly and keep provenance. A wrong-but-confident number is
 worse than an honest "unavailable".

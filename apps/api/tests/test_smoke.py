@@ -1,5 +1,8 @@
 """API smoke tests for computed-result and explicit data-unavailable paths."""
 
+from datetime import UTC, datetime
+from types import SimpleNamespace
+
 import pytest
 from fastapi.testclient import TestClient
 
@@ -90,3 +93,39 @@ def test_runtime_status_is_explicit_when_live_runtime_is_empty():
     assert body["has_state"] is False
     assert body["has_live_result"] is False
     assert body["last_tick_status"] is None
+
+
+def test_runtime_status_exposes_publication_delivery_without_secrets(monkeypatch, tmp_path):
+    import valtide_api.routes.runtime as runtime_route
+
+    store = RuntimeStore(tmp_path / "runtime.sqlite3")
+    observed_at = datetime(2026, 9, 19, 13, 5, tzinfo=UTC)
+    store.record_publication_attempt("NVDAx", observed_at)
+    store.record_publication_failure(
+        "NVDAx",
+        observed_at,
+        error="PublicationError",
+    )
+    monkeypatch.setattr(
+        runtime_route,
+        "get_settings",
+        lambda: SimpleNamespace(
+            live_scheduler_enabled=True,
+            live_scheduler_asset="NVDAx",
+            auto_publish_enabled=True,
+        ),
+    )
+    monkeypatch.setattr(runtime_route, "get_runtime_store", lambda: store)
+
+    response = client.get("/api/runtime/NVDAx")
+
+    assert response.status_code == 200
+    body = response.json()
+    assert body["auto_publish_enabled"] is True
+    assert body["last_publish_status"] == "failed"
+    assert body["last_publish_observation_ts"] == observed_at.isoformat().replace(
+        "+00:00", "Z"
+    )
+    assert body["last_publish_error"] == "PublicationError"
+    assert "publisher_private_key" not in body
+    assert "xlayer_rpc_url" not in body

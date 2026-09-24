@@ -8,6 +8,7 @@ from collections.abc import Awaitable, Callable
 from dataclasses import dataclass
 from datetime import UTC, datetime, timedelta
 
+from valtide_api import publisher as publisher_module
 from valtide_api.clock import (
     FIVE_MINUTES,
     canonical_5m_boundary,
@@ -34,6 +35,7 @@ logger = logging.getLogger("valtide.runtime")
 SnapshotBuilder = Callable[..., MarketSnapshot]
 NowProvider = Callable[[], datetime]
 SleepProvider = Callable[[float], Awaitable[None]]
+PublishFunction = Callable[..., object]
 
 
 @dataclass(frozen=True)
@@ -166,6 +168,7 @@ class LiveScheduler:
         tick: Callable[..., TickResult] = run_live_tick,
         now: NowProvider | None = None,
         sleep: SleepProvider | None = None,
+        publisher_fn: PublishFunction | None = None,
     ):
         settings = get_settings()
         self.asset = asset or settings.live_scheduler_asset
@@ -173,6 +176,9 @@ class LiveScheduler:
         self._tick = tick
         self._now = now or (lambda: datetime.now(UTC))
         self._sleep = sleep or asyncio.sleep
+        self._settings = settings
+        self._auto_publish_enabled = bool(getattr(settings, "auto_publish_enabled", False))
+        self._publisher_fn = publisher_fn or publisher_module.publish
         self._task: asyncio.Task[None] | None = None
 
     @property
@@ -193,6 +199,68 @@ class LiveScheduler:
             pass
         finally:
             self._task = None
+
+    @staticmethod
+    def _safe_publication_error(exc: Exception) -> str:
+        """Return a non-sensitive publication error identifier for storage/logs."""
+        return type(exc).__name__
+
+    async def _publish_if_enabled(self, tick: TickResult) -> None:
+        """Deliver a newly persisted successful tick without blocking the loop."""
+        if not self._auto_publish_enabled or tick.status != "success" or tick.result is None:
+            return
+
+        result = tick.result
+        self.store.record_publication_attempt(self.asset, result.timestamp)
+        try:
+            receipt = await asyncio.to_thread(
+                self._publisher_fn,
+                result,
+                settings=self._settings,
+            )
+        except publisher_module.PublisherError as exc:
+            error = self._safe_publication_error(exc)
+            self.store.record_publication_failure(
+                self.asset,
+                result.timestamp,
+                error=error,
+            )
+            logger.warning(
+                "auto-publish asset=%s observed_at=%s status=failed error=%s",
+                self.asset,
+                result.timestamp.isoformat(),
+                error,
+            )
+            return
+        except Exception as exc:  # noqa: BLE001 - delivery must not stop valuation
+            error = self._safe_publication_error(exc)
+            self.store.record_publication_failure(
+                self.asset,
+                result.timestamp,
+                error=error,
+            )
+            logger.warning(
+                "auto-publish asset=%s observed_at=%s status=failed error=%s",
+                self.asset,
+                result.timestamp.isoformat(),
+                error,
+            )
+            return
+
+        status = str(getattr(receipt, "status", "published"))
+        self.store.record_publication_success(
+            self.asset,
+            result.timestamp,
+            status=status,
+            published_at=getattr(receipt, "published_at", None),
+            tx_hash=getattr(receipt, "tx_hash", None),
+        )
+        logger.info(
+            "auto-publish asset=%s observed_at=%s status=%s",
+            self.asset,
+            result.timestamp.isoformat(),
+            status,
+        )
 
     async def _run(self) -> None:
         while True:
@@ -222,6 +290,7 @@ class LiveScheduler:
                 result.state_restored,
                 result.gap_steps,
             )
+            await self._publish_if_enabled(result)
 
 
 __all__ = ["LiveScheduler", "TickResult", "run_live_tick"]

@@ -32,6 +32,20 @@ class RuntimeRecord:
     last_gap_steps: int
 
 
+@dataclass(frozen=True)
+class PublicationRecord:
+    """Durable downstream publication delivery state for one asset."""
+
+    asset: str
+    last_publish_status: str | None
+    last_publish_error: str | None
+    last_publish_attempt_at: datetime | None
+    last_publish_observation_ts: datetime | None
+    last_published_observation_ts: datetime | None
+    last_published_at: int | None
+    last_publish_tx_hash: str | None
+
+
 def _parse_datetime(value: str | None, label: str) -> datetime | None:
     if value is None:
         return None
@@ -42,6 +56,15 @@ def _parse_datetime(value: str | None, label: str) -> datetime | None:
     if parsed.tzinfo is None:
         raise RuntimeStateIntegrityError(f"persisted {label} must be timezone-aware")
     return parsed.astimezone(UTC)
+
+
+def _parse_optional_int(value: int | str | None, label: str) -> int | None:
+    if value is None:
+        return None
+    try:
+        return int(value)
+    except (TypeError, ValueError) as exc:
+        raise RuntimeStateIntegrityError(f"invalid persisted {label}: {value!r}") from exc
 
 
 class RuntimeStore:
@@ -73,6 +96,20 @@ class RuntimeStore:
                     last_tick_error TEXT,
                     last_tick_attempt_at TEXT,
                     last_gap_steps INTEGER NOT NULL DEFAULT 0
+                )
+                """
+            )
+            self._connection.execute(
+                """
+                CREATE TABLE IF NOT EXISTS publication_state (
+                    asset TEXT PRIMARY KEY,
+                    last_publish_status TEXT,
+                    last_publish_error TEXT,
+                    last_publish_attempt_at TEXT,
+                    last_publish_observation_ts TEXT,
+                    last_published_observation_ts TEXT,
+                    last_published_at INTEGER,
+                    last_publish_tx_hash TEXT
                 )
                 """
             )
@@ -136,6 +173,148 @@ class RuntimeStore:
             ),
             last_gap_steps=int(row["last_gap_steps"] or 0),
         )
+
+    def load_publication(self, asset: str) -> PublicationRecord | None:
+        with self._lock:
+            row = self._connection.execute(
+                "SELECT * FROM publication_state WHERE asset = ?", (asset,)
+            ).fetchone()
+        if row is None:
+            return None
+        return PublicationRecord(
+            asset=asset,
+            last_publish_status=row["last_publish_status"],
+            last_publish_error=row["last_publish_error"],
+            last_publish_attempt_at=_parse_datetime(
+                row["last_publish_attempt_at"], "last_publish_attempt_at"
+            ),
+            last_publish_observation_ts=_parse_datetime(
+                row["last_publish_observation_ts"], "last_publish_observation_ts"
+            ),
+            last_published_observation_ts=_parse_datetime(
+                row["last_published_observation_ts"], "last_published_observation_ts"
+            ),
+            last_published_at=_parse_optional_int(
+                row["last_published_at"], "last_published_at"
+            ),
+            last_publish_tx_hash=row["last_publish_tx_hash"],
+        )
+
+    @staticmethod
+    def _publication_timestamp(value: datetime, label: str) -> datetime:
+        try:
+            return require_canonical_5m(value, label)
+        except ValueError as exc:
+            raise RuntimeStateIntegrityError(str(exc)) from exc
+
+    def record_publication_attempt(
+        self,
+        asset: str,
+        observation_ts: datetime,
+        *,
+        attempt_at: datetime | None = None,
+    ) -> None:
+        observation_ts = self._publication_timestamp(observation_ts, "observation_ts")
+        attempt_at = attempt_at or datetime.now(UTC)
+        with self._lock, self._connection:
+            self._connection.execute(
+                """
+                INSERT INTO publication_state (
+                    asset, last_publish_status, last_publish_error,
+                    last_publish_attempt_at, last_publish_observation_ts
+                ) VALUES (?, ?, ?, ?, ?)
+                ON CONFLICT(asset) DO UPDATE SET
+                    last_publish_status = excluded.last_publish_status,
+                    last_publish_error = excluded.last_publish_error,
+                    last_publish_attempt_at = excluded.last_publish_attempt_at,
+                    last_publish_observation_ts = excluded.last_publish_observation_ts
+                """,
+                (
+                    asset,
+                    "attempting",
+                    None,
+                    attempt_at.astimezone(UTC).isoformat(),
+                    observation_ts.isoformat(),
+                ),
+            )
+
+    def record_publication_success(
+        self,
+        asset: str,
+        observation_ts: datetime,
+        *,
+        status: str,
+        published_at: int | None,
+        tx_hash: str | None,
+        attempt_at: datetime | None = None,
+    ) -> None:
+        observation_ts = self._publication_timestamp(observation_ts, "observation_ts")
+        attempt_at = attempt_at or datetime.now(UTC)
+        with self._lock, self._connection:
+            self._connection.execute(
+                """
+                INSERT INTO publication_state (
+                    asset, last_publish_status, last_publish_error,
+                    last_publish_attempt_at, last_publish_observation_ts,
+                    last_published_observation_ts, last_published_at,
+                    last_publish_tx_hash
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+                ON CONFLICT(asset) DO UPDATE SET
+                    last_publish_status = excluded.last_publish_status,
+                    last_publish_error = excluded.last_publish_error,
+                    last_publish_attempt_at = excluded.last_publish_attempt_at,
+                    last_publish_observation_ts = excluded.last_publish_observation_ts,
+                    last_published_observation_ts = excluded.last_published_observation_ts,
+                    last_published_at = COALESCE(
+                        excluded.last_published_at, publication_state.last_published_at
+                    ),
+                    last_publish_tx_hash = COALESCE(
+                        excluded.last_publish_tx_hash, publication_state.last_publish_tx_hash
+                    )
+                """,
+                (
+                    asset,
+                    status,
+                    None,
+                    attempt_at.astimezone(UTC).isoformat(),
+                    observation_ts.isoformat(),
+                    observation_ts.isoformat(),
+                    published_at,
+                    tx_hash,
+                ),
+            )
+
+    def record_publication_failure(
+        self,
+        asset: str,
+        observation_ts: datetime,
+        *,
+        error: str,
+        attempt_at: datetime | None = None,
+    ) -> None:
+        observation_ts = self._publication_timestamp(observation_ts, "observation_ts")
+        attempt_at = attempt_at or datetime.now(UTC)
+        with self._lock, self._connection:
+            self._connection.execute(
+                """
+                INSERT INTO publication_state (
+                    asset, last_publish_status, last_publish_error,
+                    last_publish_attempt_at, last_publish_observation_ts
+                ) VALUES (?, ?, ?, ?, ?)
+                ON CONFLICT(asset) DO UPDATE SET
+                    last_publish_status = excluded.last_publish_status,
+                    last_publish_error = excluded.last_publish_error,
+                    last_publish_attempt_at = excluded.last_publish_attempt_at,
+                    last_publish_observation_ts = excluded.last_publish_observation_ts
+                """,
+                (
+                    asset,
+                    "failed",
+                    error,
+                    attempt_at.astimezone(UTC).isoformat(),
+                    observation_ts.isoformat(),
+                ),
+            )
 
     def save_runtime(
         self,
@@ -270,6 +449,7 @@ def clear_runtime_store_cache() -> None:
 
 
 __all__ = [
+    "PublicationRecord",
     "RuntimeRecord",
     "RuntimeStateIntegrityError",
     "RuntimeStore",
