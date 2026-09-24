@@ -269,9 +269,10 @@ These four files are the canonical project references:
 ## Project status
 
 > Valtide is under active development for OKX Dev Day 2026. The repository
-> contains the backend/quant vertical slice and a testnet control-plane
-> deployment; production readiness and frontend integration remain out of
-> scope.
+> contains the backend/quant vertical slice, a deployed X Layer testnet
+> control plane, and a credentialed testnet publisher smoke result. Backend
+> deployment and frontend integration remain in progress; production readiness
+> remains out of scope.
 
 | Area                    | Status       |
 | ----------------------- | ------------ |
@@ -279,11 +280,11 @@ These four files are the canonical project references:
 | Product specification   | defined      |
 | Architecture            | drafted      |
 | Methodology             | drafted      |
-| Implementation          | in progress  |
+| Implementation          | backend/quant vertical slice implemented; deployment/frontend integration in progress |
 | Quant validation        | P1a-C runtime integrated |
 | X Layer deployment      | testnet control plane deployed |
 | Reference consumer      | DemoCollateralVault deployed |
-| Backend publisher       | wired; credentialed testnet write smoke pending |
+| Backend publisher       | wired; credentialed X Layer testnet write smoke passed |
 
 ## Development
 
