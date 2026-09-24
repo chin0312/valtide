@@ -80,10 +80,17 @@ def test_missing_reference_is_not_substituted_by_underlying(monkeypatch):
     _patch_sources(
         monkeypatch,
         quote=TokenQuote(price=181.1, source="dexscreener", ts=observation_ts),
-        bar=RawEquityBar(
-            ts=datetime(2026, 9, 21, 14, 10, tzinfo=UTC),
-            open=181, high=182, low=180, close=181.0, volume=1000,
-        ),
+        bar=None,
+        bars=[
+            RawEquityBar(
+                ts=datetime(2026, 9, 21, 14, 5, tzinfo=UTC),
+                open=180, high=181, low=179, close=180.0, volume=1000,
+            ),
+            RawEquityBar(
+                ts=observation_ts,
+                open=181, high=182, low=180, close=181.0, volume=1000,
+            ),
+        ],
         ref=None,
     )
     snap = build_live_snapshot(observation_ts=observation_ts)
@@ -171,6 +178,34 @@ def test_cold_start_anchor_is_strictly_prior_bar_not_same_timestamp(monkeypatch)
     # NVDA@T is only the current underlying measurement for post-challenger assimilation.
     assert snap.underlying_reference == 181.0
     assert snap.underlying_reference_ts == observation_ts
+
+
+def test_cold_start_without_prior_anchor_fails_explicitly(monkeypatch):
+    observation_ts = datetime(2026, 9, 21, 14, 10, tzinfo=UTC)
+    _patch_sources(
+        monkeypatch,
+        quote=TokenQuote(price=181.1, source="dexscreener", ts=observation_ts),
+        bar=None,
+        bars=[
+            RawEquityBar(
+                ts=observation_ts,
+                open=181,
+                high=182,
+                low=180,
+                close=181.0,
+                volume=1000,
+            )
+        ],
+        ref=ReferenceObservation(
+            price=181.2, source="okx_xperp_index", ts=observation_ts
+        ),
+    )
+
+    with pytest.raises(LiveDataUnavailable, match="strictly-prior trusted underlying anchor"):
+        build_live_snapshot(observation_ts=observation_ts)
+
+    with pytest.raises(LiveDataUnavailable, match="strictly-prior trusted underlying anchor"):
+        run_live_valuation(observation_ts=observation_ts)
 
 
 def test_stale_underlying_remains_anchor_but_is_not_current_measurement(monkeypatch):

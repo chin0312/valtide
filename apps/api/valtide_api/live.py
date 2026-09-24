@@ -89,11 +89,16 @@ def build_live_snapshot(
         else None
     )
 
-    # Trusted anchor R0 = latest NVDA strictly before T. When the only bar is at
-    # T itself (a degenerate cold start with no prior history), fall back to it;
-    # there is nothing earlier to anchor on.
+    # Trusted anchor R0 must be the latest NVDA strictly before T. If the only
+    # available bar is NVDA@T, do not seed challenger@T from the same
+    # observation; fail the cold-start valuation instead of leaking causality.
     prior = [b for b in bars if b.ts < now]
-    anchor = prior[-1] if prior else last
+    if not prior:
+        raise LiveDataUnavailable(
+            "no strictly-prior trusted underlying anchor is available for the "
+            f"observation at {now.isoformat()}"
+        )
+    anchor = prior[-1]
     anchor_age = int((now - anchor.ts).total_seconds())
 
     # Reference under test: the confirmed OKX X-Perp index candle opening at the
