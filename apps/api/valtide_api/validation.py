@@ -11,6 +11,7 @@ from valtide_api.models import (
     MarketSnapshot,
     ValuationResult,
 )
+from valtide_api.normalizer import is_unit_scale_suspect
 
 
 @dataclass(frozen=True)
@@ -21,6 +22,14 @@ class Thresholds:
     z_challenge: float = 2.0
     max_reference_age_s: int = 72 * 3600
     min_token_volume: float = 0.0
+    # Market-quality floor: abstain on a clearly-degenerate (near-dead) DEX pool.
+    # Wired but inert by default (0.0) — the threshold must be set from a real
+    # liquidity distribution, not an invented constant, before it is relied on.
+    min_token_liquidity_usd: float = 0.0
+    # Token/underlying ratio outside this band is a probable unit/feed bug, not
+    # economics, so we abstain rather than emit a spurious CHALLENGED.
+    unit_scale_low: float = 0.5
+    unit_scale_high: float = 2.0
     max_state_sd_log: float = 0.05
     agree_tolerance: float = 0.01
 
@@ -96,6 +105,21 @@ def validate(
     if snapshot.token_volume is not None and snapshot.token_volume < th.min_token_volume:
         state = EvidenceState.INCONCLUSIVE
         reason_codes.append("TOKEN_MARKET_QUALITY_LOW")
+    if (
+        snapshot.token_liquidity_usd is not None
+        and snapshot.token_liquidity_usd < th.min_token_liquidity_usd
+    ):
+        state = EvidenceState.INCONCLUSIVE
+        if "TOKEN_MARKET_QUALITY_LOW" not in reason_codes:
+            reason_codes.append("TOKEN_MARKET_QUALITY_LOW")
+    if is_unit_scale_suspect(
+        snapshot.token_price,
+        snapshot.underlying_reference,
+        low=th.unit_scale_low,
+        high=th.unit_scale_high,
+    ):
+        state = EvidenceState.INCONCLUSIVE
+        reason_codes.append("TOKEN_UNIT_SUSPECT")
     if estimate.reference_predictive_sd_log > th.max_state_sd_log:
         state = EvidenceState.INCONCLUSIVE
         reason_codes.append("MODEL_UNCERTAINTY_HIGH")

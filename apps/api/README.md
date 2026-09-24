@@ -24,6 +24,8 @@ uvicorn valtide_api.main:app --reload --port 8000
 - Health: `http://localhost:8000/health`
 - Valuation: `http://localhost:8000/api/valuation/NVDAx`
 - Replay: `http://localhost:8000/api/replay/NVDAx`
+- Backtest: `http://localhost:8000/api/backtest/NVDAx?source=scenario`
+- Runtime status: `http://localhost:8000/api/runtime/NVDAx`
 - Assets: `http://localhost:8000/api/assets`
 - Swagger UI: `http://localhost:8000/docs`
 
@@ -52,11 +54,16 @@ carried state. The backend selects the reference under test and owns Evidence
 State and reason codes. The backend does not duplicate model equations or
 silently substitute a different reference.
 
-Replay uses the scripted scenario when no sample panel is available. A cold
-`/api/valuation/{asset}` cache returns `503 data_unavailable`; it never returns
-a fabricated valuation. `/api/valuation/{asset}/live` is a cold-start,
-on-demand diagnostic. X Layer publication remains a clear `503` placeholder
-until the Registry configuration and contracts are available.
+Replay and backtest are explicit scenario or historical-panel paths. They do
+not seed the live cache. A cold `/api/valuation/{asset}` cache returns `503
+data_unavailable`; it never returns a fabricated valuation. The optional
+single-process scheduler warms the live runtime on canonical UTC five-minute
+boundaries and persists its carried state/latest result in SQLite. A restart
+restores that state; a failed tick preserves the last good result and reports
+the failure through `/api/runtime/{asset}`. `/api/valuation/{asset}/live` is a
+cold-start, on-demand diagnostic and is not equivalent to the warmed runtime.
+X Layer publication remains a clear `503` placeholder until the Registry
+configuration and contracts are available.
 
 ## Layout
 
@@ -64,16 +71,19 @@ until the Registry configuration and contracts are available.
 valtide_api/
 ├── config.py        # settings from .env and CORS origins
 ├── models.py        # canonical snapshots, estimates, results, and enums
-├── main.py          # FastAPI app, lifespan seed, and router wiring
+├── main.py          # FastAPI app, runtime restore/scheduler lifecycle, routing
 ├── session.py       # UTC timestamp to market session
 ├── normalizer.py    # shared token/underlying scale invariant
 ├── quant_runtime.py # thin adapter around the packaged QuantService
 ├── validation.py    # backend-owned Evidence State engine
 ├── panel.py         # canonical 5-minute panel loader
-├── replay.py        # sequential quant and validation pipeline
+├── replay.py        # sequential quant and validation pipeline + state warm-up
+├── clock.py         # canonical UTC five-minute boundaries
+├── scheduler.py     # single-process warmed live scheduler
+├── runtime_store.py # SQLite state/result persistence and tick status
 ├── scenario.py      # scripted scenario loader
 ├── state_store.py   # in-memory computed-result cache
 ├── publisher.py     # X Layer publication boundary
-├── routes/          # assets, valuation, replay, backtest, publish
+├── routes/          # assets, valuation, replay, backtest, runtime, publish
 └── adapters/        # token, underlying, and reference-under-test sources
 ```

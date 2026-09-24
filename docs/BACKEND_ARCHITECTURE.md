@@ -103,10 +103,13 @@ scenario.py      explicit scripted scenario loader
 data_source.py   panel/scenario source selection
 replay.py        sequential quant + validation pipeline
 live.py          cold-start live diagnostic
-state_store.py   in-memory computed-result cache
+clock.py         canonical UTC five-minute boundaries
+scheduler.py     single-process warmed live scheduler
+runtime_store.py SQLite state/result persistence and tick status
+state_store.py   in-memory compatibility cache for non-HTTP callers
 publisher.py     X Layer publication boundary (not deployed yet)
 routes/          HTTP endpoints
-main.py          app wiring, CORS, and startup seed
+main.py          app wiring, CORS, restore, and scheduler lifecycle
 ```
 
 ## 6. API
@@ -115,10 +118,11 @@ main.py          app wiring, CORS, and startup seed
 |---|---|---|
 | GET | `/health` | liveness |
 | GET | `/api/assets` | supported assets and model availability |
-| GET | `/api/valuation/{asset}` | latest computed cached result |
+| GET | `/api/valuation/{asset}` | latest durable warmed result |
 | GET | `/api/valuation/{asset}/live` | cold-start live diagnostic |
 | GET | `/api/replay/{asset}` | sequential scenario/panel results |
-| GET | `/api/backtest/{asset}` | scenario-derived evidence counts |
+| GET | `/api/backtest/{asset}` | scenario counts or historical-panel metrics |
+| GET | `/api/runtime/{asset}` | warmed runtime and scheduler status |
 | POST | `/api/publish/{asset}` | X Layer publication boundary |
 
 A cold valuation cache returns `503 data_unavailable`. Publication returns `503`
@@ -130,12 +134,20 @@ until Registry configuration and contracts are available.
   boundary.
 - The scripted scenario and canonical 5-minute panel are replayed through the
   same inference path.
+- The warmed live scheduler is disabled by default, runs one asset in this
+  process on canonical UTC five-minute boundaries, and persists carried state,
+  latest result, gap steps, and last tick status in SQLite. It advances elapsed
+  gaps with hidden no-measurement steps; those steps never become public replay
+  or API observations.
+- Historical-panel backtests report metrics only for rows with a real
+  contemporaneous underlying observation. Scenario backtests report evidence
+  counts only and deliberately keep empirical metrics null.
 - The focused API endpoint and live diagnostic are explicit about unavailable
   data; no fabricated valuation is served.
 - X Layer publication is intentionally pending the Registry, RPC, ABI, and
   publisher configuration.
-- Broader historical metrics, scheduler behavior, and deployment wiring remain
-  separate follow-up work; they do not alter the backend/quant boundary.
+- X Layer publication and deployment wiring remain separate follow-up work;
+  they do not alter the backend/quant boundary.
 
 ## 8. Run locally
 

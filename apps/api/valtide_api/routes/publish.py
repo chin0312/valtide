@@ -9,8 +9,9 @@ from __future__ import annotations
 
 from fastapi import APIRouter, HTTPException
 
-from valtide_api import publisher, state_store
+from valtide_api import publisher
 from valtide_api.models import SUPPORTED_ASSETS
+from valtide_api.runtime_store import get_runtime_store
 
 router = APIRouter(prefix="/api", tags=["publish"])
 
@@ -19,7 +20,8 @@ def post_publish(asset: str) -> dict:
     if asset not in SUPPORTED_ASSETS:
         raise HTTPException(status_code=404, detail=f"asset '{asset}' not supported")
 
-    result = state_store.get_latest_result(asset)
+    record = get_runtime_store().load_runtime(asset)
+    result = record.latest_result if record is not None else None
     if result is None:
         raise HTTPException(status_code=409, detail="no validation result to publish yet")
 

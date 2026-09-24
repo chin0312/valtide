@@ -24,7 +24,7 @@ Concretely, the backend must:
 3. feed that snapshot to the quant model and get back a fair value + uncertainty,
 4. compare the fair value against the **reference under test** to produce an
    Evidence State (the validation step),
-5. cache the latest result and serve it over a stable HTTP API,
+5. persist the warmed live state/latest result and serve it over a stable HTTP API,
 6. optionally publish an approved result to X Layer.
 
 **Hard rule:** the statistical model (Kalman filter equations, interval math)
@@ -196,6 +196,8 @@ class MarketSnapshot(BaseModel):
 
     reference_under_test: float | None   # Pt — see §3, sourced explicitly
     reference_under_test_source: str    # e.g. "nvda_live", "okx_xperp_index"
+    reference_under_test_ts: datetime | None
+    reference_under_test_age_seconds: int | None
 
     market_state: MarketState           # enum, see session.py
 
@@ -252,6 +254,8 @@ class ValuationResult(BaseModel):
 
     reference_under_test: float | None
     reference_under_test_source: str
+    reference_under_test_ts: datetime | None
+    reference_under_test_age_seconds: int | None
     reference_deviation_pct: float | None
     standardized_deviation: float | None    # log-space z-score (§7)
 
@@ -290,6 +294,7 @@ apps/api/
 │   │   ├── valuation.py      # GET /api/valuation/{asset}
 │   │   ├── replay.py         # GET /api/replay/{asset}
 │   │   ├── backtest.py       # GET /api/backtest/{asset}
+│   │   ├── runtime.py        # GET /api/runtime/{asset}
 │   │   └── publish.py        # POST /api/publish/{asset}
 │   │
 │   ├── adapters/
@@ -302,9 +307,11 @@ apps/api/
 │   ├── normalizer.py         # raw adapter output -> MarketSnapshot
 │   ├── quant_runtime.py      # adapts the public QuantService interface
 │   ├── validation.py         # snapshot + estimate -> ValuationResult (pure)
-│   ├── state_store.py        # persist m_t, P_t, last_processed_ts
-│   ├── replay.py             # drive inference over historical candles (demo path)
-│   ├── scheduler.py          # (P1) live 5-min loop
+│   ├── state_store.py        # in-memory compatibility cache
+│   ├── runtime_store.py      # SQLite state/result persistence and tick status
+│   ├── clock.py              # canonical UTC five-minute boundaries
+│   ├── replay.py             # shared inference + hidden elapsed-time warm-up
+│   ├── scheduler.py          # optional single-process warmed live loop
 │   └── publisher.py          # X Layer publish (web3)
 │
 ├── scenarios/
@@ -330,10 +337,11 @@ apps/api/
 - **`quant_runtime.py` is only an adapter** on the backend. Quantitative model
   math and artifact loading live in the packaged quant service; the adapter
   only translates snapshots and results.
-- **`replay.py` is a first-class module, not an afterthought** (§8): the demo is
-  driven through replay, and `scheduler.py` (live loop) is P1.
-- **`state_store.py` separated:** stateful Kalman state, swappable (dict →
-  SQLite) without touching business logic.
+- **`replay.py` is a first-class module, not an afterthought** (§8): the demo,
+  historical panel, and warmed runtime share the same inference path.
+- **`runtime_store.py` is the durable live boundary:** SQLite stores one asset's
+  carried Kalman state, latest public result, elapsed-gap diagnostics, and last
+  tick status. `state_store.py` remains only an in-memory compatibility cache.
 - **`tests/` with pure functions first:** validation/session are deterministic
   and must be unit-tested; adapters use recorded fixtures.
 
@@ -431,11 +439,12 @@ James's historical results before any accuracy claim.
 
 ---
 
-## 8. Demo path: replay-driven, not a live scheduler
+## 8. Replay and warmed live runtime
 
-A senior-review correction: a 24/7 stateful scheduler is high operational risk
-for a 4-day build, and the demo is one scripted **weekend-divergence** scenario.
-So the **primary path is replay**, and the live scheduler is P1.
+The scripted **weekend-divergence** scenario remains the deterministic demo
+path, while the P0.5 live path is a deliberately small single-process runtime.
+Both use the same `run_inference` function. Replay and historical backtest are
+explicit data-source paths; they never seed or masquerade as warmed live state.
 
 ### Core inference function (shared by replay, scheduler, and one-shot)
 ```python
@@ -456,18 +465,26 @@ def run_inference(snapshot: MarketSnapshot, prior: KalmanState | None,
 
 ### `replay.py`
 Feeds historical candles through `run_inference` step by step, warming the
-Kalman state forward (addresses the stale-state gap, §10.S2). Powers both the
-demo and `/api/replay`. Point-in-time correct: only data at/before the requested
-timestamp; the later benchmark is revealed only on explicit request.
+Kalman state forward (addresses the stale-state gap, §10.S2). Powers the demo,
+`/api/replay`, and historical backtest. Point-in-time correct: only data
+available at or before the requested timestamp is used; a later benchmark is
+revealed only on explicit request.
 
 ### `scenarios/weekend_divergence.json`
 A scripted sequence of snapshots that produces a clean SUPPORTED → CHALLENGED
 transition for the demo, so the presentation does not depend on live market luck.
 
-### `scheduler.py` (P1)
-Live 5-min loop via APScheduler, using the same `run_inference`. Only built if
-Phases 1–3 are solid. It is the **only** thing that advances live state; API
-reads never do.
+### `scheduler.py` (P0.5)
+An optional dependency-free asyncio loop computes the current canonical UTC
+five-minute boundary, runs one live tick in a worker thread, and sleeps until
+the next boundary. It is the **only** thing that advances warmed live state;
+API reads never do. A tick restores the prior SQLite state, inserts hidden
+no-measurement transitions for elapsed gaps, processes the real observation,
+and atomically persists the new state/result. Hidden warm-up rows are never
+returned as public observations.
+
+The live scheduler is disabled by default. A one-shot `/api/valuation/{asset}/live`
+call is a cold-start diagnostic and does not mutate the warmed cache.
 
 ---
 
@@ -477,13 +494,21 @@ reads never do.
 |---|---|---|---|
 | GET | `/api/assets` | supported assets + data availability | cache |
 | GET | `/api/valuation/{asset}` | latest cached ValuationResult | cache only |
+| GET | `/api/valuation/{asset}/live` | cold-start live diagnostic | no |
 | GET | `/api/replay/{asset}?timestamp=` | point-in-time historical result | replay/store |
-| GET | `/api/backtest/{asset}` | aggregate + regime metrics | static file |
+| GET | `/api/backtest/{asset}?source=` | scenario counts or historical metrics | replay |
+| GET | `/api/runtime/{asset}` | warmed state/scheduler/tick status | SQLite |
 | POST | `/api/publish/{asset}` | publish attestation to X Layer | writes chain |
 
-- `/api/valuation` and `/api/replay` **never** advance the Kalman filter.
+- `/api/valuation`, `/api/replay`, and `/api/backtest` **never** advance the
+  warmed live Kalman filter.
 - `/api/replay` returns only data available at the requested timestamp
   (no look-ahead). The later benchmark is revealed only on explicit request.
+- `/api/valuation/{asset}` serves only the latest durable warmed result and
+  returns `503 data_unavailable` when none exists. Scenario files are never a
+  hidden fallback for this endpoint.
+- `/api/runtime/{asset}` exposes whether state/result exist, the last canonical
+  state/result timestamps, last tick status/error, and hidden gap-step count.
 - `/api/publish` requires server-side authorization and is the only write path.
 - **CORS:** `main.py` must add `CORSMiddleware` with Valerie's Next.js origin
   (`http://localhost:3000` in dev) or the browser cannot call the API at all.
@@ -493,24 +518,33 @@ reads never do.
 
 ## 10. State, storage & failure handling
 
-### State (no production DB needed)
+### State and persistence (single-process MVP)
 ```
 per asset:
-  latest MarketSnapshot
   latest ValuationResult
   Kalman state: m_t, P_t, last_processed_timestamp
-  model version + artifact hash
+  last tick status/error and hidden gap-step count
 ```
-- **MVP:** in-memory dict in `state_store.py`, seeded at startup.
-- **If time allows:** SQLite for recent history + replay indexing.
-- Historical datasets stay as Parquet/CSV shared with James.
-- `last_processed_timestamp` prevents double-processing a candle.
+- **Warmed live runtime:** SQLite in `runtime_store.py` is the source of truth
+  for the carried state and latest result. The schema is intentionally one row
+  per supported asset; it is not a general event store.
+- **Compatibility:** `state_store.py` is updated after a successful tick for
+  non-HTTP callers, but API reads use SQLite and startup never seeds from a
+  scenario or sample panel.
+- Historical datasets stay as CSV/Parquet-style local artifacts shared with
+  research and are selected explicitly for replay/backtest.
+- `last_processed_timestamp` prevents a duplicate canonical tick from fetching
+  or reprocessing another market observation.
 
 ### S2 — State warm-up (explicit)
 The packaged runtime initializes from its trusted-reference anchor when no
-carried state is available. Replay then advances state one canonical 5-minute
-step at a time. A cold live call is explicitly diagnostic; it is not presented
-as an equivalent to a warmed sequential state.
+carried state is available. Replay and the first warmed live tick then advance
+state one canonical 5-minute step at a time. If the first real observation is
+many intervals after the trusted anchor, the backend performs hidden
+no-measurement process transitions for each missing interval. If a persisted
+state is behind a later tick, the same propagation occurs from the persisted
+timestamp. A cold live call is explicitly diagnostic; it is not presented as
+an equivalent to a warmed sequential state.
 
 ### Failure handling (explicit, never silent)
 | Situation | Behaviour |
@@ -520,6 +554,8 @@ as an equivalent to a warmed sequential state.
 | Underlying reference stale | continue; surface `reference_age_seconds` + stale reason code |
 | Reference under test missing | Evidence State = INCONCLUSIVE + COMPARATOR_UNAVAILABLE |
 | External comparator (Pyth) missing | continue; `external_reference = null` |
+| Live source/tick failure | preserve the last durable state/result; expose failure via `/api/runtime/{asset}` |
+| Non-canonical or gapped replay | fail explicitly; never round, forward-fill, or fabricate timestamps |
 | Model returns invalid interval | return error; **never fabricate bounds** |
 | X Layer publish fails | offchain result stays valid; publish error surfaced separately |
 
@@ -540,13 +576,21 @@ worse than an honest "unavailable".
 yfinance is acceptable only as an offline last-resort fallback, flagged in
 provenance, never as the primary live NVDA source.
 
+For historical replay, `scripts/build_historical_panel.py` joins canonical UTC
+five-minute rows from OKX OnchainOS NVDAx candles, Alpaca NVDA bars, and the
+public OKX X-Perp index-history endpoint. It preserves rows after the trusted
+underlying anchor even when token or reference observations are missing; it
+never forward-fills either observation. The panel loader rejects non-canonical
+or gapped timestamps rather than hiding the data-quality problem.
+
 ---
 
 ## 12. Tooling & conventions
 
 - **Python 3.11+**, FastAPI, Pydantic v2, `pydantic-settings`.
 - **Deps:** `pyproject.toml` (uv or poetry), pinned. `httpx` (OKX), `alpaca-py`
-  (NVDA), `web3` (X Layer), `apscheduler` (P1 scheduler only).
+  (NVDA), and `web3` only for the later X Layer publisher. The P0.5 scheduler
+  uses the Python standard library and does not require APScheduler.
 - **Lint/format:** `ruff` + `ruff format`. **Types:** annotate; `mypy` on
   `valtide_api/` if time allows.
 - **Tests:** `pytest`. Pure logic (`validation`, `session`) fully unit-tested;
@@ -578,19 +622,22 @@ provenance, never as the primary live NVDA source.
    in the quant package.
 9. `validation.py` + tests (the core — test hardest; log-space z-score).
 10. `state_store.py` (in-memory) + `replay.py`.
-11. `scenarios/weekend_divergence.json`; `/api/valuation` serves replay output
-   only after it has been computed.
+11. `scenarios/weekend_divergence.json`; replay remains explicit and does not
+   seed the warmed `/api/valuation` cache.
 
 **Phase 3 — integration (Sep 23 night → 24)**
 12. Keep the packaged P1a-C artifacts and verify backend integration against the
    quant package's public result contract.
-13. `routes/replay.py` + `routes/backtest.py` from shared historical data.
+13. `routes/replay.py` + `routes/backtest.py` from shared historical data;
+    `scripts/build_historical_panel.py` joins point-in-time OKX/Alpaca sources.
 14. `publisher.py` + `routes/publish.py` once Kai Ze gives RPC + contract ABI.
 15. Connect Valerie's frontend to the live API.
 
-**Phase 4 — buffer (Sep 25)**
-16. Re-calibrate thresholds on James's results; `scheduler.py` if time; bug
-    fixes; demo dry-run.
+**Phase 4 — P0.5 runtime hardening**
+16. Run the optional single-process warmed scheduler on canonical UTC five-minute
+    boundaries, persist state/result in SQLite, and expose `/api/runtime` status.
+17. Re-calibrate thresholds on James's results; run deterministic replay/demo
+    checks; keep live/historical credentialed smoke tests separate from CI.
 
 ---
 
