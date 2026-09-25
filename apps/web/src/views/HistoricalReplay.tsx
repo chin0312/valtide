@@ -14,12 +14,18 @@ export function HistoricalReplay({
   setIndex,
   playing,
   setPlaying,
+  title = "Deterministic scenario replay",
+  subtitle = "Each point is a 5-minute snapshot. This scenario shows state progression only; it has no empirical future ground truth or model track record.",
+  showPlayback = true,
 }: {
   results: ValuationResult[];
   index: number;
   setIndex: (i: number) => void;
   playing: boolean;
   setPlaying: (p: boolean) => void;
+  title?: string;
+  subtitle?: string;
+  showPlayback?: boolean;
 }) {
   useEffect(() => {
     if (!playing) return;
@@ -36,8 +42,8 @@ export function HistoricalReplay({
 
   return (
     <Panel
-      title="Deterministic scenario replay"
-      subtitle="Each point is a 5-minute snapshot. This scenario shows state progression only; it has no empirical future ground truth or model track record."
+      title={title}
+      subtitle={subtitle}
     >
       <Legend />
       <EscalationChart results={results} index={index} onSelect={setIndex} />
@@ -56,7 +62,7 @@ export function HistoricalReplay({
       </div>
 
       <div className="mt-4 flex items-center gap-4">
-        <button
+        {showPlayback && <button
           onClick={() => {
             if (atEnd) setIndex(0);
             setPlaying(!playing);
@@ -65,7 +71,7 @@ export function HistoricalReplay({
           style={{ background: "var(--color-accent)" }}
         >
           {playing ? "❚❚ Pause" : atEnd ? "↻ Replay from start" : "▶ Play"}
-        </button>
+        </button>}
         <input
           type="range"
           min={0}

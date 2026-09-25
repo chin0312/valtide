@@ -10,6 +10,11 @@ export interface ValuationResult {
 
   last_trusted_reference: number;
   token_price: number | null;
+  token_source: string | null;
+  token_observed_at: string | null;
+  token_volume: number | null;
+  token_volume_usd: number | null;
+  token_liquidity_usd: number | null;
   external_constructed_reference: number | null;
 
   valtide_fair_value: number;
@@ -38,6 +43,7 @@ export interface ValuationResult {
   interval_calibration_type: string;
   interval_calibration_source: string;
   reference_age_seconds: number;
+  source_provenance: Record<string, string>;
 }
 
 export interface AssetInfo {
@@ -56,6 +62,10 @@ export interface BacktestMetrics {
   mae: number | null;
   rmse: number | null;
   interval_coverage: number | null;
+  window_start: string | null;
+  window_end: string | null;
+  model_id: string | null;
+  model_version: string | null;
   note: string;
 }
 
@@ -70,6 +80,14 @@ export interface RuntimeStatus {
   last_tick_attempt_at: string | null;
   last_error: string | null;
   last_gap_steps: number;
+  auto_publish_enabled: boolean;
+  last_publish_status: string | null;
+  last_publish_attempt_at: string | null;
+  last_publish_observation_ts: string | null;
+  last_published_observation_ts: string | null;
+  last_published_at: number | null;
+  last_publish_tx_hash: string | null;
+  last_publish_error: string | null;
 }
 
 export interface OnchainPolicy {

@@ -3,6 +3,7 @@ import type { EvidenceState } from "../api/types";
 import { fetchHistoricalBacktest } from "../api/client";
 import { Panel } from "../components/ui";
 import { EVIDENCE } from "../lib/evidence";
+import { timeUTC } from "../lib/format";
 
 const STATES: EvidenceState[] = ["SUPPORTED", "INCONCLUSIVE", "CHALLENGED"];
 
@@ -31,6 +32,10 @@ export function ModelEvidence() {
         <>
           <div className="mb-2 text-xs font-medium" style={{ color: "var(--color-ink-dim)" }}>
             Evidence States across historical observations ({total})
+          </div>
+          <div className="mb-3 grid gap-x-4 gap-y-1 text-xs sm:grid-cols-2" style={{ color: "var(--color-ink-dim)" }}>
+            <span>Window: <strong className="text-ink">{timeUTC(data.window_start)} → {timeUTC(data.window_end)}</strong></span>
+            <span>Model: <strong className="text-ink">{data.model_id ?? "—"} {data.model_version ?? ""}</strong></span>
           </div>
           <div className="flex h-3 overflow-hidden rounded-full" style={{ border: "1px solid var(--color-line)" }}>
             {STATES.map((s) => {

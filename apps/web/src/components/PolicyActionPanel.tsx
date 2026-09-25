@@ -38,27 +38,38 @@ interface PolicyActionPanelProps {
   policySource: string;
   sync?: OnchainSyncStatus;
   scenarioMode?: boolean;
+  observationKind?: "operational" | "historical" | "scenario";
+  observationLabel?: string;
 }
 
-export function PolicyActionPanel({ current, policy, evaluation, policySource, sync, scenarioMode = false }: PolicyActionPanelProps) {
+export function PolicyActionPanel({ current, policy, evaluation, policySource, sync, scenarioMode = false, observationKind = scenarioMode ? "scenario" : "operational", observationLabel }: PolicyActionPanelProps) {
   const currentStyle = EVIDENCE[current];
   const projectedAction = policy ? actionFor(policy, current) : null;
   const enforcedAction = evaluation?.policy_action ?? null;
+  const historical = observationKind === "historical";
+  const scenario = scenarioMode || observationKind === "scenario";
 
   return (
-    <Panel title={scenarioMode ? "Scenario policy projection" : "Evidence → policy action"} subtitle="Valtide evaluates evidence; the curator policy selects an action; the consumer enforces it.">
+    <Panel title={scenario ? "Scenario policy projection" : historical ? "Historical policy mapping" : "Evidence → policy action"} subtitle="Valtide evaluates evidence; the curator policy selects an action; the consumer enforces it.">
       <div className="rounded-xl px-4 py-4" style={{ background: currentStyle.soft, border: `1px solid ${currentStyle.line}` }}>
         <div className="text-xs font-medium" style={{ color: "var(--color-ink-dim)" }}>
-          {scenarioMode ? "Scenario Evidence State" : "Current Operational Evidence"}
+          {observationLabel ?? (scenario ? "Scenario Evidence State" : historical ? "Selected historical evidence" : "Current Operational Evidence")}
         </div>
         <div className="mt-2"><EvidenceChip state={current} size="lg" /></div>
 
-        {scenarioMode ? (
+        {scenario ? (
           <ActionBlock
             label="Curator mapping for this scenario Evidence State"
             action={projectedAction}
             description="This deterministic replay does not publish its state to the deployed Registry."
             detail="This mapping applies to a fresh attestation. A stale attestation uses the configured STALE policy."
+          />
+        ) : historical ? (
+          <ActionBlock
+            label="Policy under current configuration"
+            action={projectedAction}
+            description="Counterfactual mapping of this historical Evidence State under the currently fetched curator policy."
+            detail="This is not historical Registry state or historical onchain enforcement."
           />
         ) : (
           <div className="mt-4 grid gap-3 sm:grid-cols-2">
@@ -78,7 +89,7 @@ export function PolicyActionPanel({ current, policy, evaluation, policySource, s
         )}
       </div>
 
-      {!scenarioMode && sync && (
+      {!scenario && !historical && sync && (
         <div className="mt-3 rounded-lg px-3 py-2 text-xs" style={{ background: "var(--color-panel-2)", border: "1px solid var(--color-line)", color: "var(--color-ink-dim)" }}>
           <div className="flex items-center justify-between gap-3">
             <span>Operational ↔ Registry</span>

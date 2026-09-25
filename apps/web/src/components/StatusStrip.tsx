@@ -1,5 +1,5 @@
 import type { RuntimeStatus, ValuationResult } from "../api/types";
-import { ageLabel, sessionLabel, staleness } from "../lib/format";
+import { ageLabel, sessionLabel, sourceLabel, staleness, timeUTC } from "../lib/format";
 
 export type Provenance = "cached" | "diagnostic" | "demo-scenario" | "demo-fixture";
 
@@ -25,23 +25,26 @@ export function StatusStrip({
   const referenceAge = staleness(r.reference_under_test_age_seconds);
   const anchorAge = staleness(r.reference_age_seconds);
   const prov = PROVENANCE[provenance];
+  const isOperational = provenance === "cached";
+  const observationLabel = isOperational ? "Operational observation" : provenance === "diagnostic" ? "Diagnostic observation" : "Scenario observation";
   return (
     <div className="flex flex-wrap items-center gap-x-5 gap-y-2 rounded-xl px-4 py-2.5 text-sm" style={{ background: "var(--color-panel)", border: "1px solid var(--color-line)" }}>
       <span className="font-semibold text-ink">{r.asset}</span>
-      <Item label="Validating" value={r.reference_under_test_source} />
+      <Item label="Validating" value={sourceLabel(r.reference_under_test_source)} />
       <Item label="Session" value={sessionLabel(r.market_state)} />
       <Item
-        label="Operational observation"
-        value={`${ageLabel(operationalAgeSeconds)} ago`}
-        title={`UTC observation timestamp: ${r.timestamp}`}
+        label={observationLabel}
+        value={isOperational ? `${ageLabel(operationalAgeSeconds)} ago` : timeUTC(r.timestamp)}
+        title={isOperational ? `UTC observation timestamp: ${r.timestamp}` : `Scenario/diagnostic timestamp: ${r.timestamp}`}
       />
 
       <AgeTag label="Reference source lag:" age={referenceAge} status={false} title="Age of the reference-under-test source relative to this valuation observation; it is not the wall-clock age of the operational result." />
       <AgeTag label="Trusted anchor age:" age={anchorAge} status={false} title="Age of the latest trusted underlying anchor at this valuation observation; it is not the wall-clock age of the operational result." />
 
       {runtime && (
-        <span className="text-xs" style={{ color: "var(--color-ink-dim)" }} title="Warmed live scheduler status">
+        <span className="text-xs" style={{ color: runtime.last_tick_status === "failure" ? "var(--color-inconclusive)" : "var(--color-ink-dim)" }} title={runtime.last_error ?? "Warmed live scheduler status"}>
           scheduler {runtime.scheduler_enabled ? (runtime.last_tick_status ?? "idle") : "off"}
+          {runtime.last_tick_status === "failure" && " · degraded"}
         </span>
       )}
 

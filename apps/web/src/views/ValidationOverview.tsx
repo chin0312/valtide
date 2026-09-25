@@ -3,7 +3,7 @@ import { EvidenceChip } from "../components/EvidenceChip";
 import { ReasonCodes } from "../components/ReasonCodes";
 import { Figure } from "../components/ui";
 import { EVIDENCE } from "../lib/evidence";
-import { money, pct, sigma } from "../lib/format";
+import { compactUsd, money, pct, sigma, sourceLabel, timeUTC } from "../lib/format";
 
 // The hero. Leads with the economic magnitude (a trader anchors on %, not σ),
 // surfaces market quality and the reference identity, and flags a fallback
@@ -16,6 +16,7 @@ export function ValidationOverview({ r }: { r: ValuationResult }) {
   const outsideInterval = r.reference_under_test != null && (r.reference_under_test < r.fair_value_lower || r.reference_under_test > r.fair_value_upper);
   const coverage = `${Math.round(r.interval_coverage_target * 100)}%`;
   const fallbackCalibration = r.reason_codes.includes("CALIBRATION_GLOBAL_FALLBACK");
+  const provenance = Object.entries(r.source_provenance).map(([source, value]) => `${source}: ${value}`).join(" · ");
 
   return (
     <section className="card-shadow overflow-hidden rounded-2xl bg-white" style={{ border: "1px solid var(--color-line)" }}>
@@ -56,7 +57,7 @@ export function ValidationOverview({ r }: { r: ValuationResult }) {
         <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
           <Figure label="Reference under test" value={money(r.reference_under_test)} sub={r.reference_under_test_source} hint="The price being validated — the value a protocol currently relies on." />
           <Figure label="Valtide challenger estimate" value={money(r.valtide_fair_value)} sub={`${coverage} calibrated interval ${money(r.fair_value_lower)} – ${money(r.fair_value_upper)}`} accent="var(--color-supported)" hint="An independent challenger estimate with a calibrated uncertainty interval — not a definitive fair value." />
-          <Figure label="Tokenized market" value={money(r.token_price)} sub="depth / volume not in result" accent="var(--color-token)" hint="The traded NVDAx price. Weigh it by market quality — thin books produce unreliable prices. Depth/volume are captured on the live path but not yet exposed on the public result payload." />
+          <Figure label="Tokenized market" value={money(r.token_price)} sub={sourceLabel(r.token_source)} accent="var(--color-token)" hint="The traded NVDAx price. Weigh it by market quality — thin books produce unreliable prices." />
           <Figure label="Deviation" value={pct(dev)} sub={`${sigma(r.standardized_deviation)} diagnostic`} accent={s.fg} hint="Economic gap from the challenger estimate. The Evidence State also uses interval bounds and evidence quality." />
         </div>
 
@@ -67,6 +68,19 @@ export function ValidationOverview({ r }: { r: ValuationResult }) {
               <Row k="Tokenized market move" v={pct(r.observed_token_move_pct)} />
               <Row k="Model-implied move" v={pct(r.model_implied_move_pct)} />
               <Row k="Unexplained premium / discount" v={pct(r.residual_premium_discount_pct)} hint="The part of the token price the model doesn't explain — not automatically a mispricing." />
+            </dl>
+          </div>
+          <div>
+            <div className="mb-2 text-xs font-medium" style={{ color: "var(--color-ink-dim)" }}>Source provenance</div>
+            <dl className="space-y-1.5 text-sm">
+              <Row k="Token source" v={sourceLabel(r.token_source)} />
+              <Row k="Token observed" v={timeUTC(r.token_observed_at)} />
+              <Row k="Token volume" v={r.token_volume == null ? "—" : r.token_volume.toFixed(2)} />
+              <Row k="Token volume USD" v={compactUsd(r.token_volume_usd)} />
+              <Row k="Token liquidity" v={compactUsd(r.token_liquidity_usd)} />
+              <Row k="Reference source" v={sourceLabel(r.reference_under_test_source)} />
+              <Row k="Reference observed" v={timeUTC(r.reference_under_test_ts)} />
+              <Row k="Provenance" v={provenance || "—"} />
             </dl>
           </div>
           <div>

@@ -86,6 +86,17 @@ export function sessionLabel(state: string): string {
   }
 }
 
+export function sourceLabel(source: string | null | undefined): string {
+  if (!source) return DASH;
+  const labels: Record<string, string> = {
+    okx_onchainos: "OKX OnchainOS",
+    okx_xperp_index: "OKX X-Perp index",
+    alpaca: "Alpaca NVDA",
+    dexscreener: "DexScreener diagnostic",
+  };
+  return labels[source] ?? source;
+}
+
 // Human-readable reason codes; unknown codes fall back to a de-snaked label.
 const REASON_LABELS: Record<string, string> = {
   REFERENCE_UNDER_TEST_OUTSIDE_INTERVAL: "Reference is outside the model's range",

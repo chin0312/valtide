@@ -72,7 +72,9 @@ source of truth; the shapes in §3 are copied from `apps/api/valtide_api/models.
 | GET | `/api/assets` | supported assets + sources | asset selector |
 | GET | `/api/valuation/{asset}` | latest **persisted/warmed** result (never advances filter) | primary operational overview |
 | GET | `/api/valuation/{asset}/live` | on-demand cold-start diagnostic (needs keys; 503 if unavailable) | optional "run live diagnostic" |
-| GET | `/api/replay/{asset}` | full historical/scenario sequence (or one step via `timestamp=`) | **the demo** |
+| GET | `/api/history/{asset}?limit=N` | successful warmed scheduler observations only | operational timeline |
+| GET | `/api/replay/{asset}?source=panel` | point-in-time historical panel sequence | Historical investigation |
+| GET | `/api/replay/{asset}?source=scenario&scenario=weekend_divergence` | deterministic scenario sequence | **Demo only** |
 | GET | `/api/backtest/{asset}?source=historical` | historical MAE / RMSE / coverage / state counts | Historical Model Evidence panel |
 | GET | `/api/runtime/{asset}` | warm scheduler status | freshness / status strip |
 | GET | `/api/onchain/{asset}` | deployed Registry, RiskGuard policy, and evaluation | X Layer Control Plane |
@@ -81,15 +83,16 @@ source of truth; the shapes in §3 are copied from `apps/api/valtide_api/models.
 
 `/api/replay/{asset}` query params: `source=auto|panel|scenario`,
 `scenario=weekend_divergence` (default), optional `timestamp=<ISO>` to return a
-single step. It also sets an `X-Valtide-Source` response header.
+single step. It also sets an `X-Valtide-Source` response header. The frontend
+must verify `historical_panel` before rendering panel data as historical.
 
 **Degraded states are first-class, not errors.** `GET /valuation/{asset}` returns
 `503 data_unavailable` when the warmed runtime has no persisted result; render
 "Runtime not warmed yet" and do not substitute the cold-start diagnostic. The
 `/live` endpoint is a one-off, read-only diagnostic and returns `503` when a live
-input (Alpaca key, DexScreener) is missing. X Layer status is read through the
-deployed control-plane endpoints; publication is backend-controlled, the browser
-never holds the publisher signer, and the frontend only observes publication and
+input is missing. X Layer status is read through the deployed control-plane
+endpoints; publication is backend-controlled, the browser never holds the
+publisher signer, and the frontend only observes publication and
 synchronization state.
 
 ### Operational workflow
@@ -119,11 +122,26 @@ onchain Policy Action.
 
 Policy configuration belongs to the consuming protocol or curator. The current
 hackathon frontend reads the deployed policy and does not edit it. The browser
-does not publish attestations or hold a signer key. Publication may be
-backend-controlled manually or automatically in a later backend change; this
-document does not claim scheduler auto-publication is deployed. `DemoVault` is
-a reference consumer demonstrating composability, not the Valtide product
-itself.
+does not publish attestations or hold a signer key. Scheduler-owned publication
+is backend-controlled; RuntimeStatus exposes delivery attempts and outcomes, and
+the frontend observes publication/synchronization rather than initiating it.
+`DemoVault` is a reference consumer demonstrating composability, not the Valtide
+product itself.
+
+### Three data lanes
+
+The UI keeps these lanes explicit and never silently substitutes one for another:
+
+- **Operational monitoring** uses `/api/valuation/{asset}`, `/api/runtime/{asset}`,
+  `/api/history/{asset}`, and current `/api/onchain/{asset}` read paths.
+- **Historical investigation** uses `/api/replay/{asset}?source=panel` and
+  `/api/backtest/{asset}?source=historical`.
+- **Deterministic Demo** uses `/api/replay/{asset}?source=scenario` with the
+  bundled fixture as an explicitly labelled Demo-only fallback.
+
+Operational history is successful warmed runtime output, not a model backtest.
+Historical panel output is research evidence, not current operational history or
+historical chain state. Scenario output is illustrative behavior only.
 
 ---
 
@@ -142,6 +160,11 @@ interface ValuationResult {
 
   last_trusted_reference: number; // R0 — the trusted anchor (e.g. stale close)
   token_price: number | null;     // tokenized market (NVDAx)
+  token_source: string | null;
+  token_observed_at: string | null;
+  token_volume: number | null;
+  token_volume_usd: number | null;
+  token_liquidity_usd: number | null;
   external_constructed_reference: number | null; // optional Pyth-style comparator
 
   valtide_fair_value: number;     // challenger point estimate
@@ -170,12 +193,13 @@ interface ValuationResult {
   interval_calibration_type: string;
   interval_calibration_source: string;
   reference_age_seconds: number; // trusted anchor age at observation, not current result age
+  source_provenance: Record<string, string>;
 }
 ```
 
 Supporting shapes: `AssetInfo { asset, token_source, underlying_source, model_available }`,
-`BacktestMetrics { asset, source, n_observations, evidence_state_counts, n_evaluable, mae, rmse, interval_coverage, note }`,
-`RuntimeStatus { asset, scheduler_enabled, has_state, has_live_result, last_state_timestamp, last_result_timestamp, last_tick_status, last_tick_attempt_at, last_error, last_gap_steps }`.
+`BacktestMetrics { asset, source, n_observations, evidence_state_counts, n_evaluable, mae, rmse, interval_coverage, window_start, window_end, model_id, model_version, note }`,
+`RuntimeStatus { asset, scheduler_enabled, has_state, has_live_result, last_state_timestamp, last_result_timestamp, last_tick_status, last_tick_attempt_at, last_error, last_gap_steps, auto_publish_enabled, last_publish_status, last_publish_attempt_at, last_publish_observation_ts, last_published_observation_ts, last_published_at, last_publish_tx_hash, last_publish_error }`.
 
 The X Layer read models are:
 
@@ -227,6 +251,12 @@ version when an attestation exists. The browser shortens addresses for display.
 - `residual_premium_discount_pct` is **not** automatically a mispricing/arb — it
   is the part of the token price the challenger doesn't explain. Label it neutrally.
 - `confidence` is `null` in P0 by design. Do not invent a 0–100 score.
+- `reference_under_test_age_seconds` is source lag at the observation timestamp;
+  `reference_age_seconds` is trusted-anchor age at that observation. Neither is
+  the wall-clock age of a persisted operational result.
+- Operational observation recency is derived separately from `ValuationResult.timestamp`
+  versus the browser clock. Onchain attestation freshness comes only from the
+  Registry/RiskGuard response (`fresh`, `registry_fresh`, `validUntil`).
 
 ---
 
@@ -361,11 +391,11 @@ curl -s "http://localhost:8000/api/replay/NVDAx?source=scenario&scenario=weekend
   > apps/web/src/fixtures/weekend_divergence.json
 ```
 
-The demo must be physically incapable of failing because of a network/CORS/key
-issue. The warmed operational result (`/valuation/NVDAx`) is the primary live
-view when available. A **live** variant (`/valuation/NVDAx/live`) is an explicit
-cold-start diagnostic only; it is never silently substituted for operational
-state or treated as publishable.
+The Demo lane may use the fixture when the scenario endpoint is unavailable, but
+Operational mode must never auto-switch to Demo. The warmed operational result
+(`/valuation/NVDAx`) is the primary live view. A **live** variant
+(`/valuation/NVDAx/live`) is an explicit cold-start diagnostic only; it is never
+silently substituted for operational state or treated as publishable.
 
 ---
 

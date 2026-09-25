@@ -1,19 +1,21 @@
-// Typed client for the full Valtide backend contract. Every screen is built from
-// the same ValuationResult shape, so the UI can render warmed operational,
-// diagnostic, historical-replay, or scenario data without conflating them. A
-// static fixture backs the demo scenario so a pitch can't fail on a network/CORS/key issue.
+// Typed client for the full Valtide backend contract. Operational, historical,
+// and scenario lanes are explicit so a degraded source cannot silently become
+// another kind of evidence. A static fixture backs Demo mode only.
 //
 // Endpoint map (FastAPI, apps/api):
 //   GET  /health
 //   GET  /api/valuation/{asset}         persisted/warmed result (503 on cold cache)
 //   GET  /api/valuation/{asset}/live    one-off cold-start diagnostic
-//   GET  /api/replay/{asset}            historical/scenario sequence
+//   GET  /api/history/{asset}?limit=N   successful warmed operational history
+//   GET  /api/replay/{asset}?source=panel historical panel sequence
+//   GET  /api/replay/{asset}?source=scenario deterministic demo sequence
 //   GET  /api/backtest/{asset}?source=historical historical diagnostics
 //   GET  /api/runtime/{asset}           warmed scheduler status
 //   GET  /api/onchain/{asset}           X Layer Registry / RiskGuard state
 //   GET  /api/onchain/{asset}/enforcement DemoVault read-only enforcement check
 
 import type {
+  AssetInfo,
   BacktestMetrics,
   OnchainControlPlane,
   OnchainEnforcement,
@@ -53,6 +55,26 @@ async function getJSON<T>(path: string, timeoutMs = 6000): Promise<T> {
   }
 }
 
+async function getJSONWithHeaders<T>(path: string, timeoutMs = 12000): Promise<{ data: T; headers: Headers }> {
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), timeoutMs);
+  try {
+    const res = await fetch(`${BASE}${path}`, { signal: controller.signal });
+    if (!res.ok) {
+      let detail = res.statusText;
+      try {
+        detail = (await res.json())?.detail ?? detail;
+      } catch {
+        /* non-JSON body */
+      }
+      throw new ApiError(res.status, detail);
+    }
+    return { data: (await res.json()) as T, headers: res.headers };
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
 export async function fetchHealth(): Promise<boolean> {
   try {
     await getJSON<{ status: string }>("/health", 2500);
@@ -74,6 +96,35 @@ export function fetchOperationalValuation(): Promise<ValuationResult> {
 
 export function fetchRuntime(): Promise<RuntimeStatus> {
   return getJSON<RuntimeStatus>(`/api/runtime/${ASSET}`);
+}
+
+export function fetchAssets(): Promise<AssetInfo[]> {
+  return getJSON<AssetInfo[]>("/api/assets");
+}
+
+/** Successful warmed scheduler observations only; never replay/backtest data. */
+export function fetchOperationalHistory(limit = 72): Promise<ValuationResult[]> {
+  return getJSON<ValuationResult[]>(`/api/history/${ASSET}?limit=${limit}`, 10000);
+}
+
+export interface HistoricalReplayResponse {
+  results: ValuationResult[];
+  source: "historical_panel";
+}
+
+/** Historical panel replay. A scenario response is rejected rather than substituted. */
+export async function fetchHistoricalReplay(): Promise<HistoricalReplayResponse> {
+  const response = await getJSONWithHeaders<ValuationResult[]>(`/api/replay/${ASSET}?source=panel`, 20000);
+  const source = response.headers.get("X-Valtide-Source");
+  // The backend path is explicit. If CORS does not expose the diagnostic header,
+  // the browser returns null; reject only an explicitly conflicting source.
+  if (source != null && source !== "historical_panel") {
+    throw new Error(`Unexpected replay source: ${source ?? "missing"}`);
+  }
+  if (!Array.isArray(response.data) || response.data.length === 0) {
+    throw new Error("Historical panel replay is empty");
+  }
+  return { results: response.data, source: "historical_panel" };
 }
 
 export function fetchHistoricalBacktest(): Promise<BacktestMetrics> {
