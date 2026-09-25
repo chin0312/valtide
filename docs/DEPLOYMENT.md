@@ -40,9 +40,10 @@ uvicorn valtide_api.main:app --host 0.0.0.0 --port ${PORT:-8000}
 ```
 
 The scheduler must remain single-process because it owns canonical five-minute
-boundaries and the persisted SQLite state. `VALTIDE_STATE_DB_PATH` points to
-`/data/valtide.sqlite3` in the hosted environment. The persistent volume also
-contains the provisioned historical panel used by the historical replay path.
+boundaries and the persisted SQLite state. `VALTIDE_STATE_DB_PATH` points to a
+persistent SQLite file under `/data`; the exact filename is configured in
+Railway. `HISTORICAL_PANEL_PATH` points to the provisioned historical panel on
+the same persistent volume for the historical replay path.
 
 ## Backend Variables
 

@@ -451,7 +451,9 @@ The quant team should still provide enough research evidence to defend the verti
 - enough historical testing to demonstrate methodology,
 - basic model and Evidence State metrics.
 
-Full historical replay UX, rich backtest dashboards and multiple external comparators are not submission blockers.
+Full historical replay UX, rich backtest dashboards, and multiple external
+comparators remain future extensions; the current product uses the implemented
+replay, diagnostics, and reference path.
 
 ### X Layer control path
 
@@ -667,7 +669,8 @@ CHALLENGED
 → policy may restrict new risk
 ```
 
-The demo consumer is not a production protocol. The current demo should prefer restricting new exposure over automatically liquidating existing borrowers.
+The demo consumer is not a production protocol. The current demo restricts new
+exposure rather than automatically liquidating existing borrowers.
 
 ### Boundaries
 
@@ -701,7 +704,8 @@ The contract layer must not:
 
 ## 16. Current and Future Scope
 
-One complete, defensible vertical slice is more important than several partially implemented features.
+Valtide currently prioritizes a defensible NVDAx vertical slice over broad but
+partial asset coverage.
 
 ### Current end-to-end path
 
@@ -725,7 +729,8 @@ One complete, defensible vertical slice is more important than several partially
 - enough historical testing to demonstrate methodology;
 - basic model and Evidence State metrics.
 
-Historical validation remains important, but a full research platform is not required before the end-to-end X Layer demo works.
+Historical validation remains part of the product, while a full research
+platform remains outside the current deployed scope.
 
 ### Future extensions
 
