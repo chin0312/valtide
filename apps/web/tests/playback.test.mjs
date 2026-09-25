@@ -7,9 +7,9 @@ test("an earlier first-frame timestamp cannot select observation -1", () => {
 });
 
 test("playback moves continuously and stops exactly at the last observation", () => {
-  assert.equal(advancePosition(0, 105, 26), 0.5);
-  assert.equal(advancePosition(12.5, 210, 26), 13.5);
-  assert.equal(advancePosition(24.9, 210, 26), 25);
+  assert.equal(advancePosition(0, 60, 26), 0.5);
+  assert.equal(advancePosition(12.5, 120, 26), 13.5);
+  assert.equal(advancePosition(24.9, 120, 26), 25);
 });
 
 test("stale and invalid positions stay within the current sequence", () => {

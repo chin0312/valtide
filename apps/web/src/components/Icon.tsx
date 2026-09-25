@@ -13,6 +13,10 @@ const paths: Record<string, ReactNode> = {
   replay: <><path d="M3 10a9 9 0 1 1 2 8M3 4v6h6" /></>,
   clock: <><circle cx="12" cy="12" r="9" /><path d="M12 7v5l3 2" /></>,
   arrow: <path d="M4 12h16m-5-5 5 5-5 5" />,
+  coin: <><circle cx="12" cy="12" r="8" /><path d="M14.5 9.5c-.5-.7-1.3-1-2.4-1-1.4 0-2.3.6-2.3 1.5 0 2.2 4.7 1 4.7 3.3 0 .9-.9 1.6-2.4 1.6-1.1 0-2-.4-2.6-1.2M12 7v10" /></>,
+  model: <><path d="M4 18 9 12l4 3 7-9" /><circle cx="4" cy="18" r="1" /><circle cx="9" cy="12" r="1" /><circle cx="13" cy="15" r="1" /><circle cx="20" cy="6" r="1" /></>,
+  residual: <><circle cx="12" cy="12" r="7" /><path d="M12 3v5M12 16v5M3 12h5M16 12h5" /><circle cx="12" cy="12" r="2" /></>,
+  depth: <><path d="M5 6h14M3 12h18M6 18h12" /><path d="M8 4v4M16 10v4M11 16v4" /></>,
 };
 
 export type IconName = keyof typeof paths;
