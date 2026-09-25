@@ -7,6 +7,7 @@ single Settings object so there is one place to audit configuration.
 from functools import lru_cache
 from pathlib import Path
 
+from pydantic import Field
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 # Repo-root .env, resolved from this file so it works regardless of CWD.
@@ -23,14 +24,19 @@ class Settings(BaseSettings):
     # Confirm the exact instId from the OKX Dev Day builder kit / X-Perp help page.
     okx_xperp_index_id: str = "NVDA-USD"
 
+    # Optional deterministic NVDAx deployment overrides. When both are set the
+    # authenticated discovery call is bypassed; otherwise the selected RWA
+    # deployment is discovered once and cached for this process.
+    okx_nvdax_chain_index: str = ""
+    okx_nvdax_token_address: str = ""
+
     # Alpaca (NVDA underlying — same source as James's training).
     # Free accounts must use feed="iex"; "sip" needs a paid data plan.
     alpaca_api_key: str = ""
     alpaca_api_secret: str = ""
     alpaca_feed: str = "iex"
 
-    # DexScreener live NVDAx token price (no key). Set the contract address for a
-    # precise lookup; leave blank to fall back to symbol search.
+    # Optional DexScreener diagnostic/future cross-check (not canonical scheduler input).
     dexscreener_nvdax_address: str = ""
 
     # X Layer publisher. The deployment manifest is the source of truth for
@@ -43,12 +49,18 @@ class Settings(BaseSettings):
     publisher_private_key: str | None = None
     publish_validity_seconds: int = 15 * 60
     publish_enabled: bool = False
+    # Scheduler-owned delivery is independent from the explicit HTTP publish
+    # route. Keep both disabled by default for local/test safety.
+    auto_publish_enabled: bool = False
     deployment_manifest_path: Path = _ENV_FILE.parent / "deployments" / "xlayer-testnet.json"
 
     # P0.5 warmed live runtime. Disabled by default so local tests and one-shot
     # diagnostics never start a background network loop implicitly.
     live_scheduler_enabled: bool = False
     live_scheduler_asset: str = "NVDAx"
+    live_settlement_grace_seconds: int = Field(default=60, ge=0)
+    live_settlement_max_attempts: int = Field(default=5, ge=1)
+    live_settlement_retry_delay_seconds: int = Field(default=15, ge=0)
     valtide_state_db_path: Path = _ENV_FILE.parent / "data" / "runtime" / "valtide.sqlite3"
     historical_panel_path: Path = (
         _ENV_FILE.parent / "data" / "generated" / "nvdax_historical_5m.csv"

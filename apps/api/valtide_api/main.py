@@ -14,7 +14,7 @@ from fastapi.middleware.cors import CORSMiddleware
 
 from valtide_api import state_store
 from valtide_api.config import get_settings
-from valtide_api.routes import assets, backtest, onchain, publish, runtime, valuation
+from valtide_api.routes import assets, backtest, history, onchain, publish, runtime, valuation
 from valtide_api.routes import replay as replay_route
 from valtide_api.runtime_store import RuntimeStateIntegrityError, get_runtime_store
 from valtide_api.scheduler import LiveScheduler
@@ -75,6 +75,7 @@ app.include_router(assets.router)
 app.include_router(valuation.router)
 app.include_router(replay_route.router)
 app.include_router(backtest.router)
+app.include_router(history.router)
 app.include_router(publish.router)
 app.include_router(onchain.router)
 app.include_router(runtime.router)

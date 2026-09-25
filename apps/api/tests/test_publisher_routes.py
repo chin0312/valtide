@@ -26,11 +26,13 @@ def _receipt(status: str, tx_hash: str | None, published_at: int | None) -> Publ
     )
 
 
-def test_publish_disabled_returns_503(monkeypatch):
+def test_auto_publish_does_not_enable_manual_publish_route(monkeypatch):
     import valtide_api.routes.publish as publish_route
 
     monkeypatch.setattr(
-        publish_route, "get_settings", lambda: SimpleNamespace(publish_enabled=False)
+        publish_route,
+        "get_settings",
+        lambda: SimpleNamespace(publish_enabled=False, auto_publish_enabled=True),
     )
 
     response = client.post("/api/publish/NVDAx")

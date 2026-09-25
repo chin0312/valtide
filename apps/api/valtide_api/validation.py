@@ -135,6 +135,11 @@ def validate(
         market_state=snapshot.market_state.value,
         last_trusted_reference=r0,
         token_price=token,
+        token_source=snapshot.token_source,
+        token_observed_at=snapshot.token_observed_at,
+        token_volume=snapshot.token_volume,
+        token_volume_usd=snapshot.token_volume_usd,
+        token_liquidity_usd=snapshot.token_liquidity_usd,
         external_constructed_reference=snapshot.external_reference,
         valtide_fair_value=fair,
         fair_value_lower=estimate.lower_bound,
@@ -162,4 +167,5 @@ def validate(
         interval_calibration_type=estimate.interval_calibration_type,
         interval_calibration_source=estimate.interval_calibration_source,
         reference_age_seconds=snapshot.reference_age_seconds,
+        source_provenance=snapshot.source_provenance,
     )

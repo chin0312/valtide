@@ -9,7 +9,9 @@ from __future__ import annotations
 
 import argparse
 import csv
+import os
 import sys
+import tempfile
 from datetime import datetime, timedelta
 from pathlib import Path
 
@@ -28,6 +30,7 @@ PANEL_COLUMNS = [
     "session_state",
     "nvdax_close",
     "nvdax_volume",
+    "nvdax_volume_usd",
     "nvdax_available",
     "nvda_close",
     "nvda_available",
@@ -81,6 +84,8 @@ def build_rows(start, end, token_candles, underlying_bars, reference_candles) ->
             continue
 
         token = token_by_ts.get(timestamp)
+        if token is not None and token.confirm != 1:
+            token = None
         ref = reference_by_ts.get(timestamp)
         rows.append(
             {
@@ -88,6 +93,7 @@ def build_rows(start, end, token_candles, underlying_bars, reference_candles) ->
                 "session_state": classify(timestamp).value,
                 "nvdax_close": str(token.close) if token is not None else "",
                 "nvdax_volume": str(token.volume) if token is not None else "",
+                "nvdax_volume_usd": str(token.volume_usd) if token is not None else "",
                 "nvdax_available": str(token is not None).upper(),
                 "nvda_close": str(underlying.close) if underlying is not None else "",
                 "nvda_available": str(underlying is not None).upper(),
@@ -111,22 +117,38 @@ def build_rows(start, end, token_candles, underlying_bars, reference_candles) ->
 def _write(path: Path, rows: list[dict[str, str]]) -> None:
     if not rows:
         raise RuntimeError("no anchored rows were available for the requested range")
+    previous: datetime | None = None
+    anchored = 0
+    for row in rows:
+        timestamp = _parse_datetime(row["timestamp_utc"])
+        if previous is not None and timestamp - previous != FIVE_MINUTES:
+            raise RuntimeError("panel rows must be ordered canonical five-minute observations")
+        previous = timestamp
+        if row.get("last_trusted_reference") and row.get("last_trusted_reference_ts"):
+            anchored += 1
+    if anchored == 0:
+        raise RuntimeError("panel contains no anchored rows")
     path.parent.mkdir(parents=True, exist_ok=True)
-    with path.open("w", newline="") as handle:
-        writer = csv.DictWriter(handle, fieldnames=PANEL_COLUMNS)
-        writer.writeheader()
-        writer.writerows(rows)
+    temp_path: Path | None = None
+    try:
+        with tempfile.NamedTemporaryFile(
+            mode="w", newline="", dir=path.parent, prefix=f".{path.name}.", suffix=".tmp", delete=False
+        ) as handle:
+            temp_path = Path(handle.name)
+            writer = csv.DictWriter(handle, fieldnames=PANEL_COLUMNS)
+            writer.writeheader()
+            writer.writerows(rows)
+            handle.flush()
+            os.fsync(handle.fileno())
+        os.replace(temp_path, path)
+        temp_path = None
+    finally:
+        if temp_path is not None:
+            temp_path.unlink(missing_ok=True)
 
 
 def build_panel(start: datetime, end: datetime, output: Path) -> int:
-    deployments = okx.discover_nvdax()
-    if not deployments:
-        raise RuntimeError("no NVDAx deployment found from OKX OnchainOS")
-    deployment = deployments[0]
-    chain_index = str(deployment.get("chainIndex") or deployment.get("chainId") or "")
-    token_address = deployment.get("tokenContractAddress") or deployment.get("tokenAddress") or ""
-    if not chain_index or not token_address:
-        raise RuntimeError("top NVDAx deployment did not include chain index and token address")
+    chain_index, token_address = okx.resolve_nvdax_deployment()
 
     token_candles = okx.get_historical_candles(chain_index, token_address, start, end)
     # Fetch a causal pre-range lookback so the first requested row can use a

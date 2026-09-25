@@ -32,7 +32,7 @@ def get_live_valuation(asset: str) -> ValuationResult:
     """Assemble a snapshot from live sources and run one inference on demand.
 
     Compute-only; does not mutate the cache. Returns 503 if a required live
-    input is unavailable (e.g. Alpaca key missing, DexScreener unreachable).
+    input is unavailable (e.g. OKX OnchainOS or Alpaca data is unreachable).
     """
     if asset not in SUPPORTED_ASSETS:
         raise HTTPException(status_code=404, detail=f"asset '{asset}' not supported")
