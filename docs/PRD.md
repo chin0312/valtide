@@ -22,7 +22,11 @@ Its core product question is:
 
 > **“Is the collateral valuation this protocol is relying on supported by independent evidence?”**
 
-In this document, the **reference under test** is the generic reference Valtide validates. In the primary product use case, it is the production collateral reference; when a live production reference is unavailable during the hackathon, it may be a reconstructed protocol valuation methodology, a Chainlink reference, an OKX bounded/index reference, or another selected reference.
+The **reference under test** is the explicit reference Valtide validates. In
+the current deployed NVDAx path, it is the OKX X-Perp NVDA index. The
+interface is designed so other protocol-defined or market references can be
+evaluated without changing the Evidence State / Policy Action ownership
+boundary.
 
 ---
 
@@ -252,7 +256,11 @@ Valtide fair value             $185.70
 
 ### Step 4 — Validate the reference under test
 
-In the primary use case, the reference under test is the production collateral reference. During the hackathon, it may instead be a reconstructed or selected reference used for validation.
+For the current deployed NVDAx path, the reference under test is the OKX
+X-Perp NVDA index. Future adapters may evaluate a protocol collateral
+reference, Chainlink reference, constructed reference, or another named market
+benchmark, provided the reference remains separate from the challenger feature
+set to avoid circular validation.
 
 Example:
 
@@ -503,9 +511,9 @@ The product does not:
 
 ### Required reference baselines
 
-At minimum for the submission-critical slice:
+The current evaluation includes:
 
-1. one selected reference under test, preferably the production collateral reference,
+1. the selected reference under test — the OKX X-Perp NVDA index in the deployed NVDAx path,
 2. last trusted underlying / stale reference,
 3. raw tokenized-equity price,
 4. simple statistical blend,

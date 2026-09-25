@@ -12,7 +12,11 @@ The methodology has two layers:
 1. **Challenger valuation** — estimate a latent current equity value and uncertainty using point-in-time market information;
 2. **Reference validation** — test whether the reference under test is consistent with the challenger estimate and other independent evidence.
 
-The reference under test is the generic reference Valtide validates. In the primary product use case, it is a production collateral reference; when that reference is unavailable during the hackathon, it may be a reconstructed protocol valuation methodology, a Chainlink reference, an OKX bounded/index reference, or another selected reference.
+The reference under test is the explicit price or valuation methodology
+Valtide evaluates. For the deployed NVDAx vertical slice, the live reference
+under test is the OKX X-Perp NVDA index. Other references may be evaluated by
+future adapters, but a reference under test must remain outside the independent
+challenger feature set to avoid circular validation.
 
 The product is therefore not asking only:
 
