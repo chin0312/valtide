@@ -12,19 +12,39 @@ import pytest
 import valtide_api.live as live
 from valtide_api.adapters.dexscreener import TokenQuote
 from valtide_api.adapters.equity import RawEquityBar
+from valtide_api.adapters.okx import RawCandle
 from valtide_api.adapters.reference import ReferenceObservation
 from valtide_api.clock import FIVE_MINUTES, canonical_5m_boundary, is_canonical_5m
-from valtide_api.live import LiveDataUnavailable, build_live_snapshot, run_live_valuation
+from valtide_api.live import (
+    ExactNvdaxCandleUnavailable,
+    LiveDataUnavailable,
+    build_live_snapshot,
+    run_live_valuation,
+)
 
 
-def _patch_sources(monkeypatch, *, quote, bar, ref, bars=None):
-    """Patch the three live sources. `ref` is the confirmed index candle for the bar.
+def _patch_sources(monkeypatch, *, quote, bar, ref, bars=None, candle=None):
+    """Patch the exact token candle, underlying bars, and reference for the bar.
 
     `bar` is the single latest trusted bar (back-compat); pass `bars` to supply the
     full ascending window when the current-bucket and trusted-anchor bars differ.
     """
     trusted = bars if bars is not None else ([bar] if bar is not None else [])
-    monkeypatch.setattr(live.dexscreener, "get_nvdax_price", lambda **k: quote)
+    def get_candle(boundary, **_kwargs):
+        if quote is None:
+            return None
+        return candle or RawCandle(
+            boundary,
+            quote.price,
+            quote.price,
+            quote.price,
+            quote.price,
+            quote.volume_h24_usd or 100.0,
+            quote.volume_h24_usd or 100.0,
+            1,
+        )
+
+    monkeypatch.setattr(live.okx, "get_nvdax_candle_at", get_candle)
     monkeypatch.setattr(live.equity, "get_trusted_bars", lambda *a, **k: trusted)
     monkeypatch.setattr(live.reference, "get_confirmed_index_bar", lambda *a, **k: ref)
 
@@ -281,9 +301,13 @@ def test_underlying_query_is_capped_at_observation_boundary(monkeypatch):
         query_ends.append(now)
         return [bar for bar in all_bars if bar.ts <= now]
 
-    monkeypatch.setattr(live.dexscreener, "get_nvdax_price", lambda **_k: TokenQuote(
-        price=181.1, source="dexscreener", ts=observation_ts
-    ))
+    monkeypatch.setattr(
+        live.okx,
+        "get_nvdax_candle_at",
+        lambda boundary, **_k: RawCandle(
+            boundary, 181.0, 182.0, 180.0, 181.1, 1000.0, 181_100.0, 1
+        ),
+    )
     monkeypatch.setattr(live.equity, "get_trusted_bars", get_bars)
     monkeypatch.setattr(
         live.reference,
@@ -338,13 +362,20 @@ def test_gross_scale_divergence_does_not_raise(monkeypatch):
     assert snap.underlying_reference == 60.0
 
 
-def test_live_snapshot_carries_token_liquidity(monkeypatch):
+def test_live_snapshot_carries_okx_token_volumes_without_liquidity(monkeypatch):
     observation_ts = datetime(2026, 9, 21, 14, 10, tzinfo=UTC)
     _patch_sources(
         monkeypatch,
-        quote=TokenQuote(
-            price=181.1, source="dexscreener", ts=observation_ts,
-            liquidity_usd=2_500_000.0, volume_h24_usd=6_000_000.0,
+        quote=TokenQuote(price=181.1, source="unused", ts=observation_ts),
+        candle=RawCandle(
+            observation_ts,
+            181.0,
+            182.0,
+            180.0,
+            181.1,
+            42.0,
+            7_654.0,
+            1,
         ),
         bar=RawEquityBar(
             ts=datetime(2026, 9, 21, 14, 5, tzinfo=UTC),
@@ -355,11 +386,41 @@ def test_live_snapshot_carries_token_liquidity(monkeypatch):
         ),
     )
     snap = build_live_snapshot(observation_ts=observation_ts)
-    assert snap.token_liquidity_usd == 2_500_000.0
-    assert snap.token_volume == 6_000_000.0
+    assert snap.token_source == "okx_onchainos"
+    assert snap.token_observed_at == observation_ts
+    assert snap.token_volume == 42.0
+    assert snap.token_volume_usd == 7_654.0
+    assert snap.token_liquidity_usd is None
 
 
 def test_raises_when_token_price_unavailable(monkeypatch):
     _patch_sources(monkeypatch, quote=None, bar=None, ref=None)
     with pytest.raises(LiveDataUnavailable):
         build_live_snapshot()
+
+
+def test_missing_exact_okx_candle_does_not_fall_back_to_dexscreener(
+    monkeypatch,
+):
+    observation_ts = datetime(2026, 9, 21, 14, 10, tzinfo=UTC)
+    _patch_sources(
+        monkeypatch,
+        quote=TokenQuote(price=181.1, source="dexscreener", ts=observation_ts),
+        bar=RawEquityBar(
+            ts=datetime(2026, 9, 21, 14, 5, tzinfo=UTC),
+            open=181,
+            high=182,
+            low=180,
+            close=181.0,
+            volume=1000,
+        ),
+        ref=ReferenceObservation(
+            price=181.2,
+            source="okx_xperp_index",
+            ts=observation_ts,
+        ),
+    )
+    monkeypatch.setattr(live.okx, "get_nvdax_candle_at", lambda *_a, **_k: None)
+
+    with pytest.raises(ExactNvdaxCandleUnavailable, match="OKX OnchainOS"):
+        build_live_snapshot(observation_ts=observation_ts)

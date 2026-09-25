@@ -1,20 +1,29 @@
-@import url("https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans+Condensed:wght@400;500;600&family=IBM+Plex+Sans:wght@400;500;600&display=swap");
+@import url("https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans+Condensed:wght@500;600&family=IBM+Plex+Sans:wght@400;500;600&display=swap");
 @import "tailwindcss";
 
-/* Valtide is a risk instrument, not a trading app. The interface stays neutral;
-   green, amber, and red are reserved for Evidence State. */
+/* Valtide is an evidence instrument, not a trading terminal. State colour is
+   deliberately separate from price direction and policy action. */
 @theme {
-  --color-bg: #07090a;
-  --color-panel: #0b0e0f;
+  --color-bg: #050708;
+  --color-panel: #0b0f10;
   --color-panel-2: #111718;
+  --color-panel-3: #162022;
   --color-line: #253237;
   --color-line-subtle: #182226;
+  --color-line-strong: #3b4d52;
   --color-ink: #f3faf7;
   --color-ink-dim: #b8c7c2;
   --color-muted: #71837d;
   --color-accent: #affc41;
+  --color-accent-hover: #b2ff9e;
   --color-accent-soft: #affc4117;
   --color-token: #1dd3b0;
+
+  --color-series-reference: #d8dee6;
+  --color-series-valtide: #91b9ca;
+  --color-series-token: #1dd3b0;
+  --color-series-trusted: #687786;
+  --color-band-fill: #91b9ca1f;
 
   --color-supported: #1dd3b0;
   --color-supported-soft: #1dd3b015;
@@ -27,15 +36,12 @@
   --color-challenged: #d57ade;
   --color-challenged-soft: #3c164266;
   --color-challenged-line: #d57ade66;
-
-  --radius-sm: 8px;
-  --radius-md: 10px;
 }
 
 html,
 body,
 #root {
-  height: 100%;
+  min-height: 100%;
 }
 
 body {
@@ -48,15 +54,24 @@ body {
   line-height: 1.5;
 }
 
+h1,
+h2,
+h3 {
+  font-family: "IBM Plex Sans Condensed", "IBM Plex Sans", sans-serif;
+}
+
 .tnum {
   font-family: "IBM Plex Mono", ui-monospace, SFMono-Regular, monospace;
   font-variant-numeric: tabular-nums;
 }
 
-h1,
-h2,
-h3 {
-  font-family: "IBM Plex Sans Condensed", "IBM Plex Sans", sans-serif;
+.eyebrow {
+  font-family: "IBM Plex Mono", ui-monospace, monospace;
+  font-size: 10px;
+  font-weight: 500;
+  letter-spacing: 0.1em;
+  line-height: 1.4;
+  text-transform: uppercase;
 }
 
 .card-shadow {
@@ -68,20 +83,28 @@ h3 {
 }
 
 button,
-input {
+input,
+summary {
   font: inherit;
 }
 
-button {
+button,
+summary {
   cursor: pointer;
 }
 
 button:focus-visible,
-input:focus-visible {
+input:focus-visible,
+summary:focus-visible {
   outline: 1px solid var(--color-accent);
   outline-offset: 2px;
 }
 
+details > summary::-webkit-details-marker {
+  display: none;
+}
+
 * {
+  box-sizing: border-box;
   scrollbar-color: var(--color-line) var(--color-bg);
 }

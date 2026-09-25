@@ -1,75 +1,174 @@
-import type { EvidenceState } from "../api/types";
+import type { EvidenceState, OnchainEvaluation, OnchainPolicy, PolicyAction } from "../api/types";
+import { EVIDENCE } from "../lib/evidence";
+import { ageLabel } from "../lib/format";
+import type { OnchainSyncStatus } from "../lib/onchain";
+import { EvidenceChip } from "./EvidenceChip";
 import { Panel } from "../components/ui";
 
 const STATES: EvidenceState[] = ["SUPPORTED", "INCONCLUSIVE", "CHALLENGED"];
 
-// Fixed example policy for the demo. The point is separation of concerns:
-// Valtide produces the verdict; the curator's policy decides the action.
-const POLICY: Record<EvidenceState, string> = {
-  SUPPORTED: "ALLOW",
-  INCONCLUSIVE: "MONITOR",
-  CHALLENGED: "RESTRICT_NEW_RISK",
+// Used only when Demo mode cannot reach the backend/onchain control plane.
+// It is explicitly labelled as an example rather than treated as a universal policy.
+export const EXAMPLE_DEMO_POLICY: OnchainPolicy = {
+  max_age: 900,
+  on_supported: "ALLOW",
+  on_inconclusive: "REQUIRE_REVIEW",
+  on_challenged: "RESTRICT_NEW_RISK",
+  on_stale: "REQUIRE_REVIEW",
 };
 
-const ACTION_MEANING: Record<string, string> = {
-  ALLOW: "New borrowing allowed as normal",
-  MONITOR: "Keep lending, watch more closely",
-  REQUIRE_REVIEW: "Pause for a human/protocol review",
-  RESTRICT_NEW_RISK: "Block new borrowing against this collateral",
+const ACTION_MEANING: Record<PolicyAction, string> = {
+  ALLOW: "The consuming application may permit new exposure.",
+  MONITOR: "The consuming application may permit exposure while monitoring.",
+  REQUIRE_REVIEW: "New exposure should not proceed until review.",
+  RESTRICT_NEW_RISK: "The consuming application should reject new exposure.",
 };
 
-export function PolicyActionPanel({ current }: { current: EvidenceState }) {
-  const action = POLICY[current];
+interface PolicyActionPanelProps {
+  current: EvidenceState;
+  policy?: OnchainPolicy;
+  evaluation?: OnchainEvaluation;
+  policySource: string;
+  sync?: OnchainSyncStatus;
+  observationKind?: "current-operational" | "prior-operational" | "historical-panel" | "scenario";
+  observationLabel?: string;
+}
+
+export function PolicyActionPanel({ current, policy, evaluation, policySource, sync, observationKind = "current-operational", observationLabel }: PolicyActionPanelProps) {
+  const currentStyle = EVIDENCE[current];
+  const projectedAction = policy ? actionFor(policy, current) : null;
+  const enforcedAction = evaluation?.policy_action ?? null;
+  const currentOperational = observationKind === "current-operational";
+  const priorOperational = observationKind === "prior-operational";
+  const historical = observationKind === "historical-panel";
+  const scenario = observationKind === "scenario";
+  const mappingLabel = scenario
+    ? "Curator mapping for this scenario Evidence State"
+    : priorOperational
+      ? "Policy under current configuration"
+      : historical
+        ? "Policy under current configuration"
+        : "Curator mapping for this Evidence State";
+  const mappingDescription = scenario
+    ? "Policy projection for this deterministic scenario state; the scenario is not published to X Layer."
+    : priorOperational
+      ? "Current-policy mapping of a prior operational Evidence State; it is not a historical onchain decision."
+      : historical
+        ? "Counterfactual mapping of this historical Evidence State under the currently fetched curator policy."
+        : "The configured curator mapping for the current operational Evidence State.";
+  const mappingDetail = scenario
+    ? "This mapping applies to a fresh attestation. A stale attestation uses the configured STALE policy."
+    : priorOperational
+      ? "This is not the current Registry state or current onchain enforcement. A stale attestation uses the configured STALE policy."
+      : historical
+        ? "This is not historical Registry state or historical onchain enforcement. A stale attestation uses the configured STALE policy."
+        : "This mapping applies to a fresh attestation. A stale attestation uses the configured STALE policy.";
 
   return (
-    <Panel title="Policy result" subtitle="Configured protocol rule — not a Valtide recommendation">
-      {/* the outcome for the current verdict */}
-      <div className="rounded-sm px-4 py-4" style={{ background: "var(--color-panel-2)", border: "1px solid var(--color-line)" }}>
-        <div className="flex items-center gap-2 text-sm" style={{ color: "var(--color-ink-dim)" }}>
-          Evidence State <strong className="tnum text-ink">{current}</strong> maps to:
+    <Panel title={scenario ? "Scenario policy projection" : priorOperational ? "Prior operational policy mapping" : historical ? "Historical policy mapping" : "Policy result"} subtitle="Configured curator rule — not a Valtide recommendation.">
+      <div className="rounded-lg px-4 py-4" style={{ background: "var(--color-panel-2)", border: "1px solid var(--color-line)", borderLeft: `2px solid ${currentStyle.fg}` }}>
+        <div className="eyebrow" style={{ color: "var(--color-muted)" }}>
+          {observationLabel ?? (scenario ? "Scenario Evidence State" : historical ? "Selected historical evidence" : "Current Operational Evidence")}
         </div>
-        <div className="tnum mt-3 break-words text-xl font-medium tracking-[-0.03em]" style={{ color: "var(--color-accent)" }}>
-          {action}
-        </div>
-        <div className="mt-1 text-sm" style={{ color: "var(--color-ink-dim)" }}>
-          {ACTION_MEANING[action]}
-        </div>
+        <div className="mt-2"><EvidenceChip state={current} size="lg" /></div>
+
+        {!currentOperational ? (
+          <ActionBlock
+            label={mappingLabel}
+            action={projectedAction}
+            description={mappingDescription}
+            detail={mappingDetail}
+          />
+        ) : (
+          <div className="mt-4 grid gap-3">
+            <ActionBlock
+              label="Curator mapping for this Evidence State"
+              action={projectedAction}
+              description="The configured curator mapping for the current operational Evidence State."
+              detail="This mapping applies to a fresh attestation. A stale attestation uses the configured STALE policy."
+            />
+            <ActionBlock
+              label="Current onchain enforced action"
+              action={enforcedAction}
+              description="The RiskGuard result for the Registry generation currently on X Layer."
+              detail={evaluation ? evaluationDescription(evaluation) : undefined}
+            />
+          </div>
+        )}
       </div>
 
-      {/* the full rule set, current row highlighted */}
-      <div className="mt-4">
-        <div className="mb-2 text-xs font-medium" style={{ color: "var(--color-ink-dim)" }}>
-          This curator's rules
+      {currentOperational && sync && (
+        <div className="mt-3 rounded-lg px-3 py-2 text-xs" style={{ background: "var(--color-panel-2)", border: "1px solid var(--color-line)", color: "var(--color-ink-dim)" }}>
+          <div className="flex items-center justify-between gap-3">
+            <span>Operational ↔ Registry</span>
+            <strong className="text-ink">{sync.state}</strong>
+          </div>
+          <div className="mt-1">{sync.detail}</div>
         </div>
-        <div className="overflow-hidden rounded-sm" style={{ border: "1px solid var(--color-line)" }}>
-          {STATES.map((sName, i) => {
-            const active = sName === current;
-            return (
-              <div
-                key={sName}
-                className="flex items-center justify-between gap-3 px-3 py-2 text-sm"
-                style={{
-                  background: active ? "var(--color-panel-2)" : "var(--color-panel)",
-                  borderTop: i === 0 ? "none" : "1px solid var(--color-line)",
-                }}
-              >
-                <span className="font-medium" style={{ color: active ? "var(--color-ink)" : "var(--color-muted)" }}>
-                  {sName}
-                </span>
-                <span aria-hidden style={{ color: "var(--color-muted)" }}>→</span>
-                <span className="ml-auto tnum font-medium" style={{ color: active ? "var(--color-accent)" : "var(--color-ink-dim)" }}>
-                  {POLICY[sName]}
-                </span>
-              </div>
-            );
-          })}
-        </div>
+      )}
+
+      <div className="mt-4 flex items-center justify-between gap-3 text-xs" style={{ color: "var(--color-ink-dim)" }}>
+        <span>Policy source</span>
+        <strong className="text-right text-ink">{policySource}</strong>
       </div>
+
+      {policy ? (
+        <>
+          <div className="mt-3 flex items-center justify-between gap-3 text-xs" style={{ color: "var(--color-ink-dim)" }}>
+            <span>Maximum observation age</span>
+            <strong className="tnum text-ink">{ageLabel(policy.max_age)}</strong>
+          </div>
+          <details className="mt-4 overflow-hidden rounded-lg" style={{ border: "1px solid var(--color-line)" }}>
+            <summary className="eyebrow flex items-center justify-between px-3 py-2.5" style={{ background: "var(--color-panel-2)", color: "var(--color-muted)" }}><span>Curator policy mapping</span><span aria-hidden style={{ color: "var(--color-accent)" }}>＋</span></summary>
+            <div>
+              {STATES.map((state, index) => <MappingRow key={state} state={state} action={actionFor(policy, state)} active={state === current} first={index === 0} />)}
+              <MappingRow stateLabel="STALE ATTESTATION" action={policy.on_stale} active={false} />
+            </div>
+          </details>
+        </>
+      ) : (
+        <p className="mt-4 rounded-lg px-3 py-2 text-sm" style={{ background: "var(--color-panel-2)", border: "1px solid var(--color-line)", color: "var(--color-ink-dim)" }}>
+          No policy mapping is available from the backend/onchain control plane. The frontend does not assume a default action.
+        </p>
+      )}
 
       <p className="mt-3 text-xs" style={{ color: "var(--color-muted)" }}>
-        These rules are set by the curator — not by Valtide. A different curator could respond to the
-        same verdict differently.
+        Evidence State and Policy Action are separate. Valtide determines the evidence; the policy owner chooses the mapping; the consuming contract enforces the result.
       </p>
     </Panel>
+  );
+}
+
+function ActionBlock({ label, action, description, detail }: { label: string; action: PolicyAction | null; description: string; detail?: string }) {
+  return (
+    <div className="rounded-lg px-3 py-3" style={{ background: "var(--color-panel)", border: "1px solid var(--color-line)" }}>
+      <div className="eyebrow" style={{ color: "var(--color-muted)" }}>{label}</div>
+      <div className="tnum mt-2 break-words text-xl font-semibold tracking-[-0.03em]" style={{ color: action ? "var(--color-ink)" : "var(--color-muted)" }}>{action ?? "—"}</div>
+      <div className="mt-1 text-xs" style={{ color: "var(--color-ink-dim)" }}>{action ? ACTION_MEANING[action] : description}</div>
+      {detail && <div className="mt-1 text-xs font-medium" style={{ color: "var(--color-ink-dim)" }}>{detail}</div>}
+    </div>
+  );
+}
+
+function evaluationDescription(evaluation: OnchainEvaluation): string {
+  if (!evaluation.exists) return "Registry Evidence: no attestation; stale-policy action returned.";
+  return `Registry Evidence: ${evaluation.evidence_state} · ${evaluation.fresh ? "fresh" : "stale"} attestation.`;
+}
+
+function actionFor(policy: OnchainPolicy, state: EvidenceState): PolicyAction {
+  if (state === "SUPPORTED") return policy.on_supported;
+  if (state === "INCONCLUSIVE") return policy.on_inconclusive;
+  return policy.on_challenged;
+}
+
+function MappingRow({ state, stateLabel, action, active, first }: { state?: EvidenceState; stateLabel?: string; action: PolicyAction; active: boolean; first?: boolean }) {
+  const label = state ?? stateLabel ?? "";
+  const style = state ? EVIDENCE[state] : undefined;
+  return (
+    <div className="flex items-center justify-between gap-3 px-3 py-2 text-xs" style={{ background: active ? "var(--color-panel-2)" : "var(--color-panel)", borderTop: first ? "none" : "1px solid var(--color-line)", borderLeft: active && style ? `2px solid ${style.fg}` : "2px solid transparent" }}>
+      <span className="font-medium" style={{ color: active && style ? style.fg : "var(--color-ink-dim)" }}>{label}</span>
+      <span aria-hidden style={{ color: "var(--color-muted)" }}>→</span>
+      <span className="ml-auto tnum font-semibold text-ink">{action}</span>
+    </div>
   );
 }

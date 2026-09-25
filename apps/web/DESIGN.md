@@ -192,27 +192,25 @@ Base unit: 4px.
 
 ## 7. Information architecture
 
-### Primary navigation
+### Primary navigation and data lanes
 
-Keep the prototype to two destinations:
+Keep one NVDAx evidence monitor with three explicit lanes:
 
-1. **Evidence Monitor** — watchlist plus selected-asset analysis.
-2. **Model Evidence** — validation metrics and baseline comparison; stretch goal.
+1. **Operational** — warmed scheduler state, real operational history, and current X Layer control-plane readback.
+2. **Historical** — provisioned point-in-time research panel; never represented as historical chain state.
+3. **Demo** — deterministic 25-minute scenario with an explicitly labelled offline fixture fallback.
 
-Avoid a generic “Dashboard” label. The product is an evidence system, so the navigation should say what the user is doing.
+The lanes never silently substitute for one another. A cold operational cache stays unavailable until the user explicitly chooses another lane.
 
 ### Primary screen order
 
 1. App bar and system freshness.
-2. Watchlist / asset selector.
-3. Evidence verdict.
-4. Source price snapshot.
-5. Main price-and-band chart.
-6. Reference comparison.
-7. Diagnostic basis breakdown.
-8. Market quality and reason codes.
-9. Policy result.
-10. Onchain attestation and provenance.
+2. Asset, lane, session, observation time, and provenance context.
+3. Evidence verdict beside the separately configured policy result.
+4. Full-width price-and-band timeline.
+5. Full-width reference comparison.
+6. Diagnostic basis, reason codes, and historical model evidence.
+7. Horizontal X Layer provenance pipeline and collapsible technical details.
 
 This order maps directly to VALIDATE → DIAGNOSE → TRIAGE → GUARD.
 
@@ -220,22 +218,18 @@ This order maps directly to VALIDATE → DIAGNOSE → TRIAGE → GUARD.
 
 ```text
 ┌ VALTIDE ─ Evidence Monitor ───────────────────── system freshness / network ┐
-├ Watchlist: NVDAx CHALLENGED | SPYx SUPPORTED | TSLAx INCONCLUSIVE ─────────┤
+├ NVDAx ─ OPERATIONAL ─ X LAYER 1952 ─ observation / freshness ─────────────┤
 ├ EVIDENCE VERDICT (model output) ───────────┬ POLICY RESULT (configured) ───┤
 │ CHALLENGED                                │ RESTRICT_NEW_RISK              │
 │ Reference sits 2.4σ above expected range │ Rule: challenged + ref > 6h   │
-├ Reference ┬ Valtide fair value ┬ Token market ┬ Last trusted ──────────────┤
-├ PRICE + UNCERTAINTY BAND (8 cols) ────────┬ REFERENCE COMPARISON (4 cols) ┤
-├ BASIS BREAKDOWN (6) ──────────────────────┼ MARKET QUALITY / REASONS (6) ┤
-└ ONCHAIN ATTESTATION + PROVENANCE ───────────────────────────────────────────┘
+├ Reference ┬ Valtide fair value ┬ Token market ┬ deviation ─────────────────┤
+├ 24H OPERATIONAL TIMELINE + CALIBRATED BAND ────────────────────────────────┤
+├ REFERENCE COMPARISON ───────────────────────────────────────────────────────┤
+├ HISTORICAL MODEL EVIDENCE ──────────────────────────────────────────────────┤
+└ PUBLISHER → REGISTRY → POLICY → RISKGUARD → DEMOVAULT ─────────────────────┘
 ```
 
-### Watchlist behavior
-
-- This is a list of evidence states, not a stock ticker.
-- Each item shows symbol, state, reference age, and latest attestation time.
-- No flashing prices or percentage gainers/losers.
-- Unsupported assets are subdued and labelled `COMING SOON`.
+Do not render fictional watchlist assets. Until the backend supports another asset, NVDAx appears once in the context bar.
 
 ## 9. Core components
 
@@ -288,7 +282,8 @@ Rules:
 - 1.5px default series, 2px selected series.
 - Chart header: small as-of time → large selected value → controls.
 - Metric control: `PRICE / DEVIATION / BASIS`.
-- Range control: `24H / 7D / 30D`.
+- Operational range control: `1H / 6H / 24H / 7D`; default `24H`.
+- Use real UTC spacing and break every series at scheduler gaps. Never interpolate missing observations.
 - Legend supports click-to-isolate and keyboard focus.
 - Tooltips show all sources at one timestamp and clearly mark stale/missing values.
 
@@ -334,7 +329,7 @@ Each metric gets a plain-English caption or threshold, e.g. `Thin: only $82k wit
 
 Use a linear verification strip:
 
-`Model run ✓  →  Attested ✓  →  Registry ✓  →  Risk guard ✓`
+`Publisher  →  Registry  →  Curator policy  →  RiskGuard  →  DemoVault`
 
 Below it, show `evidenceHash`, transaction, block, issued-at, valid-until, and network in mono. Truncate hashes visually but make the full value copyable.
 
@@ -364,7 +359,7 @@ Below it, show `evidenceHash`, transaction, block, issued-at, valid-until, and n
 - Stale: always show exact age, then a plain-language consequence.
 - Missing: render `No current observation` plus the expected source and last successful time.
 - Attestation expired: keep the last values visible but add a full-width `EXPIRED` strip and disable policy freshness claims.
-- Backend unavailable: default to a labelled `DEMO SNAPSHOT`; never imply live data.
+- Backend unavailable: keep the chosen lane unavailable and offer Demo as an explicit user choice; never substitute it automatically.
 - Hash/chain failure: separate “evidence computed” from “evidence published.”
 
 ## 13. Responsive behavior
@@ -374,7 +369,7 @@ The demo is desktop-first at 1440px.
 - ≥1280px: 12-column full layout.
 - 900–1279px: chart 7 columns, comparison 5; diagnostic panels stack below.
 - 640–899px: single column; KPI grid becomes 2×2; tables scroll horizontally.
-- <640px: watchlist becomes a select; chart defaults to line instead of candles; policy panel remains below evidence panel.
+- <640px: context wraps, the KPI grid becomes 2×2, and the policy panel remains below evidence.
 
 Do not hide timestamps, evidence explanations, or policy provenance on smaller screens.
 
@@ -423,33 +418,15 @@ Do not use:
 - Excess badges.
 - Invented metrics or copy that implies unavailable certainty.
 
-## 17. Demo scenarios
+## 17. Demo scenario
 
-Ship three deterministic presets. All values across panels must reconcile.
-
-### SUPPORTED
-
-- Reference inside the uncertainty band.
-- Fresh sources and adequate token-market depth.
-- Policy result `ALLOW`.
-
-### INCONCLUSIVE
-
-- Reference near/outside the band, but market depth or freshness is insufficient.
-- Policy result `REQUIRE_REVIEW`.
-
-### CHALLENGED
-
-- Reference materially outside the band with high-confidence evidence.
-- Policy result `RESTRICT_NEW_RISK` under the configured demo rule.
-
-The preset control is a demo aid and must be labelled `SCENARIO`, not presented as live filtering.
+Ship the single backend-owned `weekend_divergence` sequence and its matching offline fixture. Six real five-minute timestamps progress through SUPPORTED, INCONCLUSIVE, and CHALLENGED over 25 minutes. The scenario projects the current curator policy but never publishes, drives the deployed control plane, or claims model performance.
 
 ## 18. Iterative build plan
 
 ### Iteration 1 — Skeleton and hierarchy (20–30 min)
 
-- Implement app shell, watchlist, verdict/policy split, KPI row, and empty chart frame.
+- Implement app shell, context bar, verdict/policy split, KPI row, and empty chart frame.
 - Use only grayscale tokens.
 - Acceptance check: a judge can answer “what is being assessed, what is the evidence state, and what did the protocol do?” in 10 seconds.
 
@@ -467,7 +444,7 @@ The preset control is a demo aid and must be labelled `SCENARIO`, not presented 
 
 ### Iteration 4 — Demo hardening and polish (30–45 min)
 
-- Add the three deterministic scenarios.
+- Harden the single deterministic scenario and its offline fixture path.
 - Test 1440px and 1024px, keyboard focus, missing values, and backend fallback.
 - Remove any half-built feature, decorative icon, unused color, or repeated label.
 - Acceptance check: the complete CHALLENGED story runs without live dependencies in under 90 seconds.
@@ -480,9 +457,9 @@ The preset control is a demo aid and must be labelled `SCENARIO`, not presented 
 - All numbers use tabular mono styling.
 - Every changing value includes a source and/or timestamp.
 - “Unexplained by model” is never called “mispricing.”
-- Watchlist shows evidence status, not market performance.
+- No unsupported or fictional assets are shown.
 - No gradient, glow, glass, hero, decorative stat icons, or excessive rounding.
-- SUPPORTED, INCONCLUSIVE, and CHALLENGED presets are internally consistent.
+- The deterministic scenario's SUPPORTED → INCONCLUSIVE → CHALLENGED progression is internally consistent.
 - The app still tells a coherent story if the backend is unavailable.
 
 ## 20. Agent implementation prompt

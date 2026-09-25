@@ -17,6 +17,7 @@ import hashlib
 import hmac
 from dataclasses import dataclass
 from datetime import UTC, datetime
+from threading import Lock
 from urllib.parse import quote
 
 import httpx
@@ -24,6 +25,9 @@ import httpx
 from valtide_api.config import get_settings
 
 _BASE_URL = "https://web3.okx.com"
+
+_nvdax_deployment_lock = Lock()
+_nvdax_deployment_cache: tuple[str, str] | None = None
 
 
 @dataclass
@@ -109,6 +113,49 @@ def discover_nvdax(client: httpx.Client | None = None) -> list[dict]:
             client.close()
 
 
+def resolve_nvdax_deployment(client: httpx.Client | None = None) -> tuple[str, str]:
+    """Resolve the canonical NVDAx deployment once for this process.
+
+    Explicit chain/address settings are authoritative and avoid discovery. With
+    no overrides, the existing deterministic RWA discovery ordering is used and
+    its selected deployment is cached so a five-minute tick does not repeat the
+    discovery request. The cache contains only public deployment metadata.
+    """
+    settings = get_settings()
+    chain_index = settings.okx_nvdax_chain_index.strip()
+    token_address = settings.okx_nvdax_token_address.strip()
+    if bool(chain_index) != bool(token_address):
+        raise ValueError(
+            "OKX_NVDAX_CHAIN_INDEX and OKX_NVDAX_TOKEN_ADDRESS must be configured together"
+        )
+    if chain_index and token_address:
+        return chain_index, token_address
+
+    global _nvdax_deployment_cache
+    with _nvdax_deployment_lock:
+        if _nvdax_deployment_cache is not None:
+            return _nvdax_deployment_cache
+        deployments = discover_nvdax(client=client)
+        if not deployments:
+            raise RuntimeError("no NVDAx deployment found from OKX OnchainOS")
+        deployment = deployments[0]
+        chain_index = str(deployment.get("chainIndex") or deployment.get("chainId") or "")
+        token_address = str(
+            deployment.get("tokenContractAddress") or deployment.get("tokenAddress") or ""
+        )
+        if not chain_index or not token_address:
+            raise RuntimeError("selected NVDAx deployment is missing chain index or token address")
+        _nvdax_deployment_cache = (chain_index, token_address)
+        return _nvdax_deployment_cache
+
+
+def clear_nvdax_deployment_cache() -> None:
+    """Clear the process-local deployment cache for tests/admin refreshes."""
+    global _nvdax_deployment_cache
+    with _nvdax_deployment_lock:
+        _nvdax_deployment_cache = None
+
+
 def get_historical_candles(
     chain_index: str,
     token_address: str,
@@ -163,3 +210,31 @@ def get_historical_candles(
     finally:
         if owns_client:
             client.close()
+
+
+def get_nvdax_candle_at(
+    observation_ts: datetime,
+    client: httpx.Client | None = None,
+) -> RawCandle | None:
+    """Return only the exact confirmed NVDAx candle at ``observation_ts``.
+
+    The live scheduler values a settled canonical five-minute bucket. This helper
+    deliberately rejects neighboring, future, or unconfirmed candles instead of
+    allowing a current quote to be relabeled as a historical observation.
+    """
+    from valtide_api.clock import require_canonical_5m
+
+    observation_ts = require_canonical_5m(observation_ts, "observation_ts")
+    chain_index, token_address = resolve_nvdax_deployment(client=client)
+    candles = get_historical_candles(
+        chain_index,
+        token_address,
+        observation_ts,
+        observation_ts,
+        bar="5m",
+        client=client,
+    )
+    for candle in candles:
+        if candle.ts == observation_ts and candle.confirm == 1:
+            return candle
+    return None

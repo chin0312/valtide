@@ -22,7 +22,25 @@ export function sigma(z: number | null | undefined, dp = 1): string {
 export function timeUTC(iso: string | null | undefined): string {
   if (!iso) return DASH;
   const d = new Date(iso);
+  if (!Number.isFinite(d.getTime())) return DASH;
   return `${d.toISOString().slice(11, 16)} UTC`;
+}
+
+export function dateTimeUTC(iso: string | null | undefined): string {
+  if (!iso) return DASH;
+  const d = new Date(iso);
+  if (!Number.isFinite(d.getTime())) return DASH;
+  return `${d.toISOString().slice(0, 16).replace("T", " ")} UTC`;
+}
+
+export function unixTimeUTC(seconds: number | null | undefined): string {
+  if (seconds == null || Number.isNaN(seconds) || seconds <= 0) return DASH;
+  return timeUTC(new Date(seconds * 1000).toISOString());
+}
+
+export function unixDateTimeUTC(seconds: number | null | undefined): string {
+  if (seconds == null || Number.isNaN(seconds) || seconds <= 0) return DASH;
+  return dateTimeUTC(new Date(seconds * 1000).toISOString());
 }
 
 export function ageLabel(seconds: number | null | undefined): string {
@@ -43,22 +61,16 @@ export function compactUsd(x: number | null | undefined): string {
   return `$${x.toFixed(0)}`;
 }
 
-export interface Staleness {
-  label: string;
-  fg: string;
-  soft: string;
-  line: string;
+export function coverageLabel(target: number | null | undefined): string {
+  if (target == null || !Number.isFinite(target)) return "Calibrated interval";
+  return `${Math.round(target * 100)}% calibrated interval`;
 }
 
-// Freshness is explicit in words. Evidence-state colours remain reserved for
-// SUPPORTED / INCONCLUSIVE / CHALLENGED.
-export function staleness(seconds: number | null | undefined): Staleness {
-  const neutral = { fg: "var(--color-ink-dim)", soft: "var(--color-panel-2)", line: "var(--color-line)" };
-  if (seconds == null) return { label: DASH, ...neutral };
-  const a = ageLabel(seconds);
-  if (seconds < 15 * 60) return { label: `${a} · fresh`, ...neutral };
-  if (seconds < 4 * 3600) return { label: `${a} · stale`, ...neutral };
-  return { label: `${a} · very stale`, ...neutral };
+export function timeAxisUTC(timestampMs: number, multiDay: boolean): string {
+  const d = new Date(timestampMs);
+  if (!Number.isFinite(d.getTime())) return DASH;
+  if (!multiDay) return `${d.toISOString().slice(11, 16)} UTC`;
+  return `${d.toLocaleDateString("en-US", { month: "short", day: "numeric", timeZone: "UTC" })} ${d.toISOString().slice(11, 16)}`;
 }
 
 export function sessionLabel(state: string): string {
@@ -77,16 +89,33 @@ export function sessionLabel(state: string): string {
   }
 }
 
+export function sourceLabel(source: string | null | undefined): string {
+  if (!source) return DASH;
+  const labels: Record<string, string> = {
+    okx_onchainos: "OKX OnchainOS",
+    okx_xperp_index: "OKX X-Perp index",
+    alpaca: "Alpaca NVDA",
+    dexscreener: "DexScreener diagnostic",
+  };
+  return labels[source] ?? source;
+}
+
 // Human-readable reason codes; unknown codes fall back to a de-snaked label.
 const REASON_LABELS: Record<string, string> = {
-  REFERENCE_UNDER_TEST_OUTSIDE_INTERVAL: "Reference is outside the model's range",
-  TOKEN_AND_CHALLENGER_AGREE: "Tokenized market agrees with the estimate",
-  COMPARATOR_UNAVAILABLE: "No comparator available",
+  TOKEN_DATA_UNAVAILABLE: "Tokenized-market observation unavailable",
+  COMPARATOR_UNAVAILABLE: "Independent comparator unavailable",
+  MODEL_UNCERTAINTY_INVALID: "Model uncertainty unavailable",
+  REFERENCE_UNDER_TEST_OUTSIDE_INTERVAL: "Reference under test is outside the calibrated interval",
+  UNDERLYING_REFERENCE_STALE: "Trusted underlying observation is stale",
+  REFERENCE_UNDER_TEST_STALE: "Reference under test is stale",
+  TOKEN_MARKET_QUALITY_LOW: "Tokenized-market quality is low",
+  TOKEN_AND_CHALLENGER_AGREE: "Tokenized market is within 1% of Valtide's estimate",
   TOKEN_UNIT_SUSPECT: "Possible token/underlying unit mismatch",
-  STALE_REFERENCE: "Trusted price is stale",
+  MODEL_UNCERTAINTY_HIGH: "Model uncertainty is high",
+  CALIBRATION_GLOBAL_FALLBACK: "Global fallback calibration",
 };
 
-// Internal model diagnostics that shouldn't be presented to a trader as
+// Internal model diagnostics that should not be presented to a risk team as
 // "signals" — handled elsewhere (e.g. the calibration caveat) or hidden.
 export const INTERNAL_REASON_CODES = new Set(["CALIBRATION_GLOBAL_FALLBACK"]);
 

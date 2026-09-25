@@ -34,8 +34,8 @@ export function priceToFraction(price: number, r: ValuationResult): number {
   return unitsToFraction(toBandUnits(price, r));
 }
 
-/** Is the reference under test outside the challenger interval? */
+/** Is the reference under test outside the actual calibrated interval bounds? */
 export function referenceOutsideBand(r: ValuationResult): boolean {
   if (r.reference_under_test == null) return false;
-  return Math.abs(toBandUnits(r.reference_under_test, r)) > 1;
+  return r.reference_under_test < r.fair_value_lower || r.reference_under_test > r.fair_value_upper;
 }

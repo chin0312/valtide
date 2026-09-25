@@ -1,93 +1,99 @@
 import type { ValuationResult } from "../api/types";
+import { EvidenceChip } from "../components/EvidenceChip";
 import { ReasonCodes } from "../components/ReasonCodes";
 import { Figure } from "../components/ui";
 import { EVIDENCE } from "../lib/evidence";
-import { money, pct, sigma } from "../lib/format";
+import { compactUsd, coverageLabel, dateTimeUTC, money, pct, reasonLabel, sigma, sourceLabel } from "../lib/format";
 
-// The hero. Leads with the economic magnitude (a trader anchors on %, not σ),
-// surfaces market quality and the reference identity, and flags a fallback
-// calibration honestly instead of shouting a scary statistical claim.
+const ABSTENTION_GATES = [
+  "TOKEN_DATA_UNAVAILABLE",
+  "COMPARATOR_UNAVAILABLE",
+  "MODEL_UNCERTAINTY_INVALID",
+  "UNDERLYING_REFERENCE_STALE",
+  "REFERENCE_UNDER_TEST_STALE",
+  "TOKEN_MARKET_QUALITY_LOW",
+  "TOKEN_UNIT_SUSPECT",
+  "MODEL_UNCERTAINTY_HIGH",
+];
+
 export function ValidationOverview({ r }: { r: ValuationResult }) {
-  const s = EVIDENCE[r.evidence_state];
-  const dev = r.reference_deviation_pct;
-  const dir = dev == null ? "" : dev >= 0 ? "above" : "below";
-  const negligible = dev != null && Math.abs(dev) < 0.005;
+  const state = EVIDENCE[r.evidence_state];
+  const coverage = coverageLabel(r.interval_coverage_target);
+  const outsideInterval = r.reference_under_test != null && (r.reference_under_test < r.fair_value_lower || r.reference_under_test > r.fair_value_upper);
   const fallbackCalibration = r.reason_codes.includes("CALIBRATION_GLOBAL_FALLBACK");
+  const gate = ABSTENTION_GATES.find((code) => r.reason_codes.includes(code));
+  const provenance = Object.entries(r.source_provenance ?? {}).map(([source, value]) => `${source}: ${value}`).join(" · ");
 
   return (
-    <section className="card-shadow overflow-hidden rounded-sm" style={{ background: "var(--color-panel)", border: "1px solid var(--color-line-subtle)", borderLeft: `2px solid ${s.fg}` }}>
-      <div className="flex flex-wrap items-start justify-between gap-4 px-5 py-5" style={{ borderBottom: "1px solid var(--color-line-subtle)" }}>
-        <div>
-          <div className="font-mono text-[10px] uppercase tracking-[0.1em]" style={{ color: "var(--color-muted)" }}>Evidence state</div>
-          <div className="mt-2 text-[28px] font-medium tracking-[-0.04em]" style={{ color: s.fg }}>{s.label}</div>
-          <p className="mt-1 max-w-2xl text-[13px]" style={{ color: "var(--color-ink-dim)" }}>{s.description}</p>
+    <section className="overflow-hidden rounded-[10px]" style={{ background: "var(--color-panel)", border: "1px solid var(--color-line-subtle)", borderLeft: `2px solid ${state.fg}` }}>
+      <div className="flex flex-wrap items-start justify-between gap-5 border-b px-5 py-5" style={{ borderColor: "var(--color-line-subtle)" }}>
+        <div className="max-w-3xl">
+          <div className="eyebrow" style={{ color: "var(--color-muted)" }}>Evidence state</div>
+          <div className="mt-2 flex flex-wrap items-center gap-3">
+            <h2 className="text-[30px] font-semibold tracking-[-0.04em]" style={{ color: state.fg }}>{state.label}</h2>
+            <EvidenceChip state={r.evidence_state} />
+          </div>
+          <p className="mt-1.5 text-[13px] leading-5" style={{ color: "var(--color-ink-dim)" }}>{verdictNarrative(r, outsideInterval, gate)}</p>
         </div>
-        <div className="text-right">
-          <div className="font-mono text-[10px] uppercase tracking-[0.08em]" style={{ color: "var(--color-muted)" }}>Standardized deviation</div>
-          <div className="tnum mt-2 text-2xl font-medium text-ink">{sigma(r.standardized_deviation)}</div>
-        </div>
-      </div>
-
-      <div className="px-5 py-4">
-        {/* economic magnitude first; σ is secondary */}
-        <p className="mb-4 max-w-4xl text-[13px] leading-relaxed text-ink">
-          The reference price of <strong>{money(r.reference_under_test)}</strong>{" "}
-          {dev == null ? "is compared against " : negligible ? "is in line with " : (
-            <>is <strong style={{ color: s.fg }}>{pct(Math.abs(dev))}</strong> {dir} </>
-          )}
-          Valtide's independent estimate of <strong>{money(r.valtide_fair_value)}</strong>{" "}
-          (90% range {money(r.fair_value_lower)}–{money(r.fair_value_upper)})
-          {dev != null && !negligible && (
-            <>, so it falls {r.standardized_deviation != null && Math.abs(r.standardized_deviation) > 1 ? "outside" : "near the edge of"} the model's confidence range</>
-          )}.
-        </p>
-
-        {fallbackCalibration && (
-          <div className="mb-4 flex items-start gap-2 rounded-sm px-3 py-2 text-xs" style={{ background: "var(--color-panel-2)", border: "1px solid var(--color-line)", color: "var(--color-ink-dim)" }}>
-            <span aria-hidden style={{ color: "var(--color-accent)" }}>△</span>
-            <span>
-              The confidence range uses a <strong>global fallback calibration</strong> (no session-specific
-              fit yet), so treat the width of the range — and the σ figure — with caution.
+        <div className="min-w-[150px] text-left sm:text-right">
+          <div className="eyebrow" style={{ color: "var(--color-muted)" }}>Standardized deviation</div>
+          <div className="tnum mt-2 text-[28px] font-medium tracking-[-0.04em] text-ink">{sigma(r.standardized_deviation)}</div>
+          {fallbackCalibration && (
+            <span className="mt-2 inline-flex rounded px-2 py-1 font-mono text-[9px] uppercase tracking-[0.04em]" style={{ color: "var(--color-inconclusive)", background: "var(--color-inconclusive-soft)", border: "1px solid var(--color-inconclusive-line)" }}>
+              fallback calibration
             </span>
-          </div>
-        )}
-
-        <div className="grid grid-cols-2 overflow-hidden rounded-sm lg:grid-cols-4" style={{ border: "1px solid var(--color-line-subtle)" }}>
-          <Figure label="Reference under test" value={money(r.reference_under_test)} sub={r.reference_under_test_source} hint="The price being validated — the value a protocol currently relies on." />
-          <Figure label="Valtide fair value" value={money(r.valtide_fair_value)} sub={`90% range ${money(r.fair_value_lower)} – ${money(r.fair_value_upper)}`} hint="An independent challenger estimate with a calibrated uncertainty range — not a definitive fair value." />
-          <Figure label="Tokenized market" value={money(r.token_price)} sub="market quality unavailable" hint="The traded NVDAx price. Weigh it by market quality — thin books produce unreliable prices. Depth/volume are captured on the live path but not yet exposed on the public result payload." />
-          <Figure label="Reference deviation" value={pct(dev)} sub={`${sigma(r.standardized_deviation)} vs model range`} hint="Economic gap from the estimate. The σ figure depends on the model's confidence range, which is currently a fallback calibration." />
-        </div>
-
-        <div className="mt-5 grid gap-5 border-t pt-5 md:grid-cols-2" style={{ borderColor: "var(--color-line-subtle)" }}>
-          <div>
-            <div className="mb-2 font-mono text-[10px] font-medium uppercase tracking-[0.08em]" style={{ color: "var(--color-muted)" }}>Basis breakdown</div>
-            <dl className="space-y-1.5 text-sm">
-              <Row k="Tokenized market move" v={pct(r.observed_token_move_pct)} />
-              <Row k="Model-implied move" v={pct(r.model_implied_move_pct)} />
-              <Row k="Unexplained premium / discount" v={pct(r.residual_premium_discount_pct)} hint="The part of the token price the model doesn't explain — not automatically a mispricing." />
-            </dl>
-          </div>
-          <div>
-            <div className="mb-2 font-mono text-[10px] font-medium uppercase tracking-[0.08em]" style={{ color: "var(--color-muted)" }}>Signals behind this verdict</div>
-            <ReasonCodes codes={r.reason_codes} />
-          </div>
+          )}
         </div>
       </div>
+
+      <div className="grid grid-cols-2 overflow-hidden border-b lg:grid-cols-4" style={{ borderColor: "var(--color-line-subtle)" }}>
+        <Figure label="Reference under test" value={money(r.reference_under_test)} sub={sourceLabel(r.reference_under_test_source)} />
+        <Figure label="Valtide fair value" value={money(r.valtide_fair_value)} sub={`${coverage}: ${money(r.fair_value_lower)}–${money(r.fair_value_upper)}`} />
+        <Figure label="Tokenized market" value={money(r.token_price)} sub={sourceLabel(r.token_source)} />
+        <Figure label="Reference deviation" value={pct(r.reference_deviation_pct)} sub={outsideInterval ? "outside calibrated interval" : "inside calibrated interval"} />
+      </div>
+
+      <div className="grid gap-5 px-5 py-4 md:grid-cols-2">
+        <div>
+          <div className="eyebrow mb-2" style={{ color: "var(--color-muted)" }}>Basis breakdown</div>
+          <dl className="space-y-1.5 text-xs">
+            <Row k="Tokenized market move" v={pct(r.observed_token_move_pct)} />
+            <Row k="Model-implied move" v={pct(r.model_implied_move_pct)} />
+            <Row k="Unexplained premium / discount" v={pct(r.residual_premium_discount_pct)} />
+          </dl>
+        </div>
+        <div>
+          <div className="eyebrow mb-2" style={{ color: "var(--color-muted)" }}>Signals behind this state</div>
+          <ReasonCodes codes={r.reason_codes} evidenceState={r.evidence_state} />
+        </div>
+      </div>
+
+      <details className="border-t px-5 py-3" style={{ borderColor: "var(--color-line-subtle)" }}>
+        <summary className="flex items-center justify-between text-xs" style={{ color: "var(--color-ink-dim)" }}>
+          <span>Technical evidence and provenance</span><span aria-hidden style={{ color: "var(--color-accent)" }}>＋</span>
+        </summary>
+        <dl className="mt-4 grid gap-x-8 gap-y-2 text-xs sm:grid-cols-2">
+          <Row k="Token observed" v={dateTimeUTC(r.token_observed_at)} />
+          <Row k="Reference observed" v={dateTimeUTC(r.reference_under_test_ts)} />
+          <Row k="Token volume" v={r.token_volume == null ? "—" : r.token_volume.toFixed(2)} />
+          <Row k="Token volume USD" v={compactUsd(r.token_volume_usd)} />
+          <Row k="Token liquidity" v={compactUsd(r.token_liquidity_usd)} />
+          <Row k="Provenance" v={provenance || "—"} />
+        </dl>
+        {fallbackCalibration && <p className="mt-3 text-xs" style={{ color: "var(--color-muted)" }}>The interval uses a global fallback calibration, so its width and the standardized deviation should be interpreted cautiously.</p>}
+      </details>
     </section>
   );
 }
 
-function Row({ k, v, hint }: { k: string; v: string; hint?: string }) {
-  return (
-    <div className="flex items-center justify-between gap-4">
-      <dt className="flex items-center gap-1.5" style={{ color: "var(--color-ink-dim)" }}>
-        {k}
-        {hint && (
-          <span title={hint} className="inline-flex h-3.5 w-3.5 cursor-help items-center justify-center rounded-full text-[9px]" style={{ background: "var(--color-line)", color: "var(--color-ink-dim)" }}>i</span>
-        )}
-      </dt>
-      <dd className="tnum font-medium text-ink">{v}</dd>
-    </div>
-  );
+function verdictNarrative(r: ValuationResult, outsideInterval: boolean, gate?: string): string {
+  if (r.reference_under_test == null) return `No reference under test is available. Valtide's independent estimate is ${money(r.valtide_fair_value)}.`;
+  if (r.evidence_state === "INCONCLUSIVE" && gate) return `Valtide abstains because ${reasonLabel(gate).toLowerCase()}. The reference is ${outsideInterval ? "outside" : "inside"} the calibrated interval.`;
+  if (r.evidence_state === "INCONCLUSIVE" && outsideInterval) return `The reference is outside ${money(r.fair_value_lower)}–${money(r.fair_value_upper)}, but the combined evidence did not meet the backend's challenge rule, so Valtide abstains.`;
+  if (r.evidence_state === "CHALLENGED") return `The reference at ${money(r.reference_under_test)} is materially inconsistent with Valtide's ${money(r.fair_value_lower)}–${money(r.fair_value_upper)} interval. This is evidence for review, not proof the reference is wrong.`;
+  return `The reference at ${money(r.reference_under_test)} is supported by the available independent evidence and sits ${outsideInterval ? "outside" : "inside"} Valtide's calibrated interval.`;
+}
+
+function Row({ k, v }: { k: string; v: string }) {
+  return <div className="flex min-w-0 items-start justify-between gap-4"><dt style={{ color: "var(--color-muted)" }}>{k}</dt><dd className="tnum max-w-[65%] truncate text-right font-medium text-ink" title={v}>{v}</dd></div>;
 }

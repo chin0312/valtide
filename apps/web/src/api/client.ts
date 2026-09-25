@@ -1,17 +1,27 @@
-// Typed client for the full Valtide backend contract. Every screen is built from
-// the same ValuationResult shape, so the UI can render live, cached-warmed,
-// historical-replay, or scenario data identically. A static fixture backs the
-// demo scenario so a pitch can't fail on a network/CORS/key issue.
+// Typed client for the full Valtide backend contract. Operational, historical,
+// and scenario lanes are explicit so a degraded source cannot silently become
+// another kind of evidence. A static fixture backs Demo mode only.
 //
 // Endpoint map (FastAPI, apps/api):
 //   GET  /health
-//   GET  /api/valuation/{asset}         cached warmed result (503 on cold cache)
-//   GET  /api/valuation/{asset}/live    on-demand live inference through the quant
-//   GET  /api/replay/{asset}            historical/scenario sequence
-//   GET  /api/backtest/{asset}          metrics / evidence-state counts
+//   GET  /api/valuation/{asset}         persisted/warmed result (503 on cold cache)
+//   GET  /api/valuation/{asset}/live    one-off cold-start diagnostic
+//   GET  /api/history/{asset}?limit=N   successful warmed operational history
+//   GET  /api/replay/{asset}?source=panel historical panel sequence
+//   GET  /api/replay/{asset}?source=scenario deterministic demo sequence
+//   GET  /api/backtest/{asset}?source=historical historical diagnostics
 //   GET  /api/runtime/{asset}           warmed scheduler status
+//   GET  /api/onchain/{asset}           X Layer Registry / RiskGuard state
+//   GET  /api/onchain/{asset}/enforcement DemoVault read-only enforcement check
 
-import type { BacktestMetrics, RuntimeStatus, ValuationResult } from "./types";
+import type {
+  AssetInfo,
+  BacktestMetrics,
+  OnchainControlPlane,
+  OnchainEnforcement,
+  RuntimeStatus,
+  ValuationResult,
+} from "./types";
 import weekendDivergence from "../fixtures/weekend_divergence.json";
 
 export const BASE = import.meta.env.VITE_API_BASE_URL ?? "http://localhost:8000";
@@ -45,6 +55,26 @@ async function getJSON<T>(path: string, timeoutMs = 6000): Promise<T> {
   }
 }
 
+async function getJSONWithHeaders<T>(path: string, timeoutMs = 12000): Promise<{ data: T; headers: Headers }> {
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), timeoutMs);
+  try {
+    const res = await fetch(`${BASE}${path}`, { signal: controller.signal });
+    if (!res.ok) {
+      let detail = res.statusText;
+      try {
+        detail = (await res.json())?.detail ?? detail;
+      } catch {
+        /* non-JSON body */
+      }
+      throw new ApiError(res.status, detail);
+    }
+    return { data: (await res.json()) as T, headers: res.headers };
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
 export async function fetchHealth(): Promise<boolean> {
   try {
     await getJSON<{ status: string }>("/health", 2500);
@@ -54,13 +84,13 @@ export async function fetchHealth(): Promise<boolean> {
   }
 }
 
-/** On-demand live inference: DexScreener + Alpaca + OKX → quant runtime → validation. */
-export function fetchLiveValuation(): Promise<ValuationResult> {
+/** On-demand cold-start inference; it is diagnostic and does not warm/publish state. */
+export function fetchLiveDiagnostic(): Promise<ValuationResult> {
   return getJSON<ValuationResult>(`/api/valuation/${ASSET}/live`, 12000);
 }
 
-/** Latest cached warmed result (never advances the filter). */
-export function fetchCachedValuation(): Promise<ValuationResult> {
+/** Latest persisted/warmed operational result (never advances the filter). */
+export function fetchOperationalValuation(): Promise<ValuationResult> {
   return getJSON<ValuationResult>(`/api/valuation/${ASSET}`);
 }
 
@@ -68,11 +98,48 @@ export function fetchRuntime(): Promise<RuntimeStatus> {
   return getJSON<RuntimeStatus>(`/api/runtime/${ASSET}`);
 }
 
-export function fetchBacktest(source = "scenario", scenario = "weekend_divergence"): Promise<BacktestMetrics> {
-  return getJSON<BacktestMetrics>(`/api/backtest/${ASSET}?source=${source}&scenario=${scenario}`);
+export function fetchAssets(): Promise<AssetInfo[]> {
+  return getJSON<AssetInfo[]>("/api/assets");
 }
 
-export type ReplaySource = "live" | "fixture";
+/** Successful warmed scheduler observations only; never replay/backtest data. */
+export function fetchOperationalHistory(limit = 72): Promise<ValuationResult[]> {
+  return getJSON<ValuationResult[]>(`/api/history/${ASSET}?limit=${limit}`, 10000);
+}
+
+export interface HistoricalReplayResponse {
+  results: ValuationResult[];
+  source: "historical_panel";
+}
+
+/** Historical panel replay. A scenario response is rejected rather than substituted. */
+export async function fetchHistoricalReplay(): Promise<HistoricalReplayResponse> {
+  const response = await getJSONWithHeaders<ValuationResult[]>(`/api/replay/${ASSET}?source=panel`, 20000);
+  const source = response.headers.get("X-Valtide-Source");
+  // The backend path is explicit. If CORS does not expose the diagnostic header,
+  // the browser returns null; reject only an explicitly conflicting source.
+  if (source != null && source !== "historical_panel") {
+    throw new Error(`Unexpected replay source: ${source ?? "missing"}`);
+  }
+  if (!Array.isArray(response.data) || response.data.length === 0) {
+    throw new Error("Historical panel replay is empty");
+  }
+  return { results: response.data, source: "historical_panel" };
+}
+
+export function fetchHistoricalBacktest(): Promise<BacktestMetrics> {
+  return getJSON<BacktestMetrics>(`/api/backtest/${ASSET}?source=historical`);
+}
+
+export function fetchOnchain(): Promise<OnchainControlPlane> {
+  return getJSON<OnchainControlPlane>(`/api/onchain/${ASSET}`, 12000);
+}
+
+export function fetchOnchainEnforcement(): Promise<OnchainEnforcement> {
+  return getJSON<OnchainEnforcement>(`/api/onchain/${ASSET}/enforcement`, 12000);
+}
+
+export type ReplaySource = "backend-scenario" | "offline-fixture";
 export interface ReplayResponse {
   results: ValuationResult[];
   source: ReplaySource;
@@ -88,8 +155,8 @@ export async function fetchDemoReplay(scenario = "weekend_divergence"): Promise<
       `/api/replay/${ASSET}?source=scenario&scenario=${encodeURIComponent(scenario)}`,
     );
     if (!Array.isArray(results) || results.length === 0) throw new Error("empty replay");
-    return { results, source: "live" };
+    return { results, source: "backend-scenario" };
   } catch {
-    return { results: FIXTURE, source: "fixture" };
+    return { results: FIXTURE, source: "offline-fixture" };
   }
 }
