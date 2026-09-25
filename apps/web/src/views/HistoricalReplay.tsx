@@ -4,7 +4,6 @@ import { EscalationChart } from "../components/EscalationChart";
 import { EvidenceChip } from "../components/EvidenceChip";
 import { Panel } from "../components/ui";
 import { money, sigma, timeUTC } from "../lib/format";
-import { EVIDENCE } from "../lib/evidence";
 
 // Step through a real point-in-time sequence and watch the verdict change as the
 // reference price drifts away from the model's fair value.
@@ -44,8 +43,8 @@ export function HistoricalReplay({
 
       {/* plain caption for the currently selected step */}
       <div
-        className="mt-3 flex flex-wrap items-center gap-x-2 gap-y-1 rounded-lg px-3 py-2 text-sm"
-        style={{ background: EVIDENCE[r.evidence_state].soft, border: `1px solid ${EVIDENCE[r.evidence_state].line}` }}
+        className="mt-3 flex flex-wrap items-center gap-x-2 gap-y-1 rounded-sm px-3 py-2 text-xs"
+        style={{ background: "var(--color-panel-2)", border: "1px solid var(--color-line)" }}
       >
         <span className="tnum font-medium text-ink">{timeUTC(r.timestamp)}</span>
         <EvidenceChip state={r.evidence_state} />
@@ -61,8 +60,8 @@ export function HistoricalReplay({
             if (atEnd) setIndex(0);
             setPlaying(!playing);
           }}
-          className="rounded-lg px-4 py-2 text-sm font-semibold text-white transition-opacity hover:opacity-90"
-          style={{ background: "var(--color-accent)" }}
+          className="rounded-sm px-4 py-2 text-xs font-medium transition-colors"
+          style={{ background: "var(--color-accent-soft)", color: "var(--color-accent)", border: "1px solid var(--color-line)" }}
         >
           {playing ? "❚❚ Pause" : atEnd ? "↻ Replay from start" : "▶ Play"}
         </button>
@@ -89,9 +88,9 @@ export function HistoricalReplay({
 function Legend() {
   return (
     <div className="mb-3 flex flex-wrap items-center gap-x-5 gap-y-1.5 text-xs" style={{ color: "var(--color-ink-dim)" }}>
-      <LegendItem swatch={<span className="inline-block h-2.5 w-4 rounded-sm" style={{ background: "var(--color-supported-soft)", border: "1px solid var(--color-supported-line)" }} />} label="Valtide 90% range" />
-      <LegendItem swatch={<span className="inline-block h-0.5 w-4 rounded" style={{ background: "var(--color-supported)" }} />} label="Fair value" />
-      <LegendItem swatch={<span className="inline-block h-0 w-4 border-t-2 border-dashed" style={{ borderColor: "var(--color-challenged)" }} />} label="Reference under test" />
+      <LegendItem swatch={<span className="inline-block h-2.5 w-4 rounded-sm" style={{ background: "var(--color-accent-soft)", border: "1px solid var(--color-accent)" }} />} label="Valtide 90% range" />
+      <LegendItem swatch={<span className="inline-block h-0.5 w-4 rounded" style={{ background: "var(--color-accent)" }} />} label="Fair value" />
+      <LegendItem swatch={<span className="inline-block h-0 w-4 border-t-2 border-dashed" style={{ borderColor: "var(--color-ink)" }} />} label="Reference under test" />
     </div>
   );
 }

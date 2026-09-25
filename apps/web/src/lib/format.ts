@@ -50,14 +50,15 @@ export interface Staleness {
   line: string;
 }
 
-// A trader keys on data age. Colour-code it instead of burying it in gray.
+// Freshness is explicit in words. Evidence-state colours remain reserved for
+// SUPPORTED / INCONCLUSIVE / CHALLENGED.
 export function staleness(seconds: number | null | undefined): Staleness {
-  const neutral = { fg: "var(--color-ink)", soft: "var(--color-panel-2)", line: "var(--color-line)" };
+  const neutral = { fg: "var(--color-ink-dim)", soft: "var(--color-panel-2)", line: "var(--color-line)" };
   if (seconds == null) return { label: DASH, ...neutral };
   const a = ageLabel(seconds);
-  if (seconds < 15 * 60) return { label: `${a} · fresh`, fg: "var(--color-supported)", soft: "var(--color-supported-soft)", line: "var(--color-supported-line)" };
-  if (seconds < 4 * 3600) return { label: `${a} · stale`, fg: "var(--color-inconclusive)", soft: "var(--color-inconclusive-soft)", line: "var(--color-inconclusive-line)" };
-  return { label: `${a} · very stale`, fg: "var(--color-challenged)", soft: "var(--color-challenged-soft)", line: "var(--color-challenged-line)" };
+  if (seconds < 15 * 60) return { label: `${a} · fresh`, ...neutral };
+  if (seconds < 4 * 3600) return { label: `${a} · stale`, ...neutral };
+  return { label: `${a} · very stale`, ...neutral };
 }
 
 export function sessionLabel(state: string): string {

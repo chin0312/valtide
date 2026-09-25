@@ -18,11 +18,11 @@ export function ReasonCodes({ codes: allCodes }: { codes: string[] }) {
           <li
             key={c}
             title={c}
-            className="rounded-lg px-2.5 py-1 text-xs font-medium"
+            className="rounded-sm px-2.5 py-1 font-mono text-[10px] font-medium uppercase tracking-[0.04em]"
             style={{
-              background: key ? "var(--color-challenged-soft)" : "var(--color-panel-2)",
-              color: key ? "var(--color-challenged)" : "var(--color-ink-dim)",
-              border: `1px solid ${key ? "var(--color-challenged-line)" : "var(--color-line)"}`,
+              background: key ? "var(--color-panel-2)" : "transparent",
+              color: key ? "var(--color-ink)" : "var(--color-ink-dim)",
+              border: "1px solid var(--color-line)",
             }}
           >
             {reasonLabel(c)}

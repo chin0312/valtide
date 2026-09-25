@@ -19,17 +19,23 @@ export default function App() {
   const mode: Mode = manualMode ?? (health.data ? "live" : "demo");
 
   return (
-    <div className="mx-auto min-h-full max-w-6xl px-6 py-8">
-      <header className="mb-6 flex flex-wrap items-end justify-between gap-4">
-        <div>
-          <h1 className="text-2xl font-bold tracking-tight text-ink">Valtide</h1>
-          <p className="mt-0.5 text-sm" style={{ color: "var(--color-ink-dim)" }}>
-            Is this tokenized-equity collateral price still supported by the market?
-          </p>
+    <div className="mx-auto min-h-full max-w-[1480px] px-4 py-5 sm:px-6">
+      <header className="mb-4 flex flex-wrap items-center justify-between gap-4 border-b pb-4" style={{ borderColor: "var(--color-line-subtle)" }}>
+        <div className="flex items-center gap-5">
+          <div>
+            <div className="font-mono text-[10px] uppercase tracking-[0.16em]" style={{ color: "var(--color-accent)" }}>Independent valuation control</div>
+            <h1 className="mt-1 text-2xl font-semibold tracking-[-0.04em] text-ink">Valtide</h1>
+          </div>
+          <div className="hidden h-8 w-px sm:block" style={{ background: "var(--color-line)" }} />
+          <div className="hidden sm:block">
+            <div className="text-[13px] font-medium text-ink">Evidence Monitor</div>
+            <p className="text-xs" style={{ color: "var(--color-muted)" }}>Validate → Diagnose → Triage → Guard</p>
+          </div>
         </div>
         <ModeToggle mode={mode} onChange={setManualMode} backendUp={!!health.data} />
       </header>
 
+      <Watchlist />
       {mode === "live" ? <LiveView /> : <DemoView />}
     </div>
   );
@@ -38,18 +44,18 @@ export default function App() {
 function ModeToggle({ mode, onChange, backendUp }: { mode: Mode; onChange: (m: Mode) => void; backendUp: boolean }) {
   return (
     <div className="flex items-center gap-3">
-      <span className="inline-flex items-center gap-1.5 text-xs" style={{ color: backendUp ? "var(--color-supported)" : "var(--color-muted)" }} title={backendUp ? "Backend reachable" : "Backend unreachable"}>
-        <span className="inline-block h-2 w-2 rounded-full" style={{ background: backendUp ? "var(--color-supported)" : "var(--color-muted)" }} />
+      <span className="inline-flex items-center gap-1.5 font-mono text-[10px] uppercase tracking-[0.08em]" style={{ color: "var(--color-muted)" }} title={backendUp ? "Backend reachable" : "Backend unreachable"}>
+        <span className="inline-block h-1.5 w-1.5 rounded-full" style={{ background: backendUp ? "var(--color-accent)" : "var(--color-muted)" }} />
         {backendUp ? "backend online" : "backend offline"}
       </span>
-      <div className="inline-flex overflow-hidden rounded-lg" style={{ border: "1px solid var(--color-line)" }}>
+      <div className="inline-flex overflow-hidden rounded-sm" style={{ border: "1px solid var(--color-line)" }}>
         {(["live", "demo"] as Mode[]).map((m) => (
           <button
             key={m}
             onClick={() => onChange(m)}
             disabled={m === "live" && !backendUp}
-            className="px-3 py-1.5 text-sm font-medium capitalize disabled:cursor-not-allowed disabled:opacity-40"
-            style={mode === m ? { background: "var(--color-accent)", color: "#fff" } : { background: "#fff", color: "var(--color-ink-dim)" }}
+            className="px-3 py-1.5 text-xs font-medium capitalize disabled:cursor-not-allowed disabled:opacity-30"
+            style={mode === m ? { background: "var(--color-accent-soft, #affc4117)", color: "var(--color-accent)" } : { background: "var(--color-panel)", color: "var(--color-muted)" }}
           >
             {m}
           </button>
@@ -80,15 +86,18 @@ function LiveView() {
 
   const r = live.data;
   return (
-    <div className="space-y-6">
+    <div className="space-y-4">
       <StatusStrip r={r} provenance="live" runtime={runtime.data} />
-      <ValidationOverview r={r} />
-      <div className="grid gap-6 lg:grid-cols-3">
-        <div className="lg:col-span-2"><ReferenceComparison r={r} /></div>
+      <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_360px]">
+        <ValidationOverview r={r} />
         <PolicyActionPanel current={r.evidence_state} />
       </div>
-      <div className="grid gap-6 lg:grid-cols-3">
-        <div className="lg:col-span-2"><ModelEvidence results={[r]} source="scenario" /></div>
+      <div className="grid gap-4 lg:grid-cols-[minmax(0,1.6fr)_minmax(340px,0.8fr)]">
+        <ReferenceComparison r={r} />
+        <ModelEvidence results={[r]} source="scenario" />
+      </div>
+      <div className="grid gap-4 lg:grid-cols-[minmax(0,1.6fr)_minmax(340px,0.8fr)]">
+        <div />
         <RegistryPanel />
       </div>
       <Footer r={r} live />
@@ -108,20 +117,22 @@ function DemoView() {
   const provenance: Provenance = data.source === "live" ? "demo-scenario" : "demo-fixture";
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-4">
       <StatusStrip r={r} provenance={provenance} />
-      <ValidationOverview r={r} />
-      <div className="grid gap-6 lg:grid-cols-3">
-        <div className="lg:col-span-2"><ReferenceComparison r={r} /></div>
+      <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_360px]">
+        <ValidationOverview r={r} />
         <PolicyActionPanel current={r.evidence_state} />
       </div>
-      <div className="grid gap-6 lg:grid-cols-3">
-        <div className="lg:col-span-2">
+      <div className="grid gap-4 lg:grid-cols-[minmax(0,1.6fr)_minmax(340px,0.8fr)]">
+        <div>
           <HistoricalReplay results={data.results} index={index} setIndex={setIndex} playing={playing} setPlaying={setPlaying} />
         </div>
+        <ReferenceComparison r={r} />
+      </div>
+      <div className="grid gap-4 lg:grid-cols-[minmax(0,1.6fr)_minmax(340px,0.8fr)]">
+        <ModelEvidence results={data.results} source="scenario" />
         <RegistryPanel />
       </div>
-      <ModelEvidence results={data.results} source="scenario" />
       <Footer r={r} />
     </div>
   );
@@ -129,7 +140,7 @@ function DemoView() {
 
 function Footer({ r, live }: { r: ValuationResult; live?: boolean }) {
   return (
-    <footer className="pt-2 text-center text-xs" style={{ color: "var(--color-muted)" }}>
+    <footer className="border-t pt-4 text-left font-mono text-[10px] uppercase tracking-[0.06em]" style={{ borderColor: "var(--color-line-subtle)", color: "var(--color-muted)" }}>
       Model {r.model_id} {r.model_version} · reference {r.reference_under_test_source}
       {live ? " · live inference, updates every 20s" : ""} · hackathon research prototype, not a production oracle
     </footer>
@@ -138,8 +149,30 @@ function Footer({ r, live }: { r: ValuationResult; live?: boolean }) {
 
 function Message({ children }: { children: React.ReactNode }) {
   return (
-    <div className="card-shadow rounded-2xl bg-white p-10 text-center" style={{ border: "1px solid var(--color-line)", color: "var(--color-ink-dim)" }}>
+    <div className="card-shadow rounded-sm p-10 text-center" style={{ background: "var(--color-panel)", border: "1px solid var(--color-line-subtle)", color: "var(--color-ink-dim)" }}>
       {children}
+    </div>
+  );
+}
+
+function Watchlist() {
+  const items = [
+    { symbol: "NVDAx", state: "ACTIVE", meta: "selected evidence stream" },
+    { symbol: "SPYx", state: "P1", meta: "coming soon" },
+    { symbol: "TSLAx", state: "P1", meta: "coming soon" },
+  ];
+  return (
+    <div className="mb-4 flex overflow-x-auto rounded-sm" style={{ border: "1px solid var(--color-line-subtle)", background: "var(--color-panel)" }}>
+      <div className="flex items-center px-3 font-mono text-[10px] uppercase tracking-[0.1em]" style={{ color: "var(--color-muted)", borderRight: "1px solid var(--color-line-subtle)" }}>Watchlist</div>
+      {items.map((item, index) => (
+        <div key={item.symbol} className="min-w-[190px] px-4 py-2.5" style={{ borderRight: index < items.length - 1 ? "1px solid var(--color-line-subtle)" : undefined, opacity: index === 0 ? 1 : 0.48 }}>
+          <div className="flex items-center justify-between gap-4">
+            <span className="tnum text-sm font-medium text-ink">{item.symbol}</span>
+            <span className="font-mono text-[9px] uppercase tracking-[0.08em]" style={{ color: index === 0 ? "var(--color-accent)" : "var(--color-muted)" }}>{item.state}</span>
+          </div>
+          <div className="mt-0.5 text-[11px]" style={{ color: "var(--color-muted)" }}>{item.meta}</div>
+        </div>
+      ))}
     </div>
   );
 }

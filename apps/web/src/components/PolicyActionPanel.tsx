@@ -1,5 +1,4 @@
 import type { EvidenceState } from "../api/types";
-import { EVIDENCE } from "../lib/evidence";
 import { Panel } from "../components/ui";
 
 const STATES: EvidenceState[] = ["SUPPORTED", "INCONCLUSIVE", "CHALLENGED"];
@@ -20,20 +19,16 @@ const ACTION_MEANING: Record<string, string> = {
 };
 
 export function PolicyActionPanel({ current }: { current: EvidenceState }) {
-  const cur = EVIDENCE[current];
   const action = POLICY[current];
 
   return (
-    <Panel title="What the protocol does" subtitle="The curator's policy turns the verdict into an action">
+    <Panel title="Policy result" subtitle="Configured protocol rule — not a Valtide recommendation">
       {/* the outcome for the current verdict */}
-      <div className="rounded-xl px-4 py-4" style={{ background: cur.soft, border: `1px solid ${cur.line}` }}>
+      <div className="rounded-sm px-4 py-4" style={{ background: "var(--color-panel-2)", border: "1px solid var(--color-line)" }}>
         <div className="flex items-center gap-2 text-sm" style={{ color: "var(--color-ink-dim)" }}>
-          <span className="inline-flex h-4 w-4 items-center justify-center rounded-full text-[10px] font-bold text-white" style={{ background: cur.fg }} aria-hidden>
-            {cur.icon}
-          </span>
-          Verdict is <strong style={{ color: cur.fg }}>{current}</strong>, so the policy triggers:
+          Evidence State <strong className="tnum text-ink">{current}</strong> maps to:
         </div>
-        <div className="mt-2 text-2xl font-bold" style={{ color: cur.fg }}>
+        <div className="tnum mt-3 break-words text-xl font-medium tracking-[-0.03em]" style={{ color: "var(--color-accent)" }}>
           {action}
         </div>
         <div className="mt-1 text-sm" style={{ color: "var(--color-ink-dim)" }}>
@@ -46,24 +41,23 @@ export function PolicyActionPanel({ current }: { current: EvidenceState }) {
         <div className="mb-2 text-xs font-medium" style={{ color: "var(--color-ink-dim)" }}>
           This curator's rules
         </div>
-        <div className="overflow-hidden rounded-lg" style={{ border: "1px solid var(--color-line)" }}>
+        <div className="overflow-hidden rounded-sm" style={{ border: "1px solid var(--color-line)" }}>
           {STATES.map((sName, i) => {
             const active = sName === current;
-            const st = EVIDENCE[sName];
             return (
               <div
                 key={sName}
                 className="flex items-center justify-between gap-3 px-3 py-2 text-sm"
                 style={{
-                  background: active ? st.soft : "var(--color-panel)",
+                  background: active ? "var(--color-panel-2)" : "var(--color-panel)",
                   borderTop: i === 0 ? "none" : "1px solid var(--color-line)",
                 }}
               >
-                <span className="font-medium" style={{ color: active ? st.fg : "var(--color-ink-dim)" }}>
+                <span className="font-medium" style={{ color: active ? "var(--color-ink)" : "var(--color-muted)" }}>
                   {sName}
                 </span>
                 <span aria-hidden style={{ color: "var(--color-muted)" }}>→</span>
-                <span className="ml-auto tnum font-semibold" style={{ color: active ? st.fg : "var(--color-ink)" }}>
+                <span className="ml-auto tnum font-medium" style={{ color: active ? "var(--color-accent)" : "var(--color-ink-dim)" }}>
                   {POLICY[sName]}
                 </span>
               </div>

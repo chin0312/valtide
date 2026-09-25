@@ -33,7 +33,7 @@ export function ModelEvidence({ results, source }: { results: ValuationResult[];
       <div className="mb-2 text-xs font-medium" style={{ color: "var(--color-ink-dim)" }}>
         Verdicts across this {data ? data.source : source} window ({total})
       </div>
-      <div className="flex h-3 overflow-hidden rounded-full" style={{ border: "1px solid var(--color-line)" }}>
+      <div className="flex h-2 overflow-hidden rounded-sm" style={{ border: "1px solid var(--color-line)" }}>
         {STATES.map((s) => {
           const w = ((counts[s] ?? 0) / total) * 100;
           return w > 0 ? <div key={s} style={{ width: `${w}%`, background: EVIDENCE[s].fg }} title={`${s}: ${counts[s]}`} /> : null;
@@ -48,7 +48,7 @@ export function ModelEvidence({ results, source }: { results: ValuationResult[];
         ))}
       </div>
 
-      <div className="mt-4 grid grid-cols-3 gap-3">
+      <div className="mt-4 grid grid-cols-3 overflow-hidden rounded-sm" style={{ border: "1px solid var(--color-line-subtle)" }}>
         <Metric label="Interval coverage" value={hasMetrics ? `${(data!.interval_coverage! * 100).toFixed(0)}%` : "—"} hint="How often the true price landed inside the 90% range. Should be near 90%." />
         <Metric label="Mean abs. error" value={hasMetrics ? `$${data!.mae!.toFixed(2)}` : "—"} hint="Average absolute error of the estimate vs the eventual trusted price." />
         <Metric label="Evaluable points" value={data ? String(data.n_evaluable) : "—"} hint="Observations with a later ground-truth price to score against." />
@@ -67,12 +67,12 @@ export function ModelEvidence({ results, source }: { results: ValuationResult[];
 
 function Metric({ label, value, hint }: { label: string; value: string; hint: string }) {
   return (
-    <div className="rounded-lg px-3 py-2.5" style={{ background: "var(--color-panel-2)", border: "1px solid var(--color-line)" }}>
-      <div className="flex items-center gap-1 text-[11px] font-medium" style={{ color: "var(--color-ink-dim)" }} title={hint}>
+    <div className="px-3 py-3" style={{ background: "var(--color-panel)", borderRight: "1px solid var(--color-line-subtle)" }}>
+      <div className="flex items-center gap-1 font-mono text-[9px] font-medium uppercase tracking-[0.05em]" style={{ color: "var(--color-muted)" }} title={hint}>
         {label}
         <span className="inline-flex h-3 w-3 cursor-help items-center justify-center rounded-full text-[8px]" style={{ background: "var(--color-line)" }}>i</span>
       </div>
-      <div className="tnum mt-1 text-xl font-semibold text-ink">{value}</div>
+      <div className="tnum mt-2 text-lg font-medium text-ink">{value}</div>
     </div>
   );
 }

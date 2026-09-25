@@ -4,26 +4,27 @@ import { Panel } from "../components/ui";
 // explain what it will do rather than showing a cryptic status.
 export function RegistryPanel() {
   return (
-    <Panel title="Share the verdict onchain" subtitle="So lending protocols can act on it automatically">
-      <ol className="space-y-2.5">
-        <Step n={1} done>Valtide produces the verdict (above)</Step>
-        <Step n={2}>Publish it to the X Layer registry onchain</Step>
-        <Step n={3}>Protocols read the verdict and apply their own policy — no trust in Valtide's servers needed</Step>
+    <Panel title="Onchain provenance" subtitle="Evidence computed; publication awaits deployment">
+      <ol className="grid grid-cols-2 overflow-hidden rounded-sm" style={{ border: "1px solid var(--color-line)" }}>
+        <Step n={1} done>Model run</Step>
+        <Step n={2}>Attested</Step>
+        <Step n={3}>Registry</Step>
+        <Step n={4}>Risk guard</Step>
       </ol>
 
       <div
-        className="mt-4 flex items-center gap-2.5 rounded-lg px-3 py-2.5"
-        style={{ background: "var(--color-inconclusive-soft)", border: "1px solid var(--color-inconclusive-line)" }}
+        className="mt-4 flex items-center gap-2.5 rounded-sm px-3 py-2.5"
+        style={{ background: "var(--color-panel-2)", border: "1px solid var(--color-line)" }}
       >
-        <span className="inline-flex h-2 w-2 rounded-full" style={{ background: "var(--color-inconclusive)" }} aria-hidden />
-        <span className="text-sm" style={{ color: "var(--color-inconclusive)" }}>
+        <span className="inline-flex h-2 w-2 rounded-full" style={{ background: "var(--color-muted)" }} aria-hidden />
+        <span className="text-xs" style={{ color: "var(--color-ink-dim)" }}>
           <strong>Preview</strong> — the X Layer contracts aren't deployed yet, so publishing is disabled.
         </span>
       </div>
 
       <button
         disabled
-        className="mt-3 w-full cursor-not-allowed rounded-lg py-2 text-sm font-medium"
+        className="mt-3 w-full cursor-not-allowed rounded-sm py-2 text-xs font-medium"
         style={{ background: "var(--color-panel-2)", color: "var(--color-muted)", border: "1px solid var(--color-line)" }}
       >
         Publish onchain (coming soon)
@@ -34,12 +35,12 @@ export function RegistryPanel() {
 
 function Step({ n, children, done }: { n: number; children: React.ReactNode; done?: boolean }) {
   return (
-    <li className="flex items-start gap-3 text-sm">
+    <li className="flex items-center gap-2 px-3 py-2.5 text-xs" style={{ borderRight: "1px solid var(--color-line-subtle)", borderBottom: "1px solid var(--color-line-subtle)" }}>
       <span
-        className="mt-0.5 inline-flex h-5 w-5 flex-none items-center justify-center rounded-full text-xs font-bold"
+        className="inline-flex h-4 w-4 flex-none items-center justify-center rounded-full font-mono text-[9px] font-medium"
         style={
           done
-            ? { background: "var(--color-supported)", color: "#fff" }
+            ? { background: "var(--color-accent-soft)", color: "var(--color-accent)", border: "1px solid var(--color-accent)" }
             : { background: "var(--color-panel-2)", color: "var(--color-ink-dim)", border: "1px solid var(--color-line)" }
         }
       >

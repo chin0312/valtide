@@ -22,14 +22,13 @@ export function StatusStrip({
   const age = staleness(r.reference_age_seconds);
   const prov = PROVENANCE[provenance];
   return (
-    <div className="flex flex-wrap items-center gap-x-5 gap-y-2 rounded-xl px-4 py-2.5 text-sm" style={{ background: "var(--color-panel)", border: "1px solid var(--color-line)" }}>
-      <span className="font-semibold text-ink">{r.asset}</span>
+    <div className="flex flex-wrap items-center gap-x-5 gap-y-2 rounded-sm px-4 py-2.5 text-xs" style={{ background: "var(--color-panel)", border: "1px solid var(--color-line-subtle)" }}>
+      <span className="tnum font-medium text-ink">{r.asset}</span>
       <Item label="Validating" value={r.reference_under_test_source} />
       <Item label="Session" value={sessionLabel(r.market_state)} />
       <Item label="Observed" value={timeUTC(r.timestamp)} />
 
-      {/* freshness is colour-coded — a trader keys on data age */}
-      <span className="inline-flex items-center gap-1.5 rounded-full px-2.5 py-0.5 text-xs font-medium" style={{ background: age.soft, color: age.fg, border: `1px solid ${age.line}` }} title="Age of the last trusted underlying price">
+      <span className="inline-flex items-center gap-1.5 rounded-sm px-2 py-0.5 font-mono text-[10px]" style={{ background: age.soft, color: age.fg, border: `1px solid ${age.line}` }} title="Age of the last trusted underlying price">
         underlying {age.label}
       </span>
 
@@ -40,14 +39,14 @@ export function StatusStrip({
       )}
 
       <span
-        className="ml-auto inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-xs font-medium"
+        className="ml-auto inline-flex items-center gap-1.5 rounded-sm px-2 py-1 font-mono text-[10px] uppercase tracking-[0.06em]"
         style={{
-          background: prov.tone === "ok" ? "var(--color-supported-soft)" : "var(--color-inconclusive-soft)",
-          color: prov.tone === "ok" ? "var(--color-supported)" : "var(--color-inconclusive)",
-          border: `1px solid ${prov.tone === "ok" ? "var(--color-supported-line)" : "var(--color-inconclusive-line)"}`,
+          background: "var(--color-panel-2)",
+          color: prov.tone === "ok" ? "var(--color-accent)" : "var(--color-ink-dim)",
+          border: "1px solid var(--color-line)",
         }}
       >
-        <span aria-hidden>{prov.tone === "ok" ? "●" : "◆"}</span>
+        <span aria-hidden>{prov.tone === "ok" ? "●" : "◇"}</span>
         {prov.label}
       </span>
     </div>

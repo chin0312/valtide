@@ -59,7 +59,7 @@ export function EscalationChart({
             tickFormatter={(v: number) => `$${v.toFixed(1)}`}
           />
           <Tooltip
-            contentStyle={{ background: "#fff", border: "1px solid var(--color-line)", borderRadius: 10, fontSize: 13 }}
+            contentStyle={{ background: "#111718", border: "1px solid var(--color-line)", borderRadius: 8, fontSize: 12, color: "#f3faf7", fontFamily: "IBM Plex Mono" }}
             labelStyle={{ color: "var(--color-ink-dim)" }}
             formatter={(v, name) => {
               if (name === "90% range" && Array.isArray(v)) return [`$${Number(v[0]).toFixed(2)} – $${Number(v[1]).toFixed(2)}`, name];
@@ -68,18 +68,18 @@ export function EscalationChart({
           />
           <Area
             dataKey="band"
-            stroke="var(--color-supported-line)"
-            fill="var(--color-supported-soft)"
+            stroke="var(--color-accent)"
+            fill="var(--color-accent-soft)"
             isAnimationActive={false}
             name="90% range"
           />
-          <Line dataKey="fair" stroke="var(--color-supported)" strokeWidth={2.5} dot={false} name="Fair value" />
+          <Line dataKey="fair" stroke="var(--color-accent)" strokeWidth={1.5} dot={false} name="Fair value" />
           <Line
             dataKey="rut"
-            stroke="var(--color-challenged)"
-            strokeWidth={2.5}
+            stroke="var(--color-ink)"
+            strokeWidth={1.5}
             strokeDasharray="5 4"
-            dot={{ r: 3, fill: "var(--color-challenged)" }}
+            dot={{ r: 2.5, fill: "var(--color-ink)" }}
             name="Reference under test"
           />
           <ReferenceLine x={data[index]?.t} stroke="var(--color-ink-dim)" strokeDasharray="2 2" />

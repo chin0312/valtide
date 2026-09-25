@@ -1,5 +1,4 @@
 import type { ValuationResult } from "../api/types";
-import { EvidenceChip } from "../components/EvidenceChip";
 import { ReasonCodes } from "../components/ReasonCodes";
 import { Figure } from "../components/ui";
 import { EVIDENCE } from "../lib/evidence";
@@ -16,18 +15,22 @@ export function ValidationOverview({ r }: { r: ValuationResult }) {
   const fallbackCalibration = r.reason_codes.includes("CALIBRATION_GLOBAL_FALLBACK");
 
   return (
-    <section className="card-shadow overflow-hidden rounded-2xl bg-white" style={{ border: "1px solid var(--color-line)" }}>
-      <div className="flex flex-wrap items-center justify-between gap-4 px-6 py-5" style={{ background: s.soft, borderBottom: `1px solid ${s.line}` }}>
+    <section className="card-shadow overflow-hidden rounded-sm" style={{ background: "var(--color-panel)", border: "1px solid var(--color-line-subtle)", borderLeft: `2px solid ${s.fg}` }}>
+      <div className="flex flex-wrap items-start justify-between gap-4 px-5 py-5" style={{ borderBottom: "1px solid var(--color-line-subtle)" }}>
         <div>
-          <div className="text-xl font-semibold" style={{ color: s.fg }}>{s.headline}</div>
-          <p className="mt-1 max-w-2xl text-sm" style={{ color: "var(--color-ink-dim)" }}>{s.description}</p>
+          <div className="font-mono text-[10px] uppercase tracking-[0.1em]" style={{ color: "var(--color-muted)" }}>Evidence state</div>
+          <div className="mt-2 text-[28px] font-medium tracking-[-0.04em]" style={{ color: s.fg }}>{s.label}</div>
+          <p className="mt-1 max-w-2xl text-[13px]" style={{ color: "var(--color-ink-dim)" }}>{s.description}</p>
         </div>
-        <EvidenceChip state={r.evidence_state} size="lg" />
+        <div className="text-right">
+          <div className="font-mono text-[10px] uppercase tracking-[0.08em]" style={{ color: "var(--color-muted)" }}>Standardized deviation</div>
+          <div className="tnum mt-2 text-2xl font-medium text-ink">{sigma(r.standardized_deviation)}</div>
+        </div>
       </div>
 
-      <div className="p-6">
+      <div className="px-5 py-4">
         {/* economic magnitude first; σ is secondary */}
-        <p className="mb-4 text-[15px] leading-relaxed text-ink">
+        <p className="mb-4 max-w-4xl text-[13px] leading-relaxed text-ink">
           The reference price of <strong>{money(r.reference_under_test)}</strong>{" "}
           {dev == null ? "is compared against " : negligible ? "is in line with " : (
             <>is <strong style={{ color: s.fg }}>{pct(Math.abs(dev))}</strong> {dir} </>
@@ -40,8 +43,8 @@ export function ValidationOverview({ r }: { r: ValuationResult }) {
         </p>
 
         {fallbackCalibration && (
-          <div className="mb-4 flex items-start gap-2 rounded-lg px-3 py-2 text-sm" style={{ background: "var(--color-inconclusive-soft)", border: "1px solid var(--color-inconclusive-line)", color: "var(--color-inconclusive)" }}>
-            <span aria-hidden>⚠</span>
+          <div className="mb-4 flex items-start gap-2 rounded-sm px-3 py-2 text-xs" style={{ background: "var(--color-panel-2)", border: "1px solid var(--color-line)", color: "var(--color-ink-dim)" }}>
+            <span aria-hidden style={{ color: "var(--color-accent)" }}>△</span>
             <span>
               The confidence range uses a <strong>global fallback calibration</strong> (no session-specific
               fit yet), so treat the width of the range — and the σ figure — with caution.
@@ -49,16 +52,16 @@ export function ValidationOverview({ r }: { r: ValuationResult }) {
           </div>
         )}
 
-        <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
+        <div className="grid grid-cols-2 overflow-hidden rounded-sm lg:grid-cols-4" style={{ border: "1px solid var(--color-line-subtle)" }}>
           <Figure label="Reference under test" value={money(r.reference_under_test)} sub={r.reference_under_test_source} hint="The price being validated — the value a protocol currently relies on." />
-          <Figure label="Valtide estimate" value={money(r.valtide_fair_value)} sub={`90% range ${money(r.fair_value_lower)} – ${money(r.fair_value_upper)}`} accent="var(--color-supported)" hint="An independent challenger estimate with a calibrated uncertainty range — not a definitive fair value." />
-          <Figure label="Tokenized market" value={money(r.token_price)} sub="depth / volume not in result" accent="var(--color-token)" hint="The traded NVDAx price. Weigh it by market quality — thin books produce unreliable prices. Depth/volume are captured on the live path but not yet exposed on the public result payload." />
-          <Figure label="Deviation" value={pct(dev)} sub={`${sigma(r.standardized_deviation)} vs model range`} accent={s.fg} hint="Economic gap from the estimate. The σ figure depends on the model's confidence range, which is currently a fallback calibration." />
+          <Figure label="Valtide fair value" value={money(r.valtide_fair_value)} sub={`90% range ${money(r.fair_value_lower)} – ${money(r.fair_value_upper)}`} hint="An independent challenger estimate with a calibrated uncertainty range — not a definitive fair value." />
+          <Figure label="Tokenized market" value={money(r.token_price)} sub="market quality unavailable" hint="The traded NVDAx price. Weigh it by market quality — thin books produce unreliable prices. Depth/volume are captured on the live path but not yet exposed on the public result payload." />
+          <Figure label="Reference deviation" value={pct(dev)} sub={`${sigma(r.standardized_deviation)} vs model range`} hint="Economic gap from the estimate. The σ figure depends on the model's confidence range, which is currently a fallback calibration." />
         </div>
 
-        <div className="mt-5 grid gap-5 border-t pt-5 md:grid-cols-2" style={{ borderColor: "var(--color-line)" }}>
+        <div className="mt-5 grid gap-5 border-t pt-5 md:grid-cols-2" style={{ borderColor: "var(--color-line-subtle)" }}>
           <div>
-            <div className="mb-2 text-xs font-medium" style={{ color: "var(--color-ink-dim)" }}>How the price moved</div>
+            <div className="mb-2 font-mono text-[10px] font-medium uppercase tracking-[0.08em]" style={{ color: "var(--color-muted)" }}>Basis breakdown</div>
             <dl className="space-y-1.5 text-sm">
               <Row k="Tokenized market move" v={pct(r.observed_token_move_pct)} />
               <Row k="Model-implied move" v={pct(r.model_implied_move_pct)} />
@@ -66,7 +69,7 @@ export function ValidationOverview({ r }: { r: ValuationResult }) {
             </dl>
           </div>
           <div>
-            <div className="mb-2 text-xs font-medium" style={{ color: "var(--color-ink-dim)" }}>Signals behind this verdict</div>
+            <div className="mb-2 font-mono text-[10px] font-medium uppercase tracking-[0.08em]" style={{ color: "var(--color-muted)" }}>Signals behind this verdict</div>
             <ReasonCodes codes={r.reason_codes} />
           </div>
         </div>

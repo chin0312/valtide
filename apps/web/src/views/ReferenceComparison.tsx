@@ -11,11 +11,11 @@ export function ReferenceComparison({ r }: { r: ValuationResult }) {
     <Panel title="How the prices compare" subtitle="Every price shown against Valtide's confidence range">
       <ReferenceNumberLine r={r} />
       <p
-        className="mt-3 rounded-lg px-3 py-2 text-sm"
+        className="mt-3 rounded-sm px-3 py-2 text-xs"
         style={{
-          background: outside ? "var(--color-challenged-soft)" : "var(--color-supported-soft)",
-          color: outside ? "var(--color-challenged)" : "var(--color-supported)",
-          border: `1px solid ${outside ? "var(--color-challenged-line)" : "var(--color-supported-line)"}`,
+          background: "var(--color-panel-2)",
+          color: "var(--color-ink-dim)",
+          border: "1px solid var(--color-line)",
         }}
       >
         {r.reference_under_test == null
