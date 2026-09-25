@@ -1,5 +1,5 @@
 import type { RuntimeStatus, ValuationResult } from "../api/types";
-import { ageLabel, sessionLabel, sourceLabel, staleness, timeUTC } from "../lib/format";
+import { ageLabel, dateTimeUTC, sessionLabel, sourceLabel, timeUTC } from "../lib/format";
 
 export type Provenance = "cached" | "diagnostic" | "demo-scenario" | "demo-fixture";
 
@@ -21,9 +21,8 @@ export function StatusStrip({
   runtime?: RuntimeStatus;
   onchainFresh?: boolean;
 }) {
-  const operationalAgeSeconds = relativeAgeSeconds(r.timestamp);
-  const referenceAge = staleness(r.reference_under_test_age_seconds);
-  const anchorAge = staleness(r.reference_age_seconds);
+  const referenceWarning = r.reason_codes.includes("REFERENCE_UNDER_TEST_STALE");
+  const anchorWarning = r.reason_codes.includes("UNDERLYING_REFERENCE_STALE");
   const prov = PROVENANCE[provenance];
   const isOperational = provenance === "cached";
   const observationLabel = isOperational ? "Operational observation" : provenance === "diagnostic" ? "Diagnostic observation" : "Scenario observation";
@@ -33,17 +32,17 @@ export function StatusStrip({
       <Item label="Validating" value={sourceLabel(r.reference_under_test_source)} />
       <Item label="Session" value={sessionLabel(r.market_state)} />
       <Item
-        label={observationLabel}
-        value={isOperational ? `${ageLabel(operationalAgeSeconds)} ago` : timeUTC(r.timestamp)}
-        title={isOperational ? `UTC observation timestamp: ${r.timestamp}` : `Scenario/diagnostic timestamp: ${r.timestamp}`}
+        label={isOperational ? "Canonical 5m observation" : observationLabel}
+        value={isOperational ? dateTimeUTC(r.timestamp) : timeUTC(r.timestamp)}
+        title={isOperational ? "Successful warmed result for this canonical 5-minute observation window." : `Scenario/diagnostic timestamp: ${r.timestamp}`}
       />
 
-      <AgeTag label="Reference source lag:" age={referenceAge} status={false} title="Age of the reference-under-test source relative to this valuation observation; it is not the wall-clock age of the operational result." />
-      <AgeTag label="Trusted anchor age:" age={anchorAge} status={false} title="Age of the latest trusted underlying anchor at this valuation observation; it is not the wall-clock age of the operational result." />
+      <AgeTag label="Reference source lag:" seconds={r.reference_under_test_age_seconds} warning={referenceWarning} title="Age of the reference-under-test source relative to this valuation observation; it is not the wall-clock age of the operational result." />
+      <AgeTag label="Trusted anchor age:" seconds={r.reference_age_seconds} warning={anchorWarning} title="Age of the latest trusted underlying anchor at this valuation observation; it is not the wall-clock age of the operational result." />
 
       {runtime && (
         <span className="text-xs" style={{ color: runtime.last_tick_status === "failure" ? "var(--color-inconclusive)" : "var(--color-ink-dim)" }} title={runtime.last_error ?? "Warmed live scheduler status"}>
-          scheduler {runtime.scheduler_enabled ? (runtime.last_tick_status ?? "idle") : "off"}
+          Last scheduler attempt: {dateTimeUTC(runtime.last_tick_attempt_at)} · {runtime.scheduler_enabled ? (runtime.last_tick_status ?? "idle") : "off"}
           {runtime.last_tick_status === "failure" && " · degraded"}
         </span>
       )}
@@ -58,7 +57,7 @@ export function StatusStrip({
           }}
           title="Freshness returned by the X Layer RiskGuard evaluation"
         >
-          onchain {onchainFresh ? "fresh" : "stale"}
+          RiskGuard {onchainFresh ? "fresh" : "stale"}
         </span>
       )}
 
@@ -77,11 +76,11 @@ export function StatusStrip({
   );
 }
 
-function AgeTag({ label, age, status = true, title }: { label: string; age: ReturnType<typeof staleness>; status?: boolean; title: string }) {
-  const display = status ? age.label : age.label.split(" · ")[0];
+function AgeTag({ label, seconds, warning, title }: { label: string; seconds: number | null; warning: boolean; title: string }) {
+  const display = ageLabel(seconds);
   return (
-    <span className="inline-flex items-center gap-1.5 rounded-full px-2.5 py-0.5 text-xs font-medium" style={{ background: age.soft, color: age.fg, border: `1px solid ${age.line}` }} title={title}>
-      {label} {display}
+    <span className="inline-flex items-center gap-1.5 rounded-full px-2.5 py-0.5 text-xs font-medium" style={{ background: warning ? "var(--color-inconclusive-soft)" : "var(--color-panel-2)", color: warning ? "var(--color-inconclusive)" : "var(--color-ink)", border: `1px solid ${warning ? "var(--color-inconclusive-line)" : "var(--color-line)"}` }} title={title}>
+      {label} {display}{warning ? " · backend flagged" : ""}
     </span>
   );
 }
@@ -92,10 +91,4 @@ function Item({ label, value, title }: { label: string; value: string; title?: s
       {label}: <span className="tnum font-medium text-ink">{value}</span>
     </span>
   );
-}
-
-function relativeAgeSeconds(timestamp: string): number | null {
-  const observedMs = Date.parse(timestamp);
-  if (!Number.isFinite(observedMs)) return null;
-  return Math.max(0, Math.floor((Date.now() - observedMs) / 1000));
 }

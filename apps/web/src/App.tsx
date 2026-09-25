@@ -20,7 +20,7 @@ import { ValidationOverview } from "./views/ValidationOverview";
 import { ReferenceComparison } from "./views/ReferenceComparison";
 import { HistoricalReplay } from "./views/HistoricalReplay";
 import { ModelEvidence } from "./views/ModelEvidence";
-import { OPERATIONAL_HISTORY_LIMITS, OperationalTimeline, type OperationalRange } from "./views/OperationalTimeline";
+import { filterOperationalResults, OPERATIONAL_HISTORY_LIMITS, OperationalTimeline, type OperationalRange } from "./views/OperationalTimeline";
 import { deriveOnchainSync } from "./lib/onchain";
 
 type Mode = "operational" | "historical" | "demo";
@@ -100,7 +100,8 @@ function OperationalView() {
   }
 
   const latest = operational.data;
-  const selected = history.data?.find((result) => result.timestamp === selectedTimestamp) ?? latest;
+  const displayHistory = filterOperationalResults(history.data ?? [], historyRange);
+  const selected = displayHistory.find((result) => result.timestamp === selectedTimestamp) ?? latest;
   const selectedIsLatest = selected.timestamp === latest.timestamp;
   const sync = deriveOnchainSync(latest, controlPlane.controlPlane);
 
@@ -114,10 +115,10 @@ function OperationalView() {
         <PolicyActionPanel
           current={selected.evidence_state}
           policy={controlPlane.controlPlane?.policy}
-          evaluation={controlPlane.controlPlane}
-          sync={sync}
+          evaluation={selectedIsLatest ? controlPlane.controlPlane : undefined}
+          sync={selectedIsLatest ? sync : undefined}
           policySource={controlPlane.controlPlane ? "X Layer RiskGuard" : "Unavailable — no frontend default"}
-          observationKind="operational"
+          observationKind={selectedIsLatest ? "current-operational" : "prior-operational"}
           observationLabel={selectedIsLatest ? "Current operational evidence" : "Selected operational evidence"}
         />
       </div>
@@ -126,7 +127,8 @@ function OperationalView() {
         selectedTimestamp={selected.timestamp}
         onSelect={setSelectedTimestamp}
         range={historyRange}
-        onRangeChange={setHistoryRange}
+        onRangeChange={(nextRange) => { setHistoryRange(nextRange); setSelectedTimestamp(null); }}
+        onLatest={() => setSelectedTimestamp(null)}
         isLoading={history.isLoading}
         isError={history.isError}
       />
@@ -143,7 +145,7 @@ function OperationalView() {
 function HistoricalView() {
   const replay = useQuery({ queryKey: ["replay", "historical", "NVDAx"], queryFn: fetchHistoricalReplay, staleTime: 10 * 60_000, retry: 0 });
   const controlPlane = useControlPlaneQueries();
-  const [index, setIndex] = useState(0);
+  const [index, setIndex] = useState<number | null>(null);
 
   if (replay.isLoading) return <Message>Loading the historical panel…</Message>;
   if (replay.isError || !replay.data?.results.length) {
@@ -151,7 +153,8 @@ function HistoricalView() {
   }
 
   const results = replay.data.results;
-  const selected = results[Math.min(index, results.length - 1)];
+  const selectedIndex = index ?? results.length - 1;
+  const selected = results[Math.min(selectedIndex, results.length - 1)];
   const policy = controlPlane.controlPlane?.policy;
 
   return (
@@ -166,19 +169,22 @@ function HistoricalView() {
           current={selected.evidence_state}
           policy={policy}
           policySource={policy ? "Current X Layer curator policy" : "Unavailable — no frontend default"}
-          observationKind="historical"
+          observationKind="historical-panel"
           observationLabel="Selected historical evidence"
         />
       </div>
       <HistoricalReplay
         results={results}
-        index={index}
-        setIndex={setIndex}
+        index={selectedIndex}
+        setIndex={(nextIndex) => setIndex(nextIndex)}
         playing={false}
         setPlaying={() => undefined}
         title="Historical panel investigation"
         subtitle="Point-in-time replay from the provisioned historical panel. This is research evidence, not current operational history or historical onchain state."
         showPlayback={false}
+        fullTimestamps
+        showLatest
+        onLatest={() => setIndex(results.length - 1)}
       />
       <div className="grid gap-6 lg:grid-cols-3">
         <div className="lg:col-span-2"><ModelEvidence /></div>
@@ -209,7 +215,7 @@ function DemoView({ backendUp }: { backendUp: boolean }) {
       <ValidationOverview r={r} />
       <div className="grid gap-6 lg:grid-cols-3">
         <div className="lg:col-span-2"><ReferenceComparison r={r} /></div>
-        <PolicyActionPanel current={r.evidence_state} policy={policy} policySource={policySource} scenarioMode observationKind="scenario" />
+        <PolicyActionPanel current={r.evidence_state} policy={policy} policySource={policySource} observationKind="scenario" />
       </div>
       <div className="grid gap-6 lg:grid-cols-3">
         <div className="lg:col-span-2"><HistoricalReplay results={data.results} index={index} setIndex={setIndex} playing={playing} setPlaying={setPlaying} /></div>

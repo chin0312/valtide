@@ -3,7 +3,7 @@ import type { ValuationResult } from "../api/types";
 import { EscalationChart } from "../components/EscalationChart";
 import { EvidenceChip } from "../components/EvidenceChip";
 import { Panel } from "../components/ui";
-import { money, sigma, timeUTC } from "../lib/format";
+import { coverageLabel, dateTimeUTC, money, sigma, timeUTC } from "../lib/format";
 import { EVIDENCE } from "../lib/evidence";
 
 // Step through the deterministic scenario and watch the Evidence State change as
@@ -17,6 +17,9 @@ export function HistoricalReplay({
   title = "Deterministic scenario replay",
   subtitle = "Each point is a 5-minute snapshot. This scenario shows state progression only; it has no empirical future ground truth or model track record.",
   showPlayback = true,
+  fullTimestamps = false,
+  showLatest = false,
+  onLatest,
 }: {
   results: ValuationResult[];
   index: number;
@@ -26,6 +29,9 @@ export function HistoricalReplay({
   title?: string;
   subtitle?: string;
   showPlayback?: boolean;
+  fullTimestamps?: boolean;
+  showLatest?: boolean;
+  onLatest?: () => void;
 }) {
   useEffect(() => {
     if (!playing) return;
@@ -45,7 +51,7 @@ export function HistoricalReplay({
       title={title}
       subtitle={subtitle}
     >
-      <Legend />
+      <Legend results={results} />
       <EscalationChart results={results} index={index} onSelect={setIndex} />
 
       {/* plain caption for the currently selected step */}
@@ -53,7 +59,7 @@ export function HistoricalReplay({
         className="mt-3 flex flex-wrap items-center gap-x-2 gap-y-1 rounded-lg px-3 py-2 text-sm"
         style={{ background: EVIDENCE[r.evidence_state].soft, border: `1px solid ${EVIDENCE[r.evidence_state].line}` }}
       >
-        <span className="tnum font-medium text-ink">{timeUTC(r.timestamp)}</span>
+        <span className="tnum font-medium text-ink">{fullTimestamps ? dateTimeUTC(r.timestamp) : timeUTC(r.timestamp)}</span>
         <EvidenceChip state={r.evidence_state} />
         <span style={{ color: "var(--color-ink-dim)" }}>
           reference {money(r.reference_under_test)} vs fair value {money(r.valtide_fair_value)} ·{" "}
@@ -87,15 +93,25 @@ export function HistoricalReplay({
         <span className="tnum text-sm" style={{ color: "var(--color-ink-dim)" }}>
           step {index + 1} / {results.length}
         </span>
+        {showLatest && <button
+          onClick={onLatest}
+          disabled={atEnd}
+          className="rounded-lg px-3 py-2 text-xs font-semibold disabled:opacity-40"
+          style={{ background: "var(--color-panel-2)", border: "1px solid var(--color-line)", color: "var(--color-ink-dim)" }}
+        >
+          Latest panel point
+        </button>}
       </div>
     </Panel>
   );
 }
 
-function Legend() {
+function Legend({ results }: { results: ValuationResult[] }) {
+  const targets = [...new Set(results.map((result) => result.interval_coverage_target))];
+  const intervalLabel = targets.length === 1 ? coverageLabel(targets[0]) : "Calibrated interval";
   return (
     <div className="mb-3 flex flex-wrap items-center gap-x-5 gap-y-1.5 text-xs" style={{ color: "var(--color-ink-dim)" }}>
-      <LegendItem swatch={<span className="inline-block h-2.5 w-4 rounded-sm" style={{ background: "var(--color-supported-soft)", border: "1px solid var(--color-supported-line)" }} />} label="Valtide 90% range" />
+      <LegendItem swatch={<span className="inline-block h-2.5 w-4 rounded-sm" style={{ background: "var(--color-supported-soft)", border: "1px solid var(--color-supported-line)" }} />} label={`Valtide ${intervalLabel}`} />
       <LegendItem swatch={<span className="inline-block h-0.5 w-4 rounded" style={{ background: "var(--color-supported)" }} />} label="Fair value" />
       <LegendItem swatch={<span className="inline-block h-0 w-4 border-t-2 border-dashed" style={{ borderColor: "var(--color-challenged)" }} />} label="Reference under test" />
     </div>

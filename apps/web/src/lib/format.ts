@@ -22,7 +22,15 @@ export function sigma(z: number | null | undefined, dp = 1): string {
 export function timeUTC(iso: string | null | undefined): string {
   if (!iso) return DASH;
   const d = new Date(iso);
+  if (!Number.isFinite(d.getTime())) return DASH;
   return `${d.toISOString().slice(11, 16)} UTC`;
+}
+
+export function dateTimeUTC(iso: string | null | undefined): string {
+  if (!iso) return DASH;
+  const d = new Date(iso);
+  if (!Number.isFinite(d.getTime())) return DASH;
+  return `${d.toISOString().slice(0, 16).replace("T", " ")} UTC`;
 }
 
 export function unixTimeUTC(seconds: number | null | undefined): string {
@@ -32,7 +40,7 @@ export function unixTimeUTC(seconds: number | null | undefined): string {
 
 export function unixDateTimeUTC(seconds: number | null | undefined): string {
   if (seconds == null || Number.isNaN(seconds) || seconds <= 0) return DASH;
-  return `${new Date(seconds * 1000).toISOString().slice(0, 16).replace("T", " ")} UTC`;
+  return dateTimeUTC(new Date(seconds * 1000).toISOString());
 }
 
 export function ageLabel(seconds: number | null | undefined): string {
@@ -53,21 +61,16 @@ export function compactUsd(x: number | null | undefined): string {
   return `$${x.toFixed(0)}`;
 }
 
-export interface Staleness {
-  label: string;
-  fg: string;
-  soft: string;
-  line: string;
+export function coverageLabel(target: number | null | undefined): string {
+  if (target == null || !Number.isFinite(target)) return "Calibrated interval";
+  return `${Math.round(target * 100)}% calibrated interval`;
 }
 
-// A trader keys on data age. Colour-code it instead of burying it in gray.
-export function staleness(seconds: number | null | undefined): Staleness {
-  const neutral = { fg: "var(--color-ink)", soft: "var(--color-panel-2)", line: "var(--color-line)" };
-  if (seconds == null) return { label: DASH, ...neutral };
-  const a = ageLabel(seconds);
-  if (seconds < 15 * 60) return { label: `${a} · fresh`, fg: "var(--color-supported)", soft: "var(--color-supported-soft)", line: "var(--color-supported-line)" };
-  if (seconds < 4 * 3600) return { label: `${a} · stale`, fg: "var(--color-inconclusive)", soft: "var(--color-inconclusive-soft)", line: "var(--color-inconclusive-line)" };
-  return { label: `${a} · very stale`, fg: "var(--color-challenged)", soft: "var(--color-challenged-soft)", line: "var(--color-challenged-line)" };
+export function timeAxisUTC(timestampMs: number, multiDay: boolean): string {
+  const d = new Date(timestampMs);
+  if (!Number.isFinite(d.getTime())) return DASH;
+  if (!multiDay) return `${d.toISOString().slice(11, 16)} UTC`;
+  return `${d.toLocaleDateString("en-US", { month: "short", day: "numeric", timeZone: "UTC" })} ${d.toISOString().slice(11, 16)}`;
 }
 
 export function sessionLabel(state: string): string {
@@ -99,14 +102,20 @@ export function sourceLabel(source: string | null | undefined): string {
 
 // Human-readable reason codes; unknown codes fall back to a de-snaked label.
 const REASON_LABELS: Record<string, string> = {
-  REFERENCE_UNDER_TEST_OUTSIDE_INTERVAL: "Reference is outside the model's range",
+  TOKEN_DATA_UNAVAILABLE: "Tokenized-market observation unavailable",
+  COMPARATOR_UNAVAILABLE: "Independent comparator unavailable",
+  MODEL_UNCERTAINTY_INVALID: "Model uncertainty unavailable",
+  REFERENCE_UNDER_TEST_OUTSIDE_INTERVAL: "Reference under test is outside the calibrated interval",
+  UNDERLYING_REFERENCE_STALE: "Trusted underlying observation is stale",
+  REFERENCE_UNDER_TEST_STALE: "Reference under test is stale",
+  TOKEN_MARKET_QUALITY_LOW: "Tokenized-market quality is low",
   TOKEN_AND_CHALLENGER_AGREE: "Tokenized market agrees with the estimate",
-  COMPARATOR_UNAVAILABLE: "No comparator available",
   TOKEN_UNIT_SUSPECT: "Possible token/underlying unit mismatch",
-  STALE_REFERENCE: "Trusted price is stale",
+  MODEL_UNCERTAINTY_HIGH: "Model uncertainty is high",
+  CALIBRATION_GLOBAL_FALLBACK: "Global fallback calibration",
 };
 
-// Internal model diagnostics that shouldn't be presented to a trader as
+// Internal model diagnostics that should not be presented to a risk team as
 // "signals" — handled elsewhere (e.g. the calibration caveat) or hidden.
 export const INTERNAL_REASON_CODES = new Set(["CALIBRATION_GLOBAL_FALLBACK"]);
 

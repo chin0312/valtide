@@ -1,5 +1,5 @@
 import type { ValuationResult } from "../api/types";
-import { money, sigma } from "../lib/format";
+import { coverageLabel, money, sigma } from "../lib/format";
 import { referenceOutsideBand, toBandUnits, unitsToFraction } from "../lib/scale";
 
 interface Marker {
@@ -29,7 +29,7 @@ export function ReferenceNumberLine({ r }: { r: ValuationResult }) {
   return (
     <div className="w-full">
       <div className="relative h-72 select-none">
-        {/* the model's 90% calibrated interval — the only filled region */}
+        {/* the model's calibrated interval — the only filled region */}
         <div
           className="absolute rounded-lg"
           style={{
@@ -54,7 +54,7 @@ export function ReferenceNumberLine({ r }: { r: ValuationResult }) {
         ))}
       </div>
       <p className="mt-2 text-center text-xs" style={{ color: "var(--color-ink-dim)" }}>
-        Shaded band = Valtide's 90% calibrated interval. A reference outside it is a diagnostic signal, not a universal price verdict.
+        Shaded band = Valtide's {coverageLabel(r.interval_coverage_target)}. A reference outside it is a diagnostic signal, not a universal price verdict.
       </p>
     </div>
   );

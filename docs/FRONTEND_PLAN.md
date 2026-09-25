@@ -142,9 +142,30 @@ The UI keeps these lanes explicit and never silently substitutes one for another
 Operational history is successful warmed runtime output, not a model backtest.
 Historical panel output is research evidence, not current operational history or
 historical chain state. Scenario output is illustrative behavior only.
-The operational timeline may request 1H/6H/24H/7D windows using limits of
-12/72/288/2016 successful observations; it renders actual timestamps and never
+The operational timeline requests up to 12/72/288/2016 successful observations
+for 1H/6H/24H/7D, then filters those rows by the actual trailing wall-clock
+window anchored to the latest returned observation. It never invents rows or
 interpolates scheduler gaps.
+
+### Observation contexts
+
+The same UI components may inspect different kinds of evidence, but the context
+must remain explicit:
+
+- **Current operational** — the latest warmed result may be compared with the
+  current Registry/RiskGuard generation and current consumer enforcement.
+- **Prior operational** — a selected older `/history` result is mapped through
+  the current curator policy for inspection only; it must not claim historical
+  Registry state, RiskGuard action, or DemoVault enforcement.
+- **Historical panel** — a point-in-time research result is mapped through the
+  current policy as a counterfactual only; it has no historical chain-state
+  claim.
+- **Scenario** — deterministic or fixture data may show a policy projection,
+  but never drives or represents the deployed control plane.
+
+The deployed X Layer panel remains a current read-only control-plane view when
+the selected evidence is prior, historical, or scenario data, and is labelled
+accordingly.
 
 ---
 
@@ -282,7 +303,7 @@ A single horizontal axis centered on the challenger fair value, scaled so the
 interval band is a fixed visual width regardless of the dollar spread:
 
 ```text
-        │◄────────── challenger 90% band ──────────►│
+        │◄────────── challenger calibrated band ──────────►│
    ─────┼──────────────────────●──────────────────────┼───────▲──────►  (σ)
       lower                fair value               upper   ref@180
        -1σ                    0                      +1σ    (+2.5σ = CHALLENGED)
@@ -301,27 +322,38 @@ interval band is a fixed visual width regardless of the dollar spread:
 
 ### The escalation chart (View 3) — recharts
 
-A time-series over the replay steps with **two synced encodings**: the
-challenger band as an area (`fair_value_lower..upper`) with `valtide_fair_value`
-as a line, and the `reference_under_test` as a second line — plus a small
-companion sparkline of `standardized_deviation` so the σ climb (0 → 4σ) is
-explicit. recharts is the right tool here.
+The implemented time-series uses a numeric UTC epoch-millisecond X axis, the
+challenger band as an area (`fair_value_lower..upper`), `valtide_fair_value` as
+the primary line, and `reference_under_test` plus the tokenized market as
+comparison lines. A chart-only null sentinel breaks every line and the band at
+real scheduler gaps; it is never a selectable or persisted observation. Tooltips
+and multi-day ticks include full UTC date context. No OHLC candles are fabricated.
 
 ## 4B. Freshness & data fetching
 
-For a "is my data stale?" product, the UI must never look staler than it is.
+Freshness is a set of distinct facts, not a frontend verdict:
 
 - Use react-query with `refetchInterval` on `/api/valuation/{asset}` and
   `/api/runtime/{asset}` (e.g. 15–30s) when in live mode.
-- Always render operational observation recency from `result.timestamp` relative
-  to the browser clock (for example, `Operational observation: 6m ago`), and
-  keep the exact UTC timestamp available. Label
-  `reference_under_test_age_seconds` as reference source lag at the observation
-  and `reference_age_seconds` as trusted-anchor age at the observation; neither
-  is the wall-clock age of the persisted operational result. Keep onchain
-  attestation freshness separate and surface
-  `RuntimeStatus.last_tick_status` / `last_error` when the scheduler is degraded.
+- Label the operational result as a **Canonical 5m observation** and show its
+  full UTC timestamp. Do not call the window-start timestamp generically stale;
+  the scheduler uses a five-minute observation window and a 60-second settlement
+  grace period. Show the last scheduler attempt and status separately.
+- Display `reference_under_test_age_seconds` as **Reference source lag** and
+  `reference_age_seconds` as **Trusted anchor age** at the observation. These
+  are not wall-clock freshness thresholds and the frontend must not invent
+  `<15m`, `<4h`, or similar risk buckets. Backend reason codes may flag a source
+  age; otherwise show the age neutrally.
+- Onchain freshness comes only from Registry/RiskGuard fields such as `fresh`,
+  `registry_fresh`, and `validUntil`; label the status `RiskGuard fresh/stale`
+  or `Registry fresh/stale` rather than using an ambiguous umbrella label.
 - The scenario replay is static — no polling; fetch once.
+
+The canonical operational cadence is an exact confirmed OKX OnchainOS NVDAx
+five-minute candle with a 60-second settlement grace. The frontend displays the
+backend's source provenance and does not replace it with a browser-side
+freshness rule. Scheduler-owned publication is backend-controlled and observable
+through `RuntimeStatus`; the browser never holds the publisher signer.
 
 ## 4. The demo
 
@@ -334,7 +366,7 @@ GET /api/replay/NVDAx?source=scenario&scenario=weekend_divergence
 
 Verified output (6 steps) — the escalation arc **is** the story:
 
-| time (UTC) | evidence state | fair value | 90% band | ref under test | z |
+| time (UTC) | evidence state | fair value | calibrated band | ref under test | z |
 | ---------- | -------------- | ---------- | -------- | -------------- | --- |
 | 14:00 | 🟢 SUPPORTED     | 180.00 | 179.56–180.44 | 180.00 | 0.0σ |
 | 14:05 | 🟢 SUPPORTED     | 179.95 | 179.59–180.31 | 180.00 | 0.2σ |
@@ -402,9 +434,10 @@ silently substituted for operational state or treated as publishable.
 
 ---
 
-## 5. Views — P0 vertical slice
+## 5. Views — implemented vertical slice
 
-Build **three** views for a defensible slice; the other two are enhancements.
+The frontend keeps the operational, historical, and demo lanes explicit while
+sharing the evidence components below.
 
 **Null-handling is mandatory, not optional.** `token_price`,
 `reference_under_test`, `reference_deviation_pct`, and `standardized_deviation`
@@ -444,10 +477,11 @@ View 1 as P0**: `reason_codes` rendered as human-readable chips plus one line of
 `residual_premium_discount_pct`. The **full** Basis Analysis view (source ages,
 market session, liquidity context, richer breakdown) is P1.
 
-### View 5 — Historical Model Evidence — P1
+### View 5 — Historical Model Evidence
 From `/api/backtest?source=historical`: MAE / RMSE, interval coverage,
-evidence-state counts, and performance versus baselines where available. If the
-historical source is unavailable, show an explicit unavailable state.
+Evidence State counts, and the backend caveat. If the historical source is
+unavailable, show an explicit unavailable state; never substitute scenario
+counts.
 
 ---
 
@@ -470,18 +504,43 @@ historical source is unavailable, show an explicit unavailable state.
 
 ---
 
-## 7. Build order for whoever picks this up
+## 7. Current implementation handoff
 
-1. Vite + React + TS + Tailwind scaffold in `apps/web`; `.env` with `VITE_API_BASE_URL`.
-2. Typed API client + response types (§3), with a **static-fixture fallback**
-   (§4 resilience) and react-query freshness (§4B); a `/health` boot check.
-3. `EvidenceChip` (icon+label+color), formatting helpers (pct/σ/age), and the
-   σ-scaling util (`price → band-relative units`, §4A). Test with a null-reference result.
-4. **View 1** driven by the last replay step, incl. the compact basis/why summary.
-5. **View 2** σ-scaled custom-SVG number-line, then **View 3** scrubber + recharts
-   escalation chart over the full sequence.
-6. Policy Action panel sourced from the deployed X Layer policy, with current
-   operational evidence separated from the currently enforced onchain action,
-   plus the read-only Registry/RiskGuard/DemoVault status panel.
-7. P1: full Basis Analysis view, Model Evidence panel, and the historical-panel
-   benchmark reveal (§4).
+The frontend is implemented as three explicit lanes for NVDAx:
+
+- **Operational:** `/api/valuation/{asset}`, `/api/runtime/{asset}`,
+  `/api/history/{asset}`, `/api/onchain/{asset}`, and
+  `/api/onchain/{asset}/enforcement`. The warmed result is primary; `/live` is
+  a cold-start diagnostic only. Operational history uses real timestamp windows,
+  numeric UTC chart positions, visible gap breaks, and a latest-point reset.
+- **Historical:** `/api/replay/{asset}?source=panel` and
+  `/api/backtest/{asset}?source=historical`. The panel defaults to its latest
+  point, supports full UTC dates for multi-day investigation, and makes no
+  historical Registry/RiskGuard/DemoVault claim.
+- **Demo:** `/api/replay/{asset}?source=scenario` with an offline fixture
+  fallback. It starts at scenario step one, makes no performance claim, and
+  never drives the deployed X Layer state.
+
+The implementation keeps Evidence State separate from curator Policy Action,
+uses exact backend reason codes, displays dynamic calibrated-interval targets,
+and leaves source-age classification to backend evidence quality and RiskGuard
+freshness. NVDAx is the only live asset; there are no fabricated assets, OHLC
+candles, or browser publication controls. The read-only control-plane workflow
+is:
+
+```text
+Operational Validation
+        ↓
+backend-controlled synchronization / publication status
+        ↓
+ValidationRegistry
+        ↓
+RiskGuard policy evaluation
+        ↓
+DemoCollateralVault reference-consumer enforcement
+```
+
+Valerie's remaining scope is visual presentation: theme, typography, spacing,
+chart aesthetics, motion, responsive refinement, and recording polish. Those
+choices should not change the data-lane, policy, freshness, or publication
+semantics above.

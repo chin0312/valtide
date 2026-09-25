@@ -26,7 +26,7 @@ const ACTION_MEANING: Record<PolicyAction, string> = {
 
 const ACTION_COLOR: Record<PolicyAction, string> = {
   ALLOW: "var(--color-supported)",
-  MONITOR: "var(--color-supported)",
+  MONITOR: "var(--color-accent)",
   REQUIRE_REVIEW: "var(--color-inconclusive)",
   RESTRICT_NEW_RISK: "var(--color-challenged)",
 };
@@ -37,39 +37,54 @@ interface PolicyActionPanelProps {
   evaluation?: OnchainEvaluation;
   policySource: string;
   sync?: OnchainSyncStatus;
-  scenarioMode?: boolean;
-  observationKind?: "operational" | "historical" | "scenario";
+  observationKind?: "current-operational" | "prior-operational" | "historical-panel" | "scenario";
   observationLabel?: string;
 }
 
-export function PolicyActionPanel({ current, policy, evaluation, policySource, sync, scenarioMode = false, observationKind = scenarioMode ? "scenario" : "operational", observationLabel }: PolicyActionPanelProps) {
+export function PolicyActionPanel({ current, policy, evaluation, policySource, sync, observationKind = "current-operational", observationLabel }: PolicyActionPanelProps) {
   const currentStyle = EVIDENCE[current];
   const projectedAction = policy ? actionFor(policy, current) : null;
   const enforcedAction = evaluation?.policy_action ?? null;
-  const historical = observationKind === "historical";
-  const scenario = scenarioMode || observationKind === "scenario";
+  const currentOperational = observationKind === "current-operational";
+  const priorOperational = observationKind === "prior-operational";
+  const historical = observationKind === "historical-panel";
+  const scenario = observationKind === "scenario";
+  const mappingLabel = scenario
+    ? "Curator mapping for this scenario Evidence State"
+    : priorOperational
+      ? "Policy under current configuration"
+      : historical
+        ? "Policy under current configuration"
+        : "Curator mapping for this Evidence State";
+  const mappingDescription = scenario
+    ? "Policy projection for this deterministic scenario state; the scenario is not published to X Layer."
+    : priorOperational
+      ? "Current-policy mapping of a prior operational Evidence State; it is not a historical onchain decision."
+      : historical
+        ? "Counterfactual mapping of this historical Evidence State under the currently fetched curator policy."
+        : "The configured curator mapping for the current operational Evidence State.";
+  const mappingDetail = scenario
+    ? "This mapping applies to a fresh attestation. A stale attestation uses the configured STALE policy."
+    : priorOperational
+      ? "This is not the current Registry state or current onchain enforcement. A stale attestation uses the configured STALE policy."
+      : historical
+        ? "This is not historical Registry state or historical onchain enforcement. A stale attestation uses the configured STALE policy."
+        : "This mapping applies to a fresh attestation. A stale attestation uses the configured STALE policy.";
 
   return (
-    <Panel title={scenario ? "Scenario policy projection" : historical ? "Historical policy mapping" : "Evidence → policy action"} subtitle="Valtide evaluates evidence; the curator policy selects an action; the consumer enforces it.">
+    <Panel title={scenario ? "Scenario policy projection" : priorOperational ? "Prior operational policy mapping" : historical ? "Historical policy mapping" : "Evidence → policy action"} subtitle="Valtide evaluates evidence; the curator policy selects an action; the consumer enforces it.">
       <div className="rounded-xl px-4 py-4" style={{ background: currentStyle.soft, border: `1px solid ${currentStyle.line}` }}>
         <div className="text-xs font-medium" style={{ color: "var(--color-ink-dim)" }}>
           {observationLabel ?? (scenario ? "Scenario Evidence State" : historical ? "Selected historical evidence" : "Current Operational Evidence")}
         </div>
         <div className="mt-2"><EvidenceChip state={current} size="lg" /></div>
 
-        {scenario ? (
+        {!currentOperational ? (
           <ActionBlock
-            label="Curator mapping for this scenario Evidence State"
+            label={mappingLabel}
             action={projectedAction}
-            description="This deterministic replay does not publish its state to the deployed Registry."
-            detail="This mapping applies to a fresh attestation. A stale attestation uses the configured STALE policy."
-          />
-        ) : historical ? (
-          <ActionBlock
-            label="Policy under current configuration"
-            action={projectedAction}
-            description="Counterfactual mapping of this historical Evidence State under the currently fetched curator policy."
-            detail="This is not historical Registry state or historical onchain enforcement."
+            description={mappingDescription}
+            detail={mappingDetail}
           />
         ) : (
           <div className="mt-4 grid gap-3 sm:grid-cols-2">
@@ -89,7 +104,7 @@ export function PolicyActionPanel({ current, policy, evaluation, policySource, s
         )}
       </div>
 
-      {!scenario && !historical && sync && (
+      {currentOperational && sync && (
         <div className="mt-3 rounded-lg px-3 py-2 text-xs" style={{ background: "var(--color-panel-2)", border: "1px solid var(--color-line)", color: "var(--color-ink-dim)" }}>
           <div className="flex items-center justify-between gap-3">
             <span>Operational ↔ Registry</span>

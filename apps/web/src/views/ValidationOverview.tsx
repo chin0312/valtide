@@ -3,9 +3,9 @@ import { EvidenceChip } from "../components/EvidenceChip";
 import { ReasonCodes } from "../components/ReasonCodes";
 import { Figure } from "../components/ui";
 import { EVIDENCE } from "../lib/evidence";
-import { compactUsd, money, pct, sigma, sourceLabel, timeUTC } from "../lib/format";
+import { compactUsd, coverageLabel, dateTimeUTC, money, pct, sigma, sourceLabel } from "../lib/format";
 
-// The hero. Leads with the economic magnitude (a trader anchors on %, not σ),
+// The hero. Leads with the economic magnitude (a risk team anchors on %, not σ),
 // surfaces market quality and the reference identity, and flags a fallback
 // calibration honestly instead of shouting a scary statistical claim.
 export function ValidationOverview({ r }: { r: ValuationResult }) {
@@ -14,7 +14,7 @@ export function ValidationOverview({ r }: { r: ValuationResult }) {
   const dir = dev == null ? "" : dev >= 0 ? "above" : "below";
   const negligible = dev != null && Math.abs(dev) < 0.005;
   const outsideInterval = r.reference_under_test != null && (r.reference_under_test < r.fair_value_lower || r.reference_under_test > r.fair_value_upper);
-  const coverage = `${Math.round(r.interval_coverage_target * 100)}%`;
+  const coverage = coverageLabel(r.interval_coverage_target);
   const fallbackCalibration = r.reason_codes.includes("CALIBRATION_GLOBAL_FALLBACK");
   const provenance = Object.entries(r.source_provenance).map(([source, value]) => `${source}: ${value}`).join(" · ");
 
@@ -32,14 +32,14 @@ export function ValidationOverview({ r }: { r: ValuationResult }) {
         {/* economic magnitude first; σ is secondary */}
         <p className="mb-4 text-[15px] leading-relaxed text-ink">
           {r.reference_under_test == null ? (
-            <>No reference under test is available at this observation. Valtide's independent challenger estimate is <strong>{money(r.valtide_fair_value)}</strong> ({coverage} calibrated interval {money(r.fair_value_lower)}–{money(r.fair_value_upper)}).</>
+            <>No reference under test is available at this observation. Valtide's independent challenger estimate is <strong>{money(r.valtide_fair_value)}</strong> ({coverage} {money(r.fair_value_lower)}–{money(r.fair_value_upper)}).</>
           ) : (
             <>The reference under test at <strong>{money(r.reference_under_test)}</strong>{" "}
               {dev == null ? "is compared against " : negligible ? "is close to " : (
                 <>is <strong style={{ color: s.fg }}>{pct(Math.abs(dev))}</strong> {dir} </>
               )}
               Valtide's independent challenger estimate of <strong>{money(r.valtide_fair_value)}</strong>{" "}
-              ({coverage} calibrated interval {money(r.fair_value_lower)}–{money(r.fair_value_upper)}), so it is {outsideInterval ? "outside" : "inside"} Valtide's {coverage} calibrated challenger interval.
+              ({coverage} {money(r.fair_value_lower)}–{money(r.fair_value_upper)}), so it is {outsideInterval ? "outside" : "inside"} Valtide's {coverage}.
             </>
           )}
         </p>
@@ -56,7 +56,7 @@ export function ValidationOverview({ r }: { r: ValuationResult }) {
 
         <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
           <Figure label="Reference under test" value={money(r.reference_under_test)} sub={r.reference_under_test_source} hint="The price being validated — the value a protocol currently relies on." />
-          <Figure label="Valtide challenger estimate" value={money(r.valtide_fair_value)} sub={`${coverage} calibrated interval ${money(r.fair_value_lower)} – ${money(r.fair_value_upper)}`} accent="var(--color-supported)" hint="An independent challenger estimate with a calibrated uncertainty interval — not a definitive fair value." />
+          <Figure label="Valtide challenger estimate" value={money(r.valtide_fair_value)} sub={`${coverage} ${money(r.fair_value_lower)} – ${money(r.fair_value_upper)}`} accent="var(--color-supported)" hint="An independent challenger estimate with a calibrated uncertainty interval — not a definitive fair value." />
           <Figure label="Tokenized market" value={money(r.token_price)} sub={sourceLabel(r.token_source)} accent="var(--color-token)" hint="The traded NVDAx price. Weigh it by market quality — thin books produce unreliable prices." />
           <Figure label="Deviation" value={pct(dev)} sub={`${sigma(r.standardized_deviation)} diagnostic`} accent={s.fg} hint="Economic gap from the challenger estimate. The Evidence State also uses interval bounds and evidence quality." />
         </div>
@@ -74,18 +74,18 @@ export function ValidationOverview({ r }: { r: ValuationResult }) {
             <div className="mb-2 text-xs font-medium" style={{ color: "var(--color-ink-dim)" }}>Source provenance</div>
             <dl className="space-y-1.5 text-sm">
               <Row k="Token source" v={sourceLabel(r.token_source)} />
-              <Row k="Token observed" v={timeUTC(r.token_observed_at)} />
+              <Row k="Token observed" v={dateTimeUTC(r.token_observed_at)} />
               <Row k="Token volume" v={r.token_volume == null ? "—" : r.token_volume.toFixed(2)} />
               <Row k="Token volume USD" v={compactUsd(r.token_volume_usd)} />
               <Row k="Token liquidity" v={compactUsd(r.token_liquidity_usd)} />
               <Row k="Reference source" v={sourceLabel(r.reference_under_test_source)} />
-              <Row k="Reference observed" v={timeUTC(r.reference_under_test_ts)} />
+              <Row k="Reference observed" v={dateTimeUTC(r.reference_under_test_ts)} />
               <Row k="Provenance" v={provenance || "—"} />
             </dl>
           </div>
           <div>
             <div className="mb-2 text-xs font-medium" style={{ color: "var(--color-ink-dim)" }}>Signals behind this verdict</div>
-            <ReasonCodes codes={r.reason_codes} />
+            <ReasonCodes codes={r.reason_codes} evidenceState={r.evidence_state} />
           </div>
         </div>
       </div>
