@@ -125,11 +125,16 @@ this deployment preparation.
 - The OKX X-Perp live reference endpoint used by this path is public.
 - The canonical live NVDAx input is an exact confirmed OKX OnchainOS five-minute
   candle at the settled scheduler timestamp; OnchainOS credentials are required.
+- The scheduler retries that same canonical timestamp up to three times with a
+  two-second delay when the exact confirmed candle is not indexed immediately;
+  other live-data or runtime errors are not retried.
 - DexScreener does not require an API key, but its current quote is diagnostic
   only and is never relabeled as a canonical historical observation.
 - `OKX_NVDAX_CHAIN_INDEX` and `OKX_NVDAX_TOKEN_ADDRESS`, when both set, bypass
   discovery. When blank, the existing deterministic RWA discovery selects and
   caches the highest-volume matching deployment for the process lifetime.
+  For the final Railway demo, pin both values to the reviewed public deployment
+  metadata rather than relying on runtime discovery.
 - Alpaca credentials are still required for the NVDA underlying feed.
 - X Layer RPC access must be supplied through a Railway environment variable.
 - The publisher key is needed only when automatic or explicit publication is

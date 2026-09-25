@@ -38,6 +38,10 @@ class LiveDataUnavailable(RuntimeError):
     """Raised when a required live input cannot be fetched."""
 
 
+class ExactNvdaxCandleUnavailable(LiveDataUnavailable):
+    """Raised when the exact confirmed NVDAx candle is not available yet."""
+
+
 def build_live_snapshot(
     client: httpx.Client | None = None,
     observation_ts: datetime | None = None,
@@ -55,12 +59,14 @@ def build_live_snapshot(
 
     try:
         token_candle = okx.get_nvdax_candle_at(now, client=client)
+    except ExactNvdaxCandleUnavailable:
+        raise
     except (httpx.HTTPError, KeyError, TypeError, ValueError, RuntimeError) as exc:
         raise LiveDataUnavailable(
             "NVDAx exact confirmed candle unavailable (OKX OnchainOS)."
         ) from exc
     if token_candle is None:
-        raise LiveDataUnavailable(
+        raise ExactNvdaxCandleUnavailable(
             "NVDAx exact confirmed candle unavailable (OKX OnchainOS)."
         )
 

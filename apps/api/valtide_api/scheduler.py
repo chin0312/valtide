@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import asyncio
 import logging
+import time
 from collections.abc import Awaitable, Callable
 from dataclasses import dataclass
 from datetime import UTC, datetime, timedelta
@@ -16,7 +17,7 @@ from valtide_api.clock import (
     require_canonical_5m,
 )
 from valtide_api.config import get_settings
-from valtide_api.live import build_live_snapshot
+from valtide_api.live import ExactNvdaxCandleUnavailable, build_live_snapshot
 from valtide_api.models import MarketSnapshot, ValuationResult
 from valtide_api.replay import (
     _warm_state_to_first_observation_with_count,
@@ -32,11 +33,28 @@ from valtide_api.state_store import KalmanState, save_latest_result, save_state
 
 logger = logging.getLogger("valtide.runtime")
 _PUBLICATION_SHUTDOWN_TIMEOUT_SECONDS = 5.0
+_NVDAX_SETTLEMENT_MAX_ATTEMPTS = 3
+_NVDAX_SETTLEMENT_RETRY_DELAY_SECONDS = 2.0
 
 SnapshotBuilder = Callable[..., MarketSnapshot]
 NowProvider = Callable[[], datetime]
 SleepProvider = Callable[[float], Awaitable[None]]
 PublishFunction = Callable[..., object]
+
+
+def _build_snapshot_with_settlement_retry(
+    snapshot_builder: SnapshotBuilder,
+    canonical_ts: datetime,
+) -> MarketSnapshot:
+    """Retry only temporary absence of the exact settled NVDAx candle."""
+    for attempt in range(_NVDAX_SETTLEMENT_MAX_ATTEMPTS):
+        try:
+            return snapshot_builder(observation_ts=canonical_ts)
+        except ExactNvdaxCandleUnavailable:
+            if attempt + 1 == _NVDAX_SETTLEMENT_MAX_ATTEMPTS:
+                raise
+            time.sleep(_NVDAX_SETTLEMENT_RETRY_DELAY_SECONDS)
+    raise AssertionError("settlement retry loop exited without a snapshot or exception")
 
 
 @dataclass(frozen=True)
@@ -100,7 +118,7 @@ def run_live_tick(
                     state_restored=True,
                 )
 
-        snapshot = snapshot_builder(observation_ts=canonical_ts)
+        snapshot = _build_snapshot_with_settlement_retry(snapshot_builder, canonical_ts)
         state: KalmanState | None = record.state if record is not None else None
         state_restored = state is not None
         gap_steps = 0

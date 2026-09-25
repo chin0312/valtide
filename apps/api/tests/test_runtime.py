@@ -7,9 +7,10 @@ from datetime import UTC, datetime, timedelta
 from types import SimpleNamespace
 
 import valtide_api.scheduler as scheduler_module
+from valtide_api.live import ExactNvdaxCandleUnavailable, LiveDataUnavailable
 from valtide_api.models import MarketSnapshot, MarketState
 from valtide_api.publisher import PublicationError
-from valtide_api.runtime_store import RuntimeStore
+from valtide_api.runtime_store import RuntimeStateIntegrityError, RuntimeStore
 from valtide_api.scheduler import LiveScheduler, TickResult, run_live_tick
 
 _ANCHOR = datetime(2026, 9, 19, 13, 0, tzinfo=UTC)
@@ -119,6 +120,138 @@ def test_tick_failure_preserves_last_good_state_and_result(tmp_path):
     assert after.latest_result == first.result
     assert after.last_tick_status == "failure"
     assert "synthetic source outage" in after.last_tick_error
+
+
+def test_settlement_retry_uses_same_timestamp_and_persists_once(tmp_path, monkeypatch):
+    timestamp = _ANCHOR + timedelta(minutes=5)
+    store = RuntimeStore(tmp_path / "runtime.sqlite3")
+    snapshot = _snapshot(timestamp)
+    requested: list[datetime] = []
+    builder_attempts = 0
+    inference_calls: list[datetime] = []
+    original_inference = scheduler_module.run_inference
+
+    def delayed_builder(*, observation_ts):
+        nonlocal builder_attempts
+        requested.append(observation_ts)
+        builder_attempts += 1
+        if builder_attempts < 3:
+            raise ExactNvdaxCandleUnavailable("exact T not indexed yet")
+        return snapshot
+
+    def counted_inference(snapshot, state):
+        inference_calls.append(snapshot.observation_ts)
+        return original_inference(snapshot, state)
+
+    monkeypatch.setattr(
+        scheduler_module,
+        "_NVDAX_SETTLEMENT_RETRY_DELAY_SECONDS",
+        0.0,
+    )
+    monkeypatch.setattr(scheduler_module, "run_inference", counted_inference)
+
+    tick = run_live_tick(
+        "NVDAx",
+        timestamp,
+        store=store,
+        snapshot_builder=delayed_builder,
+    )
+
+    assert tick.status == "success"
+    assert requested == [timestamp, timestamp, timestamp]
+    assert inference_calls == [timestamp]
+    assert store.load_runtime("NVDAx").state.last_ts == timestamp
+    assert [result.timestamp for result in store.load_history("NVDAx")] == [timestamp]
+
+
+def test_settlement_retry_exhaustion_preserves_old_runtime_and_history(tmp_path, monkeypatch):
+    first_ts = _ANCHOR + timedelta(minutes=5)
+    failed_ts = first_ts + timedelta(minutes=5)
+    store = RuntimeStore(tmp_path / "runtime.sqlite3")
+    builder, _ = _builder_for([_snapshot(first_ts)])
+    first = run_live_tick("NVDAx", first_ts, store=store, snapshot_builder=builder)
+    before = store.load_runtime("NVDAx")
+    assert first.status == "success"
+    requested: list[datetime] = []
+
+    def unavailable_builder(*, observation_ts):
+        requested.append(observation_ts)
+        raise ExactNvdaxCandleUnavailable("exact T still unavailable")
+
+    monkeypatch.setattr(
+        scheduler_module,
+        "_NVDAX_SETTLEMENT_RETRY_DELAY_SECONDS",
+        0.0,
+    )
+    failed = run_live_tick(
+        "NVDAx",
+        failed_ts,
+        store=store,
+        snapshot_builder=unavailable_builder,
+    )
+
+    after = store.load_runtime("NVDAx")
+    assert failed.status == "failure"
+    assert requested == [failed_ts, failed_ts, failed_ts]
+    assert before is not None and after is not None
+    assert after.state == before.state
+    assert after.latest_result == before.latest_result
+    assert after.last_tick_status == "failure"
+    assert store.load_history("NVDAx") == [first.result]
+
+
+def test_non_settlement_live_error_is_not_retried(tmp_path, monkeypatch):
+    timestamp = _ANCHOR + timedelta(minutes=5)
+    store = RuntimeStore(tmp_path / "runtime.sqlite3")
+    attempts = 0
+
+    def alpaca_failure(*, observation_ts):  # noqa: ARG001
+        nonlocal attempts
+        attempts += 1
+        raise LiveDataUnavailable("NVDA underlying unavailable (Alpaca)")
+
+    monkeypatch.setattr(
+        scheduler_module,
+        "_NVDAX_SETTLEMENT_RETRY_DELAY_SECONDS",
+        0.0,
+    )
+    failed = run_live_tick(
+        "NVDAx",
+        timestamp,
+        store=store,
+        snapshot_builder=alpaca_failure,
+    )
+
+    assert failed.status == "failure"
+    assert attempts == 1
+    assert "Alpaca" in failed.error
+    assert store.load_history("NVDAx") == []
+
+
+def test_runtime_integrity_error_is_not_retried(tmp_path, monkeypatch):
+    timestamp = _ANCHOR + timedelta(minutes=5)
+    store = RuntimeStore(tmp_path / "runtime.sqlite3")
+    attempts = 0
+
+    def integrity_failure(*, observation_ts):  # noqa: ARG001
+        nonlocal attempts
+        attempts += 1
+        raise RuntimeStateIntegrityError("synthetic persisted-state corruption")
+
+    monkeypatch.setattr(
+        scheduler_module,
+        "_NVDAX_SETTLEMENT_RETRY_DELAY_SECONDS",
+        0.0,
+    )
+    failed = run_live_tick(
+        "NVDAx",
+        timestamp,
+        store=store,
+        snapshot_builder=integrity_failure,
+    )
+
+    assert failed.status == "failure"
+    assert attempts == 1
 
 
 def test_invalid_initial_chronology_fails_without_backward_state(tmp_path):

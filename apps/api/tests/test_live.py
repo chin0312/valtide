@@ -15,7 +15,12 @@ from valtide_api.adapters.equity import RawEquityBar
 from valtide_api.adapters.okx import RawCandle
 from valtide_api.adapters.reference import ReferenceObservation
 from valtide_api.clock import FIVE_MINUTES, canonical_5m_boundary, is_canonical_5m
-from valtide_api.live import LiveDataUnavailable, build_live_snapshot, run_live_valuation
+from valtide_api.live import (
+    ExactNvdaxCandleUnavailable,
+    LiveDataUnavailable,
+    build_live_snapshot,
+    run_live_valuation,
+)
 
 
 def _patch_sources(monkeypatch, *, quote, bar, ref, bars=None, candle=None):
@@ -417,5 +422,5 @@ def test_missing_exact_okx_candle_does_not_fall_back_to_dexscreener(
     )
     monkeypatch.setattr(live.okx, "get_nvdax_candle_at", lambda *_a, **_k: None)
 
-    with pytest.raises(LiveDataUnavailable, match="OKX OnchainOS"):
+    with pytest.raises(ExactNvdaxCandleUnavailable, match="OKX OnchainOS"):
         build_live_snapshot(observation_ts=observation_ts)
