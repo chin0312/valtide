@@ -1,6 +1,20 @@
 import assert from "node:assert/strict";
+import { readFile } from "node:fs/promises";
 import test from "node:test";
-import { advancePosition, clampPosition } from "../src/lib/playback.ts";
+import typescript from "typescript";
+
+const playbackSource = await readFile(new URL("../src/lib/playback.ts", import.meta.url), "utf8");
+const playbackModule = await import(
+  `data:text/javascript,${encodeURIComponent(
+    typescript.transpileModule(playbackSource, {
+      compilerOptions: {
+        module: typescript.ModuleKind.ESNext,
+        target: typescript.ScriptTarget.ES2022,
+      },
+    }).outputText,
+  )}`,
+);
+const { advancePosition, clampPosition } = playbackModule;
 
 test("an earlier first-frame timestamp cannot select observation -1", () => {
   assert.equal(advancePosition(0, -8, 26), 0);
