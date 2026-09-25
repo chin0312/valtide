@@ -3,6 +3,7 @@ import type { ValuationResult } from "../api/types";
 import { EscalationChart } from "../components/EscalationChart";
 import { EvidenceChip } from "../components/EvidenceChip";
 import { Panel } from "../components/ui";
+import { Icon } from "../components/Icon";
 import { coverageLabel, money, timeUTC } from "../lib/format";
 import { advancePosition, clampPosition } from "../lib/playback";
 
@@ -57,6 +58,8 @@ export function HistoricalReplay({
   return (
     <Panel
       title="NVDAx valuation signal"
+      icon="signal"
+      className="flex h-full min-w-0 flex-col"
       right={<span className="rounded px-2 py-1 font-mono text-[10px] uppercase tracking-[0.04em]" style={{ color: "var(--color-accent)", background: "var(--color-accent-soft)", border: "1px solid var(--color-line)" }}>{sourceLabel}</span>}
     >
       <div className="mb-2 flex flex-wrap items-end justify-between gap-3">
@@ -74,17 +77,17 @@ export function HistoricalReplay({
 
       <EscalationChart results={results} index={index} playhead={position} onSelect={(next) => { setPlaying(false); setPosition(clampPosition(next, results.length)); }} />
 
-      <div className="mt-2 flex flex-wrap items-center gap-3 border-t pt-3" style={{ borderColor: "var(--color-line-subtle)" }}>
+      <div className="mt-auto flex flex-wrap items-center gap-3 border-t pt-3" style={{ borderColor: "var(--color-line-subtle)" }}>
         {showPlayback && (
           <button
             onClick={() => {
               if (atEnd) setPosition(0);
               setPlaying(!playing || atEnd);
             }}
-            className="rounded px-3 py-1.5 text-xs font-medium"
+            className="inline-flex items-center gap-1.5 rounded px-3 py-1.5 text-xs font-medium"
             style={{ background: "var(--color-accent-soft)", color: "var(--color-accent)", border: "1px solid var(--color-line)" }}
           >
-            {playing ? "Pause" : atEnd ? "Replay" : "Play"}
+            <Icon name={playing ? "pause" : atEnd ? "replay" : "play"} size={14} />{playing ? "Pause" : atEnd ? "Replay" : "Play"}
           </button>
         )}
         <input
@@ -97,7 +100,7 @@ export function HistoricalReplay({
           className="min-w-[160px] flex-1 accent-[var(--color-accent)]"
           aria-label="Replay period"
         />
-        <span className="tnum text-[11px]" style={{ color: "var(--color-muted)" }}>{timeUTC(current.timestamp)} · {index + 1}/{results.length}</span>
+        <span className="tnum inline-flex items-center gap-1.5 text-[11px]" style={{ color: "var(--color-muted)" }}><Icon name="clock" size={12} />{timeUTC(current.timestamp)} · {index + 1}/{results.length}</span>
       </div>
     </Panel>
   );

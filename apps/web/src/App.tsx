@@ -15,6 +15,7 @@ import { EXAMPLE_DEMO_POLICY } from "./components/PolicyActionPanel";
 import { ReasonCodes } from "./components/ReasonCodes";
 import { RegistryPanel } from "./components/RegistryPanel";
 import { Panel } from "./components/ui";
+import { Icon } from "./components/Icon";
 import { EVIDENCE } from "./lib/evidence";
 import { ageLabel, compactUsd, money, pct, sigma } from "./lib/format";
 import { deriveOnchainSync } from "./lib/onchain";
@@ -73,7 +74,7 @@ export default function App() {
       <main className="space-y-4">
         <MetricGrid current={current} isOperational={isOperational} />
 
-        <div className="grid items-start gap-4 xl:grid-cols-[minmax(0,1.3fr)_minmax(0,1fr)]">
+        <div className="grid items-stretch gap-4 xl:grid-cols-[minmax(0,1.3fr)_minmax(0,1fr)]">
           <HistoricalReplay
             results={results}
             position={position}
@@ -83,7 +84,7 @@ export default function App() {
             sourceLabel={source}
             showPlayback={!isOperational}
           />
-          <div className="min-w-0 space-y-4">
+          <div className="flex min-w-0 flex-col gap-4">
             <ReferenceComparison r={current} />
             <PolicyCard state={current.evidence_state} action={policyAction} source={onchain.data ? "Deployed X Layer policy" : isOperational ? "Policy unavailable" : "Demo policy mapping"} />
           </div>
@@ -165,7 +166,7 @@ function EvidenceCard({ result }: { result: ValuationResult }) {
       ? `${outside ? "Outside range" : "Mixed evidence"}; challenge threshold not met.`
       : "Reference materially exceeds the supported range.";
   return (
-    <Panel title="Evidence">
+    <Panel title="Evidence" icon="evidence">
       <div className="text-2xl font-semibold tracking-[-0.03em]" style={{ color: state.fg }}>{state.label}</div>
       <p className="mt-2 text-xs" style={{ color: "var(--color-ink-dim)" }}>{summary}</p>
       <div className="mt-4"><ReasonCodes codes={result.reason_codes.slice(0, 2)} evidenceState={result.evidence_state} /></div>
@@ -175,17 +176,16 @@ function EvidenceCard({ result }: { result: ValuationResult }) {
 
 function PolicyCard({ state, action, source }: { state: EvidenceState; action: PolicyAction | null; source: string }) {
   return (
-    <Panel title="Policy">
+    <Panel title="Policy" icon="shield" right={<span title={source} aria-label={source} className="text-muted"><Icon name="chain" size={14} /></span>}>
       <div className="tnum break-words text-xl font-semibold tracking-[-0.03em] text-ink">{action ?? "—"}</div>
-      <div className="tnum mt-3 rounded px-2.5 py-2 text-[10px]" style={{ background: "var(--color-panel-2)", color: "var(--color-ink-dim)", border: "1px solid var(--color-line)" }}>{state} → {action ?? "UNAVAILABLE"}</div>
-      <div className="mt-3 text-[10px]" style={{ color: "var(--color-muted)" }}>{source}</div>
+      <div className="tnum mt-3 flex items-center gap-2 rounded px-2.5 py-2 text-[10px]" style={{ background: "var(--color-panel-2)", color: "var(--color-ink-dim)", border: "1px solid var(--color-line)" }}>{state}<Icon name="arrow" size={12} />{action ?? "UNAVAILABLE"}</div>
     </Panel>
   );
 }
 
 function BasisCard({ result }: { result: ValuationResult }) {
   return (
-    <Panel title="Market basis">
+    <Panel title="Market basis" icon="basis">
       <dl className="grid grid-cols-2 gap-x-5 gap-y-2 text-xs">
         <StatusRow label="Token move" value={pct(result.observed_token_move_pct)} />
         <StatusRow label="Model move" value={pct(result.model_implied_move_pct)} />

@@ -27,7 +27,7 @@ export function RegistryPanel({ controlPlane, enforcement, runtime, sync, mode =
   const modeNote = mode === "demo" ? "Live deployed state — not driven by this scenario." : mode === "historical" ? "Current deployed state — not historical chain state for the selected observation." : null;
 
   return (
-    <Panel title="On-chain provenance" subtitle="X Layer · attestation delivery and collateral enforcement">
+    <Panel title="On-chain provenance" icon="chain" subtitle="X Layer · attestation delivery and collateral enforcement">
       <div className="flex flex-wrap items-center justify-between gap-3 pb-4 text-xs">
         <div><span className="font-semibold" style={{ color: "var(--color-accent)" }}>{controlPlane.network}</span><span className="tnum ml-2" style={{ color: "var(--color-muted)" }}>chain {controlPlane.chain_id} · deployed</span></div>
         {modeNote && <span style={{ color: "var(--color-ink-dim)" }}>{modeNote}</span>}
@@ -76,7 +76,7 @@ export function RegistryPanel({ controlPlane, enforcement, runtime, sync, mode =
 
 function UnavailableRegistryPanel({ status, detail }: { status: string; detail: string }) {
   return (
-    <Panel title="On-chain provenance" subtitle="X Layer · publisher → Registry → policy → RiskGuard → vault" right={<span className="rounded px-2 py-1 font-mono text-[9px] uppercase tracking-[0.05em]" style={{ color: "var(--color-muted)", background: "var(--color-panel-2)", border: "1px solid var(--color-line)" }}>{status}</span>}>
+    <Panel title="On-chain provenance" icon="chain" subtitle="X Layer · publisher → Registry → policy → RiskGuard → vault" right={<span className="rounded px-2 py-1 font-mono text-[9px] uppercase tracking-[0.05em]" style={{ color: "var(--color-muted)", background: "var(--color-panel-2)", border: "1px solid var(--color-line)" }}>{status}</span>}>
       <div className="grid overflow-hidden rounded-lg sm:grid-cols-5" style={{ border: "1px solid var(--color-line)" }}>
         <PipelineStep index="01" label="Publisher" value="API REQUIRED" />
         <PipelineStep index="02" label="Registry" value="UNREAD" />

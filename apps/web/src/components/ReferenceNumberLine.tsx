@@ -1,11 +1,10 @@
 import type { ValuationResult } from "../api/types";
-import { EVIDENCE } from "../lib/evidence";
 import { money } from "../lib/format";
 import { priceToFraction, unitsToFraction } from "../lib/scale";
 
 export function ReferenceNumberLine({ r }: { r: ValuationResult }) {
   const candidates = [
-    { label: "Reference", price: r.reference_under_test, color: EVIDENCE[r.evidence_state].fg, shape: "diamond" },
+    { label: "Reference", price: r.reference_under_test, color: "var(--color-series-reference)", shape: "diamond" },
     { label: "Token market", price: r.token_price, color: "var(--color-series-token)", shape: "circle" },
     { label: "Last trusted", price: r.last_trusted_reference, color: "var(--color-series-trusted)", shape: "square" },
     { label: "Constructed", price: r.external_constructed_reference, color: "var(--color-series-valtide)", shape: "circle" },
@@ -26,9 +25,14 @@ export function ReferenceNumberLine({ r }: { r: ValuationResult }) {
         <div className="absolute top-[38px] h-11 rounded" style={{ left: `${bandStart}%`, width: `${bandWidth}%`, background: "var(--color-band-fill)", border: "1px solid var(--color-series-valtide)" }} />
         <div className="absolute left-1/2 top-[32px] h-14 w-px" style={{ background: "var(--color-series-valtide)" }} />
         <div className="absolute inset-x-0 top-0 text-center text-[11px]" style={{ color: "var(--color-muted)" }}>Fair value <span className="tnum ml-1 text-ink">{money(r.valtide_fair_value)}</span></div>
-        {markers.map((marker, i) => (
-          <div key={marker.label} className="absolute" style={{ left: `${priceToFraction(marker.price, r) * 100}%`, top: 46 + i * 14 }} title={`${marker.label}: ${money(marker.price)}`}>
-            <span className="absolute h-2.5 w-2.5 -translate-x-1/2" style={{ background: marker.color, border: "1px solid var(--color-panel)", borderRadius: marker.shape === "circle" ? "50%" : 1, rotate: marker.shape === "diamond" ? "45deg" : undefined }} />
+        {markers.map((marker) => (
+          <div key={marker.label} data-price-marker={marker.label} className="absolute" style={{ left: `${priceToFraction(marker.price, r) * 100}%`, top: 60, zIndex: marker.shape === "diamond" ? 3 : marker.shape === "square" ? 2 : 1 }} title={`${marker.label}: ${money(marker.price)}`}>
+            <svg className="absolute -translate-x-1/2 -translate-y-1/2" width="28" height="28" viewBox="0 0 28 28" aria-hidden="true" style={{ overflow: "visible" }}>
+              {/* Nested outlines keep equal-price sources visible at their exact position. */}
+              {marker.shape === "diamond" ? <path d="M14 2 26 14 14 26 2 14Z" fill="none" stroke={marker.color} strokeWidth="2" />
+                : marker.shape === "square" ? <rect x="7" y="7" width="14" height="14" rx="1" fill="none" stroke={marker.color} strokeWidth="2" />
+                  : <circle cx="14" cy="14" r="4" fill={marker.color} stroke="var(--color-panel)" strokeWidth="1.5" />}
+            </svg>
           </div>
         ))}
         <div className="absolute inset-x-0 bottom-0 flex justify-between text-[10px]" style={{ color: "var(--color-muted)" }}><span>Below range</span><span>Above range</span></div>

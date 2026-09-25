@@ -39,7 +39,7 @@ export function EscalationChart({ results, index, playhead = index, onSelect }: 
   const yDecimals = span < 2 ? 1 : 0;
 
   return (
-    <div className="h-[320px] w-full">
+    <div className="h-[320px] min-h-[280px] w-full flex-1">
       <ResponsiveContainer>
         <ComposedChart
           data={data}

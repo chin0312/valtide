@@ -158,7 +158,7 @@ Rules:
 - Icons are functional punctuation, never decoration.
 - Use a 16px optical box, 1.5px stroke, subtly rounded outer corners, sharp internal joins, and square line terminals.
 - Always pair unfamiliar icons with text. Prefer a text label when it is clearer than a symbol.
-- Do not place icons in metric tiles or section headings.
+- Add small consistent outline icons to section headings and playback controls. Keep KPI tiles focused on numbers; all icons retain an adjacent text label.
 - Evidence markers use three distinct geometries as well as color: check/square for supported, split diamond for inconclusive, cross/square for challenged.
 - Do not mix icon families. If an icon library is introduced, add only the small reviewed subset used by the product.
 
@@ -205,7 +205,7 @@ Ship one **Overview**. Do not expose empty Historical, Operational, or Demo page
 1. App bar and system freshness.
 2. A disabled NVDAx asset selector that states the backend's single-asset boundary.
 3. Connected KPI strip.
-4. Large valuation timeline with a compact horizontal interval plot directly beside it.
+4. Large valuation timeline with a compact horizontal interval plot directly beside it. The price-range/policy stack and timeline share the same top and bottom edges at desktop widths.
 5. Compact Evidence, Policy, and Price Basis bento cards.
 6. Evidence record with state distribution, transitions, and source facts.
 7. X Layer provenance pipeline, including a legible read-only state when the API is unavailable.
@@ -285,10 +285,12 @@ Rules:
 
 ### 9.5 Reference comparison
 
-Use a single horizontal price axis with:
+Use a single horizontal price axis.
+
+All price-source markers share the axis centerline. Reference uses a white diamond, token market a mint circle, and last trusted a slate square. Source colors stay fixed across Evidence States. At equal prices, nest the outlined diamond and square around the smaller circle without shifting the price position. Keep values in the legend to avoid label collisions.
 
 - One shaded Valtide range.
-- Dots for reference under test, tokenized market, and last trusted value.
+- Distinct source markers for reference under test, tokenized market, and last trusted value.
 - Source, value, age, and distance from range shown in aligned rows.
 
 This makes the outlier obvious without requiring chart literacy.
