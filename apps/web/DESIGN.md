@@ -1,10 +1,15 @@
 # Valtide Interface Design System
 
-Status: implementation-ready for the hackathon prototype  
+Status: extracted from the current frontend implementation
+
+Last verified: 25 September 2026 against frontend commit `50f4d9b`
+
 Audience: protocol risk teams, collateral curators, and technically curious judges  
 Product posture: independent evidence and model validation for tokenized-equity collateral
 
 Semantic authority: `../../docs/FRONTEND_PLAN.md`. This document defines visual presentation only; data contexts, evidence, policy, freshness, and publication follow that contract.
+
+Implementation sources: `src/index.css` for global tokens and typography; `src/App.tsx`, `src/components/`, and `src/views/` for the rendered hierarchy, component treatments, responsive behavior, and data visualizations. When this document and the application differ, the current implementation is the as-built source of truth.
 
 ## 1. Product design thesis
 
@@ -65,52 +70,48 @@ Keywords: **forensic, measured, sharp, independent, kinetic, auditable**.
 
 ## 4. Color tokens
 
-```css
-:root {
-  color-scheme: dark;
+The implemented palette is defined in `src/index.css`. Eight-digit hex values use the final two digits as alpha.
 
-  --bg-canvas: #07090a;
-  --bg-surface-1: #0b0e0f;
-  --bg-surface-2: #111718;
-  --bg-inset: #050708;
-  --bg-hover: #162022;
+| Role | CSS token | Value |
+|---|---|---|
+| Canvas | `--color-bg` | `#050708` |
+| Primary panel | `--color-panel` | `#0b0f10` |
+| Raised / inset panel | `--color-panel-2` | `#111718` |
+| Hover / tertiary panel | `--color-panel-3` | `#162022` |
+| Subtle border | `--color-line-subtle` | `#182226` |
+| Default border | `--color-line` | `#253237` |
+| Strong border / axis | `--color-line-strong` | `#3b4d52` |
+| Primary text | `--color-ink` | `#f3faf7` |
+| Secondary text | `--color-ink-dim` | `#b8c7c2` |
+| Muted text | `--color-muted` | `#71837d` |
+| Interactive accent | `--color-accent` | `#affc41` |
+| Accent hover | `--color-accent-hover` | `#b2ff9e` |
+| Accent wash | `--color-accent-soft` | `#affc4117` |
+| Token-market semantic alias | `--color-token` | `#1dd3b0` |
+| Text selection | direct value | `#affc4138` |
 
-  --border-subtle: #182226;
-  --border-default: #253237;
-  --border-strong: #3b4d52;
+### Evidence-state colors
 
-  --text-primary: #f3faf7;
-  --text-secondary: #b8c7c2;
-  --text-muted: #71837d;
-  --text-disabled: #444d59;
+| State | Foreground | Soft fill | Border |
+|---|---|---|---|
+| Supported | `--color-supported` · `#1dd3b0` | `--color-supported-soft` · `#1dd3b015` | `--color-supported-line` · `#1dd3b066` |
+| Inconclusive | `--color-inconclusive` · `#affc41` | `--color-inconclusive-soft` · `#affc4115` | `--color-inconclusive-line` · `#affc4166` |
+| Challenged | `--color-challenged` · `#d57ade` | `--color-challenged-soft` · `#3c164266` | `--color-challenged-line` · `#d57ade66` |
 
-  /* Neutral interactive accent; never communicates evidence state. */
-  --accent: #affc41;
-  --accent-hover: #b2ff9e;
-  --accent-soft: #affc4117;
+### Chart and source colors
 
-  /* Evidence State only. */
-  --state-supported: #1dd3b0;
-  --state-supported-soft: #1dd3b015;
-  --state-inconclusive: #affc41;
-  --state-inconclusive-soft: #affc4115;
-  --state-challenged: #d57ade;
-  --state-challenged-soft: #3c164266;
-
-  /* Charts are evidence sources, not semantic states. */
-  --series-reference: #d8dee6;
-  --series-valtide: #91b9ca;
-  --series-tokenized: #687786;
-  --series-trusted: #59636f;
-  --band-fill: #91b9ca1f;
-  --market-closed: #ffffff08;
-}
-```
+| Source / layer | CSS token | Value |
+|---|---|---|
+| Reference under test | `--color-series-reference` | `#d8dee6` |
+| Valtide fair value | `--color-series-valtide` | `#91b9ca` |
+| Tokenized market | `--color-series-token` | `#1dd3b0` |
+| Last trusted reference | `--color-series-trusted` | `#687786` |
+| Valtide interval band | `--color-band-fill` | `#91b9ca1f` |
 
 ### Color rules
 
 - Evidence states use a high-chroma spring trio: mint, acid-lime, and lifted plum. Never use traffic-light green/red.
-- `#086375` is the deep teal supporting tone for charts and selected analytical surfaces; `#b2ff9e` is a hover/highlight tone, not a large background.
+- `#b2ff9e` is a hover/highlight tone, not a large background.
 - Ordinary deltas are neutral gray with an explicit `+` or `−` sign.
 - Never use green for “price went up” or red for “price went down.”
 - Chart series use distinguishable neutral hues and line styles, not status colors.
@@ -121,36 +122,37 @@ Keywords: **forensic, measured, sharp, independent, kinetic, auditable**.
 
 ### Font stack
 
-- **Interface:** `Inter`, fallback system sans.
-- **Headings and labels:** `Inter`.
-- **Numbers, timestamps, hashes, codes, axes:** `Inter` with tabular numerals, fallback system sans.
+- **Interface, headings, and labels:** `Inter`, then `Helvetica Neue`, Arial, and generic sans-serif.
+- **Numbers, timestamps, hashes, codes, and axes:** the same Inter stack with tabular numerals.
 
 Use one clean sans-serif family throughout. Tabular numerals keep live values aligned without a typewriter appearance. Two families is an upper limit, not a requirement.
 
 ```css
---font-ui: "Inter", system-ui, sans-serif;
---font-heading: "Inter", sans-serif;
---font-data: "Inter", system-ui, sans-serif;
+--font-sans: "Inter", "Helvetica Neue", Arial, sans-serif;
+--font-mono: "Inter", "Helvetica Neue", Arial, sans-serif;
 ```
+
+Inter is loaded from Google Fonts at weights 400, 500, and 600. The `font-mono` utility deliberately resolves to Inter: Valtide uses no visual monospace face. The `.tnum` class adds `font-variant-numeric: tabular-nums` for stable alignment. The body default is `14px / 1.5` at weight 400 with antialiasing.
 
 ### Type scale
 
 | Role | Size / line | Weight | Tracking | Font |
 |---|---:|---:|---:|---|
-| Page title | 24 / 30 | 550 | -0.03em | UI |
-| Verdict value | 30 / 34 | 550 | -0.035em | UI |
-| Primary metric | 26 / 30 | 500 | -0.035em | Data |
-| Section title | 13 / 18 | 550 | -0.01em | UI |
-| Body | 13 / 20 | 400 | -0.005em | UI |
-| Table value | 12 / 18 | 450 | 0 | Data |
-| Control | 12 / 16 | 500 | 0 | UI |
-| Eyebrow / label | 10 / 14 | 500 | 0.09em | Data, uppercase |
-| Caption | 11 / 16 | 400 | 0 | UI |
+| Brand title | 22 / normal | 600 | -0.04em | UI |
+| Evidence verdict | 24–30 / tight | 600 | -0.03em to -0.04em | UI |
+| Featured figure | 25 / normal | 500 | -0.04em | Data |
+| Primary metric | 20 / normal | 500 | -0.04em | Data |
+| Secondary metric | 18 / tight | 500 | 0 | Data |
+| Panel title | 15 / normal | 600 | -0.01em | UI |
+| Body | 14 / 21 | 400 | 0 | UI |
+| Body compact / control | 12 / normal | 400–500 | 0 | UI |
+| Eyebrow / label | 10 / 14 | 500 | 0.10em | UI, uppercase |
+| Caption / metadata | 9–11 / normal | 400–500 | 0–0.05em | UI or Data |
 
 Rules:
 
 - Use tabular numerals everywhere data can update.
-- Keep headings at 550–600 maximum; avoid loud 700–900 weights.
+- Keep headings at 600 maximum. Weight 700 appears only in the compact evidence marker, never in page hierarchy.
 - Use tabular numerals for facts; no monospaced font.
 - Currency symbols, unit suffixes, and insignificant decimals render at 60–70% visual emphasis—not a smaller hit target—and in `--text-muted`.
 - Deltas sit inline with their value, smaller and neutral: `$190.00  +2.32%`.
@@ -184,10 +186,11 @@ Base unit: 4px.
 --radius-pill: 999px; /* state chips only */
 ```
 
-- Desktop content max width: 1480px; page gutters: 24px.
-- Main analysis grid: 12 columns, 16px gutters.
-- Major section spacing: 24–32px.
-- Panel padding: 16px standard, 20px for the primary chart.
+- Desktop content max width: 1480px.
+- Page gutters are 16px below the small breakpoint and 24px from 640px upward.
+- The main analysis row is a single column until 1280px, then uses `1.3fr / 1fr` with a 16px gutter.
+- Major section spacing is 16px in the implemented dashboard; internal content spacing uses the 4px base scale.
+- Outer panel padding: 20px; compact cells and inset regions use 12–16px.
 - Inputs and buttons: 32px compact, 36px default.
 - KPI tiles form one connected grid with shared borders. No gaps and no floating-card shadows.
 - Use `1px` borders. Never use more than one shadow level; default is none.
@@ -196,7 +199,7 @@ Base unit: 4px.
 
 ### Primary navigation and data source
 
-Keep the current **Overview** layout with three explicit context controls: **Operational / Historical / Demo**. Operational is the default.
+Keep the current **Overview** layout with three explicit context controls: **Operational / Historical / Demo**. Operational is the default. Each context exposes its own truthful time-window controls and a Reset action.
 
 - Operational uses warmed results and scheduler history. Missing data stays unavailable/degraded in this context; never auto-switch to Demo.
 - Historical uses verified `historical_panel` replay and `source=historical` backtest metrics. Unavailability is explicit; scenario metrics never substitute.
@@ -207,12 +210,13 @@ Keep the current **Overview** layout with three explicit context controls: **Ope
 ### Primary screen order
 
 1. App bar and system freshness.
-2. A disabled NVDAx asset selector that states the backend's single-asset boundary.
+2. A searchable asset selector with NVDAx as the current asset and future assets clearly disabled as `Coming soon`.
 3. Connected KPI strip.
-4. Large valuation timeline with a compact horizontal interval plot directly beside it. The price-range/policy stack and timeline share the same top and bottom edges at desktop widths.
-5. Compact Evidence, Policy, and Price Basis bento cards.
+4. Large valuation timeline beside a stack containing the horizontal price range and policy mapping at desktop widths.
+5. Compact Evidence and Market Basis cards.
 6. Evidence record with state distribution, transitions, and source facts.
-7. X Layer provenance pipeline, including a legible read-only state when the API is unavailable.
+7. Selected-observation audit and, in Historical context, model evidence.
+8. X Layer provenance pipeline, including a legible read-only state when the API is unavailable.
 
 This order maps directly to VALIDATE → DIAGNOSE → TRIAGE → GUARD.
 
@@ -227,7 +231,7 @@ This order maps directly to VALIDATE → DIAGNOSE → TRIAGE → GUARD.
 └ X LAYER PROVENANCE PIPELINE ──────────────────────────────────────────────┘
 ```
 
-Do not imply multi-asset selection while the backend supports only NVDAx. Show the real boundary rather than fake queue items.
+NVDAx is the only selectable asset while it is the only asset supported by the backend. Future catalog entries may be discoverable, but must remain disabled and explicitly labelled `Coming soon`.
 
 ## 9. Core components
 
@@ -281,6 +285,9 @@ Rules:
 - Chart header: small as-of time → large selected value → controls.
 - Metric control: `PRICE / DEVIATION / BASIS`.
 - Operational range control: `1H / 6H / 24H / 7D`; default `24H`.
+- Historical range control: `1H / 6H / 24H / 3D / 7D / ALL`; default `ALL`.
+- Demo range control: `5M / 10M / 15M / FULL`; default `FULL`.
+- Reset restores the context default, stops playback, and returns to the latest Operational/Historical observation or first Demo observation.
 - Use real UTC spacing and break every series at scheduler gaps. Never interpolate missing observations.
 - Demo playback retains exactly six five-minute observations; intermediate playhead positions are visual frames only, never evidence records.
 - Do not render candlesticks until the backend exposes genuine OHLC inputs. The calibrated interval band is the truthful model-native visual.
@@ -355,7 +362,7 @@ The selected-observation audit exposes canonical UTC time, token/reference sourc
 - Buttons are rectangular, 4px radius, sentence case.
 - Segmented controls are connected and compact; active segment has a surface shift and brighter text, not a saturated fill.
 - State chips alone may use pill geometry.
-- Focus ring: `0 0 0 2px var(--bg-canvas), 0 0 0 3px var(--accent)`.
+- Focus ring: `1px solid var(--color-accent)` with a `2px` outline offset.
 - Hover motion: 120ms color/border transition only. No scale, bounce, shimmer, or spring effects.
 - New data may cross-fade over 160ms. Never animate the numeric value rolling upward.
 
@@ -370,12 +377,12 @@ The selected-observation audit exposes canonical UTC time, token/reference sourc
 
 ## 13. Responsive behavior
 
-The demo is desktop-first at 1440px.
+The demo is desktop-first at 1440px, with the following implemented Tailwind breakpoints:
 
-- ≥1280px: 12-column full layout.
-- 900–1279px: chart 7 columns, comparison 5; diagnostic panels stack below.
-- 640–899px: single column; KPI grid becomes 2×2; tables scroll horizontally.
-- <640px: the asset rail moves above the main workspace, the KPI grid becomes 2×2, and bento cards stack.
+- ≥1280px (`xl`): six-column KPI strip and `1.3fr / 1fr` chart-and-analysis layout.
+- ≥768px (`md`): three-column KPI strip, two-column Evidence / Market Basis row, and five-stage provenance strip.
+- ≥640px (`sm`): 24px page gutters and selected supporting grids expand where space permits.
+- <640px: 16px page gutters, two-column KPI strip, and all major panels stack.
 
 Do not hide timestamps, evidence explanations, or policy provenance on smaller screens.
 
