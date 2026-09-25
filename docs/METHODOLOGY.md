@@ -12,7 +12,11 @@ The methodology has two layers:
 1. **Challenger valuation** — estimate a latent current equity value and uncertainty using point-in-time market information;
 2. **Reference validation** — test whether the reference under test is consistent with the challenger estimate and other independent evidence.
 
-The reference under test is the generic reference Valtide validates. In the primary product use case, it is a production collateral reference; when that reference is unavailable during the hackathon, it may be a reconstructed protocol valuation methodology, a Chainlink reference, an OKX bounded/index reference, or another selected reference.
+The reference under test is the explicit price or valuation methodology
+Valtide evaluates. For the deployed NVDAx vertical slice, the live reference
+under test is the OKX X-Perp NVDA index. Other references may be evaluated by
+future adapters, but a reference under test must remain outside the independent
+challenger feature set to avoid circular validation.
 
 The product is therefore not asking only:
 
@@ -665,7 +669,7 @@ A constructed off-hours price can react faster to new information, but if that c
 
 A stale / bounded reference can reduce synthetic-price liquidation risk but increase delayed-liquidation and gap risk.
 
-Valtide's P0 methodology does **not** claim to solve the protocol's entire trade-off.
+Valtide's core methodology does **not** claim to solve the protocol's entire trade-off.
 
 Instead it quantifies:
 
@@ -677,7 +681,7 @@ The protocol retains the policy decision.
 
 ---
 
-## 20. Optional Protocol-Impact Layer — P1
+## 20. Optional Protocol-Impact Layer
 
 If reliable protocol-position data become available, Valtide may later simulate the consequence of alternative valuation scenarios.
 
@@ -692,7 +696,7 @@ scenario shortfall
 
 This would connect model validation to protocol impact.
 
-It is intentionally **not required for P0** because it moves Valtide toward broader protocol-risk analytics where strong incumbents already exist.
+It is intentionally **not required for the current validation path** because it moves Valtide toward broader protocol-risk analytics where strong incumbents already exist.
 
 ---
 
@@ -752,7 +756,7 @@ Where external references share upstream data, note the dependence instead of tr
 
 ---
 
-## 23. MVP Data Sources
+## 23. Current Data Sources
 
 ### Tokenized market
 

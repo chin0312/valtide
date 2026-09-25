@@ -1,6 +1,6 @@
 """Canonical data shapes — the contract between all backend modules.
 
-See docs/BACKEND_PLAN.md §5. These shapes are the stable interface the frontend
+See docs/BACKEND_ARCHITECTURE.md. These shapes are the stable interface the frontend
 and X Layer publisher build against; internal modules must not invent their own.
 """
 
@@ -68,7 +68,7 @@ class MarketSnapshot(BaseModel):
     reference_age_seconds: int
 
     # The reference under test (Pt) — what we validate. Sourced explicitly; never
-    # implicitly derived. See BACKEND_PLAN.md §3.
+    # implicitly derived. See docs/BACKEND_ARCHITECTURE.md.
     reference_under_test: float | None
     reference_under_test_source: str = Field(examples=["nvda_live", "okx_xperp_index"])
     reference_under_test_ts: datetime | None = None
@@ -89,7 +89,7 @@ class ChallengerEstimate(BaseModel):
     """Output of the quant runtime — the independent (NVDAx-only) challenger.
 
     Carries the log-space state directly so validation never has to reverse-
-    engineer sigma from asymmetric price bounds. See BACKEND_PLAN.md §5.2 / §7.
+    engineer sigma from asymmetric price bounds. See docs/BACKEND_ARCHITECTURE.md.
     """
 
     fair_value: float  # exp(state_m)
@@ -113,7 +113,7 @@ class ChallengerEstimate(BaseModel):
 class ValuationResult(BaseModel):
     """The public result served to the frontend and X Layer publisher.
 
-    See BACKEND_PLAN.md §5.3.
+    See docs/BACKEND_ARCHITECTURE.md.
     """
 
     asset: str

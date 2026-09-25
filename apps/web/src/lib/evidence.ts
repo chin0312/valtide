@@ -1,5 +1,5 @@
 // Redundant evidence encoding — colour is never the only signal (icon + label +
-// colour), per FRONTEND_PLAN §6. Each state also carries plain-English copy so a
+// colour), per PRODUCT_SEMANTICS.md. Each state also carries plain-English copy so a
 // first-time viewer understands the verdict without the jargon.
 
 import type { EvidenceState } from "../api/types";

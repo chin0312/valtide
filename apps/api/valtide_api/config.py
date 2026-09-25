@@ -74,7 +74,7 @@ class Settings(BaseSettings):
 
     # CORS origins allowed to call the API from a browser (the apps/web dashboard).
     # Comma-separated in the env var, e.g. "http://localhost:5173,https://valtide.app"
-    # Defaults cover the Vite dev server (5173) and a Next.js dev server (3000).
+    # Defaults cover the Vite dev server (5173) and the alternate local frontend origin (3000).
     cors_origins: str = "http://localhost:5173,http://localhost:3000"
 
     model_config = SettingsConfigDict(

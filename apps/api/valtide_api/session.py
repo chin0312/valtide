@@ -1,7 +1,7 @@
 """Market-session classifier.
 
 Pure function, no I/O. Maps a UTC timestamp to one of the five research regimes
-James's model expects (see BACKEND_PLAN.md §5.1, backend summary §3). Uses NYSE
+James's model expects (see docs/BACKEND_ARCHITECTURE.md). Uses NYSE
 regular hours in US Eastern time, which handles EST/EDT automatically via the
 zoneinfo database.
 

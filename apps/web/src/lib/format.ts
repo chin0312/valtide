@@ -1,4 +1,4 @@
-// Display formatting. Nulls render as "—", never NaN/blank (FRONTEND_PLAN §5).
+// Display formatting. Nulls render as "—", never NaN/blank (PRODUCT_SEMANTICS.md).
 
 export const DASH = "—";
 

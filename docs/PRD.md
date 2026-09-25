@@ -1,7 +1,7 @@
 # Valtide — Product Requirements Document
 
 **Version:** 0.5  
-**Status:** Public working specification
+**Status:** Public product reference
 
 ## 1. Product Summary
 
@@ -22,7 +22,11 @@ Its core product question is:
 
 > **“Is the collateral valuation this protocol is relying on supported by independent evidence?”**
 
-In this document, the **reference under test** is the generic reference Valtide validates. In the primary product use case, it is the production collateral reference; when a live production reference is unavailable during the hackathon, it may be a reconstructed protocol valuation methodology, a Chainlink reference, an OKX bounded/index reference, or another selected reference.
+The **reference under test** is the explicit reference Valtide validates. In
+the current deployed NVDAx path, it is the OKX X-Perp NVDA index. The
+interface is designed so other protocol-defined or market references can be
+evaluated without changing the Evidence State / Policy Action ownership
+boundary.
 
 ---
 
@@ -174,9 +178,9 @@ If Pyth, the raw token price or a simple blend performs better, the product shou
 
 ---
 
-## 7. MVP Asset Scope
+## 7. Current Asset Scope
 
-### P0 — NVDAx, subject to data access
+### Supported asset: NVDAx
 
 NVDAx is the preferred first research asset because:
 
@@ -186,11 +190,13 @@ NVDAx is the preferred first research asset because:
 - OKX supports an NVDA X-Perp,
 - the asset provides several competing references for validation.
 
-Historical Pyth / venue access should be verified before making the benchmark mandatory.
+Historical Pyth / venue availability remains an explicit limitation of the
+research methodology and is recorded in the historical diagnostics.
 
-The submission-critical path should use one supported NVDAx / NVDA asset and one selected reference under test. If the required NVDA inputs are not accessible, the team should use the best-supported fallback asset rather than block the complete vertical slice.
+The deployed path uses one supported NVDAx / NVDA asset and one selected
+reference under test.
 
-### P1 / fallback — SPYx
+### Roadmap asset: SPYx
 
 SPYx is strategically important because:
 
@@ -199,11 +205,12 @@ SPYx is strategically important because:
 - OKX supports a SPY X-Perp,
 - it provides a useful lower-idiosyncratic-risk comparison.
 
-SPYx is a P1 expansion, not a prerequisite for the first end-to-end demo.
+SPYx is not currently onboarded and is not represented by fabricated live data.
 
 ### Asset-selection rule
 
-The MVP should prioritize **reliable historical data and point-in-time comparability** over attachment to a specific ticker.
+Future asset expansion should prioritize **reliable historical data and
+point-in-time comparability** over attachment to a specific ticker.
 
 ---
 
@@ -221,7 +228,10 @@ For replay mode, the user selects a historical observation.
 
 Valtide displays the major relevant references separately.
 
-For the submission-critical P0, the flow is centered on one reference under test and the minimum independent evidence required to make the challenger defensible. Additional external comparators are supporting evidence or P1 scope when they are not available without slowing the vertical slice.
+The current supported path is centered on one reference under test and the
+minimum independent evidence required to make the challenger defensible.
+Additional external comparators remain optional evidence when they are not
+available without compromising point-in-time correctness.
 
 Example:
 
@@ -246,7 +256,11 @@ Valtide fair value             $185.70
 
 ### Step 4 — Validate the reference under test
 
-In the primary use case, the reference under test is the production collateral reference. During the hackathon, it may instead be a reconstructed or selected reference used for validation.
+For the current deployed NVDAx path, the reference under test is the OKX
+X-Perp NVDA index. Future adapters may evaluate a protocol collateral
+reference, Chainlink reference, constructed reference, or another named market
+benchmark, provided the reference remains separate from the challenger feature
+set to avoid circular validation.
 
 Example:
 
@@ -355,7 +369,7 @@ It is the portion of the tokenized price not explained by the challenger estimat
 
 ## 10. Public Interface / Dashboard
 
-The MVP should remain focused around model validation rather than becoming a generic DeFi dashboard.
+The product should remain focused around model validation rather than becoming a generic DeFi dashboard.
 
 ### View 1 — Validation Overview
 
@@ -404,7 +418,7 @@ The dashboard serves the human decision-maker. It should explain the Evidence St
 
 ## 11. Functional Requirements
 
-### P0 — Data
+### Implemented data capabilities
 
 - ingest the real or reproducible point-in-time inputs needed for one primary asset,
 - ingest the selected reference under test and the underlying equity/reference history,
@@ -413,7 +427,7 @@ The dashboard serves the human decision-maker. It should explain the Evidence St
 - account for corporate actions / token multipliers where necessary,
 - construct a normalized market snapshot for the demo.
 
-### P0 — Quant
+### Implemented quantitative capabilities
 
 - implement simple baselines and an independent challenger estimator,
 - generate defensible calibrated uncertainty and explicit abstention,
@@ -421,7 +435,7 @@ The dashboard serves the human decision-maker. It should explain the Evidence St
 - abstain with `INCONCLUSIVE` when evidence quality or uncertainty is insufficient,
 - expose model/version metadata.
 
-### P0 — Backend
+### Implemented backend capabilities
 
 - provide normalized market snapshots to the quant layer,
 - expose the current valuation / validation result required by the demo,
@@ -430,13 +444,13 @@ The dashboard serves the human decision-maker. It should explain the Evidence St
 
 Exact service boundaries and API shapes are implementation contracts and may evolve as long as the public product semantics remain stable.
 
-### P0 — Frontend
+### Implemented frontend capabilities
 
 - a focused Validation Overview showing the selected asset, reference under test, evidence, uncertainty and Evidence State,
 - the configured Policy Action and X Layer Registry / Risk Guard status,
 - the same end-to-end flow demonstrated by the reference consumer.
 
-### Supporting P0 evidence
+### Supporting diagnostics
 
 The quant team should still provide enough research evidence to defend the vertical slice:
 
@@ -445,11 +459,14 @@ The quant team should still provide enough research evidence to defend the verti
 - enough historical testing to demonstrate methodology,
 - basic model and Evidence State metrics.
 
-Full historical replay UX, rich backtest dashboards and multiple external comparators are not submission blockers.
+Full historical replay UX, rich backtest dashboards, and multiple external
+comparators remain future extensions; the current product uses the implemented
+replay, diagnostics, and reference path.
 
-### P0 — X Layer
+### X Layer control path
 
-The intended MVP requires an onchain control flow from validation through policy evaluation and a working consumer:
+The deployed product includes an onchain control flow from validation through
+policy evaluation and a working reference consumer:
 
 ```text
 offchain validation
@@ -461,13 +478,12 @@ onchain policy evaluation
 working consumer flow
 ```
 
-P0 includes:
-
 - `ValtideValidationRegistry.sol` for auditable validation attestations;
 - `ValtideRiskGuard.sol` for curator-configured Policy Action evaluation; and
 - a minimal `DemoCollateralVault.sol` reference consumer demonstrating composability.
 
-The intended submission path includes deployment of these contracts on X Layer and a working attestation → policy → consumer flow. The documentation does not claim that deployment has already happened.
+The current testnet deployment and addresses are recorded in
+`deployments/xlayer-testnet.json` and `contracts/README.md`.
 
 The contracts are a machine-readable control layer, not a production liquidation oracle or lending protocol.
 
@@ -475,7 +491,7 @@ The contracts are a machine-readable control layer, not a production liquidation
 
 ## 12. Non-Goals
 
-The MVP will not:
+The product does not:
 
 - replace Chainlink, Pyth or another production oracle,
 - build a lending protocol,
@@ -484,7 +500,7 @@ The MVP will not:
 - execute trades or liquidations,
 - claim causal identification of liquidity premium or mispricing,
 - become a generic protocol risk dashboard,
-- model the entire lending book in P0,
+- model the entire lending book,
 - predict long-horizon stock returns,
 - support a large asset universe,
 - hide negative benchmark results.
@@ -495,20 +511,22 @@ The MVP will not:
 
 ### Required reference baselines
 
-At minimum for the submission-critical slice:
+The current evaluation includes:
 
-1. one selected reference under test, preferably the production collateral reference,
+1. the selected reference under test — the OKX X-Perp NVDA index in the deployed NVDAx path,
 2. last trusted underlying / stale reference,
 3. raw tokenized-equity price,
 4. simple statistical blend,
 5. Valtide challenger estimate.
 
-Supporting or P1 comparisons, where data access allows:
+Additional comparisons, where data access allows:
 
 6. Pyth 24/7 constructed index,
 7. OKX X-Perp Index / Mark reference or another relevant continuous benchmark.
 
-The first four baselines are sufficient to support the submission-critical slice. Pyth, OKX and other additional references should not block the end-to-end demo.
+The first four baselines define the core evaluation set. Pyth, OKX, and other
+additional references remain comparative research inputs rather than a
+prerequisite for the deployed path.
 
 ### Ex-post benchmark
 
@@ -560,7 +578,10 @@ A risk professional should be able to understand:
 
 ## 15. Onchain Role
 
-The onchain component is a required part of the intended OKX Dev Day Build a Market MVP. It turns an approved offchain validation result into an auditable Evidence State and evaluates a Policy Action configured by the curator or consuming protocol.
+The onchain component is the deployed OKX Dev Day Build a Market control path.
+It turns an approved offchain validation result into an auditable Evidence
+State and evaluates a Policy Action configured by the curator or consuming
+protocol.
 
 The principle is:
 
@@ -643,7 +664,7 @@ Valtide publishes the Evidence State, the policy owner defines the mapping, the 
 
 ### Conceptual consumers
 
-`DemoCollateralVault.sol` is a reference consumer demonstrating that an X Layer application can read the Registry and Risk Guard without embedding Valtide's statistical model. Its intended demo behavior is:
+`DemoCollateralVault.sol` is a reference consumer demonstrating that an X Layer application can read the Registry and Risk Guard without embedding Valtide's statistical model. Its demo behavior is:
 
 ```text
 SUPPORTED
@@ -656,7 +677,8 @@ CHALLENGED
 → policy may restrict new risk
 ```
 
-The demo consumer is not a production protocol. The MVP should prefer restricting new exposure over automatically liquidating existing borrowers.
+The demo consumer is not a production protocol. The current demo restricts new
+exposure rather than automatically liquidating existing borrowers.
 
 ### Boundaries
 
@@ -688,13 +710,14 @@ The contract layer must not:
 
 ---
 
-## 16. Priority Scope
+## 16. Current and Future Scope
 
-One complete, defensible vertical slice is more important than several partially implemented features.
+Valtide currently prioritizes a defensible NVDAx vertical slice over broad but
+partial asset coverage.
 
-### Submission-critical P0
+### Current end-to-end path
 
-- one primary asset: NVDAx / NVDA, subject to actual data access;
+- one primary asset: NVDAx / NVDA;
 - one reference under test;
 - real or reproducible point-in-time market inputs;
 - a simple independent challenger estimator;
@@ -707,16 +730,17 @@ One complete, defensible vertical slice is more important than several partially
 - a minimal `DemoCollateralVault.sol` or equivalent reference consumer;
 - deployed X Layer contracts and a working attestation → policy → consumer flow.
 
-### Supporting P0 evidence
+### Supporting evidence
 
 - simple baselines;
 - point-in-time-correct validation;
 - enough historical testing to demonstrate methodology;
 - basic model and Evidence State metrics.
 
-Historical validation remains important, but a full research platform is not required before the end-to-end X Layer demo works.
+Historical validation remains part of the product, while a full research
+platform remains outside the current deployed scope.
 
-### P1 / stretch
+### Future extensions
 
 - SPYx or a second asset;
 - richer historical replay and backtest UX;
@@ -760,7 +784,7 @@ A validation system that challenges everything or abstains from everything is us
 
 Protocol exposure simulation is attractive but overlaps with mature incumbents.
 
-**Response:** keep P0 centered on valuation / model validation.
+**Response:** keep the product centered on valuation and model validation.
 
 ---
 

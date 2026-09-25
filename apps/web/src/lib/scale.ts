@@ -1,4 +1,4 @@
-// Band-relative scaling — the make-or-break decision from FRONTEND_PLAN §4A.
+// Band-relative scaling — the chart display rule from PRODUCT_SEMANTICS.md.
 //
 // The whole demo happens inside a ~$0.90 window, so a raw-price axis makes
 // SUPPORTED and CHALLENGED look identical. We instead plot everything in

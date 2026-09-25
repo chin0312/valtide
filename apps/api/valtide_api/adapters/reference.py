@@ -1,6 +1,6 @@
 """Reference-under-test adapter — the price Valtide independently validates.
 
-DECISION (BACKEND_PLAN.md §3): the reference under test is the OKX X-Perp NVDA
+DECISION (docs/BACKEND_ARCHITECTURE.md): the reference under test is the OKX X-Perp NVDA
 index price. This is a DIFFERENT API from OnchainOS:
 
   - NVDAx token price  -> OKX OnchainOS   (web3.okx.com, signed)   [okx.py]

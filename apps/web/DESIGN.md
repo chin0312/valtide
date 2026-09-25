@@ -7,7 +7,7 @@ Last verified: 25 September 2026 against frontend commit `50f4d9b`
 Audience: protocol risk teams, collateral curators, and technically curious judges  
 Product posture: independent evidence and model validation for tokenized-equity collateral
 
-Semantic authority: `../../docs/FRONTEND_PLAN.md`. This document defines visual presentation only; data contexts, evidence, policy, freshness, and publication follow that contract.
+Semantic authority: `../../docs/PRODUCT_SEMANTICS.md`. This document defines visual presentation only; data contexts, evidence, policy, freshness, and publication follow that contract.
 
 Implementation sources: `src/index.css` for global tokens and typography; `src/App.tsx`, `src/components/`, and `src/views/` for the rendered hierarchy, component treatments, responsive behavior, and data visualizations. When this document and the application differ, the current implementation is the as-built source of truth.
 
