@@ -1,6 +1,7 @@
 """In-memory state store — Kalman state + latest result per asset.
 
-MVP: a process-local singleton (BACKEND_PLAN.md §10). Swap for SQLite/Redis later
+Compatibility cache for non-HTTP callers. Durable runtime state is owned by
+runtime_store.py; see docs/BACKEND_ARCHITECTURE.md.
 without touching business logic. NOT the thing that advances state — the replay
 driver / scheduler owns writes; API routes only read latest results.
 """

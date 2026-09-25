@@ -1,297 +1,280 @@
 # Valtide
 
-> **Independent collateral-valuation control for tokenized equities on X Layer.**
+**Independent collateral-valuation control for tokenized equities on X Layer.**
 
-Valtide helps DeFi curators and RWA risk teams determine whether a collateral valuation is supported, inconclusive or materially challenged by independent market evidence — and makes that validation usable by configurable risk policies on X Layer.
+Valtide helps DeFi curators and RWA risk teams independently validate whether a
+collateral reference remains supported by market evidence, then makes that
+Evidence State usable by curator-defined policies on X Layer.
 
-Valtide is being built for **OKX Dev Day 2026 — Build a Market**. It is not a production oracle, lending protocol or automatic liquidation engine.
+[Live App](https://valtide-liard.vercel.app) · [Backend API](https://valtide-api-production.up.railway.app) · [OpenAPI / API Docs](https://valtide-api-production.up.railway.app/docs) · **Built for OKX Dev Day 2026 — Build a Market**
 
-## The problem
+## Problem
 
-Tokenized equities can trade when the strongest traditional equity reference is unavailable or degraded. For DeFi lending markets, this creates a difficult collateral-valuation problem:
+Tokenized equities can continue trading while the strongest traditional equity
+reference is closed, delayed, or degraded. During those periods:
 
-- the last trusted underlying price may be stale;
-- the tokenized market may contain genuine new price discovery;
-- tokenized prices may also contain venue-specific premiums, discounts, or dislocations; and
-- collateral valuation can directly affect borrowing capacity and liquidation decisions.
+- the last trusted underlying reference may become stale;
+- tokenized venues may continue discovering prices;
+- constructed references can disagree; and
+- collateral valuation directly affects protocol risk.
 
-This is not an empty market. Chainlink provides sophisticated equity pricing infrastructure, Pyth provides constructed 24/7 equity references, OKX X-Perps already perform multi-source off-hours price construction and controls, and protocols such as Kamino already operate sophisticated risk systems. Curators and protocols also make their own collateral-risk decisions.
+The key question is not whether one feed is universally “correct”: it is
+whether the collateral reference a protocol relies on remains supported by
+independent market evidence.
 
-Valtide focuses on the narrower control-layer question: is the reference a protocol is relying on still supported by independent evidence, and what should a curator-configured policy do with that evidence?
+## What Valtide Does
 
-## The Valtide thesis
+Valtide combines a quantitative challenger, point-in-time market evidence, and
+backend validation into an auditable control path for tokenized-equity
+collateral.
 
-Valtide is an **independent collateral-valuation control layer for tokenized equities on X Layer**.
+> **Valtide determines the Evidence State. The curator or protocol defines the
+> Policy Action. The consumer enforces the resulting action.**
 
-The primary user is the **DeFi curator / lending-protocol risk team / RWA risk manager**. The core question is:
+Evidence State is one of:
 
-> **Is the collateral valuation the protocol is relying on supported by independent market evidence?**
+- `SUPPORTED` — available evidence does not provide a material reason to
+  challenge the reference under test;
+- `INCONCLUSIVE` — evidence is unavailable, stale, weak, or unresolved; or
+- `CHALLENGED` — sufficiently strong evidence materially contradicts the
+  reference under test.
 
-The quantitative challenger fair-value model remains a component of the validation system, not the entire product positioning. Valtide makes the evidence state auditable and usable by a policy configured by the curator or consuming protocol.
+The dashboard is the human interface for operational monitoring and historical
+evidence. The machine interface is the X Layer ValidationRegistry and
+RiskGuard. Policy mappings belong to the consuming curator or protocol; Valtide
+does not prescribe a universal risk action.
 
-## Jobs to be done
+## How It Works
 
-> **When I manage a lending market using tokenized equities as collateral and my reference price becomes stale, uncertain or disagrees with other markets, help me independently determine whether that valuation is still supported by market evidence, so I can decide whether to continue normal operations, investigate the discrepancy or restrict additional risk exposure — and have the consuming application apply that policy consistently onchain.**
+```mermaid
+flowchart TD
+    A[OKX OnchainOS<br/>NVDAx market data]
+    B[NVDA trusted anchor]
+    C[OKX X-Perp<br/>reference under test]
 
-The product loop is:
-
-```text
-VALIDATE → DIAGNOSE → TRIAGE → GUARD
+    A --> D[P1a-C Challenger Model]
+    B --> D
+    D --> E[Challenger estimate<br/>+ calibrated uncertainty]
+    C --> F[Backend Validation Engine]
+    E --> F
+    F --> G{Evidence State}
+    G -->|SUPPORTED| H[ValtideValidationRegistry]
+    G -->|INCONCLUSIVE| H
+    G -->|CHALLENGED| H
+    H --> I[Curator-defined Policy]
+    I --> J[ValtideRiskGuard]
+    J --> K[Protocol / Vault / Agent Consumer]
 ```
 
-- **VALIDATE** — Is the reference I rely on still supported?
-- **DIAGNOSE** — Why are the reference, tokenized market and independent evidence disagreeing?
-- **TRIAGE** — Is the evidence strong enough to support the reference, challenge it, or is the result inconclusive?
-- **GUARD** — How should my own predefined risk policy respond to that evidence?
+The model and validation engine run offchain. The X Layer contracts store the
+attestation, evaluate the configured policy, and expose a result that a
+consumer can enforce. The contracts do not run the quant model, custody user
+funds, or liquidate positions.
 
-Valtide performs the first three jobs directly. For the fourth, it provides standardized onchain evidence and policy infrastructure while the curator or protocol defines the actual policy. The consumer enforces the resulting action.
+## Architecture
 
-> **Valtide determines the evidence state. The curator or protocol determines the policy action. The consumer enforces the resulting action.**
+```mermaid
+flowchart TB
+    subgraph OFFCHAIN["Offchain Validation Plane"]
+        OKX1[OKX OnchainOS]
+        ALPACA[Alpaca NVDA]
+        OKX2[OKX X-Perp]
+        API[FastAPI Backend]
+        QUANT[P1a-C Quant Runtime]
+        VALIDATION[Validation Engine]
+        DASH[React / Vite Dashboard]
 
-## Evidence state and policy action
+        OKX1 --> API
+        ALPACA --> API
+        OKX2 --> API
+        API --> QUANT
+        QUANT --> VALIDATION
+        VALIDATION --> API
+        API --> DASH
+    end
 
-Valtide reports an **Evidence State**, not a financial-policy recommendation:
+    subgraph XLAYER["X Layer Control Plane"]
+        REGISTRY[ValtideValidationRegistry]
+        GUARD[ValtideRiskGuard]
+        CONSUMER[DemoCollateralVault / Protocol Consumer]
 
-- **SUPPORTED** — available independent evidence does not provide a material reason to challenge the reference under test. This does not prove the reference is correct.
-- **INCONCLUSIVE** — evidence is not sufficiently strong or consistent to support or materially challenge the reference. High uncertainty, poor token-market quality, unavailable comparators, stale data, disagreement, or a decision boundary can all lead to abstention.
-- **CHALLENGED** — the reference under test is materially inconsistent with sufficiently strong independent evidence. This does not prove the reference is definitely wrong.
+        REGISTRY --> GUARD
+        GUARD --> CONSUMER
+    end
 
-A separate **Policy Action** is configured by the consuming curator or protocol. Example actions include:
-
-```text
-ALLOW              normal new exposure permitted
-MONITOR            continue with additional observation
-REQUIRE_REVIEW     require a human or protocol review
-RESTRICT_NEW_RISK  reject or limit additional exposure
+    VALIDATION -->|authorized attestation| REGISTRY
 ```
 
-The mapping is configurable and owned by the consuming application for its asset/reference pair. One protocol may map `INCONCLUSIVE` to `MONITOR`; another may map it to `REQUIRE_REVIEW`. Valtide does not prescribe one universal mapping.
+The P1a-C package owns challenger estimation, uncertainty, calibration
+metadata, and carried state. The backend owns normalized snapshots, reference
+selection, data-quality checks, Evidence State, reason codes, API delivery,
+and publication orchestration. RiskGuard owns policy evaluation only; the
+consumer owns enforcement.
 
-## What Valtide is not
+## Live Deployment
 
-Valtide is not:
+| Component | Deployment |
+|---|---|
+| Frontend | [valtide-liard.vercel.app](https://valtide-liard.vercel.app) |
+| Backend API | [valtide-api-production.up.railway.app](https://valtide-api-production.up.railway.app) |
+| OpenAPI | [FastAPI docs](https://valtide-api-production.up.railway.app/docs) |
+| Network | X Layer Testnet · Chain ID `1952` |
 
-- another generic raw-price oracle or a replacement for Chainlink or Pyth;
-- another lending protocol, automatic LTV controller or liquidation engine;
-- a trading or arbitrage bot;
-- a universal source of the “correct” collateral LTV; or
-- a production-certified oracle.
+The deployed dashboard is read-only in the browser. Backend-controlled
+publication is observed through the API; the publisher key is never exposed to
+frontend code.
 
-## From evidence to action
+## X Layer Contracts
 
-```text
-Reference Under Test
-        +
-Tokenized Market
-        +
-Independent Market Evidence
-        ↓
-Valtide Challenger Model
-        ↓
-Fair Value + Calibrated Uncertainty
-        ↓
-Validation Engine
-        ↓
-Evidence State
-SUPPORTED / INCONCLUSIVE / CHALLENGED
-        ↓
-X Layer Validation Registry
-        ↓
-Curator-Defined Policy
-        ↓
-Valtide Risk Guard
-        ↓
-Protocol / Vault / Agent Consumer
+The current testnet control plane is recorded in
+[`deployments/xlayer-testnet.json`](deployments/xlayer-testnet.json).
+
+| Component | Address | Purpose |
+|---|---|---|
+| `ValtideValidationRegistry` | `0x1A53C85C66EA212693d36bF842574643C4d9B635` | Stores the latest authorized validation attestation |
+| `ValtideRiskGuard` | `0x8e17a4eB93074ea74d05D9bc316d85AD3B540CE7` | Applies a consumer-owned Evidence State → Policy Action mapping |
+| `DemoCollateralVault` | `0x4beC6Bc1DF651f36758216cA02db62b5603349ce` | Demonstrates reference-consumer enforcement |
+| Authorized publisher | `0xBb341F8AE72146CEE60Ca0cCFE8C3Db5c90fC30C` | Publishes backend attestations on testnet |
+
+These are testnet contracts and a reference consumer, not audited production
+lending infrastructure. `evidenceHash` links an attestation to canonical
+offchain evidence; it is a provenance commitment, not proof that the evidence
+is objectively correct.
+
+## Key Technical Properties
+
+- **Exact operational observations** — the warmed live runtime uses confirmed
+  five-minute OKX NVDAx candles at settled observation timestamps.
+- **Point-in-time integrity** — historical replay prevents future-information
+  leakage and preserves causal trusted anchors.
+- **Explicit abstention** — unavailable, stale, weak, or conflicting evidence
+  can produce `INCONCLUSIVE` rather than fabricated certainty.
+- **Calibrated uncertainty** — P1a-C returns a challenger estimate with
+  calibrated interval bounds, not only a point estimate.
+- **Evidence / policy separation** — `Evidence State != Policy Action !=
+  Enforcement`.
+- **Fail-closed historical provenance** — Historical mode requires
+  `X-Valtide-Source: historical_panel` before accepting panel replay as
+  research evidence.
+- **Persistent operational state** — the warmed scheduler persists carried
+  state, results, gaps, and publication status in SQLite.
+- **Independent chain delivery** — publisher failures are tracked separately
+  from valuation state and do not replace an honest backend result.
+
+## Local Development
+
+```bash
+git clone https://github.com/chin0312/valtide.git
+cd valtide
+cp .env.example .env
 ```
 
-This is one validation system with two interfaces:
+### Backend
 
-```text
-Human interface   → dashboard / historical evidence
-Machine interface → X Layer Registry + Risk Guard
+```bash
+cd apps/api
+python -m venv .venv
+source .venv/bin/activate
+pip install -e ../../valtide-quant-service-p1ac -e ".[dev]"
+uvicorn valtide_api.main:app --reload --port 8000
 ```
 
-The Registry exposes the Evidence State, the Risk Guard evaluates the configured Policy Action, and the consumer contract performs the actual enforcement. Valtide does not directly control another protocol.
+The local scheduler is disabled by default and publication is disabled by
+default. Add only the credentials needed for the data path you are exercising.
 
-## Quantitative hypothesis
+### Frontend
 
-Valtide tests whether tokenized-market price discovery and related point-in-time information can provide useful **independent evidence** beyond simple alternatives.
-
-The intended benchmark set is:
-
-```text
-last trusted underlying reference
-raw tokenized-market price
-simple statistical baselines
-external constructed references where accessible
-Valtide challenger model
+```bash
+cd apps/web
+npm ci
+printf 'VITE_API_BASE_URL=http://localhost:8000\n' > .env.local
+npm run dev -- --host 127.0.0.1
 ```
 
-This is a falsifiable research hypothesis, not a performance claim. If existing references dominate and Valtide provides no incremental validation information, the thesis should be reconsidered.
+The development dashboard is available at `http://127.0.0.1:5173`.
 
-See [`Valuation Methodology`](./docs/METHODOLOGY.md) for the research design, uncertainty, evidence states, abstention, and evaluation details.
+### Contracts
 
-## Intended hackathon MVP
-
-Primary research / validation asset:
-
-```text
-NVDAx / NVDA (subject to actual data access)
+```bash
+cd contracts
+forge build
+forge test -vvv
 ```
 
-Secondary validation asset, P1 / stretch:
+Deployment is separate from local development and requires explicitly supplied
+testnet environment variables. Never commit private keys or RPC credentials.
 
-```text
-SPYx / SPY
+## Testing
+
+```bash
+# Backend
+python -m pytest apps/api/tests -q
+
+# Quant
+python -m pytest valtide-quant-service-p1ac/tests -q
+
+# Frontend
+cd apps/web
+npm test
+npm run typecheck
+npm run build
+
+# Contracts
+cd ../../contracts
+forge fmt --check
+forge build
+forge test -vvv
 ```
 
-The intended Build a Market MVP is:
+GitHub Actions runs the integrated backend, quant, frontend, quality/demo, and
+contract checks.
+
+## Repository Structure
 
 ```text
-point-in-time market data
-        ↓
-normalization
-        ↓
-challenger valuation model
-        ↓
-uncertainty + evidence analysis
-        ↓
-offchain validation
-        ↓
-X Layer validation attestation
-        ↓
-onchain policy evaluation
-        ↓
-working reference consumer
+apps/api/                    FastAPI backend, adapters, scheduler, publisher
+apps/web/                    Vite + React + TypeScript dashboard
+valtide-quant-service-p1ac/  P1a-C runtime, calibration, artifacts, tests
+contracts/                   X Layer Registry, RiskGuard, DemoVault, tests
+deployments/                 public testnet deployment metadata
+data/                        ignored generated panels and runtime state
+scripts/                     diagnostics, panel-building, and demo utilities
+docs/                        product, architecture, methodology, and deployment references
 ```
-
-X Layer is a required part of the intended MVP architecture, but these capabilities are not claims that implementation or deployment already exists.
-
-### Submission-critical P0
-
-The submission-critical slice is one complete, defensible vertical path:
-
-```text
-NVDAx / NVDA (or the best-supported fallback)
-        ↓
-one reference under test
-        ↓
-point-in-time market inputs
-        ↓
-simple challenger + uncertainty / abstention
-        ↓
-Evidence State
-        ↓
-Validation Registry → Risk Guard → reference consumer
-        ↓
-focused dashboard showing the same flow
-```
-
-Supporting P0 evidence includes simple baselines, point-in-time correctness, enough historical testing to demonstrate defensibility, and basic model / Evidence State metrics.
-
-### P1 / stretch
-
-Second assets such as SPYx, richer replay and backtest UX, additional comparators, configurable adapters, alerts, position-impact simulation and broader asset coverage should not block the vertical slice.
-
-> **One complete, defensible vertical slice is more important than several partially implemented features.**
-
-## Architecture overview
-
-```text
-Market / Reference Data
-          │
-          ▼
-   Data Normalization
-          │
-          ▼
-      Quant Engine
-          │
-          ▼
-  Validation Engine
-          │
-          ▼
-X Layer Validation Registry
-          │
-          ▼
-     Risk Guard
-          │
-          ▼
- Protocol / Vault / Agent
-
-Human interface   → dashboard / historical evidence
-Machine interface → Registry + Risk Guard
-```
-
-The principle is **thin computation, strong protocol interface**.
-
-Offchain work includes market-data normalization, feature engineering, challenger estimation, uncertainty calibration, evidence-state generation, and historical backtesting. X Layer provides validation attestations, provenance commitments, timestamps and freshness, evidence-state availability, curator-configured policy evaluation, and consumer-facing risk controls. Statistical computation does not move onchain.
-
-X Layer's existing RWA and market-data infrastructure provides the ecosystem context for this design. OKX has described Chainlink Data Streams as available on X Layer mainnet for high-speed market data, including equities and RWA collateral-management use cases; Valtide complements that infrastructure with an independent validation and control layer rather than replacing it. See the [OKX Chainlink Data Streams announcement](https://web3.okx.com/learn/xlayer-chainlink-data-streams).
-
-## Repository structure
-
-```text
-apps/api/                   backend and data services
-apps/web/                   frontend application
-valtide-quant-service-p1ac/ packaged quantitative runtime and artifacts
-contracts/                  X Layer control-layer smart contracts
-deployments/                public deployment manifests
-data/                       ignored generated/runtime diagnostics
-scripts/                    utility / data / deployment scripts
-docs/                       canonical project documentation
-```
-
-## Team
-
-| Member   | GitHub                                           | Role            |
-| -------- | ------------------------------------------------ | --------------- |
-| Kai Ze   | [@chin0312](https://github.com/chin0312)         | Product Manager |
-| Xin Tong | [@landonzhao](https://github.com/landonzhao)     | Backend         |
-| James    | [@Orange-eat97](https://github.com/Orange-eat97) | Quant           |
-| Valerie  | [@valeriexylim](https://github.com/valeriexylim) | Frontend        |
-
-At a high level:
-
-- **Kai Ze / `chin0312`** — product direction, requirements, integration and hackathon delivery
-- **Xin Tong / `landonzhao`** — backend, market-data ingestion and normalized data interfaces
-- **James / `Orange-eat97`** — quantitative methodology, models, uncertainty and backtesting
-- **Valerie / `valeriexylim`** — frontend and curator-facing product experience
 
 ## Documentation
 
-These four files are the canonical project references:
+| Reference | Description |
+|---|---|
+| [Architecture](docs/ARCHITECTURE.md) | As-built system, trust boundaries, and module responsibilities |
+| [Methodology](docs/METHODOLOGY.md) | Challenger model, uncertainty, evidence states, and evaluation |
+| [Product Requirements](docs/PRD.md) | Product workflow, users, principles, and limitations |
+| [Market Research](docs/USER_MARKET_RESEARCH.md) | User context, market landscape, and competitive infrastructure |
+| [Backend Architecture](docs/BACKEND_ARCHITECTURE.md) | Runtime, data, scheduler, persistence, and API design |
+| [Deployment](docs/DEPLOYMENT.md) | Hosted topology and reproducibility guidance |
+| [Product Semantics](docs/PRODUCT_SEMANTICS.md) | Operational, Historical, Demo, policy, and publication boundaries |
+| [Contract control plane](contracts/README.md) | Solidity interfaces, deployment, and trust boundaries |
 
-- [`User & Market Research`](./docs/USER_MARKET_RESEARCH.md) — market context, users, competitive infrastructure, JTBD, and the X Layer ecosystem fit.
-- [`Product Requirements`](./docs/PRD.md) — jobs, evidence states, policy separation, workflows, scope, and demo requirements.
-- [`System Architecture`](./docs/ARCHITECTURE.md) — offchain validation plane, X Layer control plane, trust boundaries, and deployment flexibility.
-- [`Valuation Methodology`](./docs/METHODOLOGY.md) — challenger valuation, uncertainty, evidence states, abstention, baselines, and historical evaluation.
+## Team
 
-## Project status
+| Member | GitHub | Role |
+|---|---|---|
+| Kai Ze | [@chin0312](https://github.com/chin0312) | Product, Smart Contracts & Systems Integration |
+| Xin Tong | [@landonzhao](https://github.com/landonzhao) | Backend & API Engineering |
+| James | [@Orange-eat97](https://github.com/Orange-eat97) | Quantitative Research & Product |
+| Valerie | [@valeriexylim](https://github.com/valeriexylim) | Frontend Engineering & UI/UX Design |
 
-> Valtide is under active development for OKX Dev Day 2026. The repository
-> contains the backend/quant vertical slice, a deployed X Layer testnet
-> control plane, and a credentialed testnet publisher smoke result. Backend
-> deployment and frontend integration remain in progress; production readiness
-> remains out of scope.
-
-| Area                    | Status       |
-| ----------------------- | ------------ |
-| Research / positioning  | defined      |
-| Product specification   | defined      |
-| Architecture            | drafted      |
-| Methodology             | drafted      |
-| Implementation          | backend/quant vertical slice, exact live evidence provenance, warmed operational history, and conditional scheduler publication implemented; frontend integration in progress |
-| Quant validation        | P1a-C runtime integrated |
-| X Layer deployment      | testnet control plane deployed |
-| Reference consumer      | DemoCollateralVault deployed |
-| Backend publisher       | wired; credentialed X Layer testnet write smoke passed; automatic delivery is opt-in |
-
-## Development
-
-Component-specific setup instructions live in `apps/api/README.md` and the
-packaged quant service README. Backend publication is testnet-only, disabled by
-default, and does not imply an audit or production deployment.
+- **Kai Ze** — product strategy and system design; X Layer smart contracts;
+  cross-stack integration; frontend/backend integration; deployment and
+  end-to-end delivery.
+- **Xin Tong** — backend/API engineering, data adapters, backend implementation
+  and runtime services.
+- **James** — quantitative research, P1a-C model, uncertainty calibration and
+  backtesting; contributed to early product design and demo framing.
+- **Valerie** — frontend engineering, UI/UX design, interaction design and
+  curator-facing product experience.
 
 ## Disclaimer
 
-> Valtide is a hackathon research prototype. It is not a production oracle, lending system, financial product, or financial advice.
+Valtide is a research and hackathon prototype. It is not a production oracle,
+audited lending system, financial product, or financial advice.

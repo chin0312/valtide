@@ -665,7 +665,7 @@ A constructed off-hours price can react faster to new information, but if that c
 
 A stale / bounded reference can reduce synthetic-price liquidation risk but increase delayed-liquidation and gap risk.
 
-Valtide's P0 methodology does **not** claim to solve the protocol's entire trade-off.
+Valtide's core methodology does **not** claim to solve the protocol's entire trade-off.
 
 Instead it quantifies:
 
@@ -677,7 +677,7 @@ The protocol retains the policy decision.
 
 ---
 
-## 20. Optional Protocol-Impact Layer — P1
+## 20. Optional Protocol-Impact Layer
 
 If reliable protocol-position data become available, Valtide may later simulate the consequence of alternative valuation scenarios.
 
@@ -692,7 +692,7 @@ scenario shortfall
 
 This would connect model validation to protocol impact.
 
-It is intentionally **not required for P0** because it moves Valtide toward broader protocol-risk analytics where strong incumbents already exist.
+It is intentionally **not required for the current validation path** because it moves Valtide toward broader protocol-risk analytics where strong incumbents already exist.
 
 ---
 
@@ -752,7 +752,7 @@ Where external references share upstream data, note the dependence instead of tr
 
 ---
 
-## 23. MVP Data Sources
+## 23. Current Data Sources
 
 ### Tokenized market
 

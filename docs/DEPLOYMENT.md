@@ -1,185 +1,174 @@
-# Railway backend deployment
+# Valtide Deployment
 
-This document describes the single-service Railway deployment for the Valtide
-FastAPI backend. It is a testnet-only hackathon deployment. The X Layer
-contracts and deployment manifest are public testnet infrastructure; this
-service is not production-ready and has not been audited.
+This document describes the current hosted topology and the reproducible
+configuration boundary for the deployed hackathon prototype.
 
-## Container
+## Current Hosted Services
 
-The root `Dockerfile` installs both packaged runtime components:
+| Plane | Provider | URL |
+|---|---|---|
+| Dashboard | Vercel | [valtide-liard.vercel.app](https://valtide-liard.vercel.app) |
+| Backend | Railway | [valtide-api-production.up.railway.app](https://valtide-api-production.up.railway.app) |
+| OpenAPI | FastAPI | [API docs](https://valtide-api-production.up.railway.app/docs) |
+| Control plane | X Layer Testnet | Chain ID `1952` |
 
-1. `valtide-quant-service-p1ac`
-2. `apps/api`
+The frontend project is connected to `chin0312/valtide`, deploys from `main`,
+and uses `apps/web` as its root directory. Production builds embed:
 
-The image starts exactly one Uvicorn process:
+```text
+VITE_API_BASE_URL=https://valtide-api-production.up.railway.app
+```
+
+The browser is read-only. Publication and transaction signing remain backend
+responsibilities.
+
+## Backend Topology
+
+The hosted backend is one Railway service running:
+
+- one replica in the `sfo` region;
+- one Uvicorn process with no worker fan-out;
+- the FastAPI application and in-process `LiveScheduler`;
+- SQLite runtime state on one persistent `/data` volume; and
+- the root `Dockerfile`, which installs `valtide-quant-service-p1ac` and
+  `apps/api`.
+
+The container command is:
 
 ```text
 uvicorn valtide_api.main:app --host 0.0.0.0 --port ${PORT:-8000}
 ```
 
-Railway supplies `PORT`. Do not add Uvicorn workers: each process would start
-its own `LiveScheduler` and access the SQLite runtime independently.
+The scheduler must remain single-process because it owns canonical five-minute
+boundaries and the persisted SQLite state. `VALTIDE_STATE_DB_PATH` points to
+`/data/valtide.sqlite3` in the hosted environment. The persistent volume also
+contains the provisioned historical panel used by the historical replay path.
 
-The service must therefore run with:
+## Backend Variables
 
-- Railway replicas: `1`
-- Uvicorn workers: `1` (the Docker command does not set `--workers`)
-
-The scheduler is enabled in this same process when
-`LIVE_SCHEDULER_ENABLED=true`.
-
-## Railway dashboard settings
-
-Create one Railway service from the GitHub repository
-`chin0312/valtide`.
-
-- Source: the repository above and the deployment branch/default branch selected by the team
-- Build: root-level `Dockerfile`
-- Networking: generate a public domain
-- Healthcheck path: `/health` using `GET`
-- Replicas: `1`
-- Persistent volume: mount one Railway volume at `/data`
-- Worker service: none
-
-The volume is required because the warmed runtime is deliberately persisted in
-SQLite. Set `VALTIDE_STATE_DB_PATH=/data/valtide.sqlite3`; the application
-does not hardcode `/data`, and `RuntimeStore` creates missing parent
-directories.
-
-No `railway.toml` or `railway.json` is required for this deployment.
-
-## Service variables
-
-Set these variables in the Railway service. Values are intentionally omitted
-from this document.
-
-### Required runtime variables
+Set values through the hosting provider; do not commit them here. The deployed
+variable names are:
 
 ```text
 ALPACA_API_KEY
 ALPACA_API_SECRET
-ALPACA_FEED=iex
-
-XLAYER_RPC_URL
+ALPACA_FEED
 
 OKX_API_KEY
 OKX_API_SECRET
 OKX_API_PASSPHRASE
+OKX_NVDAX_CHAIN_INDEX
+OKX_NVDAX_TOKEN_ADDRESS
+OKX_XPERP_INDEX_ID
 
-LIVE_SCHEDULER_ENABLED=true
-LIVE_SCHEDULER_ASSET=NVDAx
-LIVE_SETTLEMENT_GRACE_SECONDS=60
-LIVE_SETTLEMENT_MAX_ATTEMPTS=5
-LIVE_SETTLEMENT_RETRY_DELAY_SECONDS=15
-VALTIDE_STATE_DB_PATH=/data/valtide.sqlite3
+LIVE_SCHEDULER_ENABLED
+LIVE_SCHEDULER_ASSET
+LIVE_SETTLEMENT_GRACE_SECONDS
+LIVE_SETTLEMENT_MAX_ATTEMPTS
+LIVE_SETTLEMENT_RETRY_DELAY_SECONDS
+LIVE_UNDERLYING_MAX_AGE_SECONDS
+VALTIDE_STATE_DB_PATH
+HISTORICAL_PANEL_PATH
 
-PUBLISH_ENABLED=false
-AUTO_PUBLISH_ENABLED=false
-CORS_ORIGINS=http://localhost:5173,http://localhost:3000
+XLAYER_RPC_URL
+XLAYER_CHAIN_ID
+DEPLOYMENT_MANIFEST_PATH
+
+PUBLISH_ENABLED
+AUTO_PUBLISH_ENABLED
+PUBLISH_VALIDITY_SECONDS
+PUBLISHER_PRIVATE_KEY
+CORS_ORIGINS
 ```
 
-`PUBLISH_ENABLED` controls only the explicit `POST /api/publish/{asset}`
-fallback. `AUTO_PUBLISH_ENABLED` controls only scheduler-owned delivery after
-a successful warmed tick has already been persisted. Browser/API reads and
-diagnostic or replay routes never publish.
+The current public deployment uses the exact production frontend origin in
+`CORS_ORIGINS` alongside the local development origins. Do not use `*`.
 
-For the initial no-write deployment, keep both settings false; the warmed
-scheduler, valuation/runtime APIs, Registry/RiskGuard read-only status, and
-deployment smoke do not require `PUBLISHER_PRIVATE_KEY`. For the public demo
-configuration, set `AUTO_PUBLISH_ENABLED=true` while keeping
-`PUBLISH_ENABLED=false` so automatic delivery is enabled without exposing the
-manual HTTP write route.
+`PUBLISH_ENABLED` gates the explicit `POST /api/publish/{asset}` fallback.
+`AUTO_PUBLISH_ENABLED` gates scheduler-owned delivery after a successful
+warmed tick has been persisted. The publisher key is backend-only, must be an
+isolated X Layer testnet signer, and must never appear in logs, source, images,
+or deployment metadata.
 
-`PUBLISHER_PRIVATE_KEY` is required whenever either publication setting is
-true. It must be a dedicated X Layer testnet publisher signer, must not hold
-user funds, and must never be committed, pasted into logs, or included in an
-image layer or deployment manifest. Do not upload it to Railway until
-publication is intentionally enabled.
+## Live Runtime and Publication
 
-`CORS_ORIGINS` must contain the actual frontend origin once the frontend is
-deployed. For example:
+The scheduler waits for the configured settlement grace, fetches the exact
+confirmed five-minute OKX OnchainOS NVDAx candle, and persists a successful
+valuation before optional publication is queued. Publication is serialized by
+one in-process worker and coalesces pending work to the newest observation. A
+delivery failure is recorded separately and does not invalidate the warmed
+valuation or stop future scheduler ticks.
+
+The backend publishes to the testnet Registry only through its publisher
+boundary. API reads, replay, cold diagnostics, and frontend reads do not
+publish.
+
+## Frontend Deployment
+
+From the repository root, the Vercel project should use:
 
 ```text
-CORS_ORIGINS=http://localhost:5173,http://localhost:3000,https://<frontend-domain>
+Framework: Vite
+Root Directory: apps/web
+Production Branch: main
+Build Command: npm run build
+Environment: VITE_API_BASE_URL=<backend origin without /api>
 ```
 
-Do not use `*` together with credentialed browser requests.
+The frontend build is static. It must not contain backend API keys, publisher
+keys, RPC credentials, or any other secret.
 
-### Optional variables and defaults
+## X Layer Testnet
 
-```text
-XLAYER_CHAIN_ID=1952
-PUBLISH_VALIDITY_SECONDS=900
-OKX_XPERP_INDEX_ID=NVDA-USD
-DEXSCREENER_NVDAX_ADDRESS=
-HISTORICAL_PANEL_PATH=/data/historical/nvdax_historical_5m.csv
-OKX_NVDAX_CHAIN_INDEX=
-OKX_NVDAX_TOKEN_ADDRESS=
-DEPLOYMENT_MANIFEST_PATH=/app/deployments/xlayer-testnet.json
-```
+The public deployment manifest is
+[`deployments/xlayer-testnet.json`](../deployments/xlayer-testnet.json). The
+deployed control plane is:
 
-`DEPLOYMENT_MANIFEST_PATH` is set to the public manifest location by the
-Dockerfile. Do not replace the manifest or its deployed addresses as part of
-this deployment preparation.
+- `ValtideValidationRegistry`: `0x1A53C85C66EA212693d36bF842574643C4d9B635`
+- `ValtideRiskGuard`: `0x8e17a4eB93074ea74d05D9bc316d85AD3B540CE7`
+- `DemoCollateralVault`: `0x4beC6Bc1DF651f36758216cA02db62b5603349ce`
+- authorized publisher / deployer: `0xBb341F8AE72146CEE60Ca0cCFE8C3Db5c90fC30C`
 
-## Data-source notes
+These are ordinary EVM-compatible testnet contracts. They are not audited
+production lending infrastructure, and no mainnet deployment is claimed.
 
-- The OKX X-Perp live reference endpoint used by this path is public.
-- The canonical live NVDAx input is an exact confirmed OKX OnchainOS five-minute
-  candle at the settled scheduler timestamp; OnchainOS credentials are required.
-- The scheduler waits for the configured settlement grace after the next
-  canonical boundary, then retries the same canonical timestamp up to five
-  times with a 15-second delay when the exact confirmed candle is not indexed
-  immediately. The event-time timestamp remains boundary minus five minutes;
-  other live-data or runtime errors are not retried. The defaults are a
-  60-second grace, five attempts, and a 15-second retry delay.
-- DexScreener does not require an API key, but its current quote is diagnostic
-  only and is never relabeled as a canonical historical observation.
-- `OKX_NVDAX_CHAIN_INDEX` and `OKX_NVDAX_TOKEN_ADDRESS`, when both set, bypass
-  discovery. When blank, the existing deterministic RWA discovery selects and
-  caches the highest-volume matching deployment for the process lifetime.
-  For the final Railway demo, pin both values to the reviewed public deployment
-  metadata rather than relying on runtime discovery.
-- Alpaca credentials are still required for the NVDA underlying feed.
-- X Layer RPC access must be supplied through a Railway environment variable.
-- The publisher key is needed only when automatic or explicit publication is
-  intentionally enabled.
+## Reproducing the Backend Deployment
 
-The next production deployment should set `HISTORICAL_PANEL_PATH` to the
-persistent-volume location `/data/historical/nvdax_historical_5m.csv`. There is
-currently no canonical historical panel artifact committed in this repository,
-so the panel must be provisioned separately with
-`scripts/build_historical_panel.py`; it is not rebuilt on FastAPI startup. The
-builder validates canonical ordering and anchored rows and writes atomically so
-a good existing panel is not replaced by an empty/broken file. Automatic
-publication does not depend on the panel.
+Use the existing Railway project and service rather than creating duplicate
+infrastructure. From a clean checkout of `main`, configure the variables above
+through Railway and deploy the repository's root Dockerfile using the provider's
+existing project/service connection. Preserve one replica, the `/data` volume,
+the `/health` healthcheck, and the public backend domain.
 
-## Read-only smoke check
+No `railway.toml` or `railway.json` is required. Never copy production secrets
+into a generic preview environment.
 
-After Railway provides the public domain, run:
+## Read-only Smoke Check
+
+The repository includes a GET-only deployment smoke script:
 
 ```bash
-python scripts/smoke_backend_deployment.py https://<backend-domain>
+python scripts/smoke_backend_deployment.py \
+  https://valtide-api-production.up.railway.app
 ```
 
-The script performs only `GET` requests to `/health`, `/api/assets`,
-`/api/runtime/NVDAx`, and `/api/onchain/NVDAx`. It never calls
-`POST /api/publish/NVDAx` and cannot broadcast a transaction. An unwarmed
-runtime is reported as a non-fatal state. When the onchain endpoint is
-available, the script requires chain ID `1952`.
+It checks liveness, supported assets, runtime status, and read-only X Layer
+state. It never calls `POST /api/publish/{asset}` and cannot broadcast a
+transaction.
 
-## Scope and safety
+For the historical browser path, the replay response must include:
 
-This service runs the existing backend/quant vertical slice and the existing
-single-process warmed scheduler. Each successful canonical tick is persisted
-before optional scheduler-owned delivery is queued. One in-process publication
-worker serializes transactions and coalesces pending delivery to the newest
-observation, so a slow chain does not delay valuation ticks. A delivery failure
-is recorded separately and does not invalidate the operational valuation or
-stop the scheduler. On shutdown, the service waits for the bounded worker
-shutdown window; an in-flight Web3 worker thread cannot be force-cancelled.
-It does not change quant logic, validation semantics,
-live-data semantics, contract source, deployed addresses, or frontend code.
-It does not claim production readiness, an audit, mainnet deployment, or a
-production oracle.
+```text
+X-Valtide-Source: historical_panel
+```
+
+and the backend CORS response must expose that header to the deployed frontend
+origin.
+
+## Safety Boundary
+
+This deployment does not claim production readiness, an audit, mainnet
+deployment, a universal oracle, liquidation logic, or real collateral custody.
+The quant model remains offchain, the Registry stores attestations, RiskGuard
+evaluates curator-owned policy, and a consumer decides how to enforce the
+result.

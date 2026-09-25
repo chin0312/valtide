@@ -1,6 +1,7 @@
 # Frontend
 
-Product semantics are defined in [FRONTEND_PLAN.md](../../docs/FRONTEND_PLAN.md).
+Product semantics are defined in
+[PRODUCT_SEMANTICS.md](../../docs/PRODUCT_SEMANTICS.md).
 [DESIGN.md](DESIGN.md) defines presentation only.
 
 ```sh

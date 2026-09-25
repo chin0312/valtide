@@ -321,7 +321,7 @@ X Layer market / RWA infrastructure
 
 Valtide complements existing data infrastructure rather than replacing Chainlink, Pyth or OKX pricing products. Where technically accessible, a Chainlink equity Data Stream on X Layer may serve as the reference under test, external comparison evidence, or a live ecosystem integration. The benchmark methodology must preserve independence when the stream is being evaluated.
 
-The [OKX Dev Day 2026 Builder Kit](https://www.okx.com/learn/okx-dev-day-builder-kit) also makes working X Layer integration part of the Build a Market context. For Valtide, that supports treating the attestation, policy-evaluation and reference-consumer flow as intended MVP architecture rather than as a separate integration concern. It does not imply that those components are already implemented or deployed.
+The [OKX Dev Day 2026 Builder Kit](https://www.okx.com/learn/okx-dev-day-builder-kit) makes working X Layer integration part of the Build a Market context. Valtide implements that attestation, policy-evaluation, and reference-consumer flow as a thin testnet control plane. The deployment is a hackathon reference integration, not audited production infrastructure.
 
 Source:
 

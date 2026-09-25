@@ -1,7 +1,9 @@
-# Valtide Backend — Team Guide
+# Valtide Backend — Architecture Reference
 
-**Owner:** Xin Tong · **Code:** `apps/api/` · **Status:** P1a-C backend
-integration and X Layer testnet publisher complete
+**Scope:** `apps/api/`
+
+This document describes the as-built backend orchestration, validation,
+persistence, scheduler, API, and X Layer publication boundaries.
 
 The backend orchestrates data, the packaged quant runtime, backend-owned
 validation, and the API. It does not contain pricing mathematics.
@@ -134,7 +136,7 @@ A cold valuation cache returns `503 data_unavailable`. Publication returns
 `503` while disabled or unconfigured, `409` for a result that is not publishable,
 and `502` for a chain, transaction, or read-back failure.
 
-## 7. Current status and handoffs
+## 7. As-built runtime behavior
 
 - The backend imports the merged P1a-C package through its public service
   boundary.

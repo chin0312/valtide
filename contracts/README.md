@@ -120,8 +120,10 @@ Network: X Layer testnet, chain ID `1952`
 - Authorized publisher: `0xBb341F8AE72146CEE60Ca0cCFE8C3Db5c90fC30C`
 
 These are TESTNET contracts only. They are not production contracts, and no
-audit or security review is claimed. Backend publisher wiring and frontend
-integration are not included in this deployment record.
+audit or security review is claimed. The deployed backend publisher actively
+consumes the Registry and the deployed dashboard exposes the control-plane
+state read-only. This deployment record does not claim production lending or
+custody.
 
 `DemoCollateralVault` is a reference consumer for the hackathon vertical
 slice, not a production lending protocol or financial product.

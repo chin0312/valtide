@@ -3,9 +3,9 @@
 Backend orchestration and validation layer. It normalizes market observations,
 calls the packaged P1a-C quant runtime, evaluates the selected reference under
 test, and serves the result through FastAPI. It also publishes the latest
-warmed result to the deployed X Layer testnet control plane when explicitly
-enabled. See
-[`docs/BACKEND_PLAN.md`](../../docs/BACKEND_PLAN.md) for the working plan.
+warmed result to the deployed X Layer testnet control plane when enabled. See
+[`docs/BACKEND_ARCHITECTURE.md`](../../docs/BACKEND_ARCHITECTURE.md) for the
+backend architecture reference.
 
 ## Setup
 
