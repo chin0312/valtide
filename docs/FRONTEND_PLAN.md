@@ -142,6 +142,9 @@ The UI keeps these lanes explicit and never silently substitutes one for another
 Operational history is successful warmed runtime output, not a model backtest.
 Historical panel output is research evidence, not current operational history or
 historical chain state. Scenario output is illustrative behavior only.
+The operational timeline may request 1H/6H/24H/7D windows using limits of
+12/72/288/2016 successful observations; it renders actual timestamps and never
+interpolates scheduler gaps.
 
 ---
 

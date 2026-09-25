@@ -20,7 +20,7 @@ import { ValidationOverview } from "./views/ValidationOverview";
 import { ReferenceComparison } from "./views/ReferenceComparison";
 import { HistoricalReplay } from "./views/HistoricalReplay";
 import { ModelEvidence } from "./views/ModelEvidence";
-import { OperationalTimeline } from "./views/OperationalTimeline";
+import { OPERATIONAL_HISTORY_LIMITS, OperationalTimeline, type OperationalRange } from "./views/OperationalTimeline";
 import { deriveOnchainSync } from "./lib/onchain";
 
 type Mode = "operational" | "historical" | "demo";
@@ -73,7 +73,9 @@ function ModeToggle({ mode, onChange, backendUp }: { mode: Mode; onChange: (m: M
 function OperationalView() {
   const operational = useQuery({ queryKey: ["valuation", "operational", "NVDAx"], queryFn: fetchOperationalValuation, refetchInterval: 20_000, retry: 0 });
   const runtime = useQuery({ queryKey: ["runtime", "NVDAx"], queryFn: fetchRuntime, refetchInterval: 20_000, retry: 0 });
-  const history = useQuery({ queryKey: ["history", "NVDAx", 72], queryFn: () => fetchOperationalHistory(72), refetchInterval: 30_000, retry: 0 });
+  const [historyRange, setHistoryRange] = useState<OperationalRange>("6H");
+  const historyLimit = OPERATIONAL_HISTORY_LIMITS[historyRange];
+  const history = useQuery({ queryKey: ["history", "NVDAx", historyLimit], queryFn: () => fetchOperationalHistory(historyLimit), refetchInterval: 30_000, retry: 0 });
   const controlPlane = useControlPlaneQueries();
   const [diagnosticRequested, setDiagnosticRequested] = useState(false);
   const [selectedTimestamp, setSelectedTimestamp] = useState<string | null>(null);
@@ -123,6 +125,8 @@ function OperationalView() {
         results={history.data ?? []}
         selectedTimestamp={selected.timestamp}
         onSelect={setSelectedTimestamp}
+        range={historyRange}
+        onRangeChange={setHistoryRange}
         isLoading={history.isLoading}
         isError={history.isError}
       />

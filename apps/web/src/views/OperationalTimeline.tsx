@@ -3,16 +3,28 @@ import { Panel } from "../components/ui";
 import type { ValuationResult } from "../api/types";
 import { timeUTC } from "../lib/format";
 
+export type OperationalRange = "1H" | "6H" | "24H" | "7D";
+export const OPERATIONAL_HISTORY_LIMITS: Record<OperationalRange, number> = {
+  "1H": 12,
+  "6H": 72,
+  "24H": 288,
+  "7D": 2016,
+};
+
 export function OperationalTimeline({
   results,
   selectedTimestamp,
   onSelect,
+  range,
+  onRangeChange,
   isLoading,
   isError,
 }: {
   results: ValuationResult[];
   selectedTimestamp: string;
   onSelect: (timestamp: string) => void;
+  range: OperationalRange;
+  onRangeChange: (range: OperationalRange) => void;
   isLoading: boolean;
   isError: boolean;
 }) {
@@ -32,7 +44,13 @@ export function OperationalTimeline({
         <>
           <div className="mb-3 flex flex-wrap items-center justify-between gap-2 text-xs" style={{ color: "var(--color-ink-dim)" }}>
             <span>{results.length} successful observation{results.length === 1 ? "" : "s"} available since canonical runtime start{hasGap ? "; scheduler gaps are not interpolated" : ""}.</span>
-            <span>Selected: <strong className="text-ink">{timeUTC(results[index]?.timestamp)}</strong></span>
+            <span className="inline-flex items-center gap-1.5">
+              <span>Range</span>
+              {(Object.keys(OPERATIONAL_HISTORY_LIMITS) as OperationalRange[]).map((option) => (
+                <button key={option} onClick={() => onRangeChange(option)} className="rounded px-1.5 py-0.5 font-semibold" style={option === range ? { background: "var(--color-accent)", color: "#fff" } : { background: "var(--color-panel-2)", border: "1px solid var(--color-line)" }}>{option}</button>
+              ))}
+              <span className="ml-2">Selected: <strong className="text-ink">{timeUTC(results[index]?.timestamp)}</strong></span>
+            </span>
           </div>
           <EscalationChart results={results} index={index} onSelect={(i) => results[i] && onSelect(results[i].timestamp)} />
           <div className="mt-3 flex flex-wrap gap-1.5">
