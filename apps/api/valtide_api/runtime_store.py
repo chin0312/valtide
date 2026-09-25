@@ -113,6 +113,17 @@ class RuntimeStore:
                 )
                 """
             )
+            self._connection.execute(
+                """
+                CREATE TABLE IF NOT EXISTS valuation_history (
+                    asset TEXT NOT NULL,
+                    observation_ts TEXT NOT NULL,
+                    result_json TEXT NOT NULL,
+                    created_at TEXT NOT NULL,
+                    PRIMARY KEY (asset, observation_ts)
+                )
+                """
+            )
 
     def load_runtime(self, asset: str) -> RuntimeRecord | None:
         with self._lock:
@@ -199,6 +210,35 @@ class RuntimeStore:
             ),
             last_publish_tx_hash=row["last_publish_tx_hash"],
         )
+
+    def load_history(self, asset: str, limit: int = 72) -> list[ValuationResult]:
+        """Return successful warmed observations in chronological order."""
+        if not 1 <= int(limit) <= 2016:
+            raise ValueError("history limit must be between 1 and 2016")
+        with self._lock:
+            rows = self._connection.execute(
+                """
+                SELECT result_json
+                FROM valuation_history
+                WHERE asset = ?
+                ORDER BY observation_ts DESC
+                LIMIT ?
+                """,
+                (asset, int(limit)),
+            ).fetchall()
+        results: list[ValuationResult] = []
+        for row in reversed(rows):
+            try:
+                result = ValuationResult.model_validate_json(row["result_json"])
+                require_canonical_5m(result.timestamp, "persisted history.timestamp")
+                if result.asset != asset:
+                    raise ValueError("persisted history asset does not match its key")
+            except (TypeError, ValueError) as exc:
+                raise RuntimeStateIntegrityError(
+                    f"invalid persisted valuation history for asset {asset}"
+                ) from exc
+            results.append(result)
+        return results
 
     @staticmethod
     def _publication_timestamp(value: datetime, label: str) -> datetime:
@@ -312,17 +352,11 @@ class RuntimeStore:
                 ),
             )
 
-    def save_runtime(
-        self,
-        asset: str,
+    @staticmethod
+    def _validated_runtime_values(
         state: KalmanState,
         result: ValuationResult,
-        *,
-        tick_status: str = "success",
-        tick_error: str | None = None,
-        tick_attempt_at: datetime | None = None,
-        gap_steps: int = 0,
-    ) -> None:
+    ) -> tuple[datetime, datetime]:
         if state.last_ts is None:
             raise RuntimeStateIntegrityError("cannot persist state without last_ts")
         try:
@@ -335,40 +369,112 @@ class RuntimeStore:
             raise RuntimeStateIntegrityError(str(exc)) from exc
         if result_ts != last_ts:
             raise RuntimeStateIntegrityError("state and result timestamps must match")
+        return last_ts, result_ts
+
+    def _save_runtime_locked(
+        self,
+        asset: str,
+        state: KalmanState,
+        result: ValuationResult,
+        *,
+        tick_status: str = "success",
+        tick_error: str | None = None,
+        tick_attempt_at: datetime | None = None,
+        gap_steps: int = 0,
+    ) -> None:
+        last_ts, result_ts = self._validated_runtime_values(state, result)
         attempt_at = tick_attempt_at or datetime.now(UTC)
         updated_at = datetime.now(UTC)
+        self._connection.execute(
+            """
+            INSERT INTO runtime_state (
+                asset, state_m, state_p, state_last_ts, latest_result_json,
+                latest_result_ts, updated_at, last_tick_status, last_tick_error,
+                last_tick_attempt_at, last_gap_steps
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            ON CONFLICT(asset) DO UPDATE SET
+                state_m = excluded.state_m,
+                state_p = excluded.state_p,
+                state_last_ts = excluded.state_last_ts,
+                latest_result_json = excluded.latest_result_json,
+                latest_result_ts = excluded.latest_result_ts,
+                updated_at = excluded.updated_at,
+                last_tick_status = excluded.last_tick_status,
+                last_tick_error = excluded.last_tick_error,
+                last_tick_attempt_at = excluded.last_tick_attempt_at,
+                last_gap_steps = excluded.last_gap_steps
+            """,
+            (
+                asset,
+                state.m,
+                state.P,
+                last_ts.isoformat(),
+                result.model_dump_json(),
+                result_ts.isoformat(),
+                updated_at.isoformat(),
+                tick_status,
+                tick_error,
+                attempt_at.isoformat(),
+                gap_steps,
+            )
+        )
+
+    def save_runtime(
+        self,
+        asset: str,
+        state: KalmanState,
+        result: ValuationResult,
+        *,
+        tick_status: str = "success",
+        tick_error: str | None = None,
+        tick_attempt_at: datetime | None = None,
+        gap_steps: int = 0,
+    ) -> None:
         with self._lock, self._connection:
+            self._save_runtime_locked(
+                asset,
+                state,
+                result,
+                tick_status=tick_status,
+                tick_error=tick_error,
+                tick_attempt_at=tick_attempt_at,
+                gap_steps=gap_steps,
+            )
+
+    def save_runtime_and_history(
+        self,
+        asset: str,
+        state: KalmanState,
+        result: ValuationResult,
+        *,
+        tick_status: str = "success",
+        tick_error: str | None = None,
+        tick_attempt_at: datetime | None = None,
+        gap_steps: int = 0,
+    ) -> None:
+        """Persist the latest warmed state and successful observation atomically."""
+        _last_ts, result_ts = self._validated_runtime_values(state, result)
+        with self._lock, self._connection:
+            self._save_runtime_locked(
+                asset,
+                state,
+                result,
+                tick_status=tick_status,
+                tick_error=tick_error,
+                tick_attempt_at=tick_attempt_at,
+                gap_steps=gap_steps,
+            )
             self._connection.execute(
                 """
-                INSERT INTO runtime_state (
-                    asset, state_m, state_p, state_last_ts, latest_result_json,
-                    latest_result_ts, updated_at, last_tick_status, last_tick_error,
-                    last_tick_attempt_at, last_gap_steps
-                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-                ON CONFLICT(asset) DO UPDATE SET
-                    state_m = excluded.state_m,
-                    state_p = excluded.state_p,
-                    state_last_ts = excluded.state_last_ts,
-                    latest_result_json = excluded.latest_result_json,
-                    latest_result_ts = excluded.latest_result_ts,
-                    updated_at = excluded.updated_at,
-                    last_tick_status = excluded.last_tick_status,
-                    last_tick_error = excluded.last_tick_error,
-                    last_tick_attempt_at = excluded.last_tick_attempt_at,
-                    last_gap_steps = excluded.last_gap_steps
+                INSERT INTO valuation_history (asset, observation_ts, result_json, created_at)
+                VALUES (?, ?, ?, ?)
+                ON CONFLICT(asset, observation_ts) DO NOTHING
                 """,
                 (
                     asset,
-                    state.m,
-                    state.P,
-                    last_ts.isoformat(),
+                    result_ts.isoformat(),
                     result.model_dump_json(),
-                    result.timestamp.isoformat(),
-                    updated_at.isoformat(),
-                    tick_status,
-                    tick_error,
-                    attempt_at.isoformat(),
-                    gap_steps,
+                    datetime.now(UTC).isoformat(),
                 ),
             )
 

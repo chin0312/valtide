@@ -63,6 +63,10 @@ ALPACA_FEED=iex
 
 XLAYER_RPC_URL
 
+OKX_API_KEY
+OKX_API_SECRET
+OKX_API_PASSPHRASE
+
 LIVE_SCHEDULER_ENABLED=true
 LIVE_SCHEDULER_ASSET=NVDAx
 VALTIDE_STATE_DB_PATH=/data/valtide.sqlite3
@@ -106,7 +110,9 @@ XLAYER_CHAIN_ID=1952
 PUBLISH_VALIDITY_SECONDS=900
 OKX_XPERP_INDEX_ID=NVDA-USD
 DEXSCREENER_NVDAX_ADDRESS=
-HISTORICAL_PANEL_PATH=data/generated/nvdax_historical_5m.csv
+HISTORICAL_PANEL_PATH=/data/historical/nvdax_historical_5m.csv
+OKX_NVDAX_CHAIN_INDEX=
+OKX_NVDAX_TOKEN_ADDRESS=
 DEPLOYMENT_MANIFEST_PATH=/app/deployments/xlayer-testnet.json
 ```
 
@@ -117,19 +123,31 @@ this deployment preparation.
 ## Data-source notes
 
 - The OKX X-Perp live reference endpoint used by this path is public.
-- The DexScreener NVDAx path does not require an API key.
-- OKX OnchainOS credentials are not required for the live scheduler path.
+- The canonical live NVDAx input is an exact confirmed OKX OnchainOS five-minute
+  candle at the settled scheduler timestamp; OnchainOS credentials are required.
+- The scheduler retries that same canonical timestamp up to three times with a
+  two-second delay when the exact confirmed candle is not indexed immediately;
+  other live-data or runtime errors are not retried.
+- DexScreener does not require an API key, but its current quote is diagnostic
+  only and is never relabeled as a canonical historical observation.
+- `OKX_NVDAX_CHAIN_INDEX` and `OKX_NVDAX_TOKEN_ADDRESS`, when both set, bypass
+  discovery. When blank, the existing deterministic RWA discovery selects and
+  caches the highest-volume matching deployment for the process lifetime.
+  For the final Railway demo, pin both values to the reviewed public deployment
+  metadata rather than relying on runtime discovery.
 - Alpaca credentials are still required for the NVDA underlying feed.
 - X Layer RPC access must be supplied through a Railway environment variable.
 - The publisher key is needed only when automatic or explicit publication is
   intentionally enabled.
 
-The default `HISTORICAL_PANEL_PATH` points to `data/generated`, which is an
-ignored generated-data directory. There is currently no canonical historical
-panel artifact committed in this repository, so historical-panel backtests
-are not production-available in the image unless that artifact is supplied by
-a separate, reviewed deployment process. Automatic publication does not
-depend on historical-panel availability.
+The next production deployment should set `HISTORICAL_PANEL_PATH` to the
+persistent-volume location `/data/historical/nvdax_historical_5m.csv`. There is
+currently no canonical historical panel artifact committed in this repository,
+so the panel must be provisioned separately with
+`scripts/build_historical_panel.py`; it is not rebuilt on FastAPI startup. The
+builder validates canonical ordering and anchored rows and writes atomically so
+a good existing panel is not replaced by an empty/broken file. Automatic
+publication does not depend on the panel.
 
 ## Read-only smoke check
 

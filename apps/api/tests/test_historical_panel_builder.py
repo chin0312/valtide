@@ -28,6 +28,7 @@ def test_panel_builder_preserves_grid_and_does_not_fill_token_or_reference():
 
     assert len(rows) == 3
     assert rows[0]["nvdax_available"] == "TRUE"
+    assert rows[0]["nvdax_volume_usd"] == "90000"
     assert rows[1]["nvdax_available"] == "FALSE"
     assert rows[1]["reference_under_test_available"] == "FALSE"
     assert rows[1]["nvda_available"] == "FALSE"
@@ -41,10 +42,11 @@ def test_panel_builder_fetches_underlying_lookback_for_anchor(monkeypatch, tmp_p
     end = datetime(2026, 9, 22, 14, 5, tzinfo=UTC)
     requested_ranges = []
 
-    monkeypatch.setattr(historical_panel.okx, "discover_nvdax", lambda: [{
-        "chainIndex": "196",
-        "tokenContractAddress": "0xabc",
-    }])
+    monkeypatch.setattr(
+        historical_panel.okx,
+        "resolve_nvdax_deployment",
+        lambda: ("196", "0xabc"),
+    )
     monkeypatch.setattr(
         historical_panel.okx,
         "get_historical_candles",
@@ -93,3 +95,17 @@ def test_weekend_row_uses_prior_friday_anchor_without_forward_fill(tmp_path):
     assert snapshot.underlying_reference is None
     assert snapshot.token_price == 182.0
     assert snapshot.reference_under_test == 181.5
+
+
+def test_panel_write_validates_before_replacing_existing_file(tmp_path):
+    output = tmp_path / "panel.csv"
+    output.write_text("known-good-panel\n")
+
+    try:
+        historical_panel._write(output, [])
+    except RuntimeError as exc:
+        assert "no anchored rows" in str(exc)
+    else:
+        raise AssertionError("empty panel was accepted")
+
+    assert output.read_text() == "known-good-panel\n"

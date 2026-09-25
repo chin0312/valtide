@@ -1,14 +1,16 @@
 """Persistence, scheduler, and warmed-tick integration tests."""
 
 import asyncio
+import json
 import threading
 from datetime import UTC, datetime, timedelta
 from types import SimpleNamespace
 
 import valtide_api.scheduler as scheduler_module
+from valtide_api.live import ExactNvdaxCandleUnavailable, LiveDataUnavailable
 from valtide_api.models import MarketSnapshot, MarketState
 from valtide_api.publisher import PublicationError
-from valtide_api.runtime_store import RuntimeStore
+from valtide_api.runtime_store import RuntimeStateIntegrityError, RuntimeStore
 from valtide_api.scheduler import LiveScheduler, TickResult, run_live_tick
 
 _ANCHOR = datetime(2026, 9, 19, 13, 0, tzinfo=UTC)
@@ -118,6 +120,138 @@ def test_tick_failure_preserves_last_good_state_and_result(tmp_path):
     assert after.latest_result == first.result
     assert after.last_tick_status == "failure"
     assert "synthetic source outage" in after.last_tick_error
+
+
+def test_settlement_retry_uses_same_timestamp_and_persists_once(tmp_path, monkeypatch):
+    timestamp = _ANCHOR + timedelta(minutes=5)
+    store = RuntimeStore(tmp_path / "runtime.sqlite3")
+    snapshot = _snapshot(timestamp)
+    requested: list[datetime] = []
+    builder_attempts = 0
+    inference_calls: list[datetime] = []
+    original_inference = scheduler_module.run_inference
+
+    def delayed_builder(*, observation_ts):
+        nonlocal builder_attempts
+        requested.append(observation_ts)
+        builder_attempts += 1
+        if builder_attempts < 3:
+            raise ExactNvdaxCandleUnavailable("exact T not indexed yet")
+        return snapshot
+
+    def counted_inference(snapshot, state):
+        inference_calls.append(snapshot.observation_ts)
+        return original_inference(snapshot, state)
+
+    monkeypatch.setattr(
+        scheduler_module,
+        "_NVDAX_SETTLEMENT_RETRY_DELAY_SECONDS",
+        0.0,
+    )
+    monkeypatch.setattr(scheduler_module, "run_inference", counted_inference)
+
+    tick = run_live_tick(
+        "NVDAx",
+        timestamp,
+        store=store,
+        snapshot_builder=delayed_builder,
+    )
+
+    assert tick.status == "success"
+    assert requested == [timestamp, timestamp, timestamp]
+    assert inference_calls == [timestamp]
+    assert store.load_runtime("NVDAx").state.last_ts == timestamp
+    assert [result.timestamp for result in store.load_history("NVDAx")] == [timestamp]
+
+
+def test_settlement_retry_exhaustion_preserves_old_runtime_and_history(tmp_path, monkeypatch):
+    first_ts = _ANCHOR + timedelta(minutes=5)
+    failed_ts = first_ts + timedelta(minutes=5)
+    store = RuntimeStore(tmp_path / "runtime.sqlite3")
+    builder, _ = _builder_for([_snapshot(first_ts)])
+    first = run_live_tick("NVDAx", first_ts, store=store, snapshot_builder=builder)
+    before = store.load_runtime("NVDAx")
+    assert first.status == "success"
+    requested: list[datetime] = []
+
+    def unavailable_builder(*, observation_ts):
+        requested.append(observation_ts)
+        raise ExactNvdaxCandleUnavailable("exact T still unavailable")
+
+    monkeypatch.setattr(
+        scheduler_module,
+        "_NVDAX_SETTLEMENT_RETRY_DELAY_SECONDS",
+        0.0,
+    )
+    failed = run_live_tick(
+        "NVDAx",
+        failed_ts,
+        store=store,
+        snapshot_builder=unavailable_builder,
+    )
+
+    after = store.load_runtime("NVDAx")
+    assert failed.status == "failure"
+    assert requested == [failed_ts, failed_ts, failed_ts]
+    assert before is not None and after is not None
+    assert after.state == before.state
+    assert after.latest_result == before.latest_result
+    assert after.last_tick_status == "failure"
+    assert store.load_history("NVDAx") == [first.result]
+
+
+def test_non_settlement_live_error_is_not_retried(tmp_path, monkeypatch):
+    timestamp = _ANCHOR + timedelta(minutes=5)
+    store = RuntimeStore(tmp_path / "runtime.sqlite3")
+    attempts = 0
+
+    def alpaca_failure(*, observation_ts):  # noqa: ARG001
+        nonlocal attempts
+        attempts += 1
+        raise LiveDataUnavailable("NVDA underlying unavailable (Alpaca)")
+
+    monkeypatch.setattr(
+        scheduler_module,
+        "_NVDAX_SETTLEMENT_RETRY_DELAY_SECONDS",
+        0.0,
+    )
+    failed = run_live_tick(
+        "NVDAx",
+        timestamp,
+        store=store,
+        snapshot_builder=alpaca_failure,
+    )
+
+    assert failed.status == "failure"
+    assert attempts == 1
+    assert "Alpaca" in failed.error
+    assert store.load_history("NVDAx") == []
+
+
+def test_runtime_integrity_error_is_not_retried(tmp_path, monkeypatch):
+    timestamp = _ANCHOR + timedelta(minutes=5)
+    store = RuntimeStore(tmp_path / "runtime.sqlite3")
+    attempts = 0
+
+    def integrity_failure(*, observation_ts):  # noqa: ARG001
+        nonlocal attempts
+        attempts += 1
+        raise RuntimeStateIntegrityError("synthetic persisted-state corruption")
+
+    monkeypatch.setattr(
+        scheduler_module,
+        "_NVDAX_SETTLEMENT_RETRY_DELAY_SECONDS",
+        0.0,
+    )
+    failed = run_live_tick(
+        "NVDAx",
+        timestamp,
+        store=store,
+        snapshot_builder=integrity_failure,
+    )
+
+    assert failed.status == "failure"
+    assert attempts == 1
 
 
 def test_invalid_initial_chronology_fails_without_backward_state(tmp_path):
@@ -444,6 +578,10 @@ def test_auto_publish_failure_preserves_successful_runtime_and_scheduler_continu
     assert failed_publication.last_publish_status == "published"
     assert failed_publication.last_publish_error is None
     assert store.load_runtime("NVDAx").latest_result == second.result
+    assert [result.timestamp for result in store.load_history("NVDAx")] == [
+        first_ts,
+        second_ts,
+    ]
 
     assert calls == 2
     assert second.status == "success"
@@ -739,3 +877,33 @@ def test_publication_status_persists_across_runtime_store_restart(tmp_path):
     assert publication.last_publish_observation_ts == timestamp
     assert publication.last_published_at == 1_800_000_003
     assert publication.last_publish_tx_hash == "0x" + "33" * 32
+
+
+def test_legacy_result_payload_without_new_provenance_fields_still_loads(tmp_path):
+    timestamp = _ANCHOR + timedelta(minutes=5)
+    builder, _ = _builder_for([_snapshot(timestamp)])
+    store = RuntimeStore(tmp_path / "runtime.sqlite3")
+    tick = run_live_tick("NVDAx", timestamp, store=store, snapshot_builder=builder)
+    assert tick.result is not None
+
+    payload = tick.result.model_dump()
+    for field in (
+        "token_source",
+        "token_observed_at",
+        "token_volume",
+        "token_volume_usd",
+        "token_liquidity_usd",
+        "source_provenance",
+    ):
+        payload.pop(field, None)
+    with store._lock, store._connection:
+        store._connection.execute(
+            "UPDATE runtime_state SET latest_result_json = ? WHERE asset = ?",
+            (json.dumps(payload, default=str), "NVDAx"),
+        )
+
+    restored = store.load_runtime("NVDAx")
+    assert restored is not None and restored.latest_result is not None
+    assert restored.latest_result.token_source is None
+    assert restored.latest_result.token_volume_usd is None
+    assert restored.latest_result.source_provenance == {}

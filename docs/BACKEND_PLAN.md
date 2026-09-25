@@ -184,8 +184,12 @@ class MarketSnapshot(BaseModel):
     asset: str                          # "NVDAx"
     observation_ts: datetime            # UTC, the 5-min timestamp being evaluated
 
-    token_price: float | None            # current NVDAx close (OKX), if observed
-    token_volume: float | None          # optional, for later quality checks
+    token_price: float | None            # exact confirmed NVDAx close (OKX), if observed
+    token_volume: float | None           # native OKX candle volume
+    token_volume_usd: float | None       # OKX candle USD volume, if supplied
+    token_source: str | None
+    token_observed_at: datetime | None
+    token_liquidity_usd: float | None    # null unless the source defines it
 
     underlying_reference: float | None  # current NVDA if market open, else None
     underlying_reference_ts: datetime | None
@@ -292,6 +296,7 @@ apps/api/
 │   │   ├── __init__.py
 │   │   ├── assets.py         # GET /api/assets
 │   │   ├── valuation.py      # GET /api/valuation/{asset}
+│   │   ├── history.py        # GET /api/history/{asset}
 │   │   ├── replay.py         # GET /api/replay/{asset}
 │   │   ├── backtest.py       # GET /api/backtest/{asset}
 │   │   ├── runtime.py        # GET /api/runtime/{asset}
@@ -340,8 +345,9 @@ apps/api/
 - **`replay.py` is a first-class module, not an afterthought** (§8): the demo,
   historical panel, and warmed runtime share the same inference path.
 - **`runtime_store.py` is the durable live boundary:** SQLite stores one asset's
-  carried Kalman state, latest public result, elapsed-gap diagnostics, and last
-  tick status. `state_store.py` remains only an in-memory compatibility cache.
+  carried Kalman state, latest public result, elapsed-gap diagnostics, last tick
+  status, and successful warmed valuation history. `state_store.py` remains only
+  an in-memory compatibility cache.
 - **`tests/` with pure functions first:** validation/session are deterministic
   and must be unit-tested; adapters use recorded fixtures.
 
@@ -499,6 +505,7 @@ call is a cold-start diagnostic and does not mutate the warmed cache.
 | GET | `/api/assets` | supported assets + data availability | cache |
 | GET | `/api/valuation/{asset}` | latest cached ValuationResult | cache only |
 | GET | `/api/valuation/{asset}/live` | cold-start live diagnostic | no |
+| GET | `/api/history/{asset}?limit=` | warmed operational history | SQLite read only |
 | GET | `/api/replay/{asset}?timestamp=` | point-in-time historical result | replay/store |
 | GET | `/api/backtest/{asset}?source=` | scenario counts or historical metrics | replay |
 | GET | `/api/runtime/{asset}` | warmed state/scheduler/tick and publication status | SQLite |
@@ -515,6 +522,9 @@ call is a cold-start diagnostic and does not mutate the warmed cache.
   state/result timestamps, last tick status/error, hidden gap-step count, and
   optional scheduler-publication status. Publication status never includes
   signer or RPC secrets.
+- `/api/history/{asset}` returns only successful warmed scheduler observations in
+  chronological order. It is operational history, not empirical accuracy,
+  scenario replay, or a backtest.
 - `/api/publish` requires server-side authorization and is the only explicit
   HTTP write path; scheduler-owned automatic delivery uses the same publisher
   through its serialized worker when `AUTO_PUBLISH_ENABLED=true`.
@@ -576,7 +586,7 @@ worse than an honest "unavailable".
 
 | Quantity | Source | Rationale |
 |---|---|---|
-| NVDAx token price/candles | OKX OnchainOS | same as James's training |
+| NVDAx token price/candles | OKX OnchainOS exact confirmed 5-minute candle | same as James's training |
 | NVDA underlying | **Alpaca (SIP; iex fallback)** | **same as James** — using yfinance here would introduce a different, delayed feed and re-create training-serving skew |
 | Reference under test `Pt` | per §3 (OKX X-Perp preferred) | explicit, sourced, independent of challenger |
 | Pyth (optional) | Pyth | comparison only, never a challenger feature |
@@ -588,7 +598,8 @@ For historical replay, `scripts/build_historical_panel.py` joins canonical UTC
 five-minute rows from OKX OnchainOS NVDAx candles, Alpaca NVDA bars, and the
 public OKX X-Perp index-history endpoint. It preserves rows after the trusted
 underlying anchor even when token or reference observations are missing; it
-never forward-fills either observation. The panel loader rejects non-canonical
+never forward-fills either observation and preserves native/USD token volume
+separately. The panel loader rejects non-canonical
 or gapped timestamps rather than hiding the data-quality problem.
 
 ---

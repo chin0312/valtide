@@ -50,6 +50,10 @@ def test_historical_backtest_reports_metrics_for_evaluable_rows(monkeypatch):
     assert body["mae"] is not None
     assert body["rmse"] is not None
     assert body["interval_coverage"] is not None
+    assert body["window_start"] == "2026-09-19T14:00:00Z"
+    assert body["window_end"] == "2026-09-19T14:05:00Z"
+    assert body["model_id"] == "P1a-C"
+    assert body["model_version"] == "0.2.0"
 
 
 def test_scenario_backtest_does_not_claim_ground_truth_metrics(monkeypatch):
@@ -69,3 +73,7 @@ def test_scenario_backtest_does_not_claim_ground_truth_metrics(monkeypatch):
     assert body["mae"] is None
     assert body["rmse"] is None
     assert body["interval_coverage"] is None
+    assert body["window_start"] == "2026-09-19T14:00:00Z"
+    assert body["window_end"] == "2026-09-19T14:00:00Z"
+    assert body["model_id"] == "P1a-C"
+    assert body["model_version"] == "0.2.0"
