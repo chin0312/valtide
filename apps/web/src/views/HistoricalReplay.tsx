@@ -1,4 +1,4 @@
-import { useEffect, type Dispatch, type SetStateAction, type ReactNode } from "react";
+import { useEffect, useState, type Dispatch, type SetStateAction, type ReactNode } from "react";
 import type { ValuationResult } from "../api/types";
 import { EscalationChart } from "../components/EscalationChart";
 import { EvidenceChip } from "../components/EvidenceChip";
@@ -17,7 +17,7 @@ export function HistoricalReplay({
   showPlayback = true,
   onReview,
   onLatest,
-  onResetView,
+  viewportKey,
   followingLatest = false,
   rangeControl,
   periodMs = 120,
@@ -31,11 +31,13 @@ export function HistoricalReplay({
   showPlayback?: boolean;
   onReview?: () => void;
   onLatest?: () => void;
-  onResetView?: () => void;
+  viewportKey?: string;
   followingLatest?: boolean;
   rangeControl?: ReactNode;
   periodMs?: number;
 }) {
+  const [resetVersion, setResetVersion] = useState(0);
+
   useEffect(() => {
     if (!playing) return;
     // Increment from the current position so a rolling history refresh can
@@ -71,7 +73,7 @@ export function HistoricalReplay({
       right={<span className="rounded px-2 py-1 font-mono text-[10px] uppercase tracking-[0.04em]" style={{ color: "var(--color-accent)", background: "var(--color-accent-soft)", border: "1px solid var(--color-line)" }}>{sourceLabel}</span>}
     >
       <div className="mb-2 flex flex-wrap items-end justify-between gap-3">
-        {rangeControl && <div className="flex w-full justify-end gap-2">{rangeControl}{onResetView && <button type="button" onClick={onResetView} className="rounded px-2 py-1 text-[10px]" style={{ color: "var(--color-muted)" }}>Reset</button>}</div>}
+        {rangeControl && <div className="flex w-full justify-end gap-2">{rangeControl}<button type="button" onClick={() => { setPlaying(false); setResetVersion((value) => value + 1); }} className="rounded px-2.5 py-1 font-mono text-[10px] font-medium" style={{ color: "var(--color-muted)", border: "1px solid var(--color-line)" }}>Reset</button><span className="hidden self-center text-[10px] sm:inline" style={{ color: "var(--color-muted)" }}>Scroll to zoom · drag to pan</span></div>}
         <div>
           <div className="eyebrow" style={{ color: "var(--color-muted)" }}>{followingLatest ? "Latest observation" : "Selected period"}</div>
           <div className="mt-1 flex items-center gap-3"><span className="tnum text-xl font-medium text-ink">{money(current.valtide_fair_value)}</span><EvidenceChip state={current.evidence_state} /></div>
@@ -85,7 +87,7 @@ export function HistoricalReplay({
         </div>
       </div>
 
-      <EscalationChart results={results} index={index} playhead={position} onSelect={(next) => { onReview?.(); setPlaying(false); setPosition(clampPosition(next, results.length)); }} />
+      <EscalationChart results={results} index={index} playhead={position} resetKey={`${viewportKey ?? "default"}:${resetVersion}`} onSelect={(next) => { onReview?.(); setPlaying(false); setPosition(clampPosition(next, results.length)); }} />
 
       <div className="mt-auto flex flex-wrap items-center gap-3 border-t pt-3" style={{ borderColor: "var(--color-line-subtle)" }}>
         {showPlayback && (

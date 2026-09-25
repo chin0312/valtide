@@ -1,3 +1,4 @@
+import { useEffect, useRef, useState, type PointerEvent as ReactPointerEvent, type WheelEvent as ReactWheelEvent } from "react";
 import { Area, ComposedChart, Line, ReferenceLine, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
 import type { EvidenceState, ValuationResult } from "../api/types";
 import { EVIDENCE } from "../lib/evidence";
@@ -20,37 +21,183 @@ interface DotProps {
 }
 
 const CANONICAL_STEP_MS = 5 * 60 * 1000;
+const MIN_VIEWPORT_STEPS = 2;
+const DRAG_THRESHOLD_PX = 4;
+const ZOOM_IN_SCALE = 0.8;
+const ZOOM_OUT_SCALE = 1.25;
+const CHART_MARGIN = { top: 10, right: 18, bottom: 4, left: 2 } as const;
+const Y_AXIS_WIDTH = 50;
 
-export function EscalationChart({ results, index, playhead = index, onSelect }: { results: ValuationResult[]; index: number; playhead?: number; onSelect: (i: number) => void }) {
+export type ChartDomain = [number, number];
+
+export function chartDomain(timestamps: number[]): ChartDomain {
+  const valid = [...new Set(timestamps.filter((timestamp) => Number.isFinite(timestamp)))].sort((a, b) => a - b);
+  if (valid.length === 0) return [0, CANONICAL_STEP_MS];
+  if (valid.length === 1) return [valid[0] - CANONICAL_STEP_MS / 2, valid[0] + CANONICAL_STEP_MS / 2];
+  return [valid[0], valid[valid.length - 1]];
+}
+
+export function minimumViewportWidth(timestamps: number[]): number {
+  const valid = [...new Set(timestamps.filter((timestamp) => Number.isFinite(timestamp)))].sort((a, b) => a - b);
+  const gaps = valid.slice(1).map((timestamp, index) => timestamp - valid[index]).filter((gap) => gap > 0);
+  return Math.max(CANONICAL_STEP_MS * MIN_VIEWPORT_STEPS, (gaps.length ? Math.min(...gaps) : CANONICAL_STEP_MS) * MIN_VIEWPORT_STEPS);
+}
+
+export function clampViewport(viewport: ChartDomain, fullDomain: ChartDomain, minimumWidth = CANONICAL_STEP_MS * MIN_VIEWPORT_STEPS): ChartDomain {
+  const fullStart = Math.min(fullDomain[0], fullDomain[1]);
+  const fullEnd = Math.max(fullDomain[0], fullDomain[1]);
+  const fullWidth = fullEnd - fullStart;
+  if (fullWidth <= 0) return [fullStart, fullEnd];
+
+  const rawStart = Number.isFinite(viewport[0]) ? viewport[0] : fullStart;
+  const rawEnd = Number.isFinite(viewport[1]) ? viewport[1] : fullEnd;
+  const requestedStart = Math.min(rawStart, rawEnd);
+  const requestedEnd = Math.max(rawStart, rawEnd);
+  const width = Math.min(fullWidth, Math.max(minimumWidth, requestedEnd - requestedStart));
+  if (width >= fullWidth) return [fullStart, fullEnd];
+
+  let start = requestedStart;
+  let end = start + width;
+  if (start < fullStart) {
+    start = fullStart;
+    end = start + width;
+  }
+  if (end > fullEnd) {
+    end = fullEnd;
+    start = end - width;
+  }
+  return [start, end];
+}
+
+export function zoomViewport(viewport: ChartDomain, fullDomain: ChartDomain, anchorTimestamp: number, scale: number, minimumWidth = CANONICAL_STEP_MS * MIN_VIEWPORT_STEPS): ChartDomain {
+  const current = clampViewport(viewport, fullDomain, minimumWidth);
+  const currentWidth = current[1] - current[0];
+  const fullWidth = Math.abs(fullDomain[1] - fullDomain[0]);
+  if (currentWidth <= 0 || fullWidth <= 0 || !Number.isFinite(scale) || scale <= 0) return current;
+
+  const anchor = Math.min(current[1], Math.max(current[0], Number.isFinite(anchorTimestamp) ? anchorTimestamp : current[0] + currentWidth / 2));
+  const anchorRatio = (anchor - current[0]) / currentWidth;
+  const nextWidth = Math.min(fullWidth, Math.max(minimumWidth, currentWidth * scale));
+  return clampViewport([anchor - nextWidth * anchorRatio, anchor + nextWidth * (1 - anchorRatio)], fullDomain, minimumWidth);
+}
+
+export function panViewport(viewport: ChartDomain, fullDomain: ChartDomain, deltaMs: number, minimumWidth = CANONICAL_STEP_MS * MIN_VIEWPORT_STEPS): ChartDomain {
+  const current = clampViewport(viewport, fullDomain, minimumWidth);
+  if (!Number.isFinite(deltaMs)) return current;
+  return clampViewport([current[0] + deltaMs, current[1] + deltaMs], fullDomain, minimumWidth);
+}
+
+export function EscalationChart({ results, index, playhead = index, onSelect, resetKey }: { results: ValuationResult[]; index: number; playhead?: number; onSelect: (i: number) => void; resetKey?: string | number }) {
   const data = buildChartData(results);
   const realPoints = data.filter((point) => point.sourceIndex != null);
   const timestamps = realPoints.map((point) => point.ts);
-  const minTimestamp = Math.min(...timestamps);
-  const maxTimestamp = Math.max(...timestamps);
+  const fullDomain = chartDomain(timestamps);
+  const minimumWidth = minimumViewportWidth(timestamps);
+  const [viewport, setViewport] = useState<ChartDomain>(fullDomain);
+  const [panning, setPanning] = useState(false);
+  const chartRef = useRef<HTMLDivElement>(null);
+  const dragRef = useRef<{ pointerId: number; startX: number; startDomain: ChartDomain; moved: boolean } | null>(null);
+  const suppressClickRef = useRef(false);
+
+  useEffect(() => {
+    setViewport(fullDomain);
+  }, [fullDomain[0], fullDomain[1], resetKey]);
+
+  const viewportDomain = clampViewport(viewport, fullDomain, minimumWidth);
+  const visibleData = data.filter((point) => point.ts >= viewportDomain[0] && point.ts <= viewportDomain[1]);
+  const allPrices = data.flatMap((point) => [point.band?.[0], point.band?.[1], point.rut, point.token].filter((value): value is number => value != null));
+  const visiblePrices = visibleData.flatMap((point) => [point.band?.[0], point.band?.[1], point.rut, point.token].filter((value): value is number => value != null));
+  const prices = visiblePrices.length ? visiblePrices : allPrices;
+  const minTimestamp = viewportDomain[0];
+  const maxTimestamp = viewportDomain[1];
   const multiDay = new Date(minTimestamp).toISOString().slice(0, 10) !== new Date(maxTimestamp).toISOString().slice(0, 10);
   const coverageTargets = [...new Set(results.map((result) => result.interval_coverage_target))];
   const intervalName = coverageTargets.length === 1 ? coverageLabel(coverageTargets[0]) : "Calibrated interval";
-  const prices = data.flatMap((point) => [point.band?.[0], point.band?.[1], point.rut, point.token].filter((value): value is number => value != null));
-  const min = Math.min(...prices);
-  const max = Math.max(...prices);
+  const min = prices.length ? Math.min(...prices) : 0;
+  const max = prices.length ? Math.max(...prices) : 1;
   const span = max - min;
   const pad = Math.max(0.1, span * 0.2);
   const cursorTimestamp = timestampAtPosition(results, playhead);
   const yDecimals = span < 2 ? 1 : 0;
 
+  const plotRatioAt = (clientX: number): number => {
+    const rect = chartRef.current?.getBoundingClientRect();
+    if (!rect) return 0.5;
+    const plotLeft = CHART_MARGIN.left + Y_AXIS_WIDTH;
+    const plotWidth = Math.max(1, rect.width - plotLeft - CHART_MARGIN.right);
+    return Math.min(1, Math.max(0, (clientX - rect.left - plotLeft) / plotWidth));
+  };
+
+  const handleWheel = (event: ReactWheelEvent<HTMLDivElement>) => {
+    if (event.deltaY === 0) return;
+    event.preventDefault();
+    const ratio = plotRatioAt(event.clientX);
+    const scale = event.deltaY < 0 ? ZOOM_IN_SCALE : ZOOM_OUT_SCALE;
+    setViewport((current) => {
+      const safe = clampViewport(current, fullDomain, minimumWidth);
+      const anchor = safe[0] + (safe[1] - safe[0]) * ratio;
+      return zoomViewport(safe, fullDomain, anchor, scale, minimumWidth);
+    });
+  };
+
+  const handlePointerDown = (event: ReactPointerEvent<HTMLDivElement>) => {
+    if (event.button !== 0) return;
+    dragRef.current = { pointerId: event.pointerId, startX: event.clientX, startDomain: viewportDomain, moved: false };
+  };
+
+  const handlePointerMove = (event: ReactPointerEvent<HTMLDivElement>) => {
+    const drag = dragRef.current;
+    if (!drag || drag.pointerId !== event.pointerId) return;
+    const deltaX = event.clientX - drag.startX;
+    if (!drag.moved && Math.abs(deltaX) < DRAG_THRESHOLD_PX) return;
+    drag.moved = true;
+    suppressClickRef.current = true;
+    event.currentTarget.setPointerCapture?.(event.pointerId);
+    setPanning(true);
+    const rect = chartRef.current?.getBoundingClientRect();
+    if (!rect) return;
+    const plotLeft = CHART_MARGIN.left + Y_AXIS_WIDTH;
+    const plotWidth = Math.max(1, rect.width - plotLeft - CHART_MARGIN.right);
+    const deltaMs = -(deltaX / plotWidth) * (drag.startDomain[1] - drag.startDomain[0]);
+    setViewport(panViewport(drag.startDomain, fullDomain, deltaMs, minimumWidth));
+  };
+
+  const finishPointer = (event: ReactPointerEvent<HTMLDivElement>) => {
+    const drag = dragRef.current;
+    if (!drag || drag.pointerId !== event.pointerId) return;
+    if (event.currentTarget.hasPointerCapture?.(event.pointerId)) event.currentTarget.releasePointerCapture(event.pointerId);
+    dragRef.current = null;
+    setPanning(false);
+    if (drag.moved) window.setTimeout(() => { suppressClickRef.current = false; }, 0);
+  };
+
   return (
-    <div className="h-[320px] min-h-[280px] w-full flex-1">
+    <div
+      ref={chartRef}
+      className="h-[320px] min-h-[280px] w-full flex-1"
+      onWheel={handleWheel}
+      onPointerDown={handlePointerDown}
+      onPointerMove={handlePointerMove}
+      onPointerUp={finishPointer}
+      onPointerCancel={finishPointer}
+      aria-label="Interactive valuation chart"
+      style={{ cursor: panning ? "grabbing" : "grab", touchAction: "none", userSelect: "none" }}
+    >
       <ResponsiveContainer>
         <ComposedChart
           data={data}
-          margin={{ top: 10, right: 18, bottom: 4, left: 2 }}
+          margin={CHART_MARGIN}
           onClick={(event) => {
-            const activeIndex = event?.activeTooltipIndex;
-            const sourceIndex = typeof activeIndex === "number" ? data[activeIndex]?.sourceIndex : null;
+            if (suppressClickRef.current) {
+              suppressClickRef.current = false;
+              return;
+            }
+            const activeIndex = Number(event?.activeTooltipIndex);
+            const sourceIndex = Number.isInteger(activeIndex) ? data[activeIndex]?.sourceIndex : null;
             if (sourceIndex != null) onSelect(sourceIndex);
           }}
         >
-          <XAxis type="number" dataKey="ts" domain={[minTimestamp, maxTimestamp]} tickFormatter={(value: number) => timeAxisUTC(Number(value), multiDay)} stroke="var(--color-muted)" fontFamily="Inter" fontSize={10} tickLine={false} axisLine={{ stroke: "var(--color-line)" }} minTickGap={42} />
+          <XAxis type="number" dataKey="ts" domain={viewportDomain} tickFormatter={(value: number) => timeAxisUTC(Number(value), multiDay)} stroke="var(--color-muted)" fontFamily="Inter" fontSize={10} tickLine={false} axisLine={{ stroke: "var(--color-line)" }} minTickGap={42} />
           <YAxis domain={[min - pad, max + pad]} stroke="var(--color-muted)" fontFamily="Inter" fontSize={10} tickLine={false} axisLine={false} width={50} tickFormatter={(value: number) => `$${value.toFixed(yDecimals)}`} />
           <Tooltip
             contentStyle={{ background: "#111718", border: "1px solid #253237", borderRadius: 8, fontSize: 11, color: "#f3faf7", fontFamily: "Inter" }}

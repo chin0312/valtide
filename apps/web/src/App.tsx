@@ -119,14 +119,7 @@ export default function App() {
             onReview={() => setFollowLatest(false)}
             followingLatest={isOperational && followLatest}
             onLatest={isOperational ? () => { setPlaying(false); setFollowLatest(true); setPosition(results.length - 1); } : undefined}
-            onResetView={() => {
-              setPlaying(false);
-              if (context === "Operational") setRange("24H");
-              else if (context === "Historical") setHistoricalRange("ALL");
-              else setDemoRange("FULL");
-              setFollowLatest(isOperational);
-              setPosition(isOperational || context === "Historical" ? Math.max(0, results.length - 1) : 0);
-            }}
+            viewportKey={`${context}:${activeRange}`}
             periodMs={context === "Demo" ? 600 : 120}
             rangeControl={<RangeControls context={context} range={activeRange} onChange={(value) => { if (context === "Operational") setRange(value as OperationalRange); else if (context === "Historical") setHistoricalRange(value as HistoricalRange); else setDemoRange(value as DemoRange); }} />}
           />
@@ -164,7 +157,7 @@ export default function App() {
           errorDetail={chainError}
         />
 
-        <footer className="border-t pt-3 font-mono text-[9px] uppercase tracking-[0.05em]" style={{ borderColor: "var(--color-line-subtle)", color: "var(--color-muted)" }}>
+        <footer className="border-t pt-3 font-mono text-[10px] tracking-[0.05em]" style={{ borderColor: "var(--color-line-subtle)", color: "var(--color-muted)" }}>
           {current ? `${current.model_id} ${current.model_version} · ` : ""}research prototype · browser read-only
         </footer>
       </main>
@@ -191,7 +184,7 @@ function AppHeader({ backendUp, chainUp, source, assets, context, onContextChang
 
 function RangeControls({ context, range, onChange }: { context: Context; range: string; onChange: (range: string) => void }) {
   const options = context === "Operational" ? Object.keys(OPERATIONAL_HISTORY_LIMITS) : context === "Historical" ? ["1H", "6H", "24H", "3D", "7D", "ALL"] : ["5M", "10M", "15M", "FULL"];
-  return <div className="flex gap-1" aria-label={`${context} history range`}>{options.map((option) => <button key={option} type="button" aria-pressed={range === option} onClick={() => onChange(option)} className="rounded px-2 py-1 text-[10px]" style={{ color: range === option ? "var(--color-accent)" : "var(--color-muted)", background: range === option ? "var(--color-accent-soft)" : undefined }}>{option}</button>)}</div>;
+  return <div className="flex gap-1" aria-label={`${context} history range`}>{options.map((option) => <button key={option} type="button" aria-pressed={range === option} onClick={() => onChange(option)} className="rounded px-2.5 py-1 font-mono text-[10px] font-medium" style={{ color: range === option ? "var(--color-accent)" : "var(--color-muted)", background: range === option ? "var(--color-accent-soft)" : undefined }}>{option}</button>)}</div>;
 }
 
 export function AssetSelector({ assets, initialOpen = false }: { assets?: AssetInfo[]; initialOpen?: boolean }) {
@@ -249,7 +242,7 @@ function PolicyCard({ state, action, source, label, enforced }: { state?: Eviden
     <Panel title="Policy" icon="shield" right={<span title={source} className="inline-flex items-center gap-1.5 text-[10px] text-muted"><Icon name="chain" size={14} />{label}</span>}>
       <div className="tnum break-words text-xl font-semibold tracking-[-0.03em] text-ink">{action ?? "—"}</div>
       <div className="tnum mt-3 flex items-center gap-2 rounded px-2.5 py-2 text-[10px]" style={{ background: "var(--color-panel-2)", color: "var(--color-ink-dim)", border: "1px solid var(--color-line)" }}>{state ?? "UNREAD"}<Icon name="arrow" size={12} />{action ?? "UNAVAILABLE"}</div>
-      {enforced && <div className="mt-2 flex flex-wrap justify-between gap-2 text-[10px] text-ink-dim"><span>Current RiskGuard · {enforced.fresh ? "fresh" : "stale"}</span><strong className="text-ink">{enforced.policy_action}</strong></div>}
+      {enforced && <div className="mt-2 flex flex-wrap justify-between gap-2 text-[10px] text-ink-dim"><span>Current RiskGuard · {enforced.fresh ? "FRESH" : "STALE"}</span><strong className="text-ink">{enforced.policy_action}</strong></div>}
     </Panel>
   );
 }

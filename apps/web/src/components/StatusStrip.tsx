@@ -43,7 +43,7 @@ export function StatusStrip({
 
       {runtime && (
         <span className="text-[11px]" style={{ color: runtime.last_tick_status === "failure" ? "var(--color-inconclusive)" : "var(--color-muted)" }} title={runtime.last_error ?? "Warmed live scheduler status"}>
-          Last scheduler attempt: {dateTimeUTC(runtime.last_tick_attempt_at)} · {runtime.scheduler_enabled ? (runtime.last_tick_status ?? "idle") : "off"}
+          Last scheduler attempt: {dateTimeUTC(runtime.last_tick_attempt_at)} · {runtime.scheduler_enabled ? (runtime.last_tick_status ?? "idle").toUpperCase() : "OFF"}
           {runtime.last_tick_status === "failure" && " · degraded"}
         </span>
       )}
@@ -58,7 +58,7 @@ export function StatusStrip({
           }}
           title="Freshness returned by the X Layer RiskGuard evaluation"
         >
-          RiskGuard {onchainFresh ? "fresh" : "stale"}
+          RiskGuard {onchainFresh ? "FRESH" : "STALE"}
         </span>
       )}
 

@@ -13,6 +13,7 @@ const { RegistryPanel } = load("../src/components/RegistryPanel.tsx");
 const { ObservationAudit } = load("../src/components/ObservationAudit.tsx");
 const { default: App, AssetSelector } = load("../src/App.tsx");
 const { deliveryStatusLabel, pipelineStatusLabel } = load("../src/lib/format.ts");
+const { chartDomain, clampViewport, minimumViewportWidth, panViewport, zoomViewport } = load("../src/components/EscalationChart.tsx");
 const h = React.createElement;
 const render = (component, props) => renderToStaticMarkup(h(component, props));
 
@@ -106,7 +107,7 @@ test("Current evidence mapping and stale RiskGuard enforcement remain separate",
   const chain = {policy,policy_action:"REQUIRE_REVIEW",evidence_state:"SUPPORTED",exists:true,fresh:false,network:"Testnet",chain_id:1952,attestation:null};
   const html = appWith({result:fixture[0],chain});
   assert.match(html,/Current evidence · policy mapping/);
-  assert.match(html,/Current RiskGuard · stale/);
+  assert.match(html,/Current RiskGuard · STALE/);
   assert.match(html,/ALLOW/);
   assert.match(html,/REQUIRE_REVIEW/);
 });
@@ -157,4 +158,22 @@ test("Historical observation audit is labelled as panel evidence", () => {
   const audit = render(ObservationAudit, { result: fixture[0], context: "Historical" });
   assert.match(audit, /Historical panel observation/);
   assert.doesNotMatch(audit, /Canonical 5m observation/);
+});
+
+test("Chart viewport zooms around an anchor and pans within the full domain", () => {
+  const timestamps = [0, 300_000, 600_000, 900_000, 1_200_000, 1_500_000];
+  const full = chartDomain(timestamps);
+  const minimum = minimumViewportWidth(timestamps);
+  const zoomed = zoomViewport(full, full, 750_000, 0.5, minimum);
+  assert.ok(zoomed[1] - zoomed[0] < full[1] - full[0]);
+  assert.equal((zoomed[0] + zoomed[1]) / 2, 750_000);
+  const offCenterZoom = zoomViewport(full, full, 300_000, 0.5, minimum);
+  assert.ok(Math.abs((300_000 - offCenterZoom[0]) / (offCenterZoom[1] - offCenterZoom[0]) - 0.2) < 1e-9);
+  assert.equal(zoomViewport(zoomed, full, 750_000, 4, minimum).join(), full.join());
+
+  const panned = panViewport(zoomed, full, 500_000, minimum);
+  assert.equal(panned[1] - panned[0], zoomed[1] - zoomed[0]);
+  assert.ok(panned[0] >= full[0] && panned[1] <= full[1]);
+  assert.deepEqual(panViewport(zoomed, full, -10_000_000, minimum), [full[0], full[0] + (zoomed[1] - zoomed[0])]);
+  assert.deepEqual(clampViewport(full, full, minimum), full);
 });

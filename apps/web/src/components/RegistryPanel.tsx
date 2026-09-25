@@ -76,7 +76,7 @@ export function RegistryPanel({ controlPlane, enforcement, runtime, sync, mode =
 
 function UnavailableRegistryPanel({ status, detail, runtime }: { status: string; detail: string; runtime?: RuntimeStatus }) {
   return (
-    <Panel title="X Layer Testnet" icon="chain" subtitle="X Layer · publisher → Registry → policy → RiskGuard → vault" right={<span className="rounded px-2 py-1 font-mono text-[9px] uppercase tracking-[0.05em]" style={{ color: "var(--color-muted)", background: "var(--color-panel-2)", border: "1px solid var(--color-line)" }}>{status}</span>}>
+    <Panel title="X Layer Testnet" icon="chain" subtitle="X Layer · publisher → Registry → policy → RiskGuard → vault" right={<span className="rounded px-2 py-1 font-mono text-[10px] uppercase tracking-[0.05em]" style={{ color: "var(--color-muted)", background: "var(--color-panel-2)", border: "1px solid var(--color-line)" }}>{status}</span>}>
       <div className="grid overflow-hidden rounded-lg sm:grid-cols-5" style={{ border: "1px solid var(--color-line)" }}>
         <PipelineStep index="01" label="Publisher" value="API REQUIRED" />
         <PipelineStep index="02" label="Registry" value="UNREAD" />

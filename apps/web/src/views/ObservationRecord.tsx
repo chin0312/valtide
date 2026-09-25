@@ -21,7 +21,7 @@ export function ObservationRecord({ results, currentIndex, sourceLabelText }: { 
     <Panel
       title="Evidence record"
       icon="record"
-      right={<span className="rounded px-2 py-1 font-mono text-[9px] uppercase tracking-[0.05em]" style={{ color: "var(--color-muted)", background: "var(--color-panel-2)", border: "1px solid var(--color-line)" }}>{sourceLabelText}</span>}
+      right={<span className="rounded px-2 py-1 font-mono text-[10px] uppercase tracking-[0.05em]" style={{ color: "var(--color-muted)", background: "var(--color-panel-2)", border: "1px solid var(--color-line)" }}>{sourceLabelText}</span>}
     >
       <div className="grid grid-cols-2 overflow-hidden rounded-lg lg:grid-cols-4" style={{ border: "1px solid var(--color-line-subtle)" }}>
         <RecordMetric label="Observations" value={String(results.length)} />

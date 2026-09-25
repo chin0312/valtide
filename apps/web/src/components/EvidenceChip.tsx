@@ -22,7 +22,7 @@ export function EvidenceChip({
       <span
         aria-hidden
         className={`inline-flex items-center justify-center font-bold ${
-          big ? "h-4 w-4 text-[11px]" : "h-3 w-3 text-[9px]"
+          big ? "h-4 w-4 text-[11px]" : "h-3 w-3 text-[10px]"
         }`}
         style={{ color: s.fg }}
       >

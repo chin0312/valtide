@@ -6,7 +6,7 @@ import { Panel } from "../components/ui";
 // axis. No composite score hides the outlier.
 export function ReferenceComparison({ r }: { r: ValuationResult }) {
   return (
-    <Panel title="Price range" icon="range" className="flex-1" right={<span className="font-mono text-[9px] uppercase tracking-[0.05em]" style={{ color: "var(--color-muted)" }}>interval view</span>}>
+    <Panel title="Price range" icon="range" className="flex-1" right={<span className="font-mono text-[10px] uppercase tracking-[0.05em]" style={{ color: "var(--color-muted)" }}>interval view</span>}>
       <ReferenceNumberLine r={r} />
     </Panel>
   );

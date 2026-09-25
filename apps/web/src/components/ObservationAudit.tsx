@@ -27,7 +27,7 @@ export function ObservationAudit({ result, context, runtime, controlPlane }: {
           {context === "Operational" && <Field label="Observation elapsed time" value={ageLabel(recency)} />}
           <Field label="Model / version" value={result ? `${result.model_id} / ${result.model_version}` : null} />
           <Field label="Calibration" value={result ? `${result.interval_calibration_type} · ${result.interval_calibration_source}` : null} />
-          <Field label="Current RiskGuard" value={controlPlane ? controlPlane.fresh ? "fresh" : "stale" : "unavailable"} />
+          <Field label="Current RiskGuard" value={controlPlane ? controlPlane.fresh ? "FRESH" : "STALE" : "UNAVAILABLE"} />
         </dl>
         <dl className="space-y-2">
           <Field label="Current live scheduler" value={runtime ? runtime.scheduler_enabled ? "enabled" : "disabled" : "unavailable"} />

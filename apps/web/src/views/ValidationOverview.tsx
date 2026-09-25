@@ -39,7 +39,7 @@ export function ValidationOverview({ r }: { r: ValuationResult }) {
           <div className="eyebrow" style={{ color: "var(--color-muted)" }}>Standardized deviation</div>
           <div className="tnum mt-2 text-[28px] font-medium tracking-[-0.04em] text-ink">{sigma(r.standardized_deviation)}</div>
           {fallbackCalibration && (
-            <span className="mt-2 inline-flex rounded px-2 py-1 font-mono text-[9px] uppercase tracking-[0.04em]" style={{ color: "var(--color-inconclusive)", background: "var(--color-inconclusive-soft)", border: "1px solid var(--color-inconclusive-line)" }}>
+            <span className="mt-2 inline-flex rounded px-2 py-1 font-mono text-[10px] uppercase tracking-[0.04em]" style={{ color: "var(--color-inconclusive)", background: "var(--color-inconclusive-soft)", border: "1px solid var(--color-inconclusive-line)" }}>
               fallback calibration
             </span>
           )}
