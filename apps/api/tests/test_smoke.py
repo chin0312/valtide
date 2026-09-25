@@ -43,6 +43,17 @@ def test_health():
     assert resp.json()["status"] == "ok"
 
 
+def test_cors_exposes_historical_source_header():
+    resp = client.get(
+        "/health",
+        headers={"Origin": "http://localhost:5173"},
+    )
+
+    assert resp.status_code == 200
+    assert resp.headers["access-control-allow-origin"] == "http://localhost:5173"
+    assert resp.headers["access-control-expose-headers"] == "X-Valtide-Source"
+
+
 def test_valuation_returns_503_without_computed_result():
     resp = client.get("/api/valuation/NVDAx")
 

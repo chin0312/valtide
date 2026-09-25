@@ -154,6 +154,7 @@ jobs:
         working-directory: apps/web
         run: |
           npm ci
+          npm test
           npm run build
 
   contracts:
