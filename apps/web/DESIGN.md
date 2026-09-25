@@ -119,16 +119,16 @@ Keywords: **forensic, measured, sharp, independent, kinetic, auditable**.
 
 ### Font stack
 
-- **Interface:** `IBM Plex Sans`, fallback `Inter`, system sans.
-- **Headings and labels:** `IBM Plex Sans`.
-- **Numbers, timestamps, hashes, codes, axes:** `IBM Plex Mono`, fallback `ui-monospace`.
+- **Interface:** `Inter`, fallback system sans.
+- **Headings and labels:** `Inter`.
+- **Numbers, timestamps, hashes, codes, axes:** `Inter` with tabular numerals, fallback system sans.
 
-The Plex family supplies one coherent, engineered voice. Condensed headings create an authored ledger-like texture; Plex Mono makes the evidence layer stable and analytical.
+Use one clean sans-serif family throughout. Tabular numerals keep live values aligned without a typewriter appearance. Two families is an upper limit, not a requirement.
 
 ```css
---font-ui: "IBM Plex Sans", Inter, system-ui, sans-serif;
---font-heading: "IBM Plex Sans", sans-serif;
---font-data: "IBM Plex Mono", ui-monospace, SFMono-Regular, monospace;
+--font-ui: "Inter", system-ui, sans-serif;
+--font-heading: "Inter", sans-serif;
+--font-data: "Inter", system-ui, sans-serif;
 ```
 
 ### Type scale
@@ -149,7 +149,7 @@ Rules:
 
 - Use tabular numerals everywhere data can update.
 - Keep headings at 550–600 maximum; avoid loud 700–900 weights.
-- Use mono selectively for facts, not for paragraphs.
+- Use tabular numerals for facts; no monospaced font.
 - Currency symbols, unit suffixes, and insignificant decimals render at 60–70% visual emphasis—not a smaller hit target—and in `--text-muted`.
 - Deltas sit inline with their value, smaller and neutral: `$190.00  +2.32%`.
 
@@ -205,7 +205,7 @@ Ship one **Overview**. Do not expose empty Historical, Operational, or Demo page
 1. App bar and system freshness.
 2. A disabled NVDAx asset selector that states the backend's single-asset boundary.
 3. Connected KPI strip.
-4. Large valuation timeline with a vertical interval/price plot directly beside it.
+4. Large valuation timeline with a compact horizontal interval plot directly beside it.
 5. Compact Evidence, Policy, and Price Basis bento cards.
 6. Evidence record with state distribution, transitions, and source facts.
 7. X Layer provenance pipeline, including a legible read-only state when the API is unavailable.
@@ -217,7 +217,7 @@ This order maps directly to VALIDATE → DIAGNOSE → TRIAGE → GUARD.
 ```text
 ┌ VALTIDE ─ OVERVIEW ───────────────────────────── source / backend status ┐
 ├ Reference ┬ Fair value ┬ Token ┬ Deviation ┬ Sigma ┬ Last trusted ──────┤
-├ LARGE VALUATION TIMELINE + BAND ───────────┬ VERTICAL PRICE RANGE ──────┤
+├ LARGE VALUATION TIMELINE + BAND ───────────┬ HORIZONTAL PRICE RANGE ──────┤
 ├ Evidence ─────────┬ Policy ────────────────┬ Price basis ────────────────┤
 ├ EVIDENCE RECORD / STATE DISTRIBUTION / SOURCE FACTS ──────────────────────┤
 └ X LAYER PROVENANCE PIPELINE ──────────────────────────────────────────────┘
@@ -244,7 +244,7 @@ Always visually separate from Evidence Verdict by a border and its own heading.
 - Label: `POLICY RESULT`.
 - Value: `RESTRICT_NEW_RISK`, `REQUIRE_REVIEW`, or `ALLOW`.
 - Caption the source of the decision: `Configured protocol rule—not a Valtide recommendation.`
-- Show the matched rule in compact mono text.
+- Show the matched rule in compact text.
 
 ### 9.3 Price snapshot
 
@@ -327,11 +327,11 @@ Use a linear verification strip:
 
 `Publisher  →  Registry  →  Curator policy  →  RiskGuard  →  DemoVault`
 
-Below it, show `evidenceHash`, transaction, block, issued-at, valid-until, and network in mono. Truncate hashes visually but make the full value copyable.
+Below it, show `evidenceHash`, transaction, block, issued-at, valid-until, and network in tabular text. Truncate hashes visually but make the full value copyable.
 
 ## 10. Tables
 
-- Header: 10px uppercase mono, muted, sticky.
+- Header: 10px uppercase text, muted, sticky.
 - Body: 12px; 44px rows on desktop.
 - Numeric columns are right-aligned and tabular.
 - A primary value and its delta may share a cell; delta remains muted.
@@ -450,7 +450,7 @@ Ship the single backend-owned `weekend_divergence` sequence and its matching off
 - Evidence State and Policy Result are visually and semantically separate.
 - The uncertainty band is more visually important than the candles.
 - State colors never encode price direction.
-- All numbers use tabular mono styling.
+- All numbers use tabular sans-serif styling.
 - Every changing value includes a source and/or timestamp.
 - “Unexplained by model” is never called “mispricing.”
 - No unsupported or fictional assets are shown.
@@ -460,4 +460,4 @@ Ship the single backend-owned `weekend_divergence` sequence and its matching off
 
 ## 20. Agent implementation prompt
 
-> Build Valtide as a compact production risk overview. Use only IBM Plex Sans and Plex Mono. Keep the near-black canvas, graphite surfaces, hairline borders, spring accents, and restrained rounding. Use a bento hierarchy: asset rail, connected KPIs, one large valuation chart, compact evidence/policy/basis cards, then the price map. Keep copy terse, Evidence State separate from Policy Action, and the calibrated interval as the chart hero. Never invent OHLC candles or operational observations.
+> Build Valtide as a compact production risk overview. Use Inter throughout, with tabular numbers and no monospaced type. Keep the near-black canvas, graphite surfaces, hairline borders, spring accents, and restrained rounding. Put the compact horizontal price range beside the valuation chart on wide screens, with policy below it. Stack these panels at narrower widths. Preserve the evidence record and on-chain provenance. Keep copy terse, Evidence State separate from Policy Action, and the calibrated interval as the chart hero. Never invent OHLC candles or operational observations.

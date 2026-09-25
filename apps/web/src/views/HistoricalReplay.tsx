@@ -4,6 +4,7 @@ import { EscalationChart } from "../components/EscalationChart";
 import { EvidenceChip } from "../components/EvidenceChip";
 import { Panel } from "../components/ui";
 import { coverageLabel, money, timeUTC } from "../lib/format";
+import { advancePosition, clampPosition } from "../lib/playback";
 
 export function HistoricalReplay({
   results,
@@ -28,11 +29,14 @@ export function HistoricalReplay({
       setPlaying(false);
       return;
     }
-    const origin = position;
-    const startedAt = performance.now();
+    const origin = clampPosition(position, results.length);
+    // Both timestamps must come from RAF. Its first timestamp can precede
+    // performance.now() at effect setup, otherwise producing index -1.
+    let startedAt: number | undefined;
     let frame = 0;
     const tick = (now: number) => {
-      const next = Math.min(results.length - 1, origin + (now - startedAt) / 420);
+      startedAt ??= now;
+      const next = advancePosition(origin, now - startedAt, results.length);
       setPosition(next);
       if (next >= results.length - 1) setPlaying(false);
       else frame = requestAnimationFrame(tick);
@@ -44,7 +48,7 @@ export function HistoricalReplay({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [playing, results.length, setPlaying, setPosition]);
 
-  const index = Math.min(Math.floor(position + 0.000001), results.length - 1);
+  const index = Math.floor(clampPosition(position, results.length));
   const current = results[index];
   const atEnd = position >= results.length - 1;
   const targets = [...new Set(results.map((result) => result.interval_coverage_target))];
@@ -68,7 +72,7 @@ export function HistoricalReplay({
         </div>
       </div>
 
-      <EscalationChart results={results} index={index} playhead={position} onSelect={setPosition} />
+      <EscalationChart results={results} index={index} playhead={position} onSelect={(next) => { setPlaying(false); setPosition(clampPosition(next, results.length)); }} />
 
       <div className="mt-2 flex flex-wrap items-center gap-3 border-t pt-3" style={{ borderColor: "var(--color-line-subtle)" }}>
         {showPlayback && (
@@ -87,9 +91,9 @@ export function HistoricalReplay({
           type="range"
           min={0}
           max={results.length - 1}
-          step={0.01}
-          value={position}
-          onChange={(event) => { setPlaying(false); setPosition(Number(event.target.value)); }}
+          step={showPlayback ? 0.01 : 1}
+          value={clampPosition(position, results.length)}
+          onChange={(event) => { setPlaying(false); setPosition(clampPosition(Number(event.target.value), results.length)); }}
           className="min-w-[160px] flex-1 accent-[var(--color-accent)]"
           aria-label="Replay period"
         />

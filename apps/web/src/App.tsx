@@ -18,6 +18,7 @@ import { Panel } from "./components/ui";
 import { EVIDENCE } from "./lib/evidence";
 import { ageLabel, compactUsd, money, pct, sigma } from "./lib/format";
 import { deriveOnchainSync } from "./lib/onchain";
+import { clampPosition } from "./lib/playback";
 import { HistoricalReplay } from "./views/HistoricalReplay";
 import { ObservationRecord } from "./views/ObservationRecord";
 import { ReferenceComparison } from "./views/ReferenceComparison";
@@ -50,8 +51,9 @@ export default function App() {
 
   if (!results.length) return <Loading />;
 
-  const currentIndex = Math.min(Math.floor(position + 0.000001), results.length - 1);
-  const current = interpolateResult(results, position);
+  const safePosition = clampPosition(position, results.length);
+  const currentIndex = Math.floor(safePosition);
+  const current = isOperational ? results[currentIndex] : interpolateResult(results, safePosition);
   const source = isOperational
     ? `Operational · ${results.length} observations`
     : demo.data?.source === "backend-scenario"
@@ -71,7 +73,7 @@ export default function App() {
       <main className="space-y-4">
         <MetricGrid current={current} isOperational={isOperational} />
 
-        <div className="grid items-stretch gap-4 md:grid-cols-[minmax(0,1fr)_300px] xl:grid-cols-[minmax(0,1fr)_360px]">
+        <div className="grid items-start gap-4 xl:grid-cols-[minmax(0,1.3fr)_minmax(0,1fr)]">
           <HistoricalReplay
             results={results}
             position={position}
@@ -81,12 +83,14 @@ export default function App() {
             sourceLabel={source}
             showPlayback={!isOperational}
           />
-          <ReferenceComparison r={current} />
+          <div className="min-w-0 space-y-4">
+            <ReferenceComparison r={current} />
+            <PolicyCard state={current.evidence_state} action={policyAction} source={onchain.data ? "Deployed X Layer policy" : isOperational ? "Policy unavailable" : "Demo policy mapping"} />
+          </div>
         </div>
 
-        <div className="grid gap-4 md:grid-cols-3">
+        <div className="grid gap-4 md:grid-cols-2">
           <EvidenceCard result={current} />
-          <PolicyCard state={current.evidence_state} action={policyAction} source={onchain.data ? "Deployed X Layer policy" : isOperational ? "Policy unavailable" : "Demo policy mapping"} />
           <BasisCard result={current} />
         </div>
 
