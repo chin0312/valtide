@@ -1,7 +1,7 @@
 import type { ReactNode } from "react";
 import type { OnchainControlPlane, OnchainEnforcement, RuntimeStatus } from "../api/types";
 import type { OnchainSyncStatus } from "../lib/onchain";
-import { unixDateTimeUTC } from "../lib/format";
+import { deliveryStatusLabel, pipelineStatusLabel, unixDateTimeUTC } from "../lib/format";
 import { Panel } from "./ui";
 
 interface RegistryPanelProps {
@@ -27,14 +27,14 @@ export function RegistryPanel({ controlPlane, enforcement, runtime, sync, mode =
   const modeNote = mode === "demo" ? "Live deployed state — not driven by this scenario." : mode === "historical" ? "Current deployed state — not historical chain state for the selected observation." : null;
 
   return (
-    <Panel title="On-chain provenance" icon="chain" subtitle="X Layer · attestation delivery and collateral enforcement">
+    <Panel title="X Layer Testnet" icon="chain" subtitle="X Layer · attestation delivery and collateral enforcement">
       <div className="flex flex-wrap items-center justify-between gap-3 pb-4 text-xs">
         <div><span className="font-semibold" style={{ color: "var(--color-accent)" }}>{controlPlane.network}</span><span className="tnum ml-2" style={{ color: "var(--color-muted)" }}>chain {controlPlane.chain_id} · deployed</span></div>
         {modeNote && <span style={{ color: "var(--color-ink-dim)" }}>{modeNote}</span>}
       </div>
 
       <div className="grid overflow-hidden rounded-lg md:grid-cols-5" style={{ border: "1px solid var(--color-line)" }}>
-        <PipelineStep index="01" label="Publisher" value={runtime?.last_publish_status ?? (runtime?.auto_publish_enabled ? "READY" : "READ ONLY")} />
+        <PipelineStep index="01" label="Publisher" value={pipelineStatusLabel(runtime?.last_publish_status ?? (runtime?.auto_publish_enabled ? "READY" : "READ ONLY"))} />
         <PipelineStep index="02" label="Registry" value={controlPlane.exists ? controlPlane.evidence_state : "NO ATTESTATION"} />
         <PipelineStep index="03" label="Curator policy" value={controlPlane.policy_action} />
         <PipelineStep index="04" label="RiskGuard" value={controlPlane.fresh ? "FRESH" : "STALE"} />
@@ -76,7 +76,7 @@ export function RegistryPanel({ controlPlane, enforcement, runtime, sync, mode =
 
 function UnavailableRegistryPanel({ status, detail, runtime }: { status: string; detail: string; runtime?: RuntimeStatus }) {
   return (
-    <Panel title="On-chain provenance" icon="chain" subtitle="X Layer · publisher → Registry → policy → RiskGuard → vault" right={<span className="rounded px-2 py-1 font-mono text-[9px] uppercase tracking-[0.05em]" style={{ color: "var(--color-muted)", background: "var(--color-panel-2)", border: "1px solid var(--color-line)" }}>{status}</span>}>
+    <Panel title="X Layer Testnet" icon="chain" subtitle="X Layer · publisher → Registry → policy → RiskGuard → vault" right={<span className="rounded px-2 py-1 font-mono text-[9px] uppercase tracking-[0.05em]" style={{ color: "var(--color-muted)", background: "var(--color-panel-2)", border: "1px solid var(--color-line)" }}>{status}</span>}>
       <div className="grid overflow-hidden rounded-lg sm:grid-cols-5" style={{ border: "1px solid var(--color-line)" }}>
         <PipelineStep index="01" label="Publisher" value="API REQUIRED" />
         <PipelineStep index="02" label="Registry" value="UNREAD" />
@@ -95,7 +95,7 @@ function PublicationDetails({ runtime }: { runtime?: RuntimeStatus }) {
     <summary className="cursor-pointer px-3 py-2.5 text-xs text-ink-dim">Publication delivery · current backend</summary>
     <dl className="grid gap-3 p-4 text-xs sm:grid-cols-2">
       <Detail label="Auto-publish" value={runtime ? runtime.auto_publish_enabled ? "Enabled" : "Disabled" : "Unavailable"} />
-      <Detail label="Delivery status" value={runtime?.last_publish_status ?? "—"} />
+      <Detail label="Delivery status" value={deliveryStatusLabel(runtime?.last_publish_status)} />
       <Detail label="Last attempt (UTC)" value={runtime?.last_publish_attempt_at ?? "—"} />
       <Detail label="Attempted observation" value={runtime?.last_publish_observation_ts ?? "—"} />
       <Detail label="Last published observation" value={runtime?.last_published_observation_ts ?? "—"} />

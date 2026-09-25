@@ -12,7 +12,7 @@ import {
   fetchOperationalValuation,
   fetchRuntime,
 } from "./api/client";
-import type { EvidenceState, OnchainControlPlane, OnchainPolicy, PolicyAction, ValuationResult } from "./api/types";
+import type { AssetInfo, EvidenceState, OnchainControlPlane, OnchainPolicy, PolicyAction, ValuationResult } from "./api/types";
 import { EXAMPLE_DEMO_POLICY } from "./components/PolicyActionPanel";
 import { ReasonCodes } from "./components/ReasonCodes";
 import { RegistryPanel } from "./components/RegistryPanel";
@@ -26,7 +26,7 @@ import { HistoricalReplay } from "./views/HistoricalReplay";
 import { ObservationRecord } from "./views/ObservationRecord";
 import { ReferenceComparison } from "./views/ReferenceComparison";
 import { ModelEvidence } from "./views/ModelEvidence";
-import { filterOperationalResults, OPERATIONAL_HISTORY_LIMITS, type OperationalRange } from "./views/OperationalTimeline";
+import { filterDemoResults, filterHistoricalResults, filterOperationalResults, OPERATIONAL_HISTORY_LIMITS, type DemoRange, type HistoricalRange, type OperationalRange } from "./views/OperationalTimeline";
 import { ObservationAudit } from "./components/ObservationAudit";
 
 type Context = "Operational" | "Historical" | "Demo";
@@ -35,6 +35,8 @@ const EMPTY_RESULTS: ValuationResult[] = [];
 export default function App() {
   const [context, setContext] = useState<Context>("Operational");
   const [range, setRange] = useState<OperationalRange>("24H");
+  const [historicalRange, setHistoricalRange] = useState<HistoricalRange>("ALL");
+  const [demoRange, setDemoRange] = useState<DemoRange>("FULL");
   const isOperational = context === "Operational";
   const health = useQuery({ queryKey: ["health"], queryFn: fetchHealth, refetchInterval: 30_000 });
   const backendUp = health.data === true;
@@ -55,13 +57,16 @@ export default function App() {
     if (!operational.data) return [];
     return filterOperationalResults(mergeObservations(history.data ?? [], operational.data), range);
   }, [history.data, operational.data, range]);
-  const results = isOperational ? operationalResults : context === "Historical" ? historical.data?.results ?? EMPTY_RESULTS : demo.data?.results ?? EMPTY_RESULTS;
-  const previous = useRef({ results, context, range });
+  const historicalResults = useMemo(() => filterHistoricalResults(historical.data?.results ?? EMPTY_RESULTS, historicalRange), [historical.data, historicalRange]);
+  const demoResults = useMemo(() => filterDemoResults(demo.data?.results ?? EMPTY_RESULTS, demoRange), [demo.data, demoRange]);
+  const results = isOperational ? operationalResults : context === "Historical" ? historicalResults : demoResults;
+  const activeRange = context === "Operational" ? range : context === "Historical" ? historicalRange : demoRange;
+  const previous = useRef({ results, context, activeRange });
 
   useEffect(() => {
     const before = previous.current;
-    previous.current = { results, context, range };
-    if (before.context !== context || before.range !== range || (!before.results.length && results.length)) {
+    previous.current = { results, context, activeRange };
+    if (before.context !== context || before.activeRange !== activeRange || (!before.results.length && results.length)) {
       setPosition(context === "Demo" ? 0 : Math.max(0, results.length - 1));
       setFollowLatest(isOperational);
       setPlaying(false);
@@ -70,7 +75,7 @@ export default function App() {
     } else {
       setPosition((value) => rebasePosition(value, before.results, results));
     }
-  }, [context, range, isOperational, results, followLatest]);
+  }, [context, activeRange, isOperational, results, followLatest]);
 
   const safePosition = clampPosition(position, results.length);
   const currentIndex = Math.floor(safePosition);
@@ -80,8 +85,8 @@ export default function App() {
     ? `Operational · ${results.length} observations`
     : context === "Historical" ? `Historical panel · ${results.length} observations`
     : !demo.data ? "Demo · loading" : demo.data.source === "backend-scenario"
-      ? `Demo scenario · ${results.length} periods`
-      : `Demo fixture · ${results.length} periods`;
+      ? `Demo scenario · ${demo.data.results.length} observations`
+      : `Demo fixture · ${demo.data.results.length} observations`;
   const controlPlane = onchain.isError ? undefined : onchain.data;
   const policy = controlPlane?.policy ?? (context === "Demo" ? EXAMPLE_DEMO_POLICY : undefined);
   const policyAction = policy && current ? actionFor(policy, current.evidence_state) : null;
@@ -96,7 +101,7 @@ export default function App() {
 
   return (
     <div className="mx-auto min-h-full max-w-[1480px] px-4 py-4 sm:px-6">
-      <AppHeader backendUp={backendUp} chainUp={!!controlPlane} source={source} assetCount={assets.data?.length ?? 1} context={context} onContextChange={setContext} />
+      <AppHeader backendUp={backendUp} chainUp={!!controlPlane} source={source} assets={assets.data} context={context} onContextChange={setContext} />
 
       <main className="space-y-4">
         {isDegraded && current && <div role="status" className="rounded px-4 py-3 text-xs text-ink-dim" style={{ background: "var(--color-inconclusive-soft)" }}>{context} degraded · showing last available observations. {history.isError && isOperational ? "History unavailable. " : ""}{activeQuery.isError ? statusMessage : runtime.data?.last_error}</div>}
@@ -114,8 +119,16 @@ export default function App() {
             onReview={() => setFollowLatest(false)}
             followingLatest={isOperational && followLatest}
             onLatest={isOperational ? () => { setPlaying(false); setFollowLatest(true); setPosition(results.length - 1); } : undefined}
+            onResetView={() => {
+              setPlaying(false);
+              if (context === "Operational") setRange("24H");
+              else if (context === "Historical") setHistoricalRange("ALL");
+              else setDemoRange("FULL");
+              setFollowLatest(isOperational);
+              setPosition(isOperational || context === "Historical" ? Math.max(0, results.length - 1) : 0);
+            }}
             periodMs={context === "Demo" ? 600 : 120}
-            rangeControl={isOperational ? <div className="flex gap-1" aria-label="Operational history range">{(Object.keys(OPERATIONAL_HISTORY_LIMITS) as OperationalRange[]).map((option) => <button key={option} aria-pressed={range === option} onClick={() => setRange(option)} className="rounded px-2 py-1 text-[10px]" style={{ color: range === option ? "var(--color-accent)" : "var(--color-muted)", background: range === option ? "var(--color-accent-soft)" : undefined }}>{option}</button>)}</div> : undefined}
+            rangeControl={<RangeControls context={context} range={activeRange} onChange={(value) => { if (context === "Operational") setRange(value as OperationalRange); else if (context === "Historical") setHistoricalRange(value as HistoricalRange); else setDemoRange(value as DemoRange); }} />}
           />
           <div className="flex min-w-0 flex-col gap-4">
             <ReferenceComparison r={current} />
@@ -159,16 +172,13 @@ export default function App() {
   );
 }
 
-function AppHeader({ backendUp, chainUp, source, assetCount, context, onContextChange }: { backendUp: boolean; chainUp: boolean; source: string; assetCount: number; context: Context; onContextChange: (context: Context) => void }) {
+function AppHeader({ backendUp, chainUp, source, assets, context, onContextChange }: { backendUp: boolean; chainUp: boolean; source: string; assets?: AssetInfo[]; context: Context; onContextChange: (context: Context) => void }) {
   return (
     <header className="mb-4 flex flex-wrap items-center justify-between gap-4 border-b pb-4" style={{ borderColor: "var(--color-line-subtle)" }}>
       <div className="flex flex-wrap items-center gap-3 sm:gap-6">
         <h1 className="text-[22px] font-semibold tracking-[-0.04em] text-ink">Valtide</h1>
         <nav aria-label="Evidence context" className="flex gap-1 rounded p-1" style={{ border: "1px solid var(--color-line)" }}>{(["Operational", "Historical", "Demo"] as Context[]).map((option) => <button key={option} aria-pressed={context === option} onClick={() => onContextChange(option)} className="rounded px-2.5 py-1.5 text-xs font-medium" style={{ background: context === option ? "var(--color-panel-2)" : undefined, color: context === option ? "var(--color-ink)" : "var(--color-muted)" }}>{option}</button>)}</nav>
-        <button disabled className="rounded px-3 py-1.5 text-left disabled:opacity-100" title="The current backend supports NVDAx only" style={{ background: "var(--color-panel)", border: "1px solid var(--color-line)" }}>
-          <span className="tnum text-xs font-medium text-ink">NVDAx</span>
-          <span className="ml-2 text-[10px]" style={{ color: "var(--color-muted)" }}>{assetCount} supported asset</span>
-        </button>
+        <AssetSelector assets={assets} />
       </div>
       <div className="flex flex-wrap items-center gap-3 text-[11px]">
         <span className="rounded px-2 py-1 font-mono" style={{ color: "var(--color-accent)", background: "var(--color-accent-soft)" }}>{source}</span>
@@ -177,6 +187,30 @@ function AppHeader({ backendUp, chainUp, source, assetCount, context, onContextC
       </div>
     </header>
   );
+}
+
+function RangeControls({ context, range, onChange }: { context: Context; range: string; onChange: (range: string) => void }) {
+  const options = context === "Operational" ? Object.keys(OPERATIONAL_HISTORY_LIMITS) : context === "Historical" ? ["1H", "6H", "24H", "3D", "7D", "ALL"] : ["5M", "10M", "15M", "FULL"];
+  return <div className="flex gap-1" aria-label={`${context} history range`}>{options.map((option) => <button key={option} type="button" aria-pressed={range === option} onClick={() => onChange(option)} className="rounded px-2 py-1 text-[10px]" style={{ color: range === option ? "var(--color-accent)" : "var(--color-muted)", background: range === option ? "var(--color-accent-soft)" : undefined }}>{option}</button>)}</div>;
+}
+
+export function AssetSelector({ assets, initialOpen = false }: { assets?: AssetInfo[]; initialOpen?: boolean }) {
+  const [open, setOpen] = useState(initialOpen);
+  const [search, setSearch] = useState("");
+  const available = new Set((assets ?? []).map((asset) => asset.asset));
+  const catalog = [
+    { asset: "NVDAx", name: "NVIDIA tokenized equity", status: available.has("NVDAx") ? "Available" : "Current asset" },
+    { asset: "SPYx", name: "S&P 500 tokenized ETF", status: "Coming soon" },
+  ];
+  const filtered = catalog.filter((entry) => `${entry.asset} ${entry.name}`.toLowerCase().includes(search.toLowerCase()));
+
+  return <div className="relative">
+    <button type="button" onClick={() => setOpen((value) => !value)} aria-expanded={open} aria-haspopup="listbox" className="rounded px-3 py-1.5 text-left" title="Select collateral asset" style={{ background: "var(--color-panel)", border: "1px solid var(--color-line)" }}><span className="tnum text-xs font-medium text-ink">NVDAx</span><span className="ml-2 text-[10px]" style={{ color: "var(--color-muted)" }}>⌄</span></button>
+    {open && <div className="absolute left-0 top-full z-30 mt-2 w-64 rounded-lg p-2" role="listbox" aria-label="Asset selector" style={{ background: "var(--color-panel)", border: "1px solid var(--color-line)" }}>
+      <input autoFocus value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Search assets…" aria-label="Search assets" className="mb-2 w-full rounded px-2 py-1.5 text-xs text-ink outline-none" style={{ background: "var(--color-panel-2)", border: "1px solid var(--color-line)" }} />
+      {filtered.map((entry) => <button key={entry.asset} type="button" disabled={entry.asset === "SPYx"} className="flex w-full items-center justify-between rounded px-2 py-2 text-left disabled:cursor-not-allowed disabled:opacity-50" aria-label={`${entry.asset} ${entry.status}`} style={entry.asset === "NVDAx" ? { background: "var(--color-panel-2)" } : undefined}><span><span className="tnum block text-xs text-ink">{entry.asset}</span><span className="block text-[10px] text-muted">{entry.name}</span></span><span className="text-[10px] text-muted">{entry.status}</span></button>)}
+    </div>}
+  </div>;
 }
 
 function ConnectionLabel({ active, activeText, inactiveText }: { active: boolean; activeText: string; inactiveText: string }) {

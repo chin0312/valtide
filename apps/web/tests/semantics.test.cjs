@@ -6,12 +6,13 @@ const { QueryClient, QueryClientProvider } = require("@tanstack/react-query");
 const { load } = require("./load-source.cjs");
 const client = load("../src/api/client.ts");
 const fixture = require("../src/fixtures/weekend_divergence.json");
-const { filterOperationalResults } = load("../src/views/OperationalTimeline.tsx");
+const { filterOperationalResults, filterHistoricalResults, filterDemoResults } = load("../src/views/OperationalTimeline.tsx");
 const { mergeObservations, rebasePosition } = load("../src/lib/playback.ts");
 const { ReasonCodes } = load("../src/components/ReasonCodes.tsx");
 const { RegistryPanel } = load("../src/components/RegistryPanel.tsx");
 const { ObservationAudit } = load("../src/components/ObservationAudit.tsx");
-const App = load("../src/App.tsx").default;
+const { default: App, AssetSelector } = load("../src/App.tsx");
+const { deliveryStatusLabel, pipelineStatusLabel } = load("../src/lib/format.ts");
 const h = React.createElement;
 const render = (component, props) => renderToStaticMarkup(h(component, props));
 
@@ -127,4 +128,33 @@ test("Observation and delivery audit survives unavailable X Layer reads", () => 
   const chain = render(RegistryPanel,{isError:true,mode:"historical",runtime});
   assert.doesNotMatch(chain,/DEMO MAPPING/);
   for (const value of [runtime.last_publish_attempt_at,runtime.last_published_observation_ts,runtime.last_publish_tx_hash,runtime.last_publish_error]) assert.ok(chain.includes(value));
+});
+
+test("Historical ranges use timestamps and Demo ranges never add observations", () => {
+  assert.equal(filterHistoricalResults(fixture, "ALL").length, 6);
+  const historicalRows = [...fixture, { ...fixture[0], timestamp: "2026-09-10T14:00:00Z" }];
+  assert.equal(filterHistoricalResults(historicalRows, "7D").length, 6);
+  assert.equal(filterDemoResults(fixture, "FULL").length, 6);
+  assert.equal(filterDemoResults(fixture, "15M").length, 3);
+  assert.ok(filterDemoResults(fixture, "10M").every((row) => fixture.includes(row)));
+});
+
+test("Asset selector keeps NVDAx active and marks SPYx as a disabled roadmap item", () => {
+  const html = render(AssetSelector, { assets: [{asset:"NVDAx",token_source:"okx",underlying_source:"alpaca",model_available:true}], initialOpen: true });
+  assert.match(html, /NVDAx/);
+  assert.match(html, /SPYx/);
+  assert.match(html, /Coming soon/);
+  assert.match(html, /disabled/);
+});
+
+test("Machine publication statuses use the requested display casing", () => {
+  assert.equal(pipelineStatusLabel("published"), "PUBLISHED");
+  assert.equal(deliveryStatusLabel("published"), "Published");
+  assert.equal(deliveryStatusLabel("failed"), "Failed");
+});
+
+test("Historical observation audit is labelled as panel evidence", () => {
+  const audit = render(ObservationAudit, { result: fixture[0], context: "Historical" });
+  assert.match(audit, /Historical panel observation/);
+  assert.doesNotMatch(audit, /Canonical 5m observation/);
 });

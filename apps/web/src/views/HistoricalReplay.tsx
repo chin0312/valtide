@@ -17,6 +17,7 @@ export function HistoricalReplay({
   showPlayback = true,
   onReview,
   onLatest,
+  onResetView,
   followingLatest = false,
   rangeControl,
   periodMs = 120,
@@ -30,6 +31,7 @@ export function HistoricalReplay({
   showPlayback?: boolean;
   onReview?: () => void;
   onLatest?: () => void;
+  onResetView?: () => void;
   followingLatest?: boolean;
   rangeControl?: ReactNode;
   periodMs?: number;
@@ -69,7 +71,7 @@ export function HistoricalReplay({
       right={<span className="rounded px-2 py-1 font-mono text-[10px] uppercase tracking-[0.04em]" style={{ color: "var(--color-accent)", background: "var(--color-accent-soft)", border: "1px solid var(--color-line)" }}>{sourceLabel}</span>}
     >
       <div className="mb-2 flex flex-wrap items-end justify-between gap-3">
-        {rangeControl && <div className="flex w-full justify-end">{rangeControl}</div>}
+        {rangeControl && <div className="flex w-full justify-end gap-2">{rangeControl}{onResetView && <button type="button" onClick={onResetView} className="rounded px-2 py-1 text-[10px]" style={{ color: "var(--color-muted)" }}>Reset</button>}</div>}
         <div>
           <div className="eyebrow" style={{ color: "var(--color-muted)" }}>{followingLatest ? "Latest observation" : "Selected period"}</div>
           <div className="mt-1 flex items-center gap-3"><span className="tnum text-xl font-medium text-ink">{money(current.valtide_fair_value)}</span><EvidenceChip state={current.evidence_state} /></div>

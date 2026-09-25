@@ -12,7 +12,7 @@ export function ObservationAudit({ result, context, runtime, controlPlane }: {
   const recency = observed ? Math.max(0, Math.floor((Date.now() - Date.parse(observed)) / 1000)) : null;
   return (
     <details className="rounded-[10px] text-xs" style={{ background: "var(--color-panel)", border: "1px solid var(--color-line-subtle)" }}>
-      <summary className="cursor-pointer px-5 py-3 text-ink-dim">Observation audit · {context === "Demo" ? "Scenario observation" : "Canonical 5m observation"} · {observed ?? "unavailable"}</summary>
+      <summary className="cursor-pointer px-5 py-3 text-ink-dim">Observation audit · {context === "Demo" ? "Scenario observation" : context === "Historical" ? "Historical panel observation" : "Canonical 5m operational observation"} · {observed ?? "unavailable"}</summary>
       <div className="grid gap-5 border-t p-5 md:grid-cols-3" style={{ borderColor: "var(--color-line-subtle)" }}>
         <dl className="space-y-2">
           <Field label="Observation (UTC)" value={observed} />

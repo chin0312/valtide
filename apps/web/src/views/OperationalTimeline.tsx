@@ -4,6 +4,8 @@ import type { ValuationResult } from "../api/types";
 import { dateTimeUTC } from "../lib/format";
 
 export type OperationalRange = "1H" | "6H" | "24H" | "7D";
+export type HistoricalRange = "1H" | "6H" | "24H" | "3D" | "7D" | "ALL";
+export type DemoRange = "5M" | "10M" | "15M" | "FULL";
 export const OPERATIONAL_HISTORY_LIMITS: Record<OperationalRange, number> = {
   "1H": 12,
   "6H": 72,
@@ -18,15 +20,42 @@ const RANGE_MS: Record<OperationalRange, number> = {
   "7D": 7 * 24 * 60 * 60 * 1000,
 };
 
-export function filterOperationalResults(results: ValuationResult[], range: OperationalRange): ValuationResult[] {
+const HISTORICAL_RANGE_MS: Record<Exclude<HistoricalRange, "ALL">, number> = {
+  "1H": 60 * 60 * 1000,
+  "6H": 6 * 60 * 60 * 1000,
+  "24H": 24 * 60 * 60 * 1000,
+  "3D": 3 * 24 * 60 * 60 * 1000,
+  "7D": 7 * 24 * 60 * 60 * 1000,
+};
+
+const DEMO_RANGE_MS: Record<Exclude<DemoRange, "FULL">, number> = {
+  "5M": 5 * 60 * 1000,
+  "10M": 10 * 60 * 1000,
+  "15M": 15 * 60 * 1000,
+};
+
+function filterByWindow(results: ValuationResult[], windowMs: number | null): ValuationResult[] {
   const ordered = [...results].sort((a, b) => Date.parse(a.timestamp) - Date.parse(b.timestamp));
+  if (windowMs == null) return ordered;
   const latestTimestamp = Math.max(...ordered.map((result) => Date.parse(result.timestamp)));
   if (!Number.isFinite(latestTimestamp)) return [];
-  const cutoff = latestTimestamp - RANGE_MS[range];
+  const cutoff = latestTimestamp - windowMs;
   return ordered.filter((result) => {
     const timestamp = Date.parse(result.timestamp);
     return Number.isFinite(timestamp) && timestamp > cutoff && timestamp <= latestTimestamp;
   });
+}
+
+export function filterOperationalResults(results: ValuationResult[], range: OperationalRange): ValuationResult[] {
+  return filterByWindow(results, RANGE_MS[range]);
+}
+
+export function filterHistoricalResults(results: ValuationResult[], range: HistoricalRange): ValuationResult[] {
+  return filterByWindow(results, range === "ALL" ? null : HISTORICAL_RANGE_MS[range]);
+}
+
+export function filterDemoResults(results: ValuationResult[], range: DemoRange): ValuationResult[] {
+  return filterByWindow(results, range === "FULL" ? null : DEMO_RANGE_MS[range]);
 }
 
 export function OperationalTimeline({

@@ -100,6 +100,18 @@ export function sourceLabel(source: string | null | undefined): string {
   return labels[source] ?? source;
 }
 
+export function pipelineStatusLabel(status: string | null | undefined): string {
+  if (!status) return "UNAVAILABLE";
+  if (status === "READ ONLY") return status;
+  if (status === "published") return "PUBLISHED";
+  return status.replace(/[-\s]+/g, "_").toUpperCase();
+}
+
+export function deliveryStatusLabel(status: string | null | undefined): string {
+  if (!status) return DASH;
+  return status.replace(/[_-]+/g, " ").toLowerCase().replace(/(^|\s)\w/g, (letter) => letter.toUpperCase());
+}
+
 // Human-readable reason codes; unknown codes fall back to a de-snaked label.
 const REASON_LABELS: Record<string, string> = {
   TOKEN_DATA_UNAVAILABLE: "Tokenized-market observation unavailable",
