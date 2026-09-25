@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import math
+from datetime import datetime
 
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel
@@ -22,6 +23,10 @@ class BacktestMetrics(BaseModel):
     mae: float | None = None
     rmse: float | None = None
     interval_coverage: float | None = None
+    window_start: datetime | None = None
+    window_end: datetime | None = None
+    model_id: str | None = None
+    model_version: str | None = None
     note: str
 
 
@@ -64,6 +69,8 @@ def get_backtest(
         if evaluable
         else None
     )
+    model_ids = {result.model_id for result in results}
+    model_versions = {result.model_version for result in results}
 
     if source_label == "scenario":
         note = (
@@ -87,5 +94,9 @@ def get_backtest(
         mae=mae,
         rmse=rmse,
         interval_coverage=interval_coverage,
+        window_start=snapshots[0].observation_ts if snapshots else None,
+        window_end=snapshots[-1].observation_ts if snapshots else None,
+        model_id=next(iter(model_ids)) if len(model_ids) == 1 else None,
+        model_version=next(iter(model_versions)) if len(model_versions) == 1 else None,
         note=note,
     )

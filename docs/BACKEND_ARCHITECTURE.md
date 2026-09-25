@@ -92,7 +92,7 @@ adapters/
   okx.py         NVDAx token candles
   equity.py      latest available trusted NVDA bar
   reference.py   OKX X-Perp reference under test
-  dexscreener.py live NVDAx quote
+  dexscreener.py optional NVDAx diagnostic quote
 
 session.py       timestamp → market session
 normalizer.py    shared token/underlying scale invariant
@@ -106,6 +106,7 @@ live.py          cold-start live diagnostic
 clock.py         canonical UTC five-minute boundaries
 scheduler.py     single-process warmed live scheduler
 runtime_store.py SQLite state/result and publication status persistence
+history.py      read-only warmed operational history
 state_store.py   in-memory compatibility cache for non-HTTP callers
 publisher.py     X Layer publication, read-back, and control-plane checks
 abis/            bundled Registry, RiskGuard, and DemoVault ABIs
@@ -121,6 +122,7 @@ main.py          app wiring, CORS, restore, and scheduler lifecycle
 | GET | `/api/assets` | supported assets and model availability |
 | GET | `/api/valuation/{asset}` | latest durable warmed result |
 | GET | `/api/valuation/{asset}/live` | cold-start live diagnostic |
+| GET | `/api/history/{asset}` | successful warmed operational results |
 | GET | `/api/replay/{asset}` | sequential scenario/panel results |
 | GET | `/api/backtest/{asset}` | scenario counts or historical-panel metrics |
 | GET | `/api/runtime/{asset}` | warmed runtime and scheduler status |
@@ -146,6 +148,12 @@ and `502` for a chain, transaction, or read-back failure.
 - Historical-panel backtests report metrics only for rows with a real
   contemporaneous underlying observation. Scenario backtests report evidence
   counts only and deliberately keep empirical metrics null.
+- The canonical live token input is the exact confirmed OKX OnchainOS NVDAx
+  candle at the settled five-minute observation. DexScreener is not substituted
+  when that candle is unavailable; its adapter is diagnostic-only.
+- Operational history is the chronological sequence of successful warmed
+  scheduler validations. It is distinct from scenario replay and historical
+  backtest metrics.
 - The focused API endpoint and live diagnostic are explicit about unavailable
   data; no fabricated valuation is served.
 - The public testnet deployment manifest is the source of truth for the

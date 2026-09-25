@@ -1,4 +1,4 @@
-"""DexScreener adapter — live NVDAx token price without OKX.
+"""DexScreener adapter — optional current NVDAx diagnostic quote.
 
 An alternative source for the NVDAx token price that needs no API key, sidestepping
 the OKX OnchainOS 402. NVDAx is an xStocks tokenized equity trading on-chain, so
@@ -14,9 +14,10 @@ We pick the highest-USD-liquidity pair whose base token is NVDAx and read
 `priceUsd`. This is a CURRENT price (good for live mode), not historical candles;
 historical replay still uses James's panel.
 
-Caveat: a DEX pool price can differ from the OKX venue price. In live mode this
-becomes the token signal, so record the source in provenance and sanity-check the
-scale against NVDA as usual (normalizer).
+Caveat: a DEX pool price can differ from the OKX venue price and this endpoint
+does not provide a historical candle at a requested canonical timestamp. It is
+therefore diagnostic/future-cross-check data only; it is never the canonical
+warmed scheduler model input.
 """
 
 from __future__ import annotations

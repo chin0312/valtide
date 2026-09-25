@@ -1,7 +1,7 @@
 """Live mode — assemble a snapshot from live sources and run one inference.
 
-Pulls the three live inputs (no OKX OnchainOS dependency):
-  - NVDAx token price   -> DexScreener  (no key)
+Pulls the three live inputs:
+  - NVDAx token candle  -> OKX OnchainOS exact confirmed 5m candle
   - NVDA underlying      -> Alpaca
   - reference under test -> OKX X-Perp confirmed index candle (public)
 
@@ -26,7 +26,7 @@ from datetime import UTC, datetime
 
 import httpx
 
-from valtide_api.adapters import dexscreener, equity, reference
+from valtide_api.adapters import equity, okx, reference
 from valtide_api.clock import FIVE_MINUTES, canonical_5m_boundary, require_canonical_5m
 from valtide_api.config import get_settings
 from valtide_api.models import MarketSnapshot, MarketState, ValuationResult
@@ -53,11 +53,16 @@ def build_live_snapshot(
     except ValueError as exc:
         raise LiveDataUnavailable(str(exc)) from exc
 
-    quote = dexscreener.get_nvdax_price(
-        address=settings.dexscreener_nvdax_address or None, client=client
-    )
-    if quote is None:
-        raise LiveDataUnavailable("NVDAx token price unavailable (DexScreener).")
+    try:
+        token_candle = okx.get_nvdax_candle_at(now, client=client)
+    except (httpx.HTTPError, KeyError, TypeError, ValueError, RuntimeError) as exc:
+        raise LiveDataUnavailable(
+            "NVDAx exact confirmed candle unavailable (OKX OnchainOS)."
+        ) from exc
+    if token_candle is None:
+        raise LiveDataUnavailable(
+            "NVDAx exact confirmed candle unavailable (OKX OnchainOS)."
+        )
 
     try:
         # Alpaca's `end` bound can include the boundary itself. Cap the query at
@@ -119,9 +124,12 @@ def build_live_snapshot(
     return MarketSnapshot(
         asset="NVDAx",
         observation_ts=now,
-        token_price=quote.price,
-        token_volume=quote.volume_h24_usd,
-        token_liquidity_usd=quote.liquidity_usd,
+        token_price=token_candle.close,
+        token_volume=token_candle.volume,
+        token_volume_usd=token_candle.volume_usd,
+        token_source="okx_onchainos",
+        token_observed_at=token_candle.ts,
+        token_liquidity_usd=None,
         underlying_reference=underlying_current,
         underlying_reference_ts=last.ts if underlying_current is not None else None,
         last_trusted_reference=anchor.close,
@@ -134,7 +142,7 @@ def build_live_snapshot(
         market_state=market_state,
         external_reference=None,
         source_provenance={
-            "token": f"{quote.source}@{quote.ts.isoformat()}",
+            "token": f"okx_onchainos@{token_candle.ts.isoformat()}",
             "underlying": f"alpaca@{last.ts.isoformat()}",
             "reference_under_test": (
                 f"{pt_source}@{pt_ts.isoformat()}" if pt_ts is not None else pt_source

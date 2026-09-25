@@ -23,14 +23,19 @@ class Settings(BaseSettings):
     # Confirm the exact instId from the OKX Dev Day builder kit / X-Perp help page.
     okx_xperp_index_id: str = "NVDA-USD"
 
+    # Optional deterministic NVDAx deployment overrides. When both are set the
+    # authenticated discovery call is bypassed; otherwise the selected RWA
+    # deployment is discovered once and cached for this process.
+    okx_nvdax_chain_index: str = ""
+    okx_nvdax_token_address: str = ""
+
     # Alpaca (NVDA underlying — same source as James's training).
     # Free accounts must use feed="iex"; "sip" needs a paid data plan.
     alpaca_api_key: str = ""
     alpaca_api_secret: str = ""
     alpaca_feed: str = "iex"
 
-    # DexScreener live NVDAx token price (no key). Set the contract address for a
-    # precise lookup; leave blank to fall back to symbol search.
+    # Optional DexScreener diagnostic/future cross-check (not canonical scheduler input).
     dexscreener_nvdax_address: str = ""
 
     # X Layer publisher. The deployment manifest is the source of truth for

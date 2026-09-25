@@ -1,6 +1,7 @@
 """Persistence, scheduler, and warmed-tick integration tests."""
 
 import asyncio
+import json
 import threading
 from datetime import UTC, datetime, timedelta
 from types import SimpleNamespace
@@ -444,6 +445,10 @@ def test_auto_publish_failure_preserves_successful_runtime_and_scheduler_continu
     assert failed_publication.last_publish_status == "published"
     assert failed_publication.last_publish_error is None
     assert store.load_runtime("NVDAx").latest_result == second.result
+    assert [result.timestamp for result in store.load_history("NVDAx")] == [
+        first_ts,
+        second_ts,
+    ]
 
     assert calls == 2
     assert second.status == "success"
@@ -739,3 +744,33 @@ def test_publication_status_persists_across_runtime_store_restart(tmp_path):
     assert publication.last_publish_observation_ts == timestamp
     assert publication.last_published_at == 1_800_000_003
     assert publication.last_publish_tx_hash == "0x" + "33" * 32
+
+
+def test_legacy_result_payload_without_new_provenance_fields_still_loads(tmp_path):
+    timestamp = _ANCHOR + timedelta(minutes=5)
+    builder, _ = _builder_for([_snapshot(timestamp)])
+    store = RuntimeStore(tmp_path / "runtime.sqlite3")
+    tick = run_live_tick("NVDAx", timestamp, store=store, snapshot_builder=builder)
+    assert tick.result is not None
+
+    payload = tick.result.model_dump()
+    for field in (
+        "token_source",
+        "token_observed_at",
+        "token_volume",
+        "token_volume_usd",
+        "token_liquidity_usd",
+        "source_provenance",
+    ):
+        payload.pop(field, None)
+    with store._lock, store._connection:
+        store._connection.execute(
+            "UPDATE runtime_state SET latest_result_json = ? WHERE asset = ?",
+            (json.dumps(payload, default=str), "NVDAx"),
+        )
+
+    restored = store.load_runtime("NVDAx")
+    assert restored is not None and restored.latest_result is not None
+    assert restored.latest_result.token_source is None
+    assert restored.latest_result.token_volume_usd is None
+    assert restored.latest_result.source_provenance == {}

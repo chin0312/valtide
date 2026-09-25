@@ -123,7 +123,7 @@ def run_live_tick(
             )
 
         result, new_state = run_inference(snapshot, state)
-        store.save_runtime(
+        store.save_runtime_and_history(
             asset,
             new_state,
             result,

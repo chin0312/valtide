@@ -131,6 +131,9 @@ def load_panel_snapshots(path: str | Path) -> list[MarketSnapshot]:
                     observation_ts=ts,
                     token_price=nvdax,
                     token_volume=_num(row.get("nvdax_volume")),
+                    token_volume_usd=_num(row.get("nvdax_volume_usd")),
+                    token_source="okx_onchainos" if nvdax is not None else None,
+                    token_observed_at=ts if nvdax is not None else None,
                     underlying_reference=nvda,
                     underlying_reference_ts=ts if nvda is not None else None,
                     last_trusted_reference=previous_last_close,
@@ -143,6 +146,7 @@ def load_panel_snapshots(path: str | Path) -> list[MarketSnapshot]:
                     market_state=_market_state(row.get("session_state"), ts),
                     source_provenance={
                         "panel": path.name,
+                        "token": "okx_onchainos" if nvdax is not None else "",
                         "reference_under_test": reference_source,
                     },
                 )

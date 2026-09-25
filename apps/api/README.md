@@ -26,6 +26,7 @@ uvicorn valtide_api.main:app --reload --port 8000
 - Health: `http://localhost:8000/health`
 - Valuation: `http://localhost:8000/api/valuation/NVDAx`
 - Replay: `http://localhost:8000/api/replay/NVDAx`
+- Operational history: `http://localhost:8000/api/history/NVDAx?limit=72`
 - Backtest: `http://localhost:8000/api/backtest/NVDAx?source=scenario`
 - Runtime status: `http://localhost:8000/api/runtime/NVDAx`
 - Onchain status: `http://localhost:8000/api/onchain/NVDAx`
@@ -80,6 +81,11 @@ failure leaves the warmed valuation intact and does not stop the scheduler. The
 publisher performs chain-ID, bytecode, linkage, policy,
 publisher-authorization, monotonic-observation, transaction, and read-back
 checks. API reads, replay, and cold diagnostics never publish.
+The canonical live token observation is an exact confirmed OKX OnchainOS NVDAx
+five-minute candle at the settled scheduler timestamp; DexScreener remains
+available only for diagnostics or future cross-checks. `GET /api/history/{asset}`
+returns only successful warmed scheduler results and is not a backtest or
+scenario replay.
 
 ## Layout
 
@@ -101,6 +107,6 @@ valtide_api/
 ├── state_store.py   # in-memory computed-result cache
 ├── publisher.py     # X Layer publication and control-plane verification
 ├── abis/            # bundled ABIs generated from the deployed contracts
-├── routes/          # assets, valuation, replay, backtest, runtime, publish, onchain
+├── routes/          # assets, valuation, history, replay, backtest, runtime, publish, onchain
 └── adapters/        # token, underlying, and reference-under-test sources
 ```

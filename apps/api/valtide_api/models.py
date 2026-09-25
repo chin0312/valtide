@@ -51,6 +51,9 @@ class MarketSnapshot(BaseModel):
 
     token_price: float | None
     token_volume: float | None = None
+    token_volume_usd: float | None = None
+    token_source: str | None = None
+    token_observed_at: datetime | None = None
     # DEX pool depth in USD when the token source reports it (live path). Used by
     # validation as a market-quality floor; None where a source omits it.
     token_liquidity_usd: float | None = None
@@ -119,6 +122,11 @@ class ValuationResult(BaseModel):
 
     last_trusted_reference: float
     token_price: float | None
+    token_source: str | None = None
+    token_observed_at: datetime | None = None
+    token_volume: float | None = None
+    token_volume_usd: float | None = None
+    token_liquidity_usd: float | None = None
     external_constructed_reference: float | None = None
 
     valtide_fair_value: float
@@ -149,3 +157,4 @@ class ValuationResult(BaseModel):
     interval_calibration_type: str = "session_sym"
     interval_calibration_source: str = "global"
     reference_age_seconds: int
+    source_provenance: dict[str, str] = Field(default_factory=dict)

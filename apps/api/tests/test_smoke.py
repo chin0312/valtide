@@ -81,6 +81,8 @@ def test_assets_list():
     resp = client.get("/api/assets")
     assert resp.status_code == 200
     assert resp.json()[0]["asset"] == "NVDAx"
+    assert resp.json()[0]["token_source"] == "okx_onchainos"
+    assert resp.json()[0]["underlying_source"] == "alpaca"
     assert resp.json()[0]["model_available"] is True
 
 

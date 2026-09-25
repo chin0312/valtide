@@ -30,7 +30,26 @@ def test_missing_token_row_is_preserved(tmp_path):
 
     assert len(snapshots) == 3
     assert snapshots[0].token_price is None
+    assert snapshots[0].token_volume_usd is None
     assert snapshots[1].token_price == 180.3
+
+
+def test_panel_loads_optional_usd_volume_column(tmp_path):
+    columns = (
+        "timestamp_utc,nvda_close,nvda_volume,nvdax_close,nvdax_volume,"
+        "nvdax_volume_usd,nvda_available,nvdax_available,session_state"
+    )
+    rows = [
+        "2026-09-20T14:00:00Z,180.0,1000,180.1,500,90000,TRUE,TRUE,closed",
+        "2026-09-20T14:05:00Z,NA,NA,180.3,900,123456,FALSE,TRUE,closed",
+    ]
+
+    snapshots = load_panel_snapshots(_write(tmp_path, "\n".join([columns, *rows]) + "\n"))
+
+    # The first row establishes the trusted anchor and is not emitted as a
+    # public snapshot; the next row proves the optional column is preserved.
+    assert len(snapshots) == 1
+    assert snapshots[0].token_volume_usd == 123_456.0
 
 
 def test_reference_is_live_then_explicit_stale_reference(tmp_path):

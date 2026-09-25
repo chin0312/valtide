@@ -280,7 +280,7 @@ These four files are the canonical project references:
 | Product specification   | defined      |
 | Architecture            | drafted      |
 | Methodology             | drafted      |
-| Implementation          | backend/quant vertical slice and conditional scheduler publication implemented; deployment/frontend integration in progress |
+| Implementation          | backend/quant vertical slice, exact live evidence provenance, warmed operational history, and conditional scheduler publication implemented; frontend integration in progress |
 | Quant validation        | P1a-C runtime integrated |
 | X Layer deployment      | testnet control plane deployed |
 | Reference consumer      | DemoCollateralVault deployed |
