@@ -15,7 +15,7 @@ const { RegistryPanel } = load("../src/components/RegistryPanel.tsx");
 const { ObservationAudit } = load("../src/components/ObservationAudit.tsx");
 const { default: App, AssetSelector } = load("../src/App.tsx");
 const { deliveryStatusLabel, pipelineStatusLabel } = load("../src/lib/format.ts");
-const { chartDomain, clampViewport, minimumViewportWidth, panViewport, wheelGestureIntent, wheelZoomScale, zoomSensitivity, zoomViewport } = load("../src/components/EscalationChart.tsx");
+const { chartDomain, clampViewport, lowerBoundTimestamp, minimumViewportWidth, panViewport, shouldRenderStateDots, sliceChartDataForViewport, upperBoundTimestamp, wheelGestureIntent, wheelZoomScale, zoomSensitivity, zoomViewport } = load("../src/components/EscalationChart.tsx");
 const h = React.createElement;
 const render = (component, props) => renderToStaticMarkup(h(component, props));
 
@@ -199,6 +199,45 @@ test("Chart wheel intent batches dominant axes without changing semantic data", 
   const source = fs.readFileSync(path.join(__dirname, "../src/components/EscalationChart.tsx"), "utf8");
   assert.match(source, /requestAnimationFrame\(flushWheelInput\)/);
   assert.match(source, /cancelAnimationFrame\(wheelFrameRef\.current\)/);
+});
+
+test("Chart renders only the viewport plus continuity boundaries", () => {
+  const point = (sourceIndex, ts) => ({ sourceIndex, ts, band: [1, 2], fair: 1.5, rut: 1.6, token: 1.4, state: "SUPPORTED" });
+  const points = [
+    point(0, 0),
+    point(1, 300_000),
+    point(null, 450_000),
+    point(2, 600_000),
+    point(3, 900_000),
+    point(4, 1_200_000),
+  ];
+  assert.equal(lowerBoundTimestamp(points, 500_000), 3);
+  assert.equal(upperBoundTimestamp(points, 850_000), 4);
+  const sliced = sliceChartDataForViewport(points, [500_000, 850_000]);
+  assert.deepEqual(sliced.map(({ sourceIndex }) => sourceIndex), [null, 2, 3]);
+  assert.deepEqual(sliceChartDataForViewport(points, [0, 1_200_000]), points);
+  assert.deepEqual(sliceChartDataForViewport(points, [-100, 100]), [points[0], points[1]]);
+  assert.deepEqual(sliceChartDataForViewport(points, [1_100_000, 1_300_000]), [points[4], points[5]]);
+  const densePoints = Array.from({ length: 2_017 }, (_, index) => point(index, index * 300_000));
+  const denseWindow = sliceChartDataForViewport(densePoints, [1_000 * 300_000, 1_011 * 300_000]);
+  assert.equal(denseWindow.length, 14);
+  assert.equal(denseWindow[0].sourceIndex, 999);
+  assert.equal(denseWindow.at(-1).sourceIndex, 1_012);
+  assert.match(fs.readFileSync(path.join(__dirname, "../src/components/EscalationChart.tsx"), "utf8"), /<ComposedChart\s+data=\{renderData\}/);
+});
+
+test("Dense evidence markers are a rendering-only level of detail", () => {
+  assert.equal(shouldRenderStateDots(4, 400), true);
+  assert.equal(shouldRenderStateDots(100, 400), false);
+  assert.equal(shouldRenderStateDots(2_017, 1_000), false);
+  assert.equal(shouldRenderStateDots(1, 0), true);
+});
+
+test("Pointer drag uses one animation-frame update per pending gesture", () => {
+  const source = fs.readFileSync(path.join(__dirname, "../src/components/EscalationChart.tsx"), "utf8");
+  assert.match(source, /requestAnimationFrame\(\(\) => \{[\s\S]*flushDragViewport\(\)/);
+  assert.match(source, /cancelAnimationFrame\(dragFrameRef\.current\)/);
+  assert.match(source, /data=\{renderData\}/);
 });
 
 test("Rendered chart clips both axes to the computed viewport", () => {

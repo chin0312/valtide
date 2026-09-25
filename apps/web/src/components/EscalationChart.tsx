@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState, type PointerEvent as ReactPointerEvent } from "react";
+import { useEffect, useMemo, useRef, useState, type PointerEvent as ReactPointerEvent } from "react";
 import { Area, ComposedChart, Line, ReferenceLine, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
 import type { EvidenceState, ValuationResult } from "../api/types";
 import { EVIDENCE } from "../lib/evidence";
@@ -31,6 +31,44 @@ const CHART_MARGIN = { top: 10, right: 18, bottom: 4, left: 2 } as const;
 const Y_AXIS_WIDTH = 50;
 
 export type ChartDomain = [number, number];
+
+export function lowerBoundTimestamp(points: ChartPoint[], timestamp: number): number {
+  let low = 0;
+  let high = points.length;
+  while (low < high) {
+    const middle = low + Math.floor((high - low) / 2);
+    if (points[middle].ts < timestamp) low = middle + 1;
+    else high = middle;
+  }
+  return low;
+}
+
+export function upperBoundTimestamp(points: ChartPoint[], timestamp: number): number {
+  let low = 0;
+  let high = points.length;
+  while (low < high) {
+    const middle = low + Math.floor((high - low) / 2);
+    if (points[middle].ts <= timestamp) low = middle + 1;
+    else high = middle;
+  }
+  return low;
+}
+
+export function sliceChartDataForViewport(points: ChartPoint[], viewport: ChartDomain): ChartPoint[] {
+  if (!points.length) return [];
+  const start = Math.min(viewport[0], viewport[1]);
+  const end = Math.max(viewport[0], viewport[1]);
+  const firstInRange = lowerBoundTimestamp(points, start);
+  const endExclusive = upperBoundTimestamp(points, end);
+  const sliceStart = Math.max(0, firstInRange - 1);
+  const sliceEnd = Math.min(points.length, endExclusive + 1);
+  return points.slice(sliceStart, Math.max(sliceStart, sliceEnd));
+}
+
+export function shouldRenderStateDots(realObservationCount: number, plotWidth: number, minPixelsPerObservation = 5): boolean {
+  if (realObservationCount <= 1) return true;
+  return plotWidth > 0 && plotWidth / realObservationCount >= minPixelsPerObservation;
+}
 
 export function chartDomain(timestamps: number[]): ChartDomain {
   const valid = [...new Set(timestamps.filter((timestamp) => Number.isFinite(timestamp)))].sort((a, b) => a - b);
@@ -108,17 +146,20 @@ export function wheelGestureIntent(deltaX: number, deltaY: number): "pan" | "zoo
 }
 
 export function EscalationChart({ results, index, playhead = index, onSelect, resetKey }: { results: ValuationResult[]; index: number; playhead?: number; onSelect: (i: number) => void; resetKey?: string | number }) {
-  const data = buildChartData(results);
-  const realPoints = data.filter((point) => point.sourceIndex != null);
-  const timestamps = realPoints.map((point) => point.ts);
-  const fullDomain = chartDomain(timestamps);
-  const minimumWidth = minimumViewportWidth(timestamps);
+  const data = useMemo(() => buildChartData(results), [results]);
+  const realPoints = useMemo(() => data.filter((point) => point.sourceIndex != null), [data]);
+  const timestamps = useMemo(() => realPoints.map((point) => point.ts), [realPoints]);
+  const fullDomain = useMemo(() => chartDomain(timestamps), [timestamps]);
+  const minimumWidth = useMemo(() => minimumViewportWidth(timestamps), [timestamps]);
   const [viewport, setViewport] = useState<ChartDomain>(fullDomain);
   const [panning, setPanning] = useState(false);
+  const [plotWidth, setPlotWidth] = useState(0);
   const chartRef = useRef<HTMLDivElement>(null);
   const viewportRef = useRef<ChartDomain>(fullDomain);
   const wheelFrameRef = useRef<number | null>(null);
   const wheelInputRef = useRef<{ deltaX: number; deltaY: number; clientX: number } | null>(null);
+  const dragFrameRef = useRef<number | null>(null);
+  const dragClientXRef = useRef<number | null>(null);
   const dragRef = useRef<{ pointerId: number; startX: number; startDomain: ChartDomain; moved: boolean } | null>(null);
 
   useEffect(() => {
@@ -132,14 +173,34 @@ export function EscalationChart({ results, index, playhead = index, onSelect, re
     viewportRef.current = viewportDomain;
   }, [viewportDomain[0], viewportDomain[1]]);
 
-  const visibleData = data.filter((point) => point.ts >= viewportDomain[0] && point.ts <= viewportDomain[1]);
-  const allPrices = data.flatMap((point) => [point.band?.[0], point.band?.[1], point.rut, point.token].filter((value): value is number => value != null));
-  const visiblePrices = visibleData.flatMap((point) => [point.band?.[0], point.band?.[1], point.rut, point.token].filter((value): value is number => value != null));
+  useEffect(() => {
+    const element = chartRef.current;
+    if (!element) return;
+
+    const updatePlotWidth = () => {
+      const nextWidth = element.clientWidth - CHART_MARGIN.left - Y_AXIS_WIDTH - CHART_MARGIN.right;
+      setPlotWidth(Math.max(0, nextWidth));
+    };
+    updatePlotWidth();
+    if (typeof ResizeObserver === "undefined") return;
+    const observer = new ResizeObserver(updatePlotWidth);
+    observer.observe(element);
+    return () => observer.disconnect();
+  }, []);
+
+  const renderData = useMemo(() => sliceChartDataForViewport(data, viewportDomain), [data, viewportDomain[0], viewportDomain[1]]);
+  const visibleData = useMemo(
+    () => renderData.filter((point) => point.ts >= viewportDomain[0] && point.ts <= viewportDomain[1]),
+    [renderData, viewportDomain[0], viewportDomain[1]],
+  );
+  const visibleRealPoints = useMemo(() => visibleData.filter((point) => point.sourceIndex != null), [visibleData]);
+  const allPrices = useMemo(() => data.flatMap((point) => [point.band?.[0], point.band?.[1], point.rut, point.token].filter((value): value is number => value != null)), [data]);
+  const visiblePrices = useMemo(() => visibleData.flatMap((point) => [point.band?.[0], point.band?.[1], point.rut, point.token].filter((value): value is number => value != null)), [visibleData]);
   const prices = visiblePrices.length ? visiblePrices : allPrices;
   const minTimestamp = viewportDomain[0];
   const maxTimestamp = viewportDomain[1];
   const multiDay = new Date(minTimestamp).toISOString().slice(0, 10) !== new Date(maxTimestamp).toISOString().slice(0, 10);
-  const coverageTargets = [...new Set(results.map((result) => result.interval_coverage_target))];
+  const coverageTargets = useMemo(() => [...new Set(results.map((result) => result.interval_coverage_target))], [results]);
   const intervalName = coverageTargets.length === 1 ? coverageLabel(coverageTargets[0]) : "Calibrated interval";
   const min = prices.length ? Math.min(...prices) : 0;
   const max = prices.length ? Math.max(...prices) : 1;
@@ -147,6 +208,7 @@ export function EscalationChart({ results, index, playhead = index, onSelect, re
   const pad = Math.max(0.1, span * 0.2);
   const cursorTimestamp = timestampAtPosition(results, playhead);
   const yDecimals = span < 2 ? 1 : 0;
+  const showStateDots = shouldRenderStateDots(visibleRealPoints.length, plotWidth);
 
   const plotRatioAt = (clientX: number): number => {
     const rect = chartRef.current?.getBoundingClientRect();
@@ -154,6 +216,20 @@ export function EscalationChart({ results, index, playhead = index, onSelect, re
     const plotLeft = CHART_MARGIN.left + Y_AXIS_WIDTH;
     const plotWidth = Math.max(1, rect.width - plotLeft - CHART_MARGIN.right);
     return Math.min(1, Math.max(0, (clientX - rect.left - plotLeft) / plotWidth));
+  };
+
+  const flushDragViewport = () => {
+    const drag = dragRef.current;
+    const clientX = dragClientXRef.current;
+    if (!drag || !drag.moved || clientX == null) return;
+    const rect = chartRef.current?.getBoundingClientRect();
+    if (!rect) return;
+    const plotLeft = CHART_MARGIN.left + Y_AXIS_WIDTH;
+    const plotWidth = Math.max(1, rect.width - plotLeft - CHART_MARGIN.right);
+    const deltaMs = -((clientX - drag.startX) / plotWidth) * (drag.startDomain[1] - drag.startDomain[0]);
+    const next = panViewport(drag.startDomain, fullDomain, deltaMs, minimumWidth);
+    viewportRef.current = next;
+    setViewport(next);
   };
 
   useEffect(() => {
@@ -204,6 +280,12 @@ export function EscalationChart({ results, index, playhead = index, onSelect, re
     };
   }, [fullDomain[0], fullDomain[1], minimumWidth]);
 
+  useEffect(() => () => {
+    if (dragFrameRef.current != null) cancelAnimationFrame(dragFrameRef.current);
+    dragFrameRef.current = null;
+    dragClientXRef.current = null;
+  }, []);
+
   const handlePointerDown = (event: ReactPointerEvent<HTMLDivElement>) => {
     if (event.button !== 0) return;
     dragRef.current = { pointerId: event.pointerId, startX: event.clientX, startDomain: viewportDomain, moved: false };
@@ -217,20 +299,24 @@ export function EscalationChart({ results, index, playhead = index, onSelect, re
     drag.moved = true;
     event.currentTarget.setPointerCapture?.(event.pointerId);
     setPanning(true);
-    const rect = chartRef.current?.getBoundingClientRect();
-    if (!rect) return;
-    const plotLeft = CHART_MARGIN.left + Y_AXIS_WIDTH;
-    const plotWidth = Math.max(1, rect.width - plotLeft - CHART_MARGIN.right);
-    const deltaMs = -(deltaX / plotWidth) * (drag.startDomain[1] - drag.startDomain[0]);
-    const next = panViewport(drag.startDomain, fullDomain, deltaMs, minimumWidth);
-    viewportRef.current = next;
-    setViewport(next);
+    dragClientXRef.current = event.clientX;
+    if (dragFrameRef.current == null) dragFrameRef.current = requestAnimationFrame(() => {
+      dragFrameRef.current = null;
+      flushDragViewport();
+    });
   };
 
   const finishPointer = (event: ReactPointerEvent<HTMLDivElement>) => {
     const drag = dragRef.current;
     if (!drag || drag.pointerId !== event.pointerId) return;
     if (event.currentTarget.hasPointerCapture?.(event.pointerId)) event.currentTarget.releasePointerCapture(event.pointerId);
+    if (drag.moved) {
+      if (dragFrameRef.current != null) cancelAnimationFrame(dragFrameRef.current);
+      dragFrameRef.current = null;
+      dragClientXRef.current = event.clientX;
+      flushDragViewport();
+    }
+    dragClientXRef.current = null;
     dragRef.current = null;
     setPanning(false);
     if (!drag.moved) {
@@ -257,7 +343,7 @@ export function EscalationChart({ results, index, playhead = index, onSelect, re
     >
       <ResponsiveContainer>
         <ComposedChart
-          data={data}
+          data={renderData}
           margin={CHART_MARGIN}
         >
           <XAxis type="number" dataKey="ts" domain={viewportDomain} allowDataOverflow tickFormatter={(value: number) => timeAxisUTC(Number(value), multiDay)} stroke="var(--color-muted)" fontFamily="Inter" fontSize={10} tickLine={false} axisLine={{ stroke: "var(--color-line)" }} minTickGap={42} />
@@ -278,10 +364,10 @@ export function EscalationChart({ results, index, playhead = index, onSelect, re
             stroke="var(--color-series-reference)"
             strokeWidth={1.5}
             strokeDasharray="5 4"
-            dot={(props: DotProps & { key?: string | number }) => {
+            dot={showStateDots ? (props: DotProps & { key?: string | number }) => {
               const { key, ...dotProps } = props;
               return <StateDot key={key} {...dotProps} selectedIndex={index} />;
-            }}
+            } : false}
             activeDot={false}
             connectNulls={false}
             isAnimationActive={false}
