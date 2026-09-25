@@ -6,7 +6,7 @@ Valtide helps DeFi curators and RWA risk teams independently validate whether a
 collateral reference remains supported by market evidence, then makes that
 Evidence State usable by curator-defined policies on X Layer.
 
-[Live App](https://valtide-liard.vercel.app) · [Backend API](https://valtide-api-production.up.railway.app) · [OpenAPI / API Docs](https://valtide-api-production.up.railway.app/docs) · **Built for OKX Dev Day 2026 — Build a Market**
+[Live App](https://valtide-liard.vercel.app) · [Demo Video](https://youtu.be/HTbjq2vxzHY) · [Backend API](https://valtide-api-production.up.railway.app) · [OpenAPI / API Docs](https://valtide-api-production.up.railway.app/docs) · **Built for OKX Dev Day 2026 — Build a Market**
 
 ## Problem
 
