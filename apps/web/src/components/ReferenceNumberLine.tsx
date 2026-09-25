@@ -8,81 +8,63 @@ interface Marker {
   label: string;
   price: number;
   color: string;
-  leftPct: number;
-  emphasize?: boolean;
+  topPct: number;
 }
 
 export function ReferenceNumberLine({ r }: { r: ValuationResult }) {
-  const rawMarkers: Array<Omit<Marker, "leftPct"> | null> = [
-    r.reference_under_test == null ? null : { key: "rut", label: "Reference under test", price: r.reference_under_test, emphasize: true, color: EVIDENCE[r.evidence_state].fg },
-    r.token_price == null ? null : { key: "token", label: "Tokenized market", price: r.token_price, color: "var(--color-series-token)" },
-    { key: "trusted", label: "Last trusted price", price: r.last_trusted_reference, color: "var(--color-series-trusted)" },
-    r.external_constructed_reference == null ? null : { key: "ext", label: "Constructed reference", price: r.external_constructed_reference, color: "var(--color-series-valtide)" },
+  const candidates: Array<Omit<Marker, "topPct"> | null> = [
+    r.reference_under_test == null ? null : { key: "rut", label: "Reference", price: r.reference_under_test, color: EVIDENCE[r.evidence_state].fg },
+    r.token_price == null ? null : { key: "token", label: "Token market", price: r.token_price, color: "var(--color-series-token)" },
+    { key: "trusted", label: "Last trusted", price: r.last_trusted_reference, color: "var(--color-series-trusted)" },
+    r.external_constructed_reference == null ? null : { key: "ext", label: "Constructed", price: r.external_constructed_reference, color: "var(--color-series-valtide)" },
   ];
-  const markers: Marker[] = rawMarkers.filter((marker): marker is Omit<Marker, "leftPct"> => marker != null).map((marker) => ({ ...marker, leftPct: unitsToFraction(toBandUnits(marker.price, r)) * 100 }));
-
-  const clusters = clusterMarkers(markers);
-  const bandL = unitsToFraction(-1) * 100;
-  const bandR = unitsToFraction(1) * 100;
-  const axisY = 112;
+  const markers = candidates
+    .filter((marker): marker is Omit<Marker, "topPct"> => marker != null)
+    .map((marker) => ({ ...marker, topPct: 100 - unitsToFraction(toBandUnits(marker.price, r)) * 100 }));
+  const bandTop = 100 - unitsToFraction(1) * 100;
+  const bandBottom = 100 - unitsToFraction(-1) * 100;
+  const fairTop = 100 - unitsToFraction(0) * 100;
 
   return (
-    <div className="w-full overflow-hidden">
-      <div className="relative mx-4 h-[230px] select-none sm:mx-10">
-        <div className="absolute rounded" style={{ left: `${bandL}%`, width: `${bandR - bandL}%`, top: axisY - 20, height: 40, background: "var(--color-band-fill)", border: "1px solid var(--color-series-valtide)" }} />
-        <div className="absolute left-0 right-0 h-px" style={{ top: axisY, background: "var(--color-line-strong)" }} />
-        <Boundary leftPct={bandL} axisY={axisY} label={money(r.fair_value_lower)} />
-        <Boundary leftPct={bandR} axisY={axisY} label={money(r.fair_value_upper)} />
-        <AxisLabel leftPct={0} axisY={axisY} value={money(priceAtUnits(AXIS_MIN, r))} align="left" />
-        <AxisLabel leftPct={50} axisY={axisY} value={`${money(r.valtide_fair_value)} fair value`} align="center" />
-        <AxisLabel leftPct={100} axisY={axisY} value={money(priceAtUnits(AXIS_MAX, r))} align="right" />
-
-        {clusters.map((cluster, clusterIndex) => <MarkerCluster key={cluster.map((m) => m.key).join("-")} markers={cluster} axisY={axisY} above={cluster.some((m) => m.key === "rut" || m.key === "token") || clusterIndex % 2 === 0} />)}
+    <div className="grid min-h-[410px] grid-cols-[78px_minmax(0,1fr)] gap-5">
+      <div className="relative my-4 ml-2">
+        <div className="absolute left-[34px] top-0 h-full w-px" style={{ background: "var(--color-line-strong)" }} />
+        <div className="absolute left-[22px] w-6 rounded-sm" style={{ top: `${bandTop}%`, height: `${bandBottom - bandTop}%`, background: "var(--color-band-fill)", border: "1px solid var(--color-series-valtide)" }} title={coverageLabel(r.interval_coverage_target)} />
+        <div className="absolute left-[16px] h-px w-9" style={{ top: `${fairTop}%`, background: "var(--color-series-valtide)" }} />
+        <AxisTick top={0} value={money(priceAtUnits(AXIS_MAX, r))} />
+        <AxisTick top={bandTop} value={money(r.fair_value_upper)} accent />
+        <AxisTick top={fairTop} value={money(r.valtide_fair_value)} accent />
+        <AxisTick top={bandBottom} value={money(r.fair_value_lower)} accent />
+        <AxisTick top={100} value={money(priceAtUnits(AXIS_MIN, r))} />
+        {markers.map((marker, index) => <MarkerDot key={marker.key} marker={marker} offset={index} />)}
       </div>
-      <div className="text-center"><span className="rounded px-2 py-1 font-mono text-[9px] uppercase tracking-[0.04em]" style={{ color: "var(--color-series-valtide)", background: "var(--color-band-fill)" }} title="Valtide calibrated interval">{coverageLabel(r.interval_coverage_target)}</span></div>
-    </div>
-  );
-}
 
-function clusterMarkers(markers: Marker[]): Marker[][] {
-  const sorted = [...markers].sort((a, b) => a.leftPct - b.leftPct);
-  const clusters: Marker[][] = [];
-  sorted.forEach((marker) => {
-    const current = clusters[clusters.length - 1];
-    const anchor = current ? current.reduce((sum, item) => sum + item.leftPct, 0) / current.length : 0;
-    if (current && Math.abs(marker.leftPct - anchor) <= 4) current.push(marker);
-    else clusters.push([marker]);
-  });
-  return clusters;
-}
-
-function MarkerCluster({ markers, axisY, above }: { markers: Marker[]; axisY: number; above: boolean }) {
-  const leftPct = markers.reduce((sum, marker) => sum + marker.leftPct, 0) / markers.length;
-  const labelHeight = markers.length * 34;
-  const labelY = above ? axisY - labelHeight - 30 : axisY + 30;
-  return (
-    <div className="absolute top-0" style={{ left: `${leftPct}%`, transform: "translateX(-50%)" }}>
-      <div className="absolute w-px" style={{ left: "50%", top: above ? labelY + labelHeight : axisY, height: above ? axisY - labelY - labelHeight : labelY - axisY, background: "var(--color-line-strong)" }} />
-      <div className="absolute rounded-full" style={{ left: "50%", top: axisY, transform: "translate(-50%,-50%)", width: 13, height: 13, background: markers[0].color, border: "2px solid var(--color-panel)", boxShadow: markers.some((m) => m.emphasize) ? "0 0 0 3px var(--color-panel-3)" : "none", zIndex: 2 }} />
-      <div className="absolute w-44" style={{ left: "50%", top: labelY, transform: "translateX(-50%)" }}>
-        {markers.map((marker) => (
-          <div key={marker.key} className="mb-1 text-center">
-            <div className="text-[11px] font-medium" style={{ color: marker.color }}>{marker.label}</div>
-            <div className="tnum text-[11px] text-ink">{money(marker.price)}</div>
-          </div>
-        ))}
+      <div className="flex flex-col justify-between py-4">
+        <div>
+          <div className="eyebrow" style={{ color: "var(--color-muted)" }}>Calibrated range</div>
+          <div className="tnum mt-2 text-lg font-medium text-ink">{money(r.fair_value_lower)}–{money(r.fair_value_upper)}</div>
+          <span className="mt-2 inline-flex rounded px-2 py-1 font-mono text-[9px] uppercase tracking-[0.04em]" style={{ color: "var(--color-series-valtide)", background: "var(--color-band-fill)" }}>{coverageLabel(r.interval_coverage_target)}</span>
+        </div>
+        <div className="space-y-3">
+          {markers.map((marker) => (
+            <div key={marker.key} className="flex items-start gap-2.5">
+              <i className="mt-1.5 h-2 w-2 shrink-0 rounded-full" style={{ background: marker.color }} />
+              <div className="min-w-0"><div className="text-[10px]" style={{ color: "var(--color-muted)" }}>{marker.label}</div><div className="tnum text-xs font-medium text-ink">{money(marker.price)}</div></div>
+            </div>
+          ))}
+        </div>
       </div>
     </div>
   );
 }
 
-function Boundary({ leftPct, axisY, label }: { leftPct: number; axisY: number; label: string }) {
-  return <div className="absolute" style={{ left: `${leftPct}%`, top: axisY - 27, transform: "translateX(-50%)" }}><div className="mx-auto h-[54px] w-px" style={{ background: "var(--color-series-valtide)" }} /><div className="tnum mt-1 whitespace-nowrap text-[10px]" style={{ color: "var(--color-series-valtide)" }}>{label}</div></div>;
+function AxisTick({ top, value, accent }: { top: number; value: string; accent?: boolean }) {
+  return <div className="absolute left-0 -translate-y-1/2" style={{ top: `${top}%` }}><span className="tnum text-[8px]" style={{ color: accent ? "var(--color-series-valtide)" : "var(--color-muted)" }}>{value}</span></div>;
 }
 
-function AxisLabel({ leftPct, axisY, value, align }: { leftPct: number; axisY: number; value: string; align: "left" | "center" | "right" }) {
-  const transform = align === "center" ? "translateX(-50%)" : align === "right" ? "translateX(-100%)" : undefined;
-  return <div className="tnum absolute whitespace-nowrap text-[10px]" style={{ left: `${leftPct}%`, top: axisY + 42, transform, color: "var(--color-muted)" }}>{value}</div>;
+function MarkerDot({ marker, offset }: { marker: Marker; offset: number }) {
+  const left = 30 + (offset % 2) * 12;
+  return <div className="absolute h-3 w-3 -translate-y-1/2 rotate-45" style={{ left, top: `${marker.topPct}%`, background: marker.color, border: "2px solid var(--color-panel)", boxShadow: "0 0 0 1px var(--color-line-strong)" }} title={`${marker.label}: ${money(marker.price)}`} />;
 }
 
 function priceAtUnits(units: number, r: ValuationResult): number {

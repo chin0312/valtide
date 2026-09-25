@@ -198,17 +198,17 @@ Ship one **Overview**. Do not expose empty Historical, Operational, or Demo page
 
 - Prefer warmed operational data when it exists.
 - Otherwise show the deterministic scenario in the same overview with an unmistakable `DEMO` or `DEMO FIXTURE` source chip.
-- Operational history is never interpolated. Demo-only presentation frames may interpolate between its fixed scenario anchors for smooth playback.
+- Operational history is never interpolated. Demo playback uses continuous visual interpolation between fixed presentation periods; Evidence State and reason codes change only when the playhead crosses a real period boundary.
 
 ### Primary screen order
 
 1. App bar and system freshness.
-2. Asset-status rail with NVDAx plus clearly labelled research-queue placeholders.
+2. A disabled NVDAx asset selector that states the backend's single-asset boundary.
 3. Connected KPI strip.
-4. Large valuation timeline with inline source and replay controls.
+4. Large valuation timeline with a vertical interval/price plot directly beside it.
 5. Compact Evidence, Policy, and Price Basis bento cards.
-6. Price map.
-7. X Layer provenance only when it is available.
+6. Evidence record with state distribution, transitions, and source facts.
+7. X Layer provenance pipeline, including a legible read-only state when the API is unavailable.
 
 This order maps directly to VALIDATE → DIAGNOSE → TRIAGE → GUARD.
 
@@ -216,15 +216,14 @@ This order maps directly to VALIDATE → DIAGNOSE → TRIAGE → GUARD.
 
 ```text
 ┌ VALTIDE ─ OVERVIEW ───────────────────────────── source / backend status ┐
-├ ASSET STATUS ───┬ Reference ┬ Fair value ┬ Token market ┬ Deviation ────┤
-│ NVDAx active    │ LARGE VALUATION TIMELINE + CALIBRATED BAND             │
-│ SPYx queued     ├ Evidence ─────┬ Policy ────────┬ Price basis ─────────┤
-│ TSLAx queued    ├ PRICE MAP ──────────────────────────────────────────────┤
-│ AAPLx queued    │ optional deployed X Layer provenance                    │
-└─────────────────┴─────────────────────────────────────────────────────────┘
+├ Reference ┬ Fair value ┬ Token ┬ Deviation ┬ Sigma ┬ Last trusted ──────┤
+├ LARGE VALUATION TIMELINE + BAND ───────────┬ VERTICAL PRICE RANGE ──────┤
+├ Evidence ─────────┬ Policy ────────────────┬ Price basis ────────────────┤
+├ EVIDENCE RECORD / STATE DISTRIBUTION / SOURCE FACTS ──────────────────────┤
+└ X LAYER PROVENANCE PIPELINE ──────────────────────────────────────────────┘
 ```
 
-Placeholder assets are allowed only as `Research queue`; never invent prices or Evidence States for them.
+Do not imply multi-asset selection while the backend supports only NVDAx. Show the real boundary rather than fake queue items.
 
 ## 9. Core components
 

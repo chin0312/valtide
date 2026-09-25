@@ -21,7 +21,7 @@ interface DotProps {
 
 const CANONICAL_STEP_MS = 5 * 60 * 1000;
 
-export function EscalationChart({ results, index, onSelect }: { results: ValuationResult[]; index: number; onSelect: (i: number) => void }) {
+export function EscalationChart({ results, index, playhead = index, onSelect }: { results: ValuationResult[]; index: number; playhead?: number; onSelect: (i: number) => void }) {
   const data = buildChartData(results);
   const realPoints = data.filter((point) => point.sourceIndex != null);
   const timestamps = realPoints.map((point) => point.ts);
@@ -35,7 +35,7 @@ export function EscalationChart({ results, index, onSelect }: { results: Valuati
   const max = Math.max(...prices);
   const span = max - min;
   const pad = Math.max(0.1, span * 0.2);
-  const selectedPoint = data.find((point) => point.sourceIndex === index);
+  const cursorTimestamp = timestampAtPosition(results, playhead);
   const yDecimals = span < 2 ? 1 : 0;
 
   return (
@@ -78,11 +78,21 @@ export function EscalationChart({ results, index, onSelect }: { results: Valuati
             name="Reference under test"
           />
           <Line dataKey="token" stroke="var(--color-series-token)" strokeWidth={1.25} strokeOpacity={0.72} dot={false} connectNulls={false} isAnimationActive={false} name="Tokenized market" />
-          <ReferenceLine x={selectedPoint?.ts} stroke="var(--color-accent)" strokeOpacity={0.55} strokeDasharray="2 3" />
+          <ReferenceLine x={cursorTimestamp} stroke="var(--color-accent)" strokeOpacity={0.65} strokeDasharray="2 3" />
         </ComposedChart>
       </ResponsiveContainer>
     </div>
   );
+}
+
+function timestampAtPosition(results: ValuationResult[], position: number): number | undefined {
+  if (!results.length) return undefined;
+  const lowerIndex = Math.max(0, Math.min(Math.floor(position), results.length - 1));
+  const upperIndex = Math.min(lowerIndex + 1, results.length - 1);
+  const lower = Date.parse(results[lowerIndex].timestamp);
+  const upper = Date.parse(results[upperIndex].timestamp);
+  if (!Number.isFinite(lower) || !Number.isFinite(upper)) return undefined;
+  return lower + (upper - lower) * (position - lowerIndex);
 }
 
 function StateDot({ cx, cy, payload, selectedIndex }: DotProps & { selectedIndex: number }) {

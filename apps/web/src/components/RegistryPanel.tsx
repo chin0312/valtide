@@ -16,24 +16,18 @@ interface RegistryPanelProps {
 }
 
 export function RegistryPanel({ controlPlane, enforcement, runtime, sync, mode = "operational", isLoading, isError, errorDetail }: RegistryPanelProps) {
-  if (isLoading) return <Panel title="X Layer provenance" subtitle="Backend publisher → Registry → curator policy → RiskGuard → DemoVault"><p className="text-xs" style={{ color: "var(--color-muted)" }}>Reading deployed control-plane state…</p></Panel>;
+  if (isLoading) return <UnavailableRegistryPanel status="Reading X Layer" detail="Fetching the deployed attestation and policy state…" />;
 
   if (!controlPlane) {
-    return (
-      <Panel title="X Layer provenance" subtitle="Deployed control-plane readback">
-        <div className="rounded-lg px-3 py-3 text-xs" style={{ background: "var(--color-panel-2)", border: "1px solid var(--color-line)", borderLeft: "2px solid var(--color-inconclusive)", color: "var(--color-ink-dim)" }}>
-          <strong className="text-ink">Control-plane status unavailable.</strong> {isError ? errorDetail ?? "The backend could not read the deployed X Layer contracts." : "No onchain response has loaded."}
-        </div>
-        <p className="mt-3 text-[11px]" style={{ color: "var(--color-muted)" }}>{mode === "demo" ? "The scenario remains separate from the deployed control plane. " : mode === "historical" ? "Historical evidence is not substituted for current chain state. " : ""}The browser is read-only and never holds the publisher signer.</p>
-      </Panel>
-    );
+    const modeDetail = mode === "demo" ? "Demo playback is read-only and does not publish." : mode === "historical" ? "Historical evidence is not substituted for current chain state." : "No deployed state was returned.";
+    return <UnavailableRegistryPanel status="Not connected" detail={`${isError ? errorDetail ?? "The backend could not read the deployed contracts." : "No on-chain response has loaded."} ${modeDetail}`} />;
   }
 
   const attestation = controlPlane.attestation;
   const modeNote = mode === "demo" ? "Live deployed state — not driven by this scenario." : mode === "historical" ? "Current deployed state — not historical chain state for the selected observation." : null;
 
   return (
-    <Panel title="X Layer provenance" subtitle="An ordered readback of evidence delivery and enforcement.">
+    <Panel title="On-chain provenance" subtitle="X Layer · attestation delivery and collateral enforcement">
       <div className="flex flex-wrap items-center justify-between gap-3 pb-4 text-xs">
         <div><span className="font-semibold" style={{ color: "var(--color-accent)" }}>{controlPlane.network}</span><span className="tnum ml-2" style={{ color: "var(--color-muted)" }}>chain {controlPlane.chain_id} · deployed</span></div>
         {modeNote && <span style={{ color: "var(--color-ink-dim)" }}>{modeNote}</span>}
@@ -76,6 +70,21 @@ export function RegistryPanel({ controlPlane, enforcement, runtime, sync, mode =
         {runtime?.last_publish_error && <p className="border-t px-4 py-3 text-xs" style={{ borderColor: "var(--color-line)", color: "var(--color-inconclusive)" }}>Publication error: {runtime.last_publish_error}</p>}
       </details>
       <p className="mt-3 text-[11px]" style={{ color: "var(--color-muted)" }}>Publication is backend-controlled. The browser reads deployed state but never signs or initiates a transaction.</p>
+    </Panel>
+  );
+}
+
+function UnavailableRegistryPanel({ status, detail }: { status: string; detail: string }) {
+  return (
+    <Panel title="On-chain provenance" subtitle="X Layer · publisher → Registry → policy → RiskGuard → vault" right={<span className="rounded px-2 py-1 font-mono text-[9px] uppercase tracking-[0.05em]" style={{ color: "var(--color-muted)", background: "var(--color-panel-2)", border: "1px solid var(--color-line)" }}>{status}</span>}>
+      <div className="grid overflow-hidden rounded-lg sm:grid-cols-5" style={{ border: "1px solid var(--color-line)" }}>
+        <PipelineStep index="01" label="Publisher" value="API REQUIRED" />
+        <PipelineStep index="02" label="Registry" value="UNREAD" />
+        <PipelineStep index="03" label="Curator policy" value="DEMO MAPPING" />
+        <PipelineStep index="04" label="RiskGuard" value="UNREAD" />
+        <PipelineStep index="05" label="DemoVault" value="UNREAD" last />
+      </div>
+      <p className="mt-3 text-[11px]" style={{ color: "var(--color-muted)" }}>X Layer is the deployed control plane where Valtide attestations become protocol policy. {detail}</p>
     </Panel>
   );
 }

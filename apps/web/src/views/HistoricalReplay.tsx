@@ -7,16 +7,16 @@ import { coverageLabel, money, timeUTC } from "../lib/format";
 
 export function HistoricalReplay({
   results,
-  index,
-  setIndex,
+  position,
+  setPosition,
   playing,
   setPlaying,
   sourceLabel,
   showPlayback = true,
 }: {
   results: ValuationResult[];
-  index: number;
-  setIndex: (index: number) => void;
+  position: number;
+  setPosition: (position: number) => void;
   playing: boolean;
   setPlaying: (playing: boolean) => void;
   sourceLabel: string;
@@ -24,16 +24,29 @@ export function HistoricalReplay({
 }) {
   useEffect(() => {
     if (!playing) return;
-    if (index >= results.length - 1) {
+    if (position >= results.length - 1) {
       setPlaying(false);
       return;
     }
-    const timer = setTimeout(() => setIndex(index + 1), 180);
-    return () => clearTimeout(timer);
-  }, [playing, index, results.length, setIndex, setPlaying]);
+    const origin = position;
+    const startedAt = performance.now();
+    let frame = 0;
+    const tick = (now: number) => {
+      const next = Math.min(results.length - 1, origin + (now - startedAt) / 420);
+      setPosition(next);
+      if (next >= results.length - 1) setPlaying(false);
+      else frame = requestAnimationFrame(tick);
+    };
+    frame = requestAnimationFrame(tick);
+    return () => cancelAnimationFrame(frame);
+    // Position is intentionally captured at playback start. Adding it here
+    // would restart the clock on every animation frame.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [playing, results.length, setPlaying, setPosition]);
 
-  const current = results[Math.min(index, results.length - 1)];
-  const atEnd = index >= results.length - 1;
+  const index = Math.min(Math.floor(position + 0.000001), results.length - 1);
+  const current = results[index];
+  const atEnd = position >= results.length - 1;
   const targets = [...new Set(results.map((result) => result.interval_coverage_target))];
   const intervalLabel = targets.length === 1 ? coverageLabel(targets[0]) : "Calibrated interval";
 
@@ -55,14 +68,14 @@ export function HistoricalReplay({
         </div>
       </div>
 
-      <EscalationChart results={results} index={index} onSelect={setIndex} />
+      <EscalationChart results={results} index={index} playhead={position} onSelect={setPosition} />
 
       <div className="mt-2 flex flex-wrap items-center gap-3 border-t pt-3" style={{ borderColor: "var(--color-line-subtle)" }}>
         {showPlayback && (
           <button
             onClick={() => {
-              if (atEnd) setIndex(0);
-              setPlaying(!playing);
+              if (atEnd) setPosition(0);
+              setPlaying(!playing || atEnd);
             }}
             className="rounded px-3 py-1.5 text-xs font-medium"
             style={{ background: "var(--color-accent-soft)", color: "var(--color-accent)", border: "1px solid var(--color-line)" }}
@@ -74,8 +87,9 @@ export function HistoricalReplay({
           type="range"
           min={0}
           max={results.length - 1}
-          value={index}
-          onChange={(event) => { setPlaying(false); setIndex(Number(event.target.value)); }}
+          step={0.01}
+          value={position}
+          onChange={(event) => { setPlaying(false); setPosition(Number(event.target.value)); }}
           className="min-w-[160px] flex-1 accent-[var(--color-accent)]"
           aria-label="Replay period"
         />
