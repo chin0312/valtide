@@ -97,7 +97,6 @@ export function EscalationChart({ results, index, playhead = index, onSelect, re
   const [panning, setPanning] = useState(false);
   const chartRef = useRef<HTMLDivElement>(null);
   const dragRef = useRef<{ pointerId: number; startX: number; startDomain: ChartDomain; moved: boolean } | null>(null);
-  const suppressClickRef = useRef(false);
 
   useEffect(() => {
     setViewport(fullDomain);
@@ -151,7 +150,6 @@ export function EscalationChart({ results, index, playhead = index, onSelect, re
     const deltaX = event.clientX - drag.startX;
     if (!drag.moved && Math.abs(deltaX) < DRAG_THRESHOLD_PX) return;
     drag.moved = true;
-    suppressClickRef.current = true;
     event.currentTarget.setPointerCapture?.(event.pointerId);
     setPanning(true);
     const rect = chartRef.current?.getBoundingClientRect();
@@ -168,7 +166,15 @@ export function EscalationChart({ results, index, playhead = index, onSelect, re
     if (event.currentTarget.hasPointerCapture?.(event.pointerId)) event.currentTarget.releasePointerCapture(event.pointerId);
     dragRef.current = null;
     setPanning(false);
-    if (drag.moved) window.setTimeout(() => { suppressClickRef.current = false; }, 0);
+    if (!drag.moved) {
+      const ratio = plotRatioAt(event.clientX);
+      const timestamp = viewportDomain[0] + (viewportDomain[1] - viewportDomain[0]) * ratio;
+      const nearest = realPoints.reduce<ChartPoint | null>((candidate, point) => {
+        if (candidate == null || Math.abs(point.ts - timestamp) < Math.abs(candidate.ts - timestamp)) return point;
+        return candidate;
+      }, null);
+      if (nearest?.sourceIndex != null) onSelect(nearest.sourceIndex);
+    }
   };
 
   return (
@@ -187,15 +193,6 @@ export function EscalationChart({ results, index, playhead = index, onSelect, re
         <ComposedChart
           data={data}
           margin={CHART_MARGIN}
-          onClick={(event) => {
-            if (suppressClickRef.current) {
-              suppressClickRef.current = false;
-              return;
-            }
-            const activeIndex = Number(event?.activeTooltipIndex);
-            const sourceIndex = Number.isInteger(activeIndex) ? data[activeIndex]?.sourceIndex : null;
-            if (sourceIndex != null) onSelect(sourceIndex);
-          }}
         >
           <XAxis type="number" dataKey="ts" domain={viewportDomain} tickFormatter={(value: number) => timeAxisUTC(Number(value), multiDay)} stroke="var(--color-muted)" fontFamily="Inter" fontSize={10} tickLine={false} axisLine={{ stroke: "var(--color-line)" }} minTickGap={42} />
           <YAxis domain={[min - pad, max + pad]} stroke="var(--color-muted)" fontFamily="Inter" fontSize={10} tickLine={false} axisLine={false} width={50} tickFormatter={(value: number) => `$${value.toFixed(yDecimals)}`} />
