@@ -39,7 +39,7 @@ export function ReferenceNumberLine({ r }: { r: ValuationResult }) {
 
         {clusters.map((cluster, clusterIndex) => <MarkerCluster key={cluster.map((m) => m.key).join("-")} markers={cluster} axisY={axisY} above={cluster.some((m) => m.key === "rut" || m.key === "token") || clusterIndex % 2 === 0} />)}
       </div>
-      <p className="text-center text-[11px]" style={{ color: "var(--color-muted)" }}>Shaded band = Valtide's {coverageLabel(r.interval_coverage_target)}. Coincident sources share one marker stack.</p>
+      <div className="text-center"><span className="rounded px-2 py-1 font-mono text-[9px] uppercase tracking-[0.04em]" style={{ color: "var(--color-series-valtide)", background: "var(--color-band-fill)" }} title="Valtide calibrated interval">{coverageLabel(r.interval_coverage_target)}</span></div>
     </div>
   );
 }

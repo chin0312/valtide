@@ -3,35 +3,24 @@ import type { ValuationResult } from "../api/types";
 import { EscalationChart } from "../components/EscalationChart";
 import { EvidenceChip } from "../components/EvidenceChip";
 import { Panel } from "../components/ui";
-import { coverageLabel, dateTimeUTC, money, timeUTC } from "../lib/format";
-import { EVIDENCE } from "../lib/evidence";
+import { coverageLabel, money, timeUTC } from "../lib/format";
 
-// Step through the deterministic scenario and watch the Evidence State change as
-// the reference price drifts away from the challenger's calibrated interval.
 export function HistoricalReplay({
   results,
   index,
   setIndex,
   playing,
   setPlaying,
-  title = "Deterministic 25-minute scenario",
-  subtitle = "Six five-minute snapshots show state progression only; this is not operational history or model performance evidence.",
+  sourceLabel,
   showPlayback = true,
-  fullTimestamps = false,
-  showLatest = false,
-  onLatest,
 }: {
   results: ValuationResult[];
   index: number;
-  setIndex: (i: number) => void;
+  setIndex: (index: number) => void;
   playing: boolean;
-  setPlaying: (p: boolean) => void;
-  title?: string;
-  subtitle?: string;
+  setPlaying: (playing: boolean) => void;
+  sourceLabel: string;
   showPlayback?: boolean;
-  fullTimestamps?: boolean;
-  showLatest?: boolean;
-  onLatest?: () => void;
 }) {
   useEffect(() => {
     if (!playing) return;
@@ -39,90 +28,63 @@ export function HistoricalReplay({
       setPlaying(false);
       return;
     }
-    const t = setTimeout(() => setIndex(index + 1), 1100);
-    return () => clearTimeout(t);
+    const timer = setTimeout(() => setIndex(index + 1), 180);
+    return () => clearTimeout(timer);
   }, [playing, index, results.length, setIndex, setPlaying]);
 
-  const r = results[index];
+  const current = results[Math.min(index, results.length - 1)];
   const atEnd = index >= results.length - 1;
+  const targets = [...new Set(results.map((result) => result.interval_coverage_target))];
+  const intervalLabel = targets.length === 1 ? coverageLabel(targets[0]) : "Calibrated interval";
 
   return (
     <Panel
-      title={title}
-      subtitle={subtitle}
+      title="NVDAx valuation signal"
+      right={<span className="rounded px-2 py-1 font-mono text-[10px] uppercase tracking-[0.04em]" style={{ color: "var(--color-accent)", background: "var(--color-accent-soft)", border: "1px solid var(--color-line)" }}>{sourceLabel}</span>}
     >
-      <Legend results={results} />
-      <EscalationChart results={results} index={index} onSelect={setIndex} />
-
-      {/* plain caption for the currently selected step */}
-      <div
-        className="mt-3 flex flex-wrap items-center gap-x-2 gap-y-1 rounded-lg px-3 py-2 text-xs"
-        style={{ background: "var(--color-panel-2)", border: `1px solid ${EVIDENCE[r.evidence_state].line}` }}
-      >
-        <span className="tnum font-medium text-ink">{fullTimestamps ? dateTimeUTC(r.timestamp) : timeUTC(r.timestamp)}</span>
-        <EvidenceChip state={r.evidence_state} />
-        <span style={{ color: "var(--color-ink-dim)" }}>
-          reference {money(r.reference_under_test)} vs fair value {money(r.valtide_fair_value)}
-        </span>
+      <div className="mb-2 flex flex-wrap items-end justify-between gap-3">
+        <div>
+          <div className="eyebrow" style={{ color: "var(--color-muted)" }}>Selected period</div>
+          <div className="mt-1 flex items-center gap-3"><span className="tnum text-xl font-medium text-ink">{money(current.valtide_fair_value)}</span><EvidenceChip state={current.evidence_state} /></div>
+        </div>
+        <div className="flex flex-wrap items-center gap-4 text-[11px]" style={{ color: "var(--color-muted)" }}>
+          <LegendItem color="var(--color-series-valtide)" label="Fair value" />
+          <LegendItem color="var(--color-series-reference)" label="Reference" dashed />
+          <LegendItem color="var(--color-series-token)" label="Token market" />
+          <span title="The translucent area around fair value"><i className="mr-1.5 inline-block h-2.5 w-4 rounded-sm" style={{ background: "var(--color-band-fill)", border: "1px solid var(--color-series-valtide)" }} />{intervalLabel}</span>
+        </div>
       </div>
 
-      <div className="mt-4 flex items-center gap-4">
-        {showPlayback && <button
-          onClick={() => {
-            if (atEnd) setIndex(0);
-            setPlaying(!playing);
-          }}
-          className="rounded px-4 py-2 text-xs font-medium transition-colors"
-          style={{ background: "var(--color-accent-soft)", color: "var(--color-accent)", border: "1px solid var(--color-accent)" }}
-        >
-          {playing ? "❚❚ Pause" : atEnd ? "↻ Replay from start" : "▶ Play"}
-        </button>}
+      <EscalationChart results={results} index={index} onSelect={setIndex} />
+
+      <div className="mt-2 flex flex-wrap items-center gap-3 border-t pt-3" style={{ borderColor: "var(--color-line-subtle)" }}>
+        {showPlayback && (
+          <button
+            onClick={() => {
+              if (atEnd) setIndex(0);
+              setPlaying(!playing);
+            }}
+            className="rounded px-3 py-1.5 text-xs font-medium"
+            style={{ background: "var(--color-accent-soft)", color: "var(--color-accent)", border: "1px solid var(--color-line)" }}
+          >
+            {playing ? "Pause" : atEnd ? "Replay" : "Play"}
+          </button>
+        )}
         <input
           type="range"
           min={0}
           max={results.length - 1}
           value={index}
-          onChange={(e) => {
-            setPlaying(false);
-            setIndex(Number(e.target.value));
-          }}
-          className="flex-1 accent-[var(--color-accent)]"
-          aria-label="Replay step"
+          onChange={(event) => { setPlaying(false); setIndex(Number(event.target.value)); }}
+          className="min-w-[160px] flex-1 accent-[var(--color-accent)]"
+          aria-label="Replay period"
         />
-        <span className="tnum text-sm" style={{ color: "var(--color-ink-dim)" }}>
-          step {index + 1} / {results.length}
-        </span>
-        {showLatest && <button
-          onClick={onLatest}
-          disabled={atEnd}
-          className="rounded-lg px-3 py-2 text-xs font-semibold disabled:opacity-40"
-          style={{ background: "var(--color-panel-2)", border: "1px solid var(--color-line)", color: "var(--color-ink-dim)" }}
-        >
-          Latest panel point
-        </button>}
+        <span className="tnum text-[11px]" style={{ color: "var(--color-muted)" }}>{timeUTC(current.timestamp)} · {index + 1}/{results.length}</span>
       </div>
     </Panel>
   );
 }
 
-function Legend({ results }: { results: ValuationResult[] }) {
-  const targets = [...new Set(results.map((result) => result.interval_coverage_target))];
-  const intervalLabel = targets.length === 1 ? coverageLabel(targets[0]) : "Calibrated interval";
-  return (
-    <div className="mb-3 flex flex-wrap items-center gap-x-5 gap-y-1.5 text-xs" style={{ color: "var(--color-ink-dim)" }}>
-      <LegendItem swatch={<span className="inline-block h-2.5 w-4 rounded-sm" style={{ background: "var(--color-band-fill)", border: "1px solid var(--color-series-valtide)" }} />} label={`Valtide ${intervalLabel}`} />
-      <LegendItem swatch={<span className="inline-block h-0.5 w-4" style={{ background: "var(--color-series-valtide)" }} />} label="Fair value" />
-      <LegendItem swatch={<span className="inline-block h-0 w-4 border-t border-dashed" style={{ borderColor: "var(--color-series-reference)" }} />} label="Reference under test" />
-      <LegendItem swatch={<span className="inline-block h-0.5 w-4" style={{ background: "var(--color-series-token)" }} />} label="Tokenized market" />
-    </div>
-  );
-}
-
-function LegendItem({ swatch, label }: { swatch: React.ReactNode; label: string }) {
-  return (
-    <span className="inline-flex items-center gap-1.5">
-      {swatch}
-      {label}
-    </span>
-  );
+function LegendItem({ color, label, dashed }: { color: string; label: string; dashed?: boolean }) {
+  return <span className="inline-flex items-center gap-1.5"><i className="inline-block w-4" style={{ height: dashed ? 0 : 2, background: dashed ? undefined : color, borderTop: dashed ? `1px dashed ${color}` : undefined }} />{label}</span>;
 }

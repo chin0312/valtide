@@ -120,14 +120,14 @@ Keywords: **forensic, measured, sharp, independent, kinetic, auditable**.
 ### Font stack
 
 - **Interface:** `IBM Plex Sans`, fallback `Inter`, system sans.
-- **Headings and labels:** `IBM Plex Sans Condensed`, fallback `IBM Plex Sans`.
+- **Headings and labels:** `IBM Plex Sans`.
 - **Numbers, timestamps, hashes, codes, axes:** `IBM Plex Mono`, fallback `ui-monospace`.
 
 The Plex family supplies one coherent, engineered voice. Condensed headings create an authored ledger-like texture; Plex Mono makes the evidence layer stable and analytical.
 
 ```css
 --font-ui: "IBM Plex Sans", Inter, system-ui, sans-serif;
---font-heading: "IBM Plex Sans Condensed", "IBM Plex Sans", sans-serif;
+--font-heading: "IBM Plex Sans", sans-serif;
 --font-data: "IBM Plex Mono", ui-monospace, SFMono-Regular, monospace;
 ```
 
@@ -192,44 +192,39 @@ Base unit: 4px.
 
 ## 7. Information architecture
 
-### Primary navigation and data lanes
+### Primary navigation and data source
 
-Keep one NVDAx evidence monitor with three explicit lanes:
+Ship one **Overview**. Do not expose empty Historical, Operational, or Demo pages as primary navigation.
 
-1. **Operational** — warmed scheduler state, real operational history, and current X Layer control-plane readback.
-2. **Historical** — provisioned point-in-time research panel; never represented as historical chain state.
-3. **Demo** — deterministic 25-minute scenario with an explicitly labelled offline fixture fallback.
-
-The lanes never silently substitute for one another. A cold operational cache stays unavailable until the user explicitly chooses another lane.
+- Prefer warmed operational data when it exists.
+- Otherwise show the deterministic scenario in the same overview with an unmistakable `DEMO` or `DEMO FIXTURE` source chip.
+- Operational history is never interpolated. Demo-only presentation frames may interpolate between its fixed scenario anchors for smooth playback.
 
 ### Primary screen order
 
 1. App bar and system freshness.
-2. Asset, lane, session, observation time, and provenance context.
-3. Evidence verdict beside the separately configured policy result.
-4. Full-width price-and-band timeline.
-5. Full-width reference comparison.
-6. Diagnostic basis, reason codes, and historical model evidence.
-7. Horizontal X Layer provenance pipeline and collapsible technical details.
+2. Asset-status rail with NVDAx plus clearly labelled research-queue placeholders.
+3. Connected KPI strip.
+4. Large valuation timeline with inline source and replay controls.
+5. Compact Evidence, Policy, and Price Basis bento cards.
+6. Price map.
+7. X Layer provenance only when it is available.
 
 This order maps directly to VALIDATE → DIAGNOSE → TRIAGE → GUARD.
 
 ## 8. Desktop layout
 
 ```text
-┌ VALTIDE ─ Evidence Monitor ───────────────────── system freshness / network ┐
-├ NVDAx ─ OPERATIONAL ─ X LAYER 1952 ─ observation / freshness ─────────────┤
-├ EVIDENCE VERDICT (model output) ───────────┬ POLICY RESULT (configured) ───┤
-│ CHALLENGED                                │ RESTRICT_NEW_RISK              │
-│ Reference sits 2.4σ above expected range │ Rule: challenged + ref > 6h   │
-├ Reference ┬ Valtide fair value ┬ Token market ┬ deviation ─────────────────┤
-├ 24H OPERATIONAL TIMELINE + CALIBRATED BAND ────────────────────────────────┤
-├ REFERENCE COMPARISON ───────────────────────────────────────────────────────┤
-├ HISTORICAL MODEL EVIDENCE ──────────────────────────────────────────────────┤
-└ PUBLISHER → REGISTRY → POLICY → RISKGUARD → DEMOVAULT ─────────────────────┘
+┌ VALTIDE ─ OVERVIEW ───────────────────────────── source / backend status ┐
+├ ASSET STATUS ───┬ Reference ┬ Fair value ┬ Token market ┬ Deviation ────┤
+│ NVDAx active    │ LARGE VALUATION TIMELINE + CALIBRATED BAND             │
+│ SPYx queued     ├ Evidence ─────┬ Policy ────────┬ Price basis ─────────┤
+│ TSLAx queued    ├ PRICE MAP ──────────────────────────────────────────────┤
+│ AAPLx queued    │ optional deployed X Layer provenance                    │
+└─────────────────┴─────────────────────────────────────────────────────────┘
 ```
 
-Do not render fictional watchlist assets. Until the backend supports another asset, NVDAx appears once in the context bar.
+Placeholder assets are allowed only as `Research queue`; never invent prices or Evidence States for them.
 
 ## 9. Core components
 
@@ -284,6 +279,8 @@ Rules:
 - Metric control: `PRICE / DEVIATION / BASIS`.
 - Operational range control: `1H / 6H / 24H / 7D`; default `24H`.
 - Use real UTC spacing and break every series at scheduler gaps. Never interpolate missing observations.
+- Demo playback uses 26 one-minute presentation frames derived from six backend-owned five-minute anchors.
+- Do not render candlesticks until the backend exposes genuine OHLC inputs. The calibrated interval band is the truthful model-native visual.
 - Legend supports click-to-isolate and keyboard focus.
 - Tooltips show all sources at one timestamp and clearly mark stale/missing values.
 
@@ -369,7 +366,7 @@ The demo is desktop-first at 1440px.
 - ≥1280px: 12-column full layout.
 - 900–1279px: chart 7 columns, comparison 5; diagnostic panels stack below.
 - 640–899px: single column; KPI grid becomes 2×2; tables scroll horizontally.
-- <640px: context wraps, the KPI grid becomes 2×2, and the policy panel remains below evidence.
+- <640px: the asset rail moves above the main workspace, the KPI grid becomes 2×2, and bento cards stack.
 
 Do not hide timestamps, evidence explanations, or policy provenance on smaller screens.
 
@@ -420,13 +417,13 @@ Do not use:
 
 ## 17. Demo scenario
 
-Ship the single backend-owned `weekend_divergence` sequence and its matching offline fixture. Six real five-minute timestamps progress through SUPPORTED, INCONCLUSIVE, and CHALLENGED over 25 minutes. The scenario projects the current curator policy but never publishes, drives the deployed control plane, or claims model performance.
+Ship the single backend-owned `weekend_divergence` sequence and its matching offline fixture. Six five-minute anchors progress through SUPPORTED, INCONCLUSIVE, and CHALLENGED over 25 minutes. The overview derives 26 one-minute presentation frames for smooth playback. This interpolation is demo-only and never applies to operational history.
 
 ## 18. Iterative build plan
 
 ### Iteration 1 — Skeleton and hierarchy (20–30 min)
 
-- Implement app shell, context bar, verdict/policy split, KPI row, and empty chart frame.
+- Implement app shell, asset rail, KPI row, central chart, and compact bento cards.
 - Use only grayscale tokens.
 - Acceptance check: a judge can answer “what is being assessed, what is the evidence state, and what did the protocol do?” in 10 seconds.
 
@@ -464,4 +461,4 @@ Ship the single backend-owned `weekend_divergence` sequence and its matching off
 
 ## 20. Agent implementation prompt
 
-> Build Valtide as a scientific ledger for institutional evidence validation. Prioritize VALIDATE → DIAGNOSE → TRIAGE → GUARD. Use IBM Plex Sans for interface copy, Plex Sans Condensed for headings, and Plex Mono for data. Use a near-black canvas, cool graphite surfaces, bright ivory text, hairline borders, and selective 8–10px rounding. The spring accent system uses teal `#086375`, mint `#1dd3b0`, acid-lime `#affc41`, pale lime `#b2ff9e`, and plum `#3c1642`; keep saturated color sparse. Keep Evidence State separate from Policy Result. Treat the uncertainty band as the chart hero and candles as context. Implement one complete, deterministic asset story before adding more pages.
+> Build Valtide as a compact production risk overview. Use only IBM Plex Sans and Plex Mono. Keep the near-black canvas, graphite surfaces, hairline borders, spring accents, and restrained rounding. Use a bento hierarchy: asset rail, connected KPIs, one large valuation chart, compact evidence/policy/basis cards, then the price map. Keep copy terse, Evidence State separate from Policy Action, and the calibrated interval as the chart hero. Never invent OHLC candles or operational observations.

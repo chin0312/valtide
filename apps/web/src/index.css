@@ -1,4 +1,4 @@
-@import url("https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans+Condensed:wght@500;600&family=IBM+Plex+Sans:wght@400;500;600&display=swap");
+@import url("https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans:wght@400;500;600&display=swap");
 @import "tailwindcss";
 
 /* Valtide is an evidence instrument, not a trading terminal. State colour is
@@ -57,7 +57,7 @@ body {
 h1,
 h2,
 h3 {
-  font-family: "IBM Plex Sans Condensed", "IBM Plex Sans", sans-serif;
+  font-family: "IBM Plex Sans", sans-serif;
 }
 
 .tnum {
