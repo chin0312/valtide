@@ -34,7 +34,7 @@ export function ObservationRecord({ results, currentIndex, sourceLabelText }: { 
         <div>
           <div className="mb-2 flex items-center justify-between text-[10px]" style={{ color: "var(--color-muted)" }}>
             <span className="font-mono uppercase tracking-[0.08em]">State distribution</span>
-            <span className="tnum">Current · {current?.evidence_state ?? "—"}</span>
+            <span className="tnum">Selected · {current?.evidence_state ?? "—"}</span>
           </div>
           <div className="flex h-3 overflow-hidden rounded-sm" style={{ background: "var(--color-panel-2)", border: "1px solid var(--color-line)" }}>
             {STATES.map((state) => counts[state] > 0 && <div key={state} style={{ width: `${(counts[state] / total) * 100}%`, background: EVIDENCE[state].fg }} title={`${state}: ${counts[state]}`} />)}

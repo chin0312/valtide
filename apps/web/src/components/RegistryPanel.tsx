@@ -16,11 +16,11 @@ interface RegistryPanelProps {
 }
 
 export function RegistryPanel({ controlPlane, enforcement, runtime, sync, mode = "operational", isLoading, isError, errorDetail }: RegistryPanelProps) {
-  if (isLoading) return <UnavailableRegistryPanel status="Reading X Layer" detail="Fetching the deployed attestation and policy state…" />;
+  if (isLoading) return <UnavailableRegistryPanel status="Reading X Layer" detail="Fetching the deployed attestation and policy state…" runtime={runtime} />;
 
   if (!controlPlane) {
     const modeDetail = mode === "demo" ? "Demo playback is read-only and does not publish." : mode === "historical" ? "Historical evidence is not substituted for current chain state." : "No deployed state was returned.";
-    return <UnavailableRegistryPanel status="Not connected" detail={`${isError ? errorDetail ?? "The backend could not read the deployed contracts." : "No on-chain response has loaded."} ${modeDetail}`} />;
+    return <UnavailableRegistryPanel status="Not connected" detail={`${isError ? errorDetail ?? "The backend could not read the deployed contracts." : "No on-chain response has loaded."} ${modeDetail}`} runtime={runtime} />;
   }
 
   const attestation = controlPlane.attestation;
@@ -64,29 +64,46 @@ export function RegistryPanel({ controlPlane, enforcement, runtime, sync, mode =
             <Detail label="INCONCLUSIVE" value={controlPlane.policy.on_inconclusive} />
             <Detail label="CHALLENGED" value={controlPlane.policy.on_challenged} />
             <Detail label="STALE" value={controlPlane.policy.on_stale} />
-            {runtime && <Detail label="Transaction" value={shortHex(runtime.last_publish_tx_hash ?? undefined)} />}
           </DetailGroup>
         </div>
         {runtime?.last_publish_error && <p className="border-t px-4 py-3 text-xs" style={{ borderColor: "var(--color-line)", color: "var(--color-inconclusive)" }}>Publication error: {runtime.last_publish_error}</p>}
       </details>
+      <PublicationDetails runtime={runtime} />
       <p className="mt-3 text-[11px]" style={{ color: "var(--color-muted)" }}>Publication is backend-controlled. The browser reads deployed state but never signs or initiates a transaction.</p>
     </Panel>
   );
 }
 
-function UnavailableRegistryPanel({ status, detail }: { status: string; detail: string }) {
+function UnavailableRegistryPanel({ status, detail, runtime }: { status: string; detail: string; runtime?: RuntimeStatus }) {
   return (
     <Panel title="On-chain provenance" icon="chain" subtitle="X Layer · publisher → Registry → policy → RiskGuard → vault" right={<span className="rounded px-2 py-1 font-mono text-[9px] uppercase tracking-[0.05em]" style={{ color: "var(--color-muted)", background: "var(--color-panel-2)", border: "1px solid var(--color-line)" }}>{status}</span>}>
       <div className="grid overflow-hidden rounded-lg sm:grid-cols-5" style={{ border: "1px solid var(--color-line)" }}>
         <PipelineStep index="01" label="Publisher" value="API REQUIRED" />
         <PipelineStep index="02" label="Registry" value="UNREAD" />
-        <PipelineStep index="03" label="Curator policy" value="DEMO MAPPING" />
+        <PipelineStep index="03" label="Curator policy" value="UNREAD" />
         <PipelineStep index="04" label="RiskGuard" value="UNREAD" />
         <PipelineStep index="05" label="DemoVault" value="UNREAD" last />
       </div>
       <p className="mt-3 text-[11px]" style={{ color: "var(--color-muted)" }}>X Layer is the deployed control plane where Valtide attestations become protocol policy. {detail}</p>
+      <PublicationDetails runtime={runtime} />
     </Panel>
   );
+}
+
+function PublicationDetails({ runtime }: { runtime?: RuntimeStatus }) {
+  return <details className="mt-3 rounded-lg" style={{ border: "1px solid var(--color-line)" }}>
+    <summary className="cursor-pointer px-3 py-2.5 text-xs text-ink-dim">Publication delivery · current backend</summary>
+    <dl className="grid gap-3 p-4 text-xs sm:grid-cols-2">
+      <Detail label="Auto-publish" value={runtime ? runtime.auto_publish_enabled ? "Enabled" : "Disabled" : "Unavailable"} />
+      <Detail label="Delivery status" value={runtime?.last_publish_status ?? "—"} />
+      <Detail label="Last attempt (UTC)" value={runtime?.last_publish_attempt_at ?? "—"} />
+      <Detail label="Attempted observation" value={runtime?.last_publish_observation_ts ?? "—"} />
+      <Detail label="Last published observation" value={runtime?.last_published_observation_ts ?? "—"} />
+      <Detail label="Last published time" value={unixDateTimeUTC(runtime?.last_published_at)} />
+      <div className="sm:col-span-2"><dt className="text-muted">Transaction hash</dt><dd className="tnum select-text break-all text-ink">{runtime?.last_publish_tx_hash ?? "—"}</dd></div>
+      <div className="sm:col-span-2"><dt className="text-muted">Delivery error</dt><dd className="break-words text-ink">{runtime?.last_publish_error ?? (runtime ? "None" : "Unavailable")}</dd></div>
+    </dl>
+  </details>;
 }
 
 function PipelineStep({ index, label, value, last }: { index: string; label: string; value: string; last?: boolean }) {

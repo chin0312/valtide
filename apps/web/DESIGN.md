@@ -4,6 +4,8 @@ Status: implementation-ready for the hackathon prototype
 Audience: protocol risk teams, collateral curators, and technically curious judges  
 Product posture: independent evidence and model validation for tokenized-equity collateral
 
+Semantic authority: `../../docs/FRONTEND_PLAN.md`. This document defines visual presentation only; data contexts, evidence, policy, freshness, and publication follow that contract.
+
 ## 1. Product design thesis
 
 Valtide should feel like an independent risk instrument, not an exchange, an AI assistant, or a generic DeFi dashboard.
@@ -194,11 +196,13 @@ Base unit: 4px.
 
 ### Primary navigation and data source
 
-Ship one **Overview**. Do not expose empty Historical, Operational, or Demo pages as primary navigation.
+Keep the current **Overview** layout with three explicit context controls: **Operational / Historical / Demo**. Operational is the default.
 
-- Prefer warmed operational data when it exists.
-- Otherwise show the deterministic scenario in the same overview with an unmistakable `DEMO` or `DEMO FIXTURE` source chip.
-- Operational history is never interpolated. Demo playback uses continuous visual interpolation between fixed presentation periods; Evidence State and reason codes change only when the playhead crosses a real period boundary.
+- Operational uses warmed results and scheduler history. Missing data stays unavailable/degraded in this context; never auto-switch to Demo.
+- Historical uses verified `historical_panel` replay and `source=historical` backtest metrics. Unavailability is explicit; scenario metrics never substitute.
+- Demo is entered explicitly and uses only the six backend-owned scenario observations or their labelled offline fixture.
+- Animate only the playhead between records. Metrics, timestamps, Evidence States, reasons, and record counts use the selected original observation in every context. Never construct synthetic `ValuationResult` objects.
+- Prior operational and Historical observations show current-policy mappings, not historical on-chain decisions. X Layer remains explicitly current deployed state.
 
 ### Primary screen order
 
@@ -278,7 +282,7 @@ Rules:
 - Metric control: `PRICE / DEVIATION / BASIS`.
 - Operational range control: `1H / 6H / 24H / 7D`; default `24H`.
 - Use real UTC spacing and break every series at scheduler gaps. Never interpolate missing observations.
-- Demo playback uses 26 one-minute presentation frames derived from six backend-owned five-minute anchors.
+- Demo playback retains exactly six five-minute observations; intermediate playhead positions are visual frames only, never evidence records.
 - Do not render candlesticks until the backend exposes genuine OHLC inputs. The calibrated interval band is the truthful model-native visual.
 - Legend supports click-to-isolate and keyboard focus.
 - Tooltips show all sources at one timestamp and clearly mark stale/missing values.
@@ -312,16 +316,16 @@ Show only metrics that affect evidence confidence:
 - Depth at 50bps.
 - 24h volume.
 - Bid-ask spread.
-- Quote/reference staleness.
+- Reference source lag and trusted-anchor age at the selected observation.
 - Market-open status.
 
-Each metric gets a plain-English caption or threshold, e.g. `Thin: only $82k within 50bps`.
+Render only supplied fields. Do not invent depth, spreads, volume windows, or frontend risk thresholds. Show the backend's five-minute USD volume when liquidity is unavailable, with its own label.
 
 ### 9.8 Reason codes
 
-- Neutral outlined chips: `REFERENCE_OUTSIDE_BAND`, `MARKET_CLOSED`, `LOW_DEPTH`.
+- Human-readable labels for exact backend reason codes, with the raw code available in a tooltip.
 - State color appears only on the section's severity marker, not every chip.
-- Clicking a code expands a two-line explanation and supporting values.
+- Show all returned reasons, including calibration diagnostics, or an explicit expandable count. Never infer why INCONCLUSIVE was returned from the state alone.
 
 ### 9.9 Onchain provenance
 
@@ -330,6 +334,10 @@ Use a linear verification strip:
 `Publisher  →  Registry  →  Curator policy  →  RiskGuard  →  DemoVault`
 
 Below it, show `evidenceHash`, transaction, block, issued-at, valid-until, and network in tabular text. Truncate hashes visually but make the full value copyable.
+
+Only render fields supplied by the API. Expandable publication details retain auto-publish status, delivery status, last attempt, attempted and published observations, published time, full transaction hash, and errors, even if the chain read fails. Unavailable deployed policy is never labelled Demo mapping. An example policy is allowed only inside Demo and labelled not deployed.
+
+The selected-observation audit exposes canonical UTC time, token/reference sources and observation times, reference source lag, trusted-anchor age, model/version, and source provenance. Current scheduler status/last attempt and current RiskGuard freshness are labelled separately from the selected record.
 
 ## 10. Tables
 
@@ -354,7 +362,7 @@ Below it, show `evidenceHash`, transaction, block, issued-at, valid-until, and n
 ## 12. Loading, stale, and failure states
 
 - Loading: retain layout and use low-contrast skeleton blocks. No shimmer.
-- Stale: always show exact age, then a plain-language consequence.
+- Observation age: show exact elapsed time neutrally. Source lags and trusted-anchor ages are backend values at the observation; do not infer a freshness verdict from them.
 - Missing: render `No current observation` plus the expected source and last successful time.
 - Attestation expired: keep the last values visible but add a full-width `EXPIRED` strip and disable policy freshness claims.
 - Backend unavailable: keep the chosen lane unavailable and offer Demo as an explicit user choice; never substitute it automatically.
@@ -418,7 +426,7 @@ Do not use:
 
 ## 17. Demo scenario
 
-Ship the single backend-owned `weekend_divergence` sequence and its matching offline fixture. Six five-minute anchors progress through SUPPORTED, INCONCLUSIVE, and CHALLENGED over 25 minutes. The overview derives 26 one-minute presentation frames for smooth playback. This interpolation is demo-only and never applies to operational history.
+Ship the single backend-owned `weekend_divergence` sequence and its matching offline fixture. Six five-minute observations progress through SUPPORTED, INCONCLUSIVE, and CHALLENGED over 25 minutes. Smooth playhead animation never adds records or recomputes prices, timestamps, Evidence State, or reason codes. The evidence record always counts the six original observations.
 
 ## 18. Iterative build plan
 

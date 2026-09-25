@@ -109,15 +109,11 @@ const REASON_LABELS: Record<string, string> = {
   UNDERLYING_REFERENCE_STALE: "Trusted underlying observation is stale",
   REFERENCE_UNDER_TEST_STALE: "Reference under test is stale",
   TOKEN_MARKET_QUALITY_LOW: "Tokenized-market quality is low",
-  TOKEN_AND_CHALLENGER_AGREE: "Tokenized market is within 1% of Valtide's estimate",
+  TOKEN_AND_CHALLENGER_AGREE: "Tokenized market and model agree",
   TOKEN_UNIT_SUSPECT: "Possible token/underlying unit mismatch",
   MODEL_UNCERTAINTY_HIGH: "Model uncertainty is high",
   CALIBRATION_GLOBAL_FALLBACK: "Global fallback calibration",
 };
-
-// Internal model diagnostics that should not be presented to a risk team as
-// "signals" — handled elsewhere (e.g. the calibration caveat) or hidden.
-export const INTERNAL_REASON_CODES = new Set(["CALIBRATION_GLOBAL_FALLBACK"]);
 
 export function reasonLabel(code: string): string {
   return (

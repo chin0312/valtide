@@ -1,5 +1,5 @@
 import type { EvidenceState } from "../api/types";
-import { INTERNAL_REASON_CODES, reasonLabel } from "../lib/format";
+import { reasonLabel } from "../lib/format";
 
 const POSITIVE = new Set(["TOKEN_AND_CHALLENGER_AGREE"]);
 const CHALLENGE = new Set(["REFERENCE_UNDER_TEST_OUTSIDE_INTERVAL"]);
@@ -14,8 +14,7 @@ const WARNING = new Set([
   "MODEL_UNCERTAINTY_HIGH",
 ]);
 
-export function ReasonCodes({ codes: allCodes, evidenceState }: { codes: string[]; evidenceState: EvidenceState }) {
-  const codes = allCodes.filter((c) => !INTERNAL_REASON_CODES.has(c));
+export function ReasonCodes({ codes, evidenceState }: { codes: string[]; evidenceState: EvidenceState }) {
   if (!codes.length)
     return (
       <span className="text-sm" style={{ color: "var(--color-ink-dim)" }}>

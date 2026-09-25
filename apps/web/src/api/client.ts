@@ -24,7 +24,7 @@ import type {
 } from "./types";
 import weekendDivergence from "../fixtures/weekend_divergence.json";
 
-export const BASE = import.meta.env.VITE_API_BASE_URL ?? "http://localhost:8000";
+export const BASE = import.meta.env.DEV ? "" : (import.meta.env.VITE_API_BASE_URL ?? "http://localhost:8000");
 export const ASSET = "NVDAx";
 
 const FIXTURE = weekendDivergence as unknown as ValuationResult[];
@@ -116,9 +116,8 @@ export interface HistoricalReplayResponse {
 export async function fetchHistoricalReplay(): Promise<HistoricalReplayResponse> {
   const response = await getJSONWithHeaders<ValuationResult[]>(`/api/replay/${ASSET}?source=panel`, 20000);
   const source = response.headers.get("X-Valtide-Source");
-  // The backend path is explicit. If CORS does not expose the diagnostic header,
-  // the browser returns null; reject only an explicitly conflicting source.
-  if (source != null && source !== "historical_panel") {
+  // Fail closed: explicit panel routing alone does not verify response provenance.
+  if (source !== "historical_panel") {
     throw new Error(`Unexpected replay source: ${source ?? "missing"}`);
   }
   if (!Array.isArray(response.data) || response.data.length === 0) {
@@ -127,8 +126,10 @@ export async function fetchHistoricalReplay(): Promise<HistoricalReplayResponse>
   return { results: response.data, source: "historical_panel" };
 }
 
-export function fetchHistoricalBacktest(): Promise<BacktestMetrics> {
-  return getJSON<BacktestMetrics>(`/api/backtest/${ASSET}?source=historical`);
+export async function fetchHistoricalBacktest(): Promise<BacktestMetrics> {
+  const data = await getJSON<BacktestMetrics>(`/api/backtest/${ASSET}?source=historical`, 20000);
+  if (data.source !== "historical") throw new Error("Historical backtest source could not be verified");
+  return data;
 }
 
 export function fetchOnchain(): Promise<OnchainControlPlane> {
@@ -155,84 +156,8 @@ export async function fetchDemoReplay(scenario = "weekend_divergence"): Promise<
       `/api/replay/${ASSET}?source=scenario&scenario=${encodeURIComponent(scenario)}`,
     );
     if (!Array.isArray(results) || results.length === 0) throw new Error("empty replay");
-    return { results: densifyDemoResults(results), source: "backend-scenario" };
+    return { results, source: "backend-scenario" };
   } catch {
-    return { results: densifyDemoResults(FIXTURE), source: "offline-fixture" };
+    return { results: FIXTURE, source: "offline-fixture" };
   }
-}
-
-/**
- * Adds one-minute presentation frames between the backend-owned five-minute
- * scenario anchors. This is used only in the explicitly labelled demo lane;
- * operational history is never interpolated.
- */
-function densifyDemoResults(anchors: ValuationResult[], subdivisions = 5): ValuationResult[] {
-  if (anchors.length < 2 || subdivisions < 2) return anchors;
-  const frames: ValuationResult[] = [];
-
-  for (let anchorIndex = 0; anchorIndex < anchors.length - 1; anchorIndex += 1) {
-    const from = anchors[anchorIndex];
-    const to = anchors[anchorIndex + 1];
-    const fromTs = Date.parse(from.timestamp);
-    const toTs = Date.parse(to.timestamp);
-
-    for (let step = 0; step < subdivisions; step += 1) {
-      const t = step / subdivisions;
-      const timestamp = new Date(fromTs + (toTs - fromTs) * t).toISOString();
-      const frame: ValuationResult = {
-        ...from,
-        timestamp,
-        token_observed_at: from.token_observed_at == null ? null : timestamp,
-        reference_under_test_ts: from.reference_under_test_ts == null ? null : timestamp,
-        token_price: lerpNullable(from.token_price, to.token_price, t),
-        token_volume: lerpNullable(from.token_volume, to.token_volume, t),
-        token_volume_usd: lerpNullable(from.token_volume_usd, to.token_volume_usd, t),
-        token_liquidity_usd: lerpNullable(from.token_liquidity_usd, to.token_liquidity_usd, t),
-        external_constructed_reference: lerpNullable(from.external_constructed_reference, to.external_constructed_reference, t),
-        valtide_fair_value: lerp(from.valtide_fair_value, to.valtide_fair_value, t),
-        fair_value_lower: lerp(from.fair_value_lower, to.fair_value_lower, t),
-        fair_value_upper: lerp(from.fair_value_upper, to.fair_value_upper, t),
-        observed_token_move_pct: lerpNullable(from.observed_token_move_pct, to.observed_token_move_pct, t),
-        model_implied_move_pct: lerp(from.model_implied_move_pct, to.model_implied_move_pct, t),
-        residual_premium_discount_pct: lerpNullable(from.residual_premium_discount_pct, to.residual_premium_discount_pct, t),
-        reference_under_test: lerpNullable(from.reference_under_test, to.reference_under_test, t),
-        reference_under_test_age_seconds: lerpNullable(from.reference_under_test_age_seconds, to.reference_under_test_age_seconds, t),
-        reference_deviation_pct: lerpNullable(from.reference_deviation_pct, to.reference_deviation_pct, t),
-        standardized_deviation: lerpNullable(from.standardized_deviation, to.standardized_deviation, t),
-        reference_age_seconds: Math.round(lerp(from.reference_age_seconds, to.reference_age_seconds, t)),
-        source_provenance: { ...(from.source_provenance ?? {}), scenario: "weekend_divergence", presentation: "interpolated_1m" },
-      };
-      frame.evidence_state = evidenceStateFor(frame);
-      frame.reason_codes = demoReasonCodes(frame, from.reason_codes);
-      frames.push(frame);
-    }
-  }
-
-  const last = anchors[anchors.length - 1];
-  frames.push({ ...last, source_provenance: { ...(last.source_provenance ?? {}), scenario: "weekend_divergence", presentation: "interpolated_1m" } });
-  return frames;
-}
-
-function evidenceStateFor(result: ValuationResult): ValuationResult["evidence_state"] {
-  if (result.standardized_deviation == null) return "INCONCLUSIVE";
-  const magnitude = Math.abs(result.standardized_deviation);
-  if (magnitude >= 2) return "CHALLENGED";
-  if (magnitude < 1) return "SUPPORTED";
-  return "INCONCLUSIVE";
-}
-
-function demoReasonCodes(result: ValuationResult, inherited: string[]): string[] {
-  const codes = inherited.filter((code) => code !== "REFERENCE_UNDER_TEST_OUTSIDE_INTERVAL" && code !== "TOKEN_AND_CHALLENGER_AGREE");
-  if (result.reference_under_test != null && (result.reference_under_test < result.fair_value_lower || result.reference_under_test > result.fair_value_upper)) codes.push("REFERENCE_UNDER_TEST_OUTSIDE_INTERVAL");
-  if (result.token_price != null && Math.abs(result.token_price - result.valtide_fair_value) / result.valtide_fair_value < 0.01) codes.push("TOKEN_AND_CHALLENGER_AGREE");
-  return [...new Set(codes)];
-}
-
-function lerp(from: number, to: number, t: number): number {
-  return from + (to - from) * t;
-}
-
-function lerpNullable(from: number | null | undefined, to: number | null | undefined, t: number): number | null {
-  if (from == null || to == null) return null;
-  return lerp(from, to, t);
 }

@@ -11,7 +11,7 @@ const STATES: EvidenceState[] = ["SUPPORTED", "INCONCLUSIVE", "CHALLENGED"];
 // Scenario verdict counts are not future ground truth and must not be presented
 // as a track record or accuracy result.
 export function ModelEvidence() {
-  const { data, isError } = useQuery({
+  const { data, isError, isLoading } = useQuery({
     queryKey: ["backtest", "historical"],
     queryFn: fetchHistoricalBacktest,
     staleTime: 60_000,
@@ -26,7 +26,7 @@ export function ModelEvidence() {
     <Panel title="Historical model evidence" subtitle="Historical diagnostics, separate from the deterministic scenario replay">
       {isError || !data ? (
         <div className="rounded-lg px-3 py-3 text-sm" style={{ background: "var(--color-panel-2)", border: "1px solid var(--color-line)", color: "var(--color-ink-dim)" }}>
-          Historical model evidence unavailable. Scenario verdicts are not empirical performance evidence.
+          {isLoading ? "Loading historical model evidence…" : "Historical model evidence unavailable. Scenario verdicts are not empirical performance evidence."}
         </div>
       ) : (
         <>
@@ -60,7 +60,7 @@ export function ModelEvidence() {
             <Metric label="Interval coverage" value={hasMetrics ? `${(data.interval_coverage! * 100).toFixed(0)}%` : "—"} hint="Historical share of benchmark observations inside the calibrated interval." />
           </div>
 
-          <p className="mt-3 text-xs" style={{ color: "var(--color-muted)" }}>{data.note} These are historical diagnostics, not production guarantees.</p>
+          <p className="mt-3 text-xs" style={{ color: "var(--color-muted)" }}>{data.note}</p>
         </>
       )}
     </Panel>
