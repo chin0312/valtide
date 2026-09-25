@@ -69,6 +69,7 @@ app.add_middleware(
     allow_origins=settings.cors_origin_list,
     allow_methods=["*"],
     allow_headers=["*"],
+    expose_headers=["X-Valtide-Source"],
 )
 
 app.include_router(assets.router)

@@ -1,0 +1,248 @@
+const assert = require("node:assert/strict");
+const fs = require("node:fs");
+const path = require("node:path");
+const test = require("node:test");
+const React = require("react");
+const { renderToStaticMarkup } = require("react-dom/server");
+const { QueryClient, QueryClientProvider } = require("@tanstack/react-query");
+const { load } = require("./load-source.cjs");
+const client = load("../src/api/client.ts");
+const fixture = require("../src/fixtures/weekend_divergence.json");
+const { filterOperationalResults, filterHistoricalResults, filterDemoResults } = load("../src/views/OperationalTimeline.tsx");
+const { mergeObservations, rebasePosition } = load("../src/lib/playback.ts");
+const { ReasonCodes } = load("../src/components/ReasonCodes.tsx");
+const { RegistryPanel } = load("../src/components/RegistryPanel.tsx");
+const { ObservationAudit } = load("../src/components/ObservationAudit.tsx");
+const { default: App, AssetSelector } = load("../src/App.tsx");
+const { deliveryStatusLabel, pipelineStatusLabel } = load("../src/lib/format.ts");
+const { chartDomain, clampViewport, lowerBoundTimestamp, minimumViewportWidth, panViewport, shouldRenderStateDots, sliceChartDataForViewport, upperBoundTimestamp, wheelGestureIntent, wheelZoomScale, zoomSensitivity, zoomViewport } = load("../src/components/EscalationChart.tsx");
+const h = React.createElement;
+const render = (component, props) => renderToStaticMarkup(h(component, props));
+
+test("Demo returns only the six original backend observations, including original reasons", async () => {
+  const original = global.fetch;
+  const unusual = fixture.map(row => ({...row, evidence_state: "INCONCLUSIVE", reason_codes: ["CUSTOM_BACKEND_REASON"]}));
+  try {
+    global.fetch = async () => new Response(JSON.stringify(unusual));
+    const response = await client.fetchDemoReplay();
+    assert.equal(response.source, "backend-scenario");
+    assert.equal(response.results.length, 6);
+    assert.deepEqual(response.results, unusual);
+    global.fetch = async () => { throw new Error("offline"); };
+    const fallback = await client.fetchDemoReplay();
+    assert.equal(fallback.source, "offline-fixture");
+    assert.deepEqual(fallback.results, fixture);
+  } finally { global.fetch = original; }
+});
+
+test("Historical rejects absent/wrong provenance and scenario backtest metrics", async () => {
+  const original = global.fetch;
+  try {
+    for (const source of [null, "scenario"]) {
+      global.fetch = async () => new Response(JSON.stringify(fixture), {headers: source ? {"X-Valtide-Source": source} : {}});
+      await assert.rejects(client.fetchHistoricalReplay(), /Unexpected replay source/);
+    }
+    global.fetch = async () => new Response(JSON.stringify(fixture), {headers: {"X-Valtide-Source": "historical_panel"}});
+    assert.deepEqual((await client.fetchHistoricalReplay()).results, fixture);
+    global.fetch = async () => new Response(JSON.stringify({source:"scenario"}));
+    await assert.rejects(client.fetchHistoricalBacktest(), /source could not be verified/);
+    global.fetch = async () => new Response(JSON.stringify({source:"historical"}));
+    assert.equal((await client.fetchHistoricalBacktest()).source, "historical");
+  } finally { global.fetch = original; }
+});
+
+test("Operational windows use timestamps, exclude the boundary and preserve gaps", () => {
+  const latest = Date.parse("2026-09-25T12:00:00Z");
+  const row = hours => ({...fixture[0], timestamp:new Date(latest-hours*3600000).toISOString()});
+  const rows = [row(168),row(167),row(24),row(23),row(6),row(5),row(1),row(0.5),row(0)];
+  for (const [range, expected] of [["1H",2],["6H",4],["24H",6],["7D",8]]) {
+    const selected = filterOperationalResults(rows,range);
+    assert.equal(selected.length,expected);
+    assert.ok(selected.every(record=>rows.includes(record)));
+  }
+});
+
+test("Asynchronous polling retains newest results and anchors replay by timestamp", () => {
+  const rows = fixture.slice(0,3);
+  assert.equal(mergeObservations(rows, fixture[3]).length,4);
+  assert.equal(mergeObservations(rows,rows[1]).length,3);
+  assert.equal(mergeObservations(fixture,rows[1]).at(-1),fixture.at(-1));
+  assert.equal(rebasePosition(1.5,rows,fixture.slice(1)),0.5);
+});
+
+function appWith({result, rows, chain, error} = {}) {
+  const query = new QueryClient({defaultOptions:{queries:{retry:false,retryOnMount:false}}});
+  query.setQueryData(["demo-replay","canonical"],{results:fixture,source:"offline-fixture"});
+  if (result) query.setQueryData(["valuation","operational","NVDAx"],result);
+  if (rows) query.setQueryData(["history","NVDAx",288],rows);
+  if (chain) query.setQueryData(["onchain","NVDAx"],chain);
+  if (error) query.getQueryCache().build(query,{queryKey:["valuation","operational","NVDAx"]}).setState({status:"error",error:new Error(error),fetchStatus:"idle"});
+  const html = renderToStaticMarkup(h(QueryClientProvider,{client:query},h(App)));
+  query.clear();
+  return html;
+}
+
+test("Cold Operational stays unavailable even when Demo is cached", () => {
+  const html = appWith({error:"503 data_unavailable"});
+  assert.match(html,/Operational unavailable/);
+  assert.doesNotMatch(html,/Demo fixture|Scenario policy|Example demo policy/);
+});
+
+test("Operational failure preserves cached evidence with a degraded label", () => {
+  const html = appWith({result:fixture[0],error:"offline"});
+  assert.match(html,/Operational degraded/);
+  assert.match(html,/180.00/);
+  assert.doesNotMatch(html,/Demo fixture|Example demo policy/);
+});
+
+test("Prior operational evidence is not paired with current enforcement", () => {
+  const policy = {on_supported:"ALLOW",on_inconclusive:"REQUIRE_REVIEW",on_challenged:"RESTRICT_NEW_RISK",on_stale:"REQUIRE_REVIEW",max_age:900};
+  const chain = {policy,policy_action:"RESTRICT_NEW_RISK",evidence_state:"CHALLENGED",exists:true,fresh:true,network:"Testnet",chain_id:1952,attestation:null};
+  const html = appWith({result:fixture[1],rows:fixture.slice(0,2),chain});
+  assert.match(html,/Prior observation/);
+  assert.match(html,/Current deployed state — not historical chain state/);
+  assert.doesNotMatch(html,/Current RiskGuard ·/);
+});
+
+test("Current evidence mapping and stale RiskGuard enforcement remain separate", () => {
+  const policy = {on_supported:"ALLOW",on_inconclusive:"REQUIRE_REVIEW",on_challenged:"RESTRICT_NEW_RISK",on_stale:"REQUIRE_REVIEW",max_age:900};
+  const chain = {policy,policy_action:"REQUIRE_REVIEW",evidence_state:"SUPPORTED",exists:true,fresh:false,network:"Testnet",chain_id:1952,attestation:null};
+  const html = appWith({result:fixture[0],chain});
+  assert.match(html,/Current evidence · policy mapping/);
+  assert.match(html,/Current RiskGuard · STALE/);
+  assert.match(html,/ALLOW/);
+  assert.match(html,/REQUIRE_REVIEW/);
+});
+
+test("Null reference, all reasons and unavailable policy remain truthful", () => {
+  const result = {...fixture[0],reference_under_test:null,standardized_deviation:null,reference_deviation_pct:null,evidence_state:"INCONCLUSIVE",reason_codes:["COMPARATOR_UNAVAILABLE","TOKEN_DATA_UNAVAILABLE","CALIBRATION_GLOBAL_FALLBACK","UNKNOWN_BACKEND_REASON"]};
+  const html = appWith({result});
+  assert.doesNotMatch(html,/NaN|challenge threshold not met|Example demo policy/);
+  for (const code of result.reason_codes) assert.ok(html.includes(code));
+  assert.match(html,/UNAVAILABLE/);
+  assert.match(render(ReasonCodes,{codes:result.reason_codes,evidenceState:result.evidence_state}),/Global fallback calibration/);
+});
+
+test("Observation and delivery audit survives unavailable X Layer reads", () => {
+  const runtime = {scheduler_enabled:true,last_tick_status:"failure",last_tick_attempt_at:"2026-09-25T10:01:00Z",last_error:"source missing",auto_publish_enabled:true,last_publish_status:"failed",last_publish_attempt_at:"2026-09-25T10:02:00Z",last_publish_observation_ts:"2026-09-25T09:55:00Z",last_published_observation_ts:"2026-09-25T09:50:00Z",last_published_at:1790325969,last_publish_tx_hash:"0xFULL_TRANSACTION_HASH",last_publish_error:"delivery failed"};
+  const audit = render(ObservationAudit,{result:fixture[0],context:"Operational",runtime});
+  for (const label of ["Canonical 5m", "Reference Source Lag", "Trusted-Anchor Age", "Source Provenance", "Model / Version", "Last Attempt"]) assert.ok(audit.includes(label));
+  assert.match(audit,/source missing/);
+  const chain = render(RegistryPanel,{isError:true,mode:"historical",runtime});
+  assert.doesNotMatch(chain,/DEMO MAPPING/);
+  for (const value of [runtime.last_publish_attempt_at,runtime.last_published_observation_ts,runtime.last_publish_tx_hash,runtime.last_publish_error]) assert.ok(chain.includes(value));
+});
+
+test("Historical ranges use timestamps and Demo ranges never add observations", () => {
+  assert.equal(filterHistoricalResults(fixture, "ALL").length, 6);
+  const historicalRows = [...fixture, { ...fixture[0], timestamp: "2026-09-10T14:00:00Z" }];
+  assert.equal(filterHistoricalResults(historicalRows, "7D").length, 6);
+  assert.equal(filterDemoResults(fixture, "FULL").length, 6);
+  assert.equal(filterDemoResults(fixture, "15M").length, 3);
+  assert.ok(filterDemoResults(fixture, "10M").every((row) => fixture.includes(row)));
+});
+
+test("Asset selector keeps NVDAx active and marks SPYx as a disabled roadmap item", () => {
+  const html = render(AssetSelector, { assets: [{asset:"NVDAx",token_source:"okx",underlying_source:"alpaca",model_available:true}], initialOpen: true });
+  assert.match(html, /NVDAx/);
+  assert.match(html, /SPYx/);
+  assert.match(html, /Coming Soon/);
+  assert.match(html, /disabled/);
+});
+
+test("Machine publication statuses use the requested display casing", () => {
+  assert.equal(pipelineStatusLabel("published"), "PUBLISHED");
+  assert.equal(deliveryStatusLabel("published"), "Published");
+  assert.equal(deliveryStatusLabel("failed"), "Failed");
+});
+
+test("Historical observation audit is labelled as panel evidence", () => {
+  const audit = render(ObservationAudit, { result: fixture[0], context: "Historical" });
+  assert.match(audit, /Historical Panel Observation/);
+  assert.doesNotMatch(audit, /Canonical 5m Operational Observation/);
+});
+
+test("Chart viewport zooms around an anchor and pans within the full domain", () => {
+  const timestamps = [0, 300_000, 600_000, 900_000, 1_200_000, 1_500_000];
+  const full = chartDomain(timestamps);
+  const minimum = minimumViewportWidth(timestamps);
+  const zoomed = zoomViewport(full, full, 750_000, 0.5, minimum);
+  assert.ok(zoomed[1] - zoomed[0] < full[1] - full[0]);
+  assert.equal((zoomed[0] + zoomed[1]) / 2, 750_000);
+  const offCenterZoom = zoomViewport(full, full, 300_000, 0.5, minimum);
+  assert.ok(Math.abs((300_000 - offCenterZoom[0]) / (offCenterZoom[1] - offCenterZoom[0]) - 0.2) < 1e-9);
+  assert.equal(zoomViewport(zoomed, full, 750_000, 4, minimum).join(), full.join());
+
+  const panned = panViewport(zoomed, full, 500_000, minimum);
+  assert.equal(panned[1] - panned[0], zoomed[1] - zoomed[0]);
+  assert.ok(panned[0] >= full[0] && panned[1] <= full[1]);
+  assert.deepEqual(panViewport(zoomed, full, -10_000_000, minimum), [full[0], full[0] + (zoomed[1] - zoomed[0])]);
+  assert.deepEqual(clampViewport(full, full, minimum), full);
+});
+
+test("Chart wheel zoom is smooth and bounded", () => {
+  const fullWidth = 7 * 24 * 60 * 60 * 1000;
+  const wide = wheelZoomScale(-12, 0, fullWidth, fullWidth);
+  const narrow = wheelZoomScale(-12, 0, 60 * 60 * 1000, fullWidth);
+  assert.ok(wide < 1);
+  assert.ok(narrow < 1);
+  assert.ok(Math.abs(Math.log(wide)) > Math.abs(Math.log(narrow)));
+  assert.ok(wheelZoomScale(12, 0, fullWidth, fullWidth) > 1);
+  assert.ok(wheelZoomScale(-100_000, 0, fullWidth, fullWidth) >= Math.exp(-1.68));
+  assert.ok(wheelZoomScale(100_000, 0, fullWidth, fullWidth) <= Math.exp(1.68));
+  assert.ok(zoomSensitivity(60 * 60 * 1000, fullWidth) < zoomSensitivity(fullWidth, fullWidth));
+});
+
+test("Chart wheel intent batches dominant axes without changing semantic data", () => {
+  assert.equal(wheelGestureIntent(2, 12), "zoom");
+  assert.equal(wheelGestureIntent(18, 4), "pan");
+  const source = fs.readFileSync(path.join(__dirname, "../src/components/EscalationChart.tsx"), "utf8");
+  assert.match(source, /requestAnimationFrame\(flushWheelInput\)/);
+  assert.match(source, /cancelAnimationFrame\(wheelFrameRef\.current\)/);
+});
+
+test("Chart renders only the viewport plus continuity boundaries", () => {
+  const point = (sourceIndex, ts) => ({ sourceIndex, ts, band: [1, 2], fair: 1.5, rut: 1.6, token: 1.4, state: "SUPPORTED" });
+  const points = [
+    point(0, 0),
+    point(1, 300_000),
+    point(null, 450_000),
+    point(2, 600_000),
+    point(3, 900_000),
+    point(4, 1_200_000),
+  ];
+  assert.equal(lowerBoundTimestamp(points, 500_000), 3);
+  assert.equal(upperBoundTimestamp(points, 850_000), 4);
+  const sliced = sliceChartDataForViewport(points, [500_000, 850_000]);
+  assert.deepEqual(sliced.map(({ sourceIndex }) => sourceIndex), [null, 2, 3]);
+  assert.deepEqual(sliceChartDataForViewport(points, [0, 1_200_000]), points);
+  assert.deepEqual(sliceChartDataForViewport(points, [-100, 100]), [points[0], points[1]]);
+  assert.deepEqual(sliceChartDataForViewport(points, [1_100_000, 1_300_000]), [points[4], points[5]]);
+  const densePoints = Array.from({ length: 2_017 }, (_, index) => point(index, index * 300_000));
+  const denseWindow = sliceChartDataForViewport(densePoints, [1_000 * 300_000, 1_011 * 300_000]);
+  assert.equal(denseWindow.length, 14);
+  assert.equal(denseWindow[0].sourceIndex, 999);
+  assert.equal(denseWindow.at(-1).sourceIndex, 1_012);
+  assert.match(fs.readFileSync(path.join(__dirname, "../src/components/EscalationChart.tsx"), "utf8"), /<ComposedChart\s+data=\{renderData\}/);
+});
+
+test("Dense evidence markers are a rendering-only level of detail", () => {
+  assert.equal(shouldRenderStateDots(4, 400), true);
+  assert.equal(shouldRenderStateDots(100, 400), false);
+  assert.equal(shouldRenderStateDots(2_017, 1_000), false);
+  assert.equal(shouldRenderStateDots(1, 0), true);
+});
+
+test("Pointer drag uses one animation-frame update per pending gesture", () => {
+  const source = fs.readFileSync(path.join(__dirname, "../src/components/EscalationChart.tsx"), "utf8");
+  assert.match(source, /requestAnimationFrame\(\(\) => \{[\s\S]*flushDragViewport\(\)/);
+  assert.match(source, /cancelAnimationFrame\(dragFrameRef\.current\)/);
+  assert.match(source, /data=\{renderData\}/);
+});
+
+test("Rendered chart clips both axes to the computed viewport", () => {
+  const source = fs.readFileSync(path.join(__dirname, "../src/components/EscalationChart.tsx"), "utf8");
+  assert.match(source, /<XAxis[^>]*domain=\{viewportDomain\}[^>]*allowDataOverflow/);
+  assert.match(source, /<YAxis[^>]*domain=\{\[min - pad, max \+ pad\]\}[^>]*allowDataOverflow/);
+  assert.match(source, /addEventListener\("wheel", handleWheel, \{ passive: false \}\)/);
+});
