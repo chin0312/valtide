@@ -23,6 +23,10 @@ interface DotProps {
 const CANONICAL_STEP_MS = 5 * 60 * 1000;
 const MIN_VIEWPORT_STEPS = 2;
 const DRAG_THRESHOLD_PX = 4;
+const MIN_ZOOM_SENSITIVITY = 0.12;
+const MAX_ZOOM_SENSITIVITY = 0.42;
+const WHEEL_DELTA_CLAMP = 4;
+const DOMINANT_AXIS_THRESHOLD = 1.2;
 const CHART_MARGIN = { top: 10, right: 18, bottom: 4, left: 2 } as const;
 const Y_AXIS_WIDTH = 50;
 
@@ -85,10 +89,22 @@ export function panViewport(viewport: ChartDomain, fullDomain: ChartDomain, delt
   return clampViewport([current[0] + deltaMs, current[1] + deltaMs], fullDomain, minimumWidth);
 }
 
-export function wheelZoomScale(delta: number, deltaMode = 0): number {
-  const pixels = deltaMode === 1 ? delta * 16 : deltaMode === 2 ? delta * 800 : delta;
-  const normalized = Math.max(-4, Math.min(4, pixels / 120));
-  return Math.exp(normalized * 0.22);
+export function zoomSensitivity(viewportWidth: number, fullWidth: number): number {
+  const spanRatio = fullWidth > 0 && Number.isFinite(viewportWidth) ? Math.min(1, Math.max(0, viewportWidth / fullWidth)) : 1;
+  return MIN_ZOOM_SENSITIVITY + (MAX_ZOOM_SENSITIVITY - MIN_ZOOM_SENSITIVITY) * Math.sqrt(spanRatio);
+}
+
+export function wheelDeltaPixels(delta: number, deltaMode = 0): number {
+  return deltaMode === 1 ? delta * 16 : deltaMode === 2 ? delta * 800 : delta;
+}
+
+export function wheelZoomScale(delta: number, deltaMode = 0, viewportWidth = 1, fullWidth = 1): number {
+  const normalized = Math.max(-WHEEL_DELTA_CLAMP, Math.min(WHEEL_DELTA_CLAMP, wheelDeltaPixels(delta, deltaMode) / 120));
+  return Math.exp(normalized * zoomSensitivity(viewportWidth, fullWidth));
+}
+
+export function wheelGestureIntent(deltaX: number, deltaY: number): "pan" | "zoom" {
+  return Math.abs(deltaX) > Math.abs(deltaY) * DOMINANT_AXIS_THRESHOLD ? "pan" : "zoom";
 }
 
 export function EscalationChart({ results, index, playhead = index, onSelect, resetKey }: { results: ValuationResult[]; index: number; playhead?: number; onSelect: (i: number) => void; resetKey?: string | number }) {
@@ -101,6 +117,8 @@ export function EscalationChart({ results, index, playhead = index, onSelect, re
   const [panning, setPanning] = useState(false);
   const chartRef = useRef<HTMLDivElement>(null);
   const viewportRef = useRef<ChartDomain>(fullDomain);
+  const wheelFrameRef = useRef<number | null>(null);
+  const wheelInputRef = useRef<{ deltaX: number; deltaY: number; clientX: number } | null>(null);
   const dragRef = useRef<{ pointerId: number; startX: number; startDomain: ChartDomain; moved: boolean } | null>(null);
 
   useEffect(() => {
@@ -142,32 +160,48 @@ export function EscalationChart({ results, index, playhead = index, onSelect, re
     const element = chartRef.current;
     if (!element) return;
 
-    const handleWheel = (event: WheelEvent) => {
-      if (event.deltaX === 0 && event.deltaY === 0) return;
-      event.preventDefault();
+    const flushWheelInput = () => {
+      wheelFrameRef.current = null;
+      const input = wheelInputRef.current;
+      wheelInputRef.current = null;
+      if (!input) return;
 
       const current = clampViewport(viewportRef.current, fullDomain, minimumWidth);
       const rect = element.getBoundingClientRect();
       const plotLeft = CHART_MARGIN.left + Y_AXIS_WIDTH;
       const plotWidth = Math.max(1, rect.width - plotLeft - CHART_MARGIN.right);
-
-      if (event.deltaY === 0 && event.deltaX !== 0) {
-        const deltaMs = -(event.deltaX / plotWidth) * (current[1] - current[0]);
-        const next = panViewport(current, fullDomain, deltaMs, minimumWidth);
-        viewportRef.current = next;
-        setViewport(next);
-        return;
-      }
-
-      const ratio = plotRatioAt(event.clientX);
-      const anchor = current[0] + (current[1] - current[0]) * ratio;
-      const next = zoomViewport(current, fullDomain, anchor, wheelZoomScale(event.deltaY, event.deltaMode), minimumWidth);
+      const fullWidth = fullDomain[1] - fullDomain[0];
+      const next = wheelGestureIntent(input.deltaX, input.deltaY) === "pan"
+        ? panViewport(current, fullDomain, (input.deltaX / plotWidth) * (current[1] - current[0]), minimumWidth)
+        : zoomViewport(
+          current,
+          fullDomain,
+          current[0] + (current[1] - current[0]) * plotRatioAt(input.clientX),
+          wheelZoomScale(input.deltaY, 0, current[1] - current[0], fullWidth),
+          minimumWidth,
+        );
       viewportRef.current = next;
       setViewport(next);
     };
 
+    const handleWheel = (event: WheelEvent) => {
+      if (event.deltaX === 0 && event.deltaY === 0) return;
+      event.preventDefault();
+      const input = wheelInputRef.current ?? { deltaX: 0, deltaY: 0, clientX: event.clientX };
+      input.deltaX += wheelDeltaPixels(event.deltaX, event.deltaMode);
+      input.deltaY += wheelDeltaPixels(event.deltaY, event.deltaMode);
+      input.clientX = event.clientX;
+      wheelInputRef.current = input;
+      if (wheelFrameRef.current == null) wheelFrameRef.current = requestAnimationFrame(flushWheelInput);
+    };
+
     element.addEventListener("wheel", handleWheel, { passive: false });
-    return () => element.removeEventListener("wheel", handleWheel);
+    return () => {
+      element.removeEventListener("wheel", handleWheel);
+      if (wheelFrameRef.current != null) cancelAnimationFrame(wheelFrameRef.current);
+      wheelFrameRef.current = null;
+      wheelInputRef.current = null;
+    };
   }, [fullDomain[0], fullDomain[1], minimumWidth]);
 
   const handlePointerDown = (event: ReactPointerEvent<HTMLDivElement>) => {

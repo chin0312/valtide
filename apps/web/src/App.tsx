@@ -158,7 +158,7 @@ export default function App() {
         />
 
         <footer className="border-t pt-3 font-mono text-[10px] tracking-[0.05em]" style={{ borderColor: "var(--color-line-subtle)", color: "var(--color-muted)" }}>
-          {current ? `${current.model_id} ${current.model_version} · ` : ""}research prototype · browser read-only
+          {current ? `${current.model_id} ${current.model_version} · ` : ""}Independent Validation Control
         </footer>
       </main>
     </div>

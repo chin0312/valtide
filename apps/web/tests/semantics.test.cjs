@@ -15,7 +15,7 @@ const { RegistryPanel } = load("../src/components/RegistryPanel.tsx");
 const { ObservationAudit } = load("../src/components/ObservationAudit.tsx");
 const { default: App, AssetSelector } = load("../src/App.tsx");
 const { deliveryStatusLabel, pipelineStatusLabel } = load("../src/lib/format.ts");
-const { chartDomain, clampViewport, minimumViewportWidth, panViewport, wheelZoomScale, zoomViewport } = load("../src/components/EscalationChart.tsx");
+const { chartDomain, clampViewport, minimumViewportWidth, panViewport, wheelGestureIntent, wheelZoomScale, zoomSensitivity, zoomViewport } = load("../src/components/EscalationChart.tsx");
 const h = React.createElement;
 const render = (component, props) => renderToStaticMarkup(h(component, props));
 
@@ -181,10 +181,24 @@ test("Chart viewport zooms around an anchor and pans within the full domain", ()
 });
 
 test("Chart wheel zoom is smooth and bounded", () => {
-  assert.ok(wheelZoomScale(-12) < 1);
-  assert.ok(wheelZoomScale(12) > 1);
-  assert.ok(wheelZoomScale(-100_000) >= Math.exp(-0.88));
-  assert.ok(wheelZoomScale(100_000) <= Math.exp(0.88));
+  const fullWidth = 7 * 24 * 60 * 60 * 1000;
+  const wide = wheelZoomScale(-12, 0, fullWidth, fullWidth);
+  const narrow = wheelZoomScale(-12, 0, 60 * 60 * 1000, fullWidth);
+  assert.ok(wide < 1);
+  assert.ok(narrow < 1);
+  assert.ok(Math.abs(Math.log(wide)) > Math.abs(Math.log(narrow)));
+  assert.ok(wheelZoomScale(12, 0, fullWidth, fullWidth) > 1);
+  assert.ok(wheelZoomScale(-100_000, 0, fullWidth, fullWidth) >= Math.exp(-1.68));
+  assert.ok(wheelZoomScale(100_000, 0, fullWidth, fullWidth) <= Math.exp(1.68));
+  assert.ok(zoomSensitivity(60 * 60 * 1000, fullWidth) < zoomSensitivity(fullWidth, fullWidth));
+});
+
+test("Chart wheel intent batches dominant axes without changing semantic data", () => {
+  assert.equal(wheelGestureIntent(2, 12), "zoom");
+  assert.equal(wheelGestureIntent(18, 4), "pan");
+  const source = fs.readFileSync(path.join(__dirname, "../src/components/EscalationChart.tsx"), "utf8");
+  assert.match(source, /requestAnimationFrame\(flushWheelInput\)/);
+  assert.match(source, /cancelAnimationFrame\(wheelFrameRef\.current\)/);
 });
 
 test("Rendered chart clips both axes to the computed viewport", () => {
