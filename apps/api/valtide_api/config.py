@@ -7,6 +7,7 @@ single Settings object so there is one place to audit configuration.
 from functools import lru_cache
 from pathlib import Path
 
+from pydantic import Field
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 # Repo-root .env, resolved from this file so it works regardless of CWD.
@@ -57,6 +58,9 @@ class Settings(BaseSettings):
     # diagnostics never start a background network loop implicitly.
     live_scheduler_enabled: bool = False
     live_scheduler_asset: str = "NVDAx"
+    live_settlement_grace_seconds: int = Field(default=60, ge=0)
+    live_settlement_max_attempts: int = Field(default=5, ge=1)
+    live_settlement_retry_delay_seconds: int = Field(default=15, ge=0)
     valtide_state_db_path: Path = _ENV_FILE.parent / "data" / "runtime" / "valtide.sqlite3"
     historical_panel_path: Path = (
         _ENV_FILE.parent / "data" / "generated" / "nvdax_historical_5m.csv"

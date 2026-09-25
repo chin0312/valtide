@@ -47,6 +47,17 @@ def _builder_for(snapshots: list[MarketSnapshot]):
     return build, calls
 
 
+def _patch_settlement_retry(monkeypatch, *, attempts: int = 5, delay: float = 0.0):
+    monkeypatch.setattr(
+        scheduler_module,
+        "get_settings",
+        lambda: SimpleNamespace(
+            live_settlement_max_attempts=attempts,
+            live_settlement_retry_delay_seconds=delay,
+        ),
+    )
+
+
 def test_warmed_tick_persists_and_restores_across_store_restart(tmp_path):
     first_ts = _ANCHOR + timedelta(hours=1)
     second_ts = first_ts + timedelta(minutes=5)
@@ -135,7 +146,7 @@ def test_settlement_retry_uses_same_timestamp_and_persists_once(tmp_path, monkey
         nonlocal builder_attempts
         requested.append(observation_ts)
         builder_attempts += 1
-        if builder_attempts < 3:
+        if builder_attempts < 4:
             raise ExactNvdaxCandleUnavailable("exact T not indexed yet")
         return snapshot
 
@@ -143,11 +154,7 @@ def test_settlement_retry_uses_same_timestamp_and_persists_once(tmp_path, monkey
         inference_calls.append(snapshot.observation_ts)
         return original_inference(snapshot, state)
 
-    monkeypatch.setattr(
-        scheduler_module,
-        "_NVDAX_SETTLEMENT_RETRY_DELAY_SECONDS",
-        0.0,
-    )
+    _patch_settlement_retry(monkeypatch)
     monkeypatch.setattr(scheduler_module, "run_inference", counted_inference)
 
     tick = run_live_tick(
@@ -158,7 +165,7 @@ def test_settlement_retry_uses_same_timestamp_and_persists_once(tmp_path, monkey
     )
 
     assert tick.status == "success"
-    assert requested == [timestamp, timestamp, timestamp]
+    assert requested == [timestamp, timestamp, timestamp, timestamp]
     assert inference_calls == [timestamp]
     assert store.load_runtime("NVDAx").state.last_ts == timestamp
     assert [result.timestamp for result in store.load_history("NVDAx")] == [timestamp]
@@ -178,11 +185,7 @@ def test_settlement_retry_exhaustion_preserves_old_runtime_and_history(tmp_path,
         requested.append(observation_ts)
         raise ExactNvdaxCandleUnavailable("exact T still unavailable")
 
-    monkeypatch.setattr(
-        scheduler_module,
-        "_NVDAX_SETTLEMENT_RETRY_DELAY_SECONDS",
-        0.0,
-    )
+    _patch_settlement_retry(monkeypatch)
     failed = run_live_tick(
         "NVDAx",
         failed_ts,
@@ -192,7 +195,7 @@ def test_settlement_retry_exhaustion_preserves_old_runtime_and_history(tmp_path,
 
     after = store.load_runtime("NVDAx")
     assert failed.status == "failure"
-    assert requested == [failed_ts, failed_ts, failed_ts]
+    assert requested == [failed_ts] * 5
     assert before is not None and after is not None
     assert after.state == before.state
     assert after.latest_result == before.latest_result
@@ -210,11 +213,7 @@ def test_non_settlement_live_error_is_not_retried(tmp_path, monkeypatch):
         attempts += 1
         raise LiveDataUnavailable("NVDA underlying unavailable (Alpaca)")
 
-    monkeypatch.setattr(
-        scheduler_module,
-        "_NVDAX_SETTLEMENT_RETRY_DELAY_SECONDS",
-        0.0,
-    )
+    _patch_settlement_retry(monkeypatch)
     failed = run_live_tick(
         "NVDAx",
         timestamp,
@@ -238,11 +237,7 @@ def test_runtime_integrity_error_is_not_retried(tmp_path, monkeypatch):
         attempts += 1
         raise RuntimeStateIntegrityError("synthetic persisted-state corruption")
 
-    monkeypatch.setattr(
-        scheduler_module,
-        "_NVDAX_SETTLEMENT_RETRY_DELAY_SECONDS",
-        0.0,
-    )
+    _patch_settlement_retry(monkeypatch)
     failed = run_live_tick(
         "NVDAx",
         timestamp,
@@ -269,13 +264,20 @@ def test_invalid_initial_chronology_fails_without_backward_state(tmp_path):
     assert record.latest_result is None
 
 
-def test_scheduler_has_single_process_start_stop_lifecycle(tmp_path):
+def test_scheduler_has_single_process_start_stop_lifecycle(tmp_path, monkeypatch):
     calls: list[datetime] = []
-    clock_values = [
-        datetime(2026, 9, 19, 14, 2, tzinfo=UTC),
-        datetime(2026, 9, 19, 14, 5, 1, tzinfo=UTC),
-    ]
-    sleep_calls = 0
+    clock_values = [datetime(2026, 9, 19, 14, 4, 30, tzinfo=UTC)]
+    sleep_delays: list[float] = []
+
+    monkeypatch.setattr(
+        scheduler_module,
+        "get_settings",
+        lambda: SimpleNamespace(
+            auto_publish_enabled=False,
+            live_scheduler_asset="NVDAx",
+            live_settlement_grace_seconds=60,
+        ),
+    )
 
     def fake_now() -> datetime:
         return (
@@ -296,9 +298,8 @@ def test_scheduler_has_single_process_start_stop_lifecycle(tmp_path):
         )
 
     async def fake_sleep(delay: float) -> None:
-        nonlocal sleep_calls
-        sleep_calls += 1
-        if sleep_calls > 1:
+        sleep_delays.append(delay)
+        if len(sleep_delays) > 1:
             await asyncio.Event().wait()
 
     async def exercise() -> None:
@@ -320,10 +321,10 @@ def test_scheduler_has_single_process_start_stop_lifecycle(tmp_path):
 
     asyncio.run(exercise())
     assert len(calls) == 1
-    # The scheduler values the just-settled bar, one boundary before the clock's
-    # current 14:05 boundary.
+    # The scheduler waits until 14:06 (14:05 boundary plus 60 seconds) but
+    # values the just-settled bar whose event-time timestamp is still 14:00.
     assert calls[0] == datetime(2026, 9, 19, 14, 0, tzinfo=UTC)
-    assert sleep_calls >= 1
+    assert sleep_delays[0] == 90.0
 
 
 async def _blocked_sleep(_delay: float) -> None:

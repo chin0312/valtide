@@ -69,6 +69,9 @@ OKX_API_PASSPHRASE
 
 LIVE_SCHEDULER_ENABLED=true
 LIVE_SCHEDULER_ASSET=NVDAx
+LIVE_SETTLEMENT_GRACE_SECONDS=60
+LIVE_SETTLEMENT_MAX_ATTEMPTS=5
+LIVE_SETTLEMENT_RETRY_DELAY_SECONDS=15
 VALTIDE_STATE_DB_PATH=/data/valtide.sqlite3
 
 PUBLISH_ENABLED=false
@@ -125,9 +128,12 @@ this deployment preparation.
 - The OKX X-Perp live reference endpoint used by this path is public.
 - The canonical live NVDAx input is an exact confirmed OKX OnchainOS five-minute
   candle at the settled scheduler timestamp; OnchainOS credentials are required.
-- The scheduler retries that same canonical timestamp up to three times with a
-  two-second delay when the exact confirmed candle is not indexed immediately;
-  other live-data or runtime errors are not retried.
+- The scheduler waits for the configured settlement grace after the next
+  canonical boundary, then retries the same canonical timestamp up to five
+  times with a 15-second delay when the exact confirmed candle is not indexed
+  immediately. The event-time timestamp remains boundary minus five minutes;
+  other live-data or runtime errors are not retried. The defaults are a
+  60-second grace, five attempts, and a 15-second retry delay.
 - DexScreener does not require an API key, but its current quote is diagnostic
   only and is never relabeled as a canonical historical observation.
 - `OKX_NVDAX_CHAIN_INDEX` and `OKX_NVDAX_TOKEN_ADDRESS`, when both set, bypass

@@ -12,7 +12,6 @@ from datetime import UTC, datetime, timedelta
 from valtide_api import publisher as publisher_module
 from valtide_api.clock import (
     FIVE_MINUTES,
-    canonical_5m_boundary,
     next_5m_boundary,
     require_canonical_5m,
 )
@@ -33,8 +32,9 @@ from valtide_api.state_store import KalmanState, save_latest_result, save_state
 
 logger = logging.getLogger("valtide.runtime")
 _PUBLICATION_SHUTDOWN_TIMEOUT_SECONDS = 5.0
-_NVDAX_SETTLEMENT_MAX_ATTEMPTS = 3
-_NVDAX_SETTLEMENT_RETRY_DELAY_SECONDS = 2.0
+_NVDAX_SETTLEMENT_MAX_ATTEMPTS = 5
+_NVDAX_SETTLEMENT_RETRY_DELAY_SECONDS = 15.0
+_LIVE_SETTLEMENT_GRACE_SECONDS = 60.0
 
 SnapshotBuilder = Callable[..., MarketSnapshot]
 NowProvider = Callable[[], datetime]
@@ -45,15 +45,23 @@ PublishFunction = Callable[..., object]
 def _build_snapshot_with_settlement_retry(
     snapshot_builder: SnapshotBuilder,
     canonical_ts: datetime,
+    *,
+    max_attempts: int,
+    retry_delay_seconds: float,
 ) -> MarketSnapshot:
     """Retry only temporary absence of the exact settled NVDAx candle."""
-    for attempt in range(_NVDAX_SETTLEMENT_MAX_ATTEMPTS):
+    if max_attempts < 1:
+        raise ValueError("settlement max attempts must be at least 1")
+    if retry_delay_seconds < 0:
+        raise ValueError("settlement retry delay must not be negative")
+
+    for attempt in range(max_attempts):
         try:
             return snapshot_builder(observation_ts=canonical_ts)
         except ExactNvdaxCandleUnavailable:
-            if attempt + 1 == _NVDAX_SETTLEMENT_MAX_ATTEMPTS:
+            if attempt + 1 == max_attempts:
                 raise
-            time.sleep(_NVDAX_SETTLEMENT_RETRY_DELAY_SECONDS)
+            time.sleep(retry_delay_seconds)
     raise AssertionError("settlement retry loop exited without a snapshot or exception")
 
 
@@ -118,7 +126,21 @@ def run_live_tick(
                     state_restored=True,
                 )
 
-        snapshot = _build_snapshot_with_settlement_retry(snapshot_builder, canonical_ts)
+        settings = get_settings()
+        snapshot = _build_snapshot_with_settlement_retry(
+            snapshot_builder,
+            canonical_ts,
+            max_attempts=int(
+                getattr(settings, "live_settlement_max_attempts", _NVDAX_SETTLEMENT_MAX_ATTEMPTS)
+            ),
+            retry_delay_seconds=float(
+                getattr(
+                    settings,
+                    "live_settlement_retry_delay_seconds",
+                    _NVDAX_SETTLEMENT_RETRY_DELAY_SECONDS,
+                )
+            ),
+        )
         state: KalmanState | None = record.state if record is not None else None
         state_restored = state is not None
         gap_steps = 0
@@ -197,6 +219,9 @@ class LiveScheduler:
         self._sleep = sleep or asyncio.sleep
         self._settings = settings
         self._auto_publish_enabled = bool(getattr(settings, "auto_publish_enabled", False))
+        self._settlement_grace_seconds = float(
+            getattr(settings, "live_settlement_grace_seconds", _LIVE_SETTLEMENT_GRACE_SECONDS)
+        )
         self._publisher_fn = publisher_fn or publisher_module.publish
         self._task: asyncio.Task[None] | None = None
         self._publication_task: asyncio.Task[None] | None = None
@@ -376,15 +401,15 @@ class LiveScheduler:
 
     async def _run(self) -> None:
         while True:
-            # Wait for the next completed boundary. Starting at the current
-            # floor could label a few minutes of newly fetched data as if it
-            # had been observed at an already-past timestamp.
+            # Fix event time before waiting. Processing starts after the
+            # completed boundary plus settlement grace, but the snapshot still
+            # requests the bar whose open timestamp is five minutes earlier.
             now = self._now()
             next_boundary = next_5m_boundary(now)
-            await self._sleep(max(0.0, (next_boundary - now).total_seconds() + 1.0))
-            # Value the bar that just settled, not the one now forming: its
-            # confirmed reference candle exists, so the comparator is present.
-            canonical_ts = canonical_5m_boundary(self._now()) - FIVE_MINUTES
+            canonical_ts = next_boundary - FIVE_MINUTES
+            await self._sleep(
+                max(0.0, (next_boundary - now).total_seconds() + self._settlement_grace_seconds)
+            )
             await self._process_tick(canonical_ts)
 
 
