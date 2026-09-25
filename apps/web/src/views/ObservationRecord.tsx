@@ -19,15 +19,15 @@ export function ObservationRecord({ results, currentIndex, sourceLabelText }: { 
 
   return (
     <Panel
-      title="Evidence record"
+      title="Evidence Record"
       icon="record"
       right={<span className="rounded px-2 py-1 font-mono text-[10px] uppercase tracking-[0.05em]" style={{ color: "var(--color-muted)", background: "var(--color-panel-2)", border: "1px solid var(--color-line)" }}>{sourceLabelText}</span>}
     >
       <div className="grid grid-cols-2 overflow-hidden rounded-lg lg:grid-cols-4" style={{ border: "1px solid var(--color-line-subtle)" }}>
         <RecordMetric label="Observations" value={String(results.length)} />
-        <RecordMetric label="State changes" value={String(transitions.length)} />
-        <RecordMetric label="Peak deviation" value={sigma(maxSigma)} />
-        <RecordMetric label="Outside interval" value={`${breaches}/${results.length}`} />
+        <RecordMetric label="State Changes" value={String(transitions.length)} />
+        <RecordMetric label="Peak Deviation" value={sigma(maxSigma)} />
+        <RecordMetric label="Outside Interval" value={`${breaches}/${results.length}`} />
       </div>
 
       <div className="mt-4 grid gap-5 lg:grid-cols-[minmax(0,1fr)_360px]">
@@ -53,12 +53,12 @@ export function ObservationRecord({ results, currentIndex, sourceLabelText }: { 
         </div>
 
         <div className="grid grid-cols-2 gap-x-5 gap-y-3 border-t pt-4 lg:border-l lg:border-t-0 lg:pl-5 lg:pt-0" style={{ borderColor: "var(--color-line-subtle)" }}>
-          <SourceFact label="Token source" value={current?.token_source ? sourceLabel(current.token_source) : current?.token_price != null ? "Demo scenario" : "—"} />
+          <SourceFact label="Token Source" value={current?.token_source ? sourceLabel(current.token_source) : current?.token_price != null ? "Demo Scenario" : "—"} />
           <SourceFact label="Reference" value={sourceLabel(current?.reference_under_test_source)} />
           <SourceFact label="Model" value={current ? `${current.model_id} ${current.model_version}` : "—"} />
-          <SourceFact label="Market state" value={current?.market_state ?? "—"} />
+          <SourceFact label="Market State" value={current?.market_state?.toUpperCase() ?? "—"} />
           <SourceFact label="Residual" value={pct(current?.residual_premium_discount_pct)} />
-          <SourceFact label="First signal" value={events[0] ? `${timeUTC(events[0].timestamp)} · ${events[0].evidence_state}` : "—"} />
+          <SourceFact label="First Signal" value={events[0] ? `${timeUTC(events[0].timestamp)} · ${events[0].evidence_state}` : "—"} />
         </div>
       </div>
     </Panel>

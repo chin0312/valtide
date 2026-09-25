@@ -43,12 +43,12 @@ export function PolicyActionPanel({ current, policy, evaluation, policySource, s
   const historical = observationKind === "historical-panel";
   const scenario = observationKind === "scenario";
   const mappingLabel = scenario
-    ? "Curator mapping for this scenario Evidence State"
+    ? "Curator Mapping For This Scenario Evidence State"
     : priorOperational
-      ? "Policy under current configuration"
+      ? "Policy Under Current Configuration"
       : historical
-        ? "Policy under current configuration"
-        : "Curator mapping for this Evidence State";
+        ? "Policy Under Current Configuration"
+        : "Curator Mapping For This Evidence State";
   const mappingDescription = scenario
     ? "Policy projection for this deterministic scenario state; the scenario is not published to X Layer."
     : priorOperational
@@ -65,10 +65,10 @@ export function PolicyActionPanel({ current, policy, evaluation, policySource, s
         : "This mapping applies to a fresh attestation. A stale attestation uses the configured STALE policy.";
 
   return (
-    <Panel title={scenario ? "Scenario policy projection" : priorOperational ? "Prior operational policy mapping" : historical ? "Historical policy mapping" : "Policy result"} subtitle="Configured curator rule — not a Valtide recommendation.">
+    <Panel title={scenario ? "Scenario Policy Projection" : priorOperational ? "Prior Operational Policy Mapping" : historical ? "Historical Policy Mapping" : "Policy Result"} subtitle="Configured curator rule — not a Valtide recommendation.">
       <div className="rounded-lg px-4 py-4" style={{ background: "var(--color-panel-2)", border: "1px solid var(--color-line)", borderLeft: `2px solid ${currentStyle.fg}` }}>
         <div className="eyebrow" style={{ color: "var(--color-muted)" }}>
-          {observationLabel ?? (scenario ? "Scenario Evidence State" : historical ? "Selected historical evidence" : "Current Operational Evidence")}
+          {observationLabel ?? (scenario ? "Scenario Evidence State" : historical ? "Selected Historical Evidence" : "Current Operational Evidence")}
         </div>
         <div className="mt-2"><EvidenceChip state={current} size="lg" /></div>
 
@@ -82,13 +82,13 @@ export function PolicyActionPanel({ current, policy, evaluation, policySource, s
         ) : (
           <div className="mt-4 grid gap-3">
             <ActionBlock
-              label="Curator mapping for this Evidence State"
+              label="Curator Mapping For This Evidence State"
               action={projectedAction}
               description="The configured curator mapping for the current operational Evidence State."
               detail="This mapping applies to a fresh attestation. A stale attestation uses the configured STALE policy."
             />
             <ActionBlock
-              label="Current onchain enforced action"
+              label="Current Onchain Enforced Action"
               action={enforcedAction}
               description="The RiskGuard result for the Registry generation currently on X Layer."
               detail={evaluation ? evaluationDescription(evaluation) : undefined}
@@ -108,18 +108,18 @@ export function PolicyActionPanel({ current, policy, evaluation, policySource, s
       )}
 
       <div className="mt-4 flex items-center justify-between gap-3 text-xs" style={{ color: "var(--color-ink-dim)" }}>
-        <span>Policy source</span>
+        <span>Policy Source</span>
         <strong className="text-right text-ink">{policySource}</strong>
       </div>
 
       {policy ? (
         <>
           <div className="mt-3 flex items-center justify-between gap-3 text-xs" style={{ color: "var(--color-ink-dim)" }}>
-            <span>Maximum observation age</span>
+            <span>Maximum Observation Age</span>
             <strong className="tnum text-ink">{ageLabel(policy.max_age)}</strong>
           </div>
           <details className="mt-4 overflow-hidden rounded-lg" style={{ border: "1px solid var(--color-line)" }}>
-            <summary className="eyebrow flex items-center justify-between px-3 py-2.5" style={{ background: "var(--color-panel-2)", color: "var(--color-muted)" }}><span>Curator policy mapping</span><span aria-hidden style={{ color: "var(--color-accent)" }}>＋</span></summary>
+            <summary className="eyebrow flex items-center justify-between px-3 py-2.5" style={{ background: "var(--color-panel-2)", color: "var(--color-muted)" }}><span>Curator Policy Mapping</span><span aria-hidden style={{ color: "var(--color-accent)" }}>＋</span></summary>
             <div>
               {STATES.map((state, index) => <MappingRow key={state} state={state} action={actionFor(policy, state)} active={state === current} first={index === 0} />)}
               <MappingRow stateLabel="STALE ATTESTATION" action={policy.on_stale} active={false} />
@@ -151,8 +151,8 @@ function ActionBlock({ label, action, description, detail }: { label: string; ac
 }
 
 function evaluationDescription(evaluation: OnchainEvaluation): string {
-  if (!evaluation.exists) return "Registry Evidence: no attestation; stale-policy action returned.";
-  return `Registry Evidence: ${evaluation.evidence_state} · ${evaluation.fresh ? "fresh" : "stale"} attestation.`;
+  if (!evaluation.exists) return "Registry Evidence: no attestation; STALE policy action returned.";
+  return `Registry Evidence: ${evaluation.evidence_state} · ${evaluation.fresh ? "FRESH" : "STALE"} attestation.`;
 }
 
 function actionFor(policy: OnchainPolicy, state: EvidenceState): PolicyAction {

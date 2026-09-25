@@ -62,8 +62,8 @@ export function compactUsd(x: number | null | undefined): string {
 }
 
 export function coverageLabel(target: number | null | undefined): string {
-  if (target == null || !Number.isFinite(target)) return "Calibrated interval";
-  return `${Math.round(target * 100)}% calibrated interval`;
+  if (target == null || !Number.isFinite(target)) return "Calibrated Interval";
+  return `${Math.round(target * 100)}% Calibrated Interval`;
 }
 
 export function timeAxisUTC(timestampMs: number, multiDay: boolean): string {

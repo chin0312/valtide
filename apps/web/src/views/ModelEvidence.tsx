@@ -23,7 +23,7 @@ export function ModelEvidence() {
   const hasMetrics = data && data.mae != null && data.rmse != null && data.interval_coverage != null;
 
   return (
-    <Panel title="Historical model evidence" subtitle="Historical diagnostics, separate from the deterministic scenario replay">
+    <Panel title="Historical Model Evidence" subtitle="Historical diagnostics, separate from the deterministic scenario replay">
       {isError || !data ? (
         <div className="rounded-lg px-3 py-3 text-sm" style={{ background: "var(--color-panel-2)", border: "1px solid var(--color-line)", color: "var(--color-ink-dim)" }}>
           {isLoading ? "Loading historical model evidence…" : "Historical model evidence unavailable. Scenario verdicts are not empirical performance evidence."}
@@ -54,10 +54,10 @@ export function ModelEvidence() {
 
           <div className="mt-4 grid grid-cols-2 overflow-hidden rounded-lg lg:grid-cols-5" style={{ border: "1px solid var(--color-line)" }}>
             <Metric label="Observations" value={String(data.n_observations)} hint="Rows in the historical replay." />
-            <Metric label="Evaluable points" value={String(data.n_evaluable)} hint="Rows with a legitimate contemporaneous trusted benchmark." />
+            <Metric label="Evaluable Points" value={String(data.n_evaluable)} hint="Rows with a legitimate contemporaneous trusted benchmark." />
             <Metric label="MAE" value={hasMetrics ? `$${data.mae!.toFixed(2)}` : "—"} hint="Mean absolute error against the historical benchmark." />
             <Metric label="RMSE" value={hasMetrics ? `$${data.rmse!.toFixed(2)}` : "—"} hint="Root mean squared error against the historical benchmark." />
-            <Metric label="Interval coverage" value={hasMetrics ? `${(data.interval_coverage! * 100).toFixed(0)}%` : "—"} hint="Historical share of benchmark observations inside the calibrated interval." />
+            <Metric label="Interval Coverage" value={hasMetrics ? `${(data.interval_coverage! * 100).toFixed(0)}%` : "—"} hint="Historical share of benchmark observations inside the calibrated interval." />
           </div>
 
           <p className="mt-3 text-xs" style={{ color: "var(--color-muted)" }}>{data.note}</p>

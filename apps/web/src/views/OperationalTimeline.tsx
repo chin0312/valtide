@@ -85,9 +85,9 @@ export function OperationalTimeline({
   const latestDisplayed = displayResults[displayResults.length - 1];
 
   return (
-    <Panel title="Operational evidence timeline" subtitle="Real warmed scheduler observations. The calibrated band and all price series share the same UTC axis.">
+    <Panel title="Operational Evidence Timeline" subtitle="Real warmed scheduler observations. The calibrated band and all price series share the same UTC axis.">
       {isLoading ? (
-        <p className="text-sm" style={{ color: "var(--color-ink-dim)" }}>Loading operational history…</p>
+        <p className="text-sm" style={{ color: "var(--color-ink-dim)" }}>Loading Operational History…</p>
       ) : isError ? (
         <p className="rounded-lg px-3 py-3 text-sm" style={{ background: "var(--color-panel-2)", border: "1px solid var(--color-line)", color: "var(--color-ink-dim)" }}>Operational history unavailable. The current operational result remains authoritative.</p>
       ) : displayResults.length === 0 ? (
@@ -106,7 +106,7 @@ export function OperationalTimeline({
           <div className="mt-3 flex flex-wrap items-center justify-between gap-3 text-xs" style={{ color: "var(--color-ink-dim)" }}>
             <span>Selected: <strong className="tnum text-ink">{dateTimeUTC(displayResults[index]?.timestamp)}</strong> · missing scheduler intervals are never interpolated.</span>
             <button onClick={onLatest} disabled={selectedIndex < 0 || index === displayResults.length - 1} className="rounded px-2.5 py-1 font-medium disabled:opacity-40" style={{ color: "var(--color-accent)", background: "var(--color-accent-soft)", border: "1px solid var(--color-line)" }}>
-              Back to latest
+              Back To Latest
             </button>
           </div>
         </>

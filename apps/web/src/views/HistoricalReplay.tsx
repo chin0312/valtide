@@ -62,29 +62,32 @@ export function HistoricalReplay({
   const current = results[index];
   const atEnd = position >= results.length - 1;
   const targets = [...new Set(results.map((result) => result.interval_coverage_target))];
-  const intervalLabel = targets.length === 1 ? coverageLabel(targets[0]) : "Calibrated interval";
+  const intervalLabel = targets.length === 1 ? coverageLabel(targets[0]) : "Calibrated Interval";
   const gaps = results.slice(1).filter((result, i) => Date.parse(result.timestamp) - Date.parse(results[i].timestamp) > 5 * 60_000).length;
 
   return (
     <Panel
-      title="NVDAx valuation signal"
+      title="NVDAx Valuation Signal"
       icon="signal"
       className="flex h-full min-w-0 flex-col"
       right={<span className="rounded px-2 py-1 font-mono text-[10px] uppercase tracking-[0.04em]" style={{ color: "var(--color-accent)", background: "var(--color-accent-soft)", border: "1px solid var(--color-line)" }}>{sourceLabel}</span>}
     >
-      <div className="mb-2 flex flex-wrap items-end justify-between gap-3">
-        {rangeControl && <div className="flex w-full justify-end gap-2">{rangeControl}<button type="button" onClick={() => { setPlaying(false); setResetVersion((value) => value + 1); }} className="rounded px-2.5 py-1 font-mono text-[10px] font-medium" style={{ color: "var(--color-muted)", border: "1px solid var(--color-line)" }}>Reset</button><span className="hidden self-center text-[10px] sm:inline" style={{ color: "var(--color-muted)" }}>Scroll to zoom · drag to pan</span></div>}
+      <div className="mb-2 flex flex-wrap items-start justify-between gap-3">
         <div>
-          <div className="eyebrow" style={{ color: "var(--color-muted)" }}>{followingLatest ? "Latest observation" : "Selected period"}</div>
+          <div className="eyebrow" style={{ color: "var(--color-muted)" }}>{followingLatest ? "Latest Observation" : "Selected Period"}</div>
           <div className="mt-1 flex items-center gap-3"><span className="tnum text-xl font-medium text-ink">{money(current.valtide_fair_value)}</span><EvidenceChip state={current.evidence_state} /></div>
         </div>
-        <div className="flex flex-wrap items-center gap-4 text-[11px]" style={{ color: "var(--color-muted)" }}>
-          <LegendItem color="var(--color-series-valtide)" label="Fair value" />
+        {rangeControl && <div className="flex flex-col items-end gap-1">
+          <div className="flex flex-wrap items-center justify-end gap-2">{rangeControl}<button type="button" onClick={() => { setPlaying(false); setResetVersion((value) => value + 1); }} className="rounded px-2.5 py-1 font-mono text-[10px] font-medium" style={{ color: "var(--color-muted)", border: "1px solid var(--color-line)" }}>Reset</button></div>
+          <span className="hidden text-[10px] sm:inline" style={{ color: "var(--color-muted)" }}>Scroll To Zoom · Drag To Pan</span>
+        </div>}
+      </div>
+      <div className="mb-2 flex flex-wrap items-center gap-4 text-[10px]" style={{ color: "var(--color-muted)" }}>
+          <LegendItem color="var(--color-series-valtide)" label="Fair Value" />
           <LegendItem color="var(--color-series-reference)" label="Reference" dashed />
-          <LegendItem color="var(--color-series-token)" label="Token market" />
+          <LegendItem color="var(--color-series-token)" label="Token Market" />
           <span title="The translucent area around fair value"><i className="mr-1.5 inline-block h-2.5 w-4 rounded-sm" style={{ background: "var(--color-band-fill)", border: "1px solid var(--color-series-valtide)" }} />{intervalLabel}</span>
-          {gaps > 0 && <span tabIndex={0} title="No recorded observations in these intervals. Missing prices are not filled in." aria-label={`${gaps} data gaps: no recorded observations; missing prices are not filled in.`}>{gaps} data gaps</span>}
-        </div>
+          {gaps > 0 && <span tabIndex={0} title="No recorded observations in these intervals. Missing prices are not filled in." aria-label={`${gaps} data gaps: no recorded observations; missing prices are not filled in.`}>{gaps} Data Gaps</span>}
       </div>
 
       <EscalationChart results={results} index={index} playhead={position} resetKey={`${viewportKey ?? "default"}:${resetVersion}`} onSelect={(next) => { onReview?.(); setPlaying(false); setPosition(clampPosition(next, results.length)); }} />

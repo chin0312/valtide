@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState, type PointerEvent as ReactPointerEvent, type WheelEvent as ReactWheelEvent } from "react";
+import { useEffect, useRef, useState, type PointerEvent as ReactPointerEvent } from "react";
 import { Area, ComposedChart, Line, ReferenceLine, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
 import type { EvidenceState, ValuationResult } from "../api/types";
 import { EVIDENCE } from "../lib/evidence";
@@ -23,8 +23,6 @@ interface DotProps {
 const CANONICAL_STEP_MS = 5 * 60 * 1000;
 const MIN_VIEWPORT_STEPS = 2;
 const DRAG_THRESHOLD_PX = 4;
-const ZOOM_IN_SCALE = 0.8;
-const ZOOM_OUT_SCALE = 1.25;
 const CHART_MARGIN = { top: 10, right: 18, bottom: 4, left: 2 } as const;
 const Y_AXIS_WIDTH = 50;
 
@@ -87,6 +85,12 @@ export function panViewport(viewport: ChartDomain, fullDomain: ChartDomain, delt
   return clampViewport([current[0] + deltaMs, current[1] + deltaMs], fullDomain, minimumWidth);
 }
 
+export function wheelZoomScale(delta: number, deltaMode = 0): number {
+  const pixels = deltaMode === 1 ? delta * 16 : deltaMode === 2 ? delta * 800 : delta;
+  const normalized = Math.max(-4, Math.min(4, pixels / 120));
+  return Math.exp(normalized * 0.22);
+}
+
 export function EscalationChart({ results, index, playhead = index, onSelect, resetKey }: { results: ValuationResult[]; index: number; playhead?: number; onSelect: (i: number) => void; resetKey?: string | number }) {
   const data = buildChartData(results);
   const realPoints = data.filter((point) => point.sourceIndex != null);
@@ -96,13 +100,20 @@ export function EscalationChart({ results, index, playhead = index, onSelect, re
   const [viewport, setViewport] = useState<ChartDomain>(fullDomain);
   const [panning, setPanning] = useState(false);
   const chartRef = useRef<HTMLDivElement>(null);
+  const viewportRef = useRef<ChartDomain>(fullDomain);
   const dragRef = useRef<{ pointerId: number; startX: number; startDomain: ChartDomain; moved: boolean } | null>(null);
 
   useEffect(() => {
+    viewportRef.current = fullDomain;
     setViewport(fullDomain);
   }, [fullDomain[0], fullDomain[1], resetKey]);
 
   const viewportDomain = clampViewport(viewport, fullDomain, minimumWidth);
+
+  useEffect(() => {
+    viewportRef.current = viewportDomain;
+  }, [viewportDomain[0], viewportDomain[1]]);
+
   const visibleData = data.filter((point) => point.ts >= viewportDomain[0] && point.ts <= viewportDomain[1]);
   const allPrices = data.flatMap((point) => [point.band?.[0], point.band?.[1], point.rut, point.token].filter((value): value is number => value != null));
   const visiblePrices = visibleData.flatMap((point) => [point.band?.[0], point.band?.[1], point.rut, point.token].filter((value): value is number => value != null));
@@ -127,17 +138,37 @@ export function EscalationChart({ results, index, playhead = index, onSelect, re
     return Math.min(1, Math.max(0, (clientX - rect.left - plotLeft) / plotWidth));
   };
 
-  const handleWheel = (event: ReactWheelEvent<HTMLDivElement>) => {
-    if (event.deltaY === 0) return;
-    event.preventDefault();
-    const ratio = plotRatioAt(event.clientX);
-    const scale = event.deltaY < 0 ? ZOOM_IN_SCALE : ZOOM_OUT_SCALE;
-    setViewport((current) => {
-      const safe = clampViewport(current, fullDomain, minimumWidth);
-      const anchor = safe[0] + (safe[1] - safe[0]) * ratio;
-      return zoomViewport(safe, fullDomain, anchor, scale, minimumWidth);
-    });
-  };
+  useEffect(() => {
+    const element = chartRef.current;
+    if (!element) return;
+
+    const handleWheel = (event: WheelEvent) => {
+      if (event.deltaX === 0 && event.deltaY === 0) return;
+      event.preventDefault();
+
+      const current = clampViewport(viewportRef.current, fullDomain, minimumWidth);
+      const rect = element.getBoundingClientRect();
+      const plotLeft = CHART_MARGIN.left + Y_AXIS_WIDTH;
+      const plotWidth = Math.max(1, rect.width - plotLeft - CHART_MARGIN.right);
+
+      if (event.deltaY === 0 && event.deltaX !== 0) {
+        const deltaMs = -(event.deltaX / plotWidth) * (current[1] - current[0]);
+        const next = panViewport(current, fullDomain, deltaMs, minimumWidth);
+        viewportRef.current = next;
+        setViewport(next);
+        return;
+      }
+
+      const ratio = plotRatioAt(event.clientX);
+      const anchor = current[0] + (current[1] - current[0]) * ratio;
+      const next = zoomViewport(current, fullDomain, anchor, wheelZoomScale(event.deltaY, event.deltaMode), minimumWidth);
+      viewportRef.current = next;
+      setViewport(next);
+    };
+
+    element.addEventListener("wheel", handleWheel, { passive: false });
+    return () => element.removeEventListener("wheel", handleWheel);
+  }, [fullDomain[0], fullDomain[1], minimumWidth]);
 
   const handlePointerDown = (event: ReactPointerEvent<HTMLDivElement>) => {
     if (event.button !== 0) return;
@@ -157,7 +188,9 @@ export function EscalationChart({ results, index, playhead = index, onSelect, re
     const plotLeft = CHART_MARGIN.left + Y_AXIS_WIDTH;
     const plotWidth = Math.max(1, rect.width - plotLeft - CHART_MARGIN.right);
     const deltaMs = -(deltaX / plotWidth) * (drag.startDomain[1] - drag.startDomain[0]);
-    setViewport(panViewport(drag.startDomain, fullDomain, deltaMs, minimumWidth));
+    const next = panViewport(drag.startDomain, fullDomain, deltaMs, minimumWidth);
+    viewportRef.current = next;
+    setViewport(next);
   };
 
   const finishPointer = (event: ReactPointerEvent<HTMLDivElement>) => {
@@ -181,7 +214,6 @@ export function EscalationChart({ results, index, playhead = index, onSelect, re
     <div
       ref={chartRef}
       className="h-[320px] min-h-[280px] w-full flex-1"
-      onWheel={handleWheel}
       onPointerDown={handlePointerDown}
       onPointerMove={handlePointerMove}
       onPointerUp={finishPointer}
@@ -194,8 +226,8 @@ export function EscalationChart({ results, index, playhead = index, onSelect, re
           data={data}
           margin={CHART_MARGIN}
         >
-          <XAxis type="number" dataKey="ts" domain={viewportDomain} tickFormatter={(value: number) => timeAxisUTC(Number(value), multiDay)} stroke="var(--color-muted)" fontFamily="Inter" fontSize={10} tickLine={false} axisLine={{ stroke: "var(--color-line)" }} minTickGap={42} />
-          <YAxis domain={[min - pad, max + pad]} stroke="var(--color-muted)" fontFamily="Inter" fontSize={10} tickLine={false} axisLine={false} width={50} tickFormatter={(value: number) => `$${value.toFixed(yDecimals)}`} />
+          <XAxis type="number" dataKey="ts" domain={viewportDomain} allowDataOverflow tickFormatter={(value: number) => timeAxisUTC(Number(value), multiDay)} stroke="var(--color-muted)" fontFamily="Inter" fontSize={10} tickLine={false} axisLine={{ stroke: "var(--color-line)" }} minTickGap={42} />
+          <YAxis domain={[min - pad, max + pad]} allowDataOverflow stroke="var(--color-muted)" fontFamily="Inter" fontSize={10} tickLine={false} axisLine={false} width={50} tickFormatter={(value: number) => `$${value.toFixed(yDecimals)}`} />
           <Tooltip
             contentStyle={{ background: "#111718", border: "1px solid #253237", borderRadius: 8, fontSize: 11, color: "#f3faf7", fontFamily: "Inter" }}
             labelStyle={{ color: "#b8c7c2", marginBottom: 6 }}
@@ -206,7 +238,7 @@ export function EscalationChart({ results, index, playhead = index, onSelect, re
             }}
           />
           <Area dataKey="band" stroke="var(--color-series-valtide)" strokeWidth={1} fill="var(--color-band-fill)" connectNulls={false} isAnimationActive={false} name={intervalName} />
-          <Line dataKey="fair" stroke="var(--color-series-valtide)" strokeWidth={1.75} dot={false} connectNulls={false} isAnimationActive={false} name="Fair value" />
+          <Line dataKey="fair" stroke="var(--color-series-valtide)" strokeWidth={1.75} dot={false} connectNulls={false} isAnimationActive={false} name="Fair Value" />
           <Line
             dataKey="rut"
             stroke="var(--color-series-reference)"
@@ -221,7 +253,7 @@ export function EscalationChart({ results, index, playhead = index, onSelect, re
             isAnimationActive={false}
             name="Reference under test"
           />
-          <Line dataKey="token" stroke="var(--color-series-token)" strokeWidth={1.25} strokeOpacity={0.72} dot={false} connectNulls={false} isAnimationActive={false} name="Tokenized market" />
+          <Line dataKey="token" stroke="var(--color-series-token)" strokeWidth={1.25} strokeOpacity={0.72} dot={false} connectNulls={false} isAnimationActive={false} name="Tokenized Market" />
           <ReferenceLine x={cursorTimestamp} stroke="var(--color-accent)" strokeOpacity={0.65} strokeDasharray="2 3" />
         </ComposedChart>
       </ResponsiveContainer>

@@ -1,4 +1,6 @@
 const assert = require("node:assert/strict");
+const fs = require("node:fs");
+const path = require("node:path");
 const test = require("node:test");
 const React = require("react");
 const { renderToStaticMarkup } = require("react-dom/server");
@@ -13,7 +15,7 @@ const { RegistryPanel } = load("../src/components/RegistryPanel.tsx");
 const { ObservationAudit } = load("../src/components/ObservationAudit.tsx");
 const { default: App, AssetSelector } = load("../src/App.tsx");
 const { deliveryStatusLabel, pipelineStatusLabel } = load("../src/lib/format.ts");
-const { chartDomain, clampViewport, minimumViewportWidth, panViewport, zoomViewport } = load("../src/components/EscalationChart.tsx");
+const { chartDomain, clampViewport, minimumViewportWidth, panViewport, wheelZoomScale, zoomViewport } = load("../src/components/EscalationChart.tsx");
 const h = React.createElement;
 const render = (component, props) => renderToStaticMarkup(h(component, props));
 
@@ -124,7 +126,7 @@ test("Null reference, all reasons and unavailable policy remain truthful", () =>
 test("Observation and delivery audit survives unavailable X Layer reads", () => {
   const runtime = {scheduler_enabled:true,last_tick_status:"failure",last_tick_attempt_at:"2026-09-25T10:01:00Z",last_error:"source missing",auto_publish_enabled:true,last_publish_status:"failed",last_publish_attempt_at:"2026-09-25T10:02:00Z",last_publish_observation_ts:"2026-09-25T09:55:00Z",last_published_observation_ts:"2026-09-25T09:50:00Z",last_published_at:1790325969,last_publish_tx_hash:"0xFULL_TRANSACTION_HASH",last_publish_error:"delivery failed"};
   const audit = render(ObservationAudit,{result:fixture[0],context:"Operational",runtime});
-  for (const label of ["Canonical 5m", "Reference source lag", "Trusted-anchor age", "source provenance", "Model / version", "Last attempt"]) assert.ok(audit.includes(label));
+  for (const label of ["Canonical 5m", "Reference Source Lag", "Trusted-Anchor Age", "Source Provenance", "Model / Version", "Last Attempt"]) assert.ok(audit.includes(label));
   assert.match(audit,/source missing/);
   const chain = render(RegistryPanel,{isError:true,mode:"historical",runtime});
   assert.doesNotMatch(chain,/DEMO MAPPING/);
@@ -144,7 +146,7 @@ test("Asset selector keeps NVDAx active and marks SPYx as a disabled roadmap ite
   const html = render(AssetSelector, { assets: [{asset:"NVDAx",token_source:"okx",underlying_source:"alpaca",model_available:true}], initialOpen: true });
   assert.match(html, /NVDAx/);
   assert.match(html, /SPYx/);
-  assert.match(html, /Coming soon/);
+  assert.match(html, /Coming Soon/);
   assert.match(html, /disabled/);
 });
 
@@ -156,8 +158,8 @@ test("Machine publication statuses use the requested display casing", () => {
 
 test("Historical observation audit is labelled as panel evidence", () => {
   const audit = render(ObservationAudit, { result: fixture[0], context: "Historical" });
-  assert.match(audit, /Historical panel observation/);
-  assert.doesNotMatch(audit, /Canonical 5m observation/);
+  assert.match(audit, /Historical Panel Observation/);
+  assert.doesNotMatch(audit, /Canonical 5m Operational Observation/);
 });
 
 test("Chart viewport zooms around an anchor and pans within the full domain", () => {
@@ -176,4 +178,18 @@ test("Chart viewport zooms around an anchor and pans within the full domain", ()
   assert.ok(panned[0] >= full[0] && panned[1] <= full[1]);
   assert.deepEqual(panViewport(zoomed, full, -10_000_000, minimum), [full[0], full[0] + (zoomed[1] - zoomed[0])]);
   assert.deepEqual(clampViewport(full, full, minimum), full);
+});
+
+test("Chart wheel zoom is smooth and bounded", () => {
+  assert.ok(wheelZoomScale(-12) < 1);
+  assert.ok(wheelZoomScale(12) > 1);
+  assert.ok(wheelZoomScale(-100_000) >= Math.exp(-0.88));
+  assert.ok(wheelZoomScale(100_000) <= Math.exp(0.88));
+});
+
+test("Rendered chart clips both axes to the computed viewport", () => {
+  const source = fs.readFileSync(path.join(__dirname, "../src/components/EscalationChart.tsx"), "utf8");
+  assert.match(source, /<XAxis[^>]*domain=\{viewportDomain\}[^>]*allowDataOverflow/);
+  assert.match(source, /<YAxis[^>]*domain=\{\[min - pad, max \+ pad\]\}[^>]*allowDataOverflow/);
+  assert.match(source, /addEventListener\("wheel", handleWheel, \{ passive: false \}\)/);
 });

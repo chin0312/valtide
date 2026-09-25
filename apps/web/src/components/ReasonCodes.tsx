@@ -18,7 +18,7 @@ export function ReasonCodes({ codes, evidenceState }: { codes: string[]; evidenc
   if (!codes.length)
     return (
       <span className="text-sm" style={{ color: "var(--color-ink-dim)" }}>
-        No signals recorded.
+        No Signals Recorded.
       </span>
     );
   return (

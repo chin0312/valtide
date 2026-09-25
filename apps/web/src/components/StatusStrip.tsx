@@ -4,10 +4,10 @@ import { ageLabel, dateTimeUTC, sessionLabel, sourceLabel, timeUTC } from "../li
 export type Provenance = "cached" | "diagnostic" | "demo-scenario" | "demo-fixture";
 
 const PROVENANCE: Record<Provenance, { label: string; tone: "ok" | "warn" }> = {
-  cached: { label: "Warmed operational state", tone: "ok" },
-  diagnostic: { label: "Cold-start diagnostic", tone: "warn" },
-  "demo-scenario": { label: "Demo (backend scenario)", tone: "warn" },
-  "demo-fixture": { label: "Demo (offline fixture)", tone: "warn" },
+  cached: { label: "Warmed Operational State", tone: "ok" },
+  diagnostic: { label: "Cold-Start Diagnostic", tone: "warn" },
+  "demo-scenario": { label: "Demo (Backend Scenario)", tone: "warn" },
+  "demo-fixture": { label: "Demo (Offline Fixture)", tone: "warn" },
 };
 
 export function StatusStrip({
@@ -25,7 +25,7 @@ export function StatusStrip({
   const anchorWarning = r.reason_codes.includes("UNDERLYING_REFERENCE_STALE");
   const prov = PROVENANCE[provenance];
   const isOperational = provenance === "cached";
-  const observationLabel = isOperational ? "Operational observation" : provenance === "diagnostic" ? "Diagnostic observation" : "Scenario observation";
+  const observationLabel = isOperational ? "Operational Observation" : provenance === "diagnostic" ? "Diagnostic Observation" : "Scenario Observation";
   return (
     <div className="flex flex-wrap items-center gap-x-4 gap-y-2 rounded-lg px-4 py-2.5 text-xs" style={{ background: "var(--color-panel)", border: "1px solid var(--color-line-subtle)" }}>
       <span className="tnum font-semibold text-ink">{r.asset}</span>
@@ -33,18 +33,18 @@ export function StatusStrip({
       <Item label="Validating" value={sourceLabel(r.reference_under_test_source)} />
       <Item label="Session" value={sessionLabel(r.market_state)} />
       <Item
-        label={isOperational ? "Canonical 5m observation" : observationLabel}
+        label={isOperational ? "Canonical 5m Operational Observation" : observationLabel}
         value={isOperational ? dateTimeUTC(r.timestamp) : timeUTC(r.timestamp)}
         title={isOperational ? "Successful warmed result for this canonical 5-minute observation window." : `Scenario/diagnostic timestamp: ${r.timestamp}`}
       />
 
-      <AgeTag label="Reference source lag:" seconds={r.reference_under_test_age_seconds} warning={referenceWarning} title="Age of the reference-under-test source relative to this valuation observation; it is not the wall-clock age of the operational result." />
-      <AgeTag label="Trusted anchor age:" seconds={r.reference_age_seconds} warning={anchorWarning} title="Age of the latest trusted underlying anchor at this valuation observation; it is not the wall-clock age of the operational result." />
+      <AgeTag label="Reference Source Lag:" seconds={r.reference_under_test_age_seconds} warning={referenceWarning} title="Age of the reference-under-test source relative to this valuation observation; it is not the wall-clock age of the operational result." />
+      <AgeTag label="Trusted-Anchor Age:" seconds={r.reference_age_seconds} warning={anchorWarning} title="Age of the latest trusted underlying anchor at this valuation observation; it is not the wall-clock age of the operational result." />
 
       {runtime && (
-        <span className="text-[11px]" style={{ color: runtime.last_tick_status === "failure" ? "var(--color-inconclusive)" : "var(--color-muted)" }} title={runtime.last_error ?? "Warmed live scheduler status"}>
-          Last scheduler attempt: {dateTimeUTC(runtime.last_tick_attempt_at)} · {runtime.scheduler_enabled ? (runtime.last_tick_status ?? "idle").toUpperCase() : "OFF"}
-          {runtime.last_tick_status === "failure" && " · degraded"}
+        <span className="text-[11px]" style={{ color: runtime.last_tick_status === "failure" ? "var(--color-inconclusive)" : "var(--color-muted)" }} title={runtime.last_error ?? "Warmed Live Scheduler Status"}>
+          Last Scheduler Attempt: {dateTimeUTC(runtime.last_tick_attempt_at)} · {runtime.scheduler_enabled ? (runtime.last_tick_status ?? "idle").toUpperCase() : "OFF"}
+          {runtime.last_tick_status === "failure" && " · DEGRADED"}
         </span>
       )}
 
@@ -81,7 +81,7 @@ function AgeTag({ label, seconds, warning, title }: { label: string; seconds: nu
   const display = ageLabel(seconds);
   return (
     <span className="inline-flex items-center gap-1.5 rounded px-2 py-0.5 text-[11px]" style={{ background: warning ? "var(--color-inconclusive-soft)" : "var(--color-panel-2)", color: warning ? "var(--color-inconclusive)" : "var(--color-ink-dim)", border: `1px solid ${warning ? "var(--color-inconclusive-line)" : "var(--color-line)"}` }} title={title}>
-      {label} {display}{warning ? " · backend flagged" : ""}
+      {label} {display}{warning ? " · Backend Flagged" : ""}
     </span>
   );
 }

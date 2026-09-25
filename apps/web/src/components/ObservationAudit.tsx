@@ -12,34 +12,34 @@ export function ObservationAudit({ result, context, runtime, controlPlane }: {
   const recency = observed ? Math.max(0, Math.floor((Date.now() - Date.parse(observed)) / 1000)) : null;
   return (
     <details className="rounded-[10px] text-xs" style={{ background: "var(--color-panel)", border: "1px solid var(--color-line-subtle)" }}>
-      <summary className="cursor-pointer px-5 py-3 text-ink-dim">Observation audit · {context === "Demo" ? "Scenario observation" : context === "Historical" ? "Historical panel observation" : "Canonical 5m operational observation"} · {observed ?? "unavailable"}</summary>
+      <summary className="cursor-pointer px-5 py-3 text-ink-dim">Observation Audit · {context === "Demo" ? "Scenario Observation" : context === "Historical" ? "Historical Panel Observation" : "Canonical 5m Operational Observation"} · {observed ?? "UNAVAILABLE"}</summary>
       <div className="grid gap-5 border-t p-5 md:grid-cols-3" style={{ borderColor: "var(--color-line-subtle)" }}>
         <dl className="space-y-2">
           <Field label="Observation (UTC)" value={observed} />
-          <Field label="Token source" value={sourceLabel(result?.token_source)} />
-          <Field label="Token observed (UTC)" value={result?.token_observed_at} />
-          <Field label="Reference source" value={sourceLabel(result?.reference_under_test_source)} />
-          <Field label="Reference observed (UTC)" value={result?.reference_under_test_ts} />
+          <Field label="Token Source" value={sourceLabel(result?.token_source)} />
+          <Field label="Token Observed (UTC)" value={result?.token_observed_at} />
+          <Field label="Reference Source" value={sourceLabel(result?.reference_under_test_source)} />
+          <Field label="Reference Observed (UTC)" value={result?.reference_under_test_ts} />
         </dl>
         <dl className="space-y-2">
-          <Field label="Reference source lag" value={ageLabel(result?.reference_under_test_age_seconds)} />
-          <Field label="Trusted-anchor age" value={ageLabel(result?.reference_age_seconds)} />
-          {context === "Operational" && <Field label="Observation elapsed time" value={ageLabel(recency)} />}
-          <Field label="Model / version" value={result ? `${result.model_id} / ${result.model_version}` : null} />
+          <Field label="Reference Source Lag" value={ageLabel(result?.reference_under_test_age_seconds)} />
+          <Field label="Trusted-Anchor Age" value={ageLabel(result?.reference_age_seconds)} />
+          {context === "Operational" && <Field label="Observation Elapsed Time" value={ageLabel(recency)} />}
+          <Field label="Model / Version" value={result ? `${result.model_id} / ${result.model_version}` : null} />
           <Field label="Calibration" value={result ? `${result.interval_calibration_type} · ${result.interval_calibration_source}` : null} />
           <Field label="Current RiskGuard" value={controlPlane ? controlPlane.fresh ? "FRESH" : "STALE" : "UNAVAILABLE"} />
         </dl>
         <dl className="space-y-2">
-          <Field label="Current live scheduler" value={runtime ? runtime.scheduler_enabled ? "enabled" : "disabled" : "unavailable"} />
-          <Field label="Last tick status" value={runtime?.last_tick_status} />
-          <Field label="Last attempt (UTC)" value={runtime?.last_tick_attempt_at} />
-          <Field label="Latest result (UTC)" value={runtime?.last_result_timestamp} />
-          <Field label="Scheduler error" value={runtime?.last_error ?? (runtime ? "None" : "Unavailable")} />
+          <Field label="Current Live Scheduler" value={runtime ? runtime.scheduler_enabled ? "ENABLED" : "DISABLED" : "UNAVAILABLE"} />
+          <Field label="Last Tick Status" value={runtime?.last_tick_status?.toUpperCase()} />
+          <Field label="Last Attempt (UTC)" value={runtime?.last_tick_attempt_at} />
+          <Field label="Latest Result (UTC)" value={runtime?.last_result_timestamp} />
+          <Field label="Scheduler Error" value={runtime?.last_error ?? (runtime ? "None" : "UNAVAILABLE")} />
         </dl>
         <div className="md:col-span-3">
-          <div className="eyebrow mb-2 text-muted">Selected observation source provenance</div>
+          <div className="eyebrow mb-2 text-muted">Selected Observation Source Provenance</div>
           <dl className="grid gap-2 md:grid-cols-3">{Object.entries(result?.source_provenance ?? {}).map(([key, value]) => <Field key={key} label={key} value={value} />)}</dl>
-          {!Object.keys(result?.source_provenance ?? {}).length && <span className="text-muted">Not supplied</span>}
+          {!Object.keys(result?.source_provenance ?? {}).length && <span className="text-muted">Not Supplied</span>}
         </div>
       </div>
     </details>

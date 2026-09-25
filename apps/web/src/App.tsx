@@ -19,7 +19,7 @@ import { RegistryPanel } from "./components/RegistryPanel";
 import { Panel } from "./components/ui";
 import { Icon } from "./components/Icon";
 import { EVIDENCE } from "./lib/evidence";
-import { ageLabel, compactUsd, money, pct, sigma } from "./lib/format";
+import { ageLabel, compactUsd, money, pct, sigma, sourceLabel } from "./lib/format";
 import { deriveOnchainSync } from "./lib/onchain";
 import { clampPosition, mergeObservations, rebasePosition } from "./lib/playback";
 import { HistoricalReplay } from "./views/HistoricalReplay";
@@ -82,11 +82,11 @@ export default function App() {
   const current = results[currentIndex];
   const reviewing = isOperational && !!current && !!operational.data && Date.parse(current.timestamp) < Date.parse(operational.data.timestamp);
   const source = isOperational
-    ? `Operational · ${results.length} observations`
-    : context === "Historical" ? `Historical panel · ${results.length} observations`
-    : !demo.data ? "Demo · loading" : demo.data.source === "backend-scenario"
-      ? `Demo scenario · ${demo.data.results.length} observations`
-      : `Demo fixture · ${demo.data.results.length} observations`;
+    ? `Operational · ${results.length} Observations`
+    : context === "Historical" ? `Historical Panel · ${results.length} Observations`
+    : !demo.data ? "Demo · Loading" : demo.data.source === "backend-scenario"
+      ? `Demo Scenario · ${demo.data.results.length} Observations`
+      : `Demo Fixture · ${demo.data.results.length} Observations`;
   const controlPlane = onchain.isError ? undefined : onchain.data;
   const policy = controlPlane?.policy ?? (context === "Demo" ? EXAMPLE_DEMO_POLICY : undefined);
   const policyAction = policy && current ? actionFor(policy, current.evidence_state) : null;
@@ -175,8 +175,8 @@ function AppHeader({ backendUp, chainUp, source, assets, context, onContextChang
       </div>
       <div className="flex flex-wrap items-center gap-3 text-[11px]">
         <span className="rounded px-2 py-1 font-mono" style={{ color: "var(--color-accent)", background: "var(--color-accent-soft)" }}>{source}</span>
-        <ConnectionLabel active={backendUp} activeText="API connected" inactiveText="API unavailable" />
-        <ConnectionLabel active={chainUp} activeText="X Layer read" inactiveText="On-chain unread" />
+        <ConnectionLabel active={backendUp} activeText="API Connected" inactiveText="API Unavailable" />
+        <ConnectionLabel active={chainUp} activeText="X Layer Read" inactiveText="On-Chain Unread" />
       </div>
     </header>
   );
@@ -192,15 +192,15 @@ export function AssetSelector({ assets, initialOpen = false }: { assets?: AssetI
   const [search, setSearch] = useState("");
   const available = new Set((assets ?? []).map((asset) => asset.asset));
   const catalog = [
-    { asset: "NVDAx", name: "NVIDIA tokenized equity", status: available.has("NVDAx") ? "Available" : "Current asset" },
-    { asset: "SPYx", name: "S&P 500 tokenized ETF", status: "Coming soon" },
+    { asset: "NVDAx", name: "NVIDIA Tokenized Equity", status: available.has("NVDAx") ? "Available" : "Current Asset" },
+    { asset: "SPYx", name: "S&P 500 Tokenized ETF", status: "Coming Soon" },
   ];
   const filtered = catalog.filter((entry) => `${entry.asset} ${entry.name}`.toLowerCase().includes(search.toLowerCase()));
 
   return <div className="relative">
     <button type="button" onClick={() => setOpen((value) => !value)} aria-expanded={open} aria-haspopup="listbox" className="rounded px-3 py-1.5 text-left" title="Select collateral asset" style={{ background: "var(--color-panel)", border: "1px solid var(--color-line)" }}><span className="tnum text-xs font-medium text-ink">NVDAx</span><span className="ml-2 text-[10px]" style={{ color: "var(--color-muted)" }}>⌄</span></button>
-    {open && <div className="absolute left-0 top-full z-30 mt-2 w-64 rounded-lg p-2" role="listbox" aria-label="Asset selector" style={{ background: "var(--color-panel)", border: "1px solid var(--color-line)" }}>
-      <input autoFocus value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Search assets…" aria-label="Search assets" className="mb-2 w-full rounded px-2 py-1.5 text-xs text-ink outline-none" style={{ background: "var(--color-panel-2)", border: "1px solid var(--color-line)" }} />
+    {open && <div className="absolute left-0 top-full z-30 mt-2 w-64 rounded-lg p-2" role="listbox" aria-label="Asset Selector" style={{ background: "var(--color-panel)", border: "1px solid var(--color-line)" }}>
+      <input autoFocus value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Search Assets…" aria-label="Search Assets" className="mb-2 w-full rounded px-2 py-1.5 text-xs text-ink outline-none" style={{ background: "var(--color-panel-2)", border: "1px solid var(--color-line)" }} />
       {filtered.map((entry) => <button key={entry.asset} type="button" disabled={entry.asset === "SPYx"} className="flex w-full items-center justify-between rounded px-2 py-2 text-left disabled:cursor-not-allowed disabled:opacity-50" aria-label={`${entry.asset} ${entry.status}`} style={entry.asset === "NVDAx" ? { background: "var(--color-panel-2)" } : undefined}><span><span className="tnum block text-xs text-ink">{entry.asset}</span><span className="block text-[10px] text-muted">{entry.name}</span></span><span className="text-[10px] text-muted">{entry.status}</span></button>)}
     </div>}
   </div>;
@@ -213,12 +213,12 @@ function ConnectionLabel({ active, activeText, inactiveText }: { active: boolean
 function MetricGrid({ current, isDemo }: { current: ValuationResult; isDemo: boolean }) {
   return (
     <section className="grid grid-cols-2 overflow-hidden rounded-[10px] md:grid-cols-3 xl:grid-cols-6" style={{ background: "var(--color-panel)", border: "1px solid var(--color-line-subtle)" }}>
-      <Metric label="Reference" value={money(current.reference_under_test)} sub="under test" />
-      <Metric label="Valtide fair value" value={money(current.valtide_fair_value)} sub={`${money(current.fair_value_lower)}–${money(current.fair_value_upper)}`} />
-      <Metric label="Token market" value={money(current.token_price)} sub={current.token_source ?? (isDemo ? "demo scenario" : "source unavailable")} />
+      <Metric label="Reference Under Test" value={money(current.reference_under_test)} sub="Under Test" />
+      <Metric label="Valtide Fair Value" value={money(current.valtide_fair_value)} sub={`${money(current.fair_value_lower)}–${money(current.fair_value_upper)}`} />
+      <Metric label="Token Market" value={money(current.token_price)} sub={current.token_source ? sourceLabel(current.token_source) : isDemo ? "Demo Scenario" : "Source Unavailable"} />
       <Metric label="Deviation" value={pct(current.reference_deviation_pct)} sub={current.evidence_state} accent={EVIDENCE[current.evidence_state].fg} />
-      <Metric label="Standardized" value={sigma(current.standardized_deviation)} sub="from fair value" />
-      <Metric label="Last trusted" value={money(current.last_trusted_reference)} sub={`${ageLabel(current.reference_age_seconds)} old`} />
+      <Metric label="Standardized" value={sigma(current.standardized_deviation)} sub="From Fair Value" />
+      <Metric label="Last Trusted" value={money(current.last_trusted_reference)} sub={`${ageLabel(current.reference_age_seconds)} Old`} />
     </section>
   );
 }
@@ -249,12 +249,12 @@ function PolicyCard({ state, action, source, label, enforced }: { state?: Eviden
 
 function BasisCard({ result }: { result: ValuationResult }) {
   return (
-    <Panel title="Market basis" icon="basis">
+    <Panel title="Market Basis" icon="basis">
       <dl className="grid grid-cols-2 gap-x-5 gap-y-2 text-xs">
-        <StatusRow label="Token move" value={pct(result.observed_token_move_pct)} icon="coin" />
-        <StatusRow label="Model move" value={pct(result.model_implied_move_pct)} icon="model" />
+        <StatusRow label="Token Move" value={pct(result.observed_token_move_pct)} icon="coin" />
+        <StatusRow label="Model Move" value={pct(result.model_implied_move_pct)} icon="model" />
         <StatusRow label="Residual" value={pct(result.residual_premium_discount_pct)} icon="residual" />
-        <StatusRow label={result.token_liquidity_usd == null ? "5m token volume" : "Liquidity"} value={compactUsd(result.token_liquidity_usd ?? result.token_volume_usd)} icon="depth" />
+        <StatusRow label={result.token_liquidity_usd == null ? "5m Token Volume" : "Liquidity"} value={compactUsd(result.token_liquidity_usd ?? result.token_volume_usd)} icon="depth" />
       </dl>
     </Panel>
   );
