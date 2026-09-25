@@ -187,17 +187,17 @@ function BasisCard({ result }: { result: ValuationResult }) {
   return (
     <Panel title="Market basis" icon="basis">
       <dl className="grid grid-cols-2 gap-x-5 gap-y-2 text-xs">
-        <StatusRow label="Token move" value={pct(result.observed_token_move_pct)} />
-        <StatusRow label="Model move" value={pct(result.model_implied_move_pct)} />
-        <StatusRow label="Residual" value={pct(result.residual_premium_discount_pct)} />
-        <StatusRow label="Liquidity" value={compactUsd(result.token_liquidity_usd)} />
+        <StatusRow label="Token move" value={pct(result.observed_token_move_pct)} icon="signal" />
+        <StatusRow label="Model move" value={pct(result.model_implied_move_pct)} icon="basis" />
+        <StatusRow label="Residual" value={pct(result.residual_premium_discount_pct)} icon="range" />
+        <StatusRow label="Liquidity" value={compactUsd(result.token_liquidity_usd)} icon="chain" />
       </dl>
     </Panel>
   );
 }
 
-function StatusRow({ label, value }: { label: string; value: string }) {
-  return <div className="min-w-0"><dt className="text-[10px]" style={{ color: "var(--color-muted)" }}>{label}</dt><dd className="tnum mt-0.5 truncate text-ink">{value}</dd></div>;
+function StatusRow({ label, value, icon }: { label: string; value: string; icon: "signal" | "basis" | "range" | "chain" }) {
+  return <div className="min-w-0"><dt className="text-[10px]" style={{ color: "var(--color-muted)" }}>{label}</dt><dd className="tnum mt-1 flex items-center gap-2 truncate text-lg font-medium leading-tight text-ink"><Icon name={icon} size={15} className="text-ink-dim" />{value}</dd></div>;
 }
 
 function actionFor(policy: OnchainPolicy, state: EvidenceState): PolicyAction {
