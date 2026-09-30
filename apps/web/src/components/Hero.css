@@ -97,22 +97,34 @@
 
 .valtide-hero__lede {
   max-width: 660px;
-  margin: 24px 0 0;
-  padding-right: 14px;
-  background: var(--color-bg);
+  margin: 0;
   color: var(--color-ink-dim);
   font-size: clamp(14px, 1.2vw, 17px);
   line-height: 1.6;
 }
 
-.valtide-hero__actions { display: flex; width: fit-content; flex-wrap: wrap; align-items: center; gap: 24px; padding-right: 18px; background: var(--color-bg); }
+.valtide-hero__lower {
+  position: absolute;
+  z-index: 4;
+  right: clamp(24px, 4.5vw, 72px);
+  bottom: 88px;
+  left: clamp(24px, 6.4vw, 104px);
+  display: grid;
+  grid-template-columns: minmax(320px, 1fr) auto;
+  gap: clamp(36px, 7vw, 120px);
+  align-items: end;
+  padding-top: 24px;
+  border-top: 1px solid var(--color-line-subtle);
+}
+
+.valtide-hero__actions { display: flex; width: fit-content; flex-wrap: wrap; align-items: center; gap: 24px; }
 
 .valtide-hero__action {
   display: inline-flex;
   min-height: 46px;
   align-items: center;
   gap: 42px;
-  margin-top: 34px;
+  margin-top: 0;
   padding: 0 16px;
   background: var(--color-accent);
   color: #071006;
@@ -131,7 +143,7 @@
   min-height: 46px;
   align-items: center;
   gap: 26px;
-  margin-top: 34px;
+  margin-top: 0;
   color: var(--color-ink);
   border-bottom: 1px solid var(--color-line-strong);
   font-size: 12px;
@@ -142,7 +154,7 @@
 .valtide-hero__motion {
   position: absolute;
   z-index: 1;
-  inset: 0;
+  inset: 0 0 224px;
   overflow: hidden;
   pointer-events: none;
 }
@@ -192,14 +204,15 @@
 .valtide-hero__principles span:first-child { padding-left: 0; border-left: 0; }
 
 @media (max-width: 760px) {
-  .valtide-hero { min-height: 560px; }
+  .valtide-hero { min-height: 780px; }
   .valtide-hero__nav { grid-template-columns: 1fr auto; padding: 18px 20px; }
   .valtide-hero__nav nav { display: none; }
   .valtide-hero__copy { top: 108px; right: 20px; left: 20px; }
   .valtide-hero__copy h1 { font-size: clamp(42px, 12.5vw, 66px); }
-  .valtide-hero__lede { max-width: 92%; font-size: 14px; }
-  .valtide-hero__action { margin-top: 24px; }
-  .valtide-hero__secondary { margin-top: 24px; }
+  .valtide-hero__lower { right: 20px; bottom: 102px; left: 20px; grid-template-columns: 1fr; gap: 20px; padding-top: 18px; }
+  .valtide-hero__lede { max-width: 100%; font-size: 13px; }
+  .valtide-hero__motion { bottom: 292px; }
+  .valtide-hero__action, .valtide-hero__secondary { min-height: 40px; }
   .valtide-hero__label { gap: 5px; font-size: 8px; }
   .valtide-hero__label i { width: 5px; height: 5px; }
   .valtide-hero__principles { right: 20px; bottom: 18px; left: 20px; grid-template-columns: 1fr 1fr; }

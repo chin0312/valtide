@@ -1,14 +1,28 @@
+import { useEffect, useState } from "react";
+import type { ValuationResult } from "../api/types";
+import weekendDivergence from "../fixtures/weekend_divergence.json";
 import { Hero } from "./Hero";
 
-const DEMO = {
-  observedAt: "2026-09-19 14:25 UTC",
-  reference: "$180.00",
-  token: "$178.20",
-  fair: "$179.11",
-  interval: "$178.81–$179.41",
-  deviation: "+0.49%",
-  standardized: "3.96σ",
-} as const;
+const SCENARIO = weekendDivergence as unknown as ValuationResult[];
+const REASON_LABELS: Record<string, string> = {
+  REFERENCE_UNDER_TEST_OUTSIDE_INTERVAL: "Reference outside interval",
+  CALIBRATION_GLOBAL_FALLBACK: "Global fallback calibration",
+  TOKEN_AND_CHALLENGER_AGREE: "Token and challenger agree",
+};
+
+function money(value: number | null) {
+  return value === null ? "Unavailable" : `$${value.toFixed(2)}`;
+}
+
+function signedPct(value: number | null) {
+  if (value === null) return "Unavailable";
+  return `${value >= 0 ? "+" : ""}${value.toFixed(2)}%`;
+}
+
+function scaleTop(value: number | null) {
+  if (value === null) return 50;
+  return Math.max(12, Math.min(84, 18 + ((180 - value) / 2) * 64));
+}
 
 const storySteps = [
   { number: "01", label: "Observe", title: "A reference separates from the market evidence.", body: "Valtide keeps the reference under test, tokenized-market price, trusted anchor, market state, and timestamps visibly separate." },
@@ -18,6 +32,19 @@ const storySteps = [
 ] as const;
 
 export function LandingPage() {
+  const [demoFrame, setDemoFrame] = useState(SCENARIO.length - 1);
+
+  useEffect(() => {
+    if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) return;
+    const timer = window.setInterval(() => setDemoFrame((frame) => (frame + 1) % SCENARIO.length), 1450);
+    return () => window.clearInterval(timer);
+  }, []);
+
+  const demo = SCENARIO[demoFrame];
+  const observedAt = `${demo.timestamp.slice(0, 10)} ${demo.timestamp.slice(11, 16)} UTC`;
+  const intervalTop = scaleTop(demo.fair_value_upper);
+  const intervalBottom = scaleTop(demo.fair_value_lower);
+
   return (
     <div className="marketing-shell">
       <Hero />
@@ -33,40 +60,39 @@ export function LandingPage() {
           <div className="incident-frame" aria-label="Canonical Valtide demo scenario">
             <div className="incident-topline">
               <span>NVDAx · MARKET CLOSED</span>
-              <span>{DEMO.observedAt}</span>
+              <span className="incident-live"><i /> AUTO REPLAY · 5 MINUTE STEPS</span>
+              <span>{observedAt}</span>
               <span>MODEL P1a-C · 0.2.0</span>
             </div>
             <div className="incident-grid">
               <div className="incident-question">
                 <span className="marketing-kicker">Reference under test</span>
-                <strong>{DEMO.reference}</strong>
+                <strong>{money(demo.reference_under_test)}</strong>
                 <p>OKX X-Perp NVDA index</p>
               </div>
               <div className="incident-chart" aria-hidden="true">
-                <div className="incident-band"><span>Valtide interval</span></div>
-                <div className="incident-marker incident-marker--reference"><i />Reference {DEMO.reference}</div>
-                <div className="incident-marker incident-marker--fair"><i />Fair value {DEMO.fair}</div>
-                <div className="incident-marker incident-marker--token"><i />Token {DEMO.token}</div>
+                <div className="incident-band" style={{ top: `${intervalTop}%`, height: `${Math.max(4, intervalBottom - intervalTop)}%` }}><span>Valtide interval</span></div>
+                <div className="incident-marker incident-marker--reference" style={{ top: `${scaleTop(demo.reference_under_test)}%` }}><i />Reference {money(demo.reference_under_test)}</div>
+                <div className="incident-marker incident-marker--fair" style={{ top: `${scaleTop(demo.valtide_fair_value)}%` }}><i />Fair value {money(demo.valtide_fair_value)}</div>
+                <div className="incident-marker incident-marker--token" style={{ top: `${scaleTop(demo.token_price)}%` }}><i />Token {money(demo.token_price)}</div>
               </div>
-              <div className="incident-result">
+              <div className={`incident-result is-${demo.evidence_state.toLowerCase()}`}>
                 <span className="marketing-kicker">Evidence State</span>
-                <strong>CHALLENGED</strong>
-                <p>Reference outside interval<br />Token and challenger agree</p>
+                <strong>{demo.evidence_state}</strong>
+                <p>{demo.reason_codes.map((reason) => <span key={reason}>{REASON_LABELS[reason] ?? reason}</span>)}</p>
               </div>
             </div>
             <div className="incident-metrics">
-              <div><span>Valtide fair value</span><strong>{DEMO.fair}</strong></div>
-              <div><span>90% target interval</span><strong>{DEMO.interval}</strong></div>
-              <div><span>Reference deviation</span><strong>{DEMO.deviation}</strong></div>
-              <div><span>Standardized deviation</span><strong>{DEMO.standardized}</strong></div>
+              <div><span>Valtide fair value</span><strong>{money(demo.valtide_fair_value)}</strong></div>
+              <div><span>90% target interval</span><strong>{money(demo.fair_value_lower)}–{money(demo.fair_value_upper)}</strong></div>
+              <div><span>Reference deviation</span><strong>{signedPct(demo.reference_deviation_pct)}</strong></div>
+              <div><span>Standardized deviation</span><strong>{demo.standardized_deviation === null ? "Unavailable" : `${demo.standardized_deviation.toFixed(2)}σ`}</strong></div>
             </div>
             <div className="incident-timeline" aria-label="Demo evidence progression">
-              <span className="is-supported">14:00 · SUPPORTED</span>
-              <span className="is-supported">14:05</span>
-              <span className="is-supported">14:10</span>
-              <span className="is-inconclusive">14:15 · INCONCLUSIVE</span>
-              <span className="is-challenged">14:20</span>
-              <span className="is-challenged">14:25 · CHALLENGED</span>
+              {SCENARIO.map((observation, index) => <span key={observation.timestamp} className={`is-${observation.evidence_state.toLowerCase()} ${index === demoFrame ? "is-active" : ""}`}>
+                <strong>{observation.timestamp.slice(11, 16)}</strong>
+                <em>{observation.evidence_state}</em>
+              </span>)}
             </div>
           </div>
         </section>

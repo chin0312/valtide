@@ -235,7 +235,8 @@ export function Hero() {
     function resize() {
       const bounds = hero.getBoundingClientRect();
       width = bounds.width;
-      height = bounds.height;
+      const lowerBand = width < 760 ? 292 : 224;
+      height = Math.max(320, bounds.height - lowerBand);
       lineHeadX = width * (width < 760 ? 0.72 : 0.84);
       const pixelRatio = Math.min(window.devicePixelRatio || 1, 2);
       canvas.width = Math.round(width * pixelRatio);
@@ -311,11 +312,6 @@ export function Hero() {
       <div className="valtide-hero__copy">
         <p className="valtide-hero__eyebrow">Independent valuation evidence for tokenized collateral</p>
         <h1 id="valtide-hero-title">When markets disagree,<br />know what the <span>evidence supports.</span></h1>
-        <p className="valtide-hero__lede">Valtide challenges the reference a protocol relies on, quantifies uncertainty, and makes a standardized Evidence State usable by curator-defined policies on X Layer.</p>
-        <div className="valtide-hero__actions">
-          <a className="valtide-hero__action" href="#incident">Replay a divergence <span aria-hidden="true">↓</span></a>
-          <a className="valtide-hero__secondary" href="?view=console">Open validation console <span aria-hidden="true">↗</span></a>
-        </div>
       </div>
 
       <div className="valtide-hero__motion" aria-label="Animated market divergence">
@@ -323,6 +319,14 @@ export function Hero() {
         <div ref={realLabelRef} className="valtide-hero__label valtide-hero__label--real" aria-hidden="true"><i /><span>Real world</span></div>
         <div ref={valtideLabelRef} className="valtide-hero__label valtide-hero__label--valtide" aria-hidden="true"><i /><span>Valtide</span></div>
         <div ref={tokenLabelRef} className="valtide-hero__label valtide-hero__label--token" aria-hidden="true"><i /><span>Token</span></div>
+      </div>
+
+      <div className="valtide-hero__lower">
+        <p className="valtide-hero__lede">Valtide challenges the reference a protocol relies on, quantifies uncertainty, and makes a standardized Evidence State usable by curator-defined policies on X Layer.</p>
+        <div className="valtide-hero__actions">
+          <a className="valtide-hero__action" href="#incident">Replay a divergence <span aria-hidden="true">↓</span></a>
+          <a className="valtide-hero__secondary" href="?view=console">Open validation console <span aria-hidden="true">↗</span></a>
+        </div>
       </div>
 
       <div className="valtide-hero__principles" aria-label="Product principles">

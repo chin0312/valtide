@@ -12,19 +12,26 @@
 .story-heading--split > p { margin: 0; }
 
 .incident-frame { border: 1px solid var(--color-line); border-radius: 10px; background: var(--color-panel); }
-.incident-topline { display: flex; justify-content: space-between; padding: 13px 18px; color: var(--color-muted); border-bottom: 1px solid var(--color-line-subtle); font-size: 9px; letter-spacing: .08em; }
+.incident-topline { display: grid; grid-template-columns: 1fr auto auto auto; gap: 28px; align-items: center; padding: 13px 18px; color: var(--color-muted); border-bottom: 1px solid var(--color-line-subtle); font-size: 9px; letter-spacing: .08em; }
+.incident-live { color: var(--color-accent); }
+.incident-live i { display: inline-block; width: 5px; height: 5px; margin-right: 7px; background: currentColor; border-radius: 50%; animation: incidentPulse 1450ms ease-in-out infinite; }
+@keyframes incidentPulse { 0%, 100% { opacity: .3; } 50% { opacity: 1; } }
 .incident-grid { display: grid; min-height: 360px; grid-template-columns: .75fr 1.5fr .75fr; align-items: stretch; }
 .incident-question, .incident-result { display: flex; flex-direction: column; justify-content: center; padding: 36px; }
 .incident-question { border-right: 1px solid var(--color-line-subtle); }
 .incident-result { border-left: 1px solid var(--color-line-subtle); }
 .incident-question strong { font-size: 50px; font-weight: 500; letter-spacing: -.06em; }
 .incident-question p, .incident-result p { color: var(--color-muted); font-size: 11px; line-height: 1.7; }
-.incident-result strong { color: var(--color-challenged); font-size: clamp(27px, 3vw, 42px); font-weight: 600; letter-spacing: -.04em; }
+.incident-result strong { font-size: clamp(27px, 3vw, 42px); font-weight: 600; letter-spacing: -.04em; transition: color 320ms ease; }
+.incident-result.is-supported strong { color: var(--color-supported); }
+.incident-result.is-inconclusive strong { color: var(--color-inconclusive); }
+.incident-result.is-challenged strong { color: var(--color-challenged); }
+.incident-result p span { display: block; }
 .incident-chart { position: relative; overflow: hidden; background-image: linear-gradient(var(--color-line-subtle) 1px, transparent 1px), linear-gradient(90deg, var(--color-line-subtle) 1px, transparent 1px); background-size: 100% 25%, 12.5% 100%; }
 .incident-chart::after { position: absolute; top: 50%; right: 8%; left: 8%; height: 1px; background: var(--color-line-strong); content: ""; }
-.incident-band { position: absolute; z-index: 1; top: 42%; right: 8%; left: 8%; height: 18%; background: var(--color-band-fill); border-block: 1px solid #91b9ca4d; }
+.incident-band { position: absolute; z-index: 1; top: 42%; right: 8%; left: 8%; height: 18%; background: var(--color-band-fill); border-block: 1px solid #91b9ca4d; transition: top 560ms cubic-bezier(.2,.75,.3,1), height 560ms cubic-bezier(.2,.75,.3,1); }
 .incident-band span { position: absolute; top: 8px; left: 10px; color: var(--color-series-valtide); font-size: 9px; letter-spacing: .07em; text-transform: uppercase; }
-.incident-marker { position: absolute; z-index: 2; right: 8%; display: flex; align-items: center; gap: 8px; font-size: 9px; letter-spacing: .05em; text-transform: uppercase; transform: translateY(-50%); }
+.incident-marker { position: absolute; z-index: 2; right: 8%; display: flex; align-items: center; gap: 8px; font-size: 9px; letter-spacing: .05em; text-transform: uppercase; transform: translateY(-50%); transition: top 560ms cubic-bezier(.2,.75,.3,1); }
 .incident-marker i { width: 7px; height: 7px; border-radius: 50%; background: currentColor; box-shadow: 0 0 0 4px #050708; }
 .incident-marker--reference { top: 20%; color: var(--color-series-reference); }
 .incident-marker--fair { top: 50%; color: var(--color-series-valtide); }
@@ -36,8 +43,15 @@
 .incident-metrics span { margin-bottom: 8px; color: var(--color-muted); font-size: 9px; letter-spacing: .06em; text-transform: uppercase; }
 .incident-metrics strong { font-variant-numeric: tabular-nums; font-size: 16px; font-weight: 500; }
 .incident-timeline { display: grid; grid-template-columns: repeat(6, 1fr); border-top: 1px solid var(--color-line-subtle); }
-.incident-timeline span { position: relative; padding: 16px 12px 16px 23px; color: var(--color-muted); border-left: 1px solid var(--color-line-subtle); font-size: 8px; white-space: nowrap; }
-.incident-timeline span::before { position: absolute; top: 20px; left: 10px; width: 5px; height: 5px; border-radius: 1px; background: currentColor; content: ""; }
+.incident-timeline span { position: relative; min-height: 68px; padding: 13px 14px 11px 27px; color: var(--color-muted); border-left: 1px solid var(--color-line-subtle); white-space: nowrap; transition: background 220ms ease, opacity 220ms ease; opacity: .45; }
+.incident-timeline span::before { position: absolute; top: 19px; left: 12px; width: 6px; height: 6px; border-radius: 1px; background: currentColor; content: ""; }
+.incident-timeline span::after { position: absolute; right: 0; bottom: 0; left: 0; height: 2px; background: currentColor; content: ""; transform: scaleX(0); transform-origin: left; }
+.incident-timeline span.is-active { background: var(--color-panel-2); opacity: 1; }
+.incident-timeline span.is-active::after { animation: incidentProgress 1450ms linear both; }
+.incident-timeline strong, .incident-timeline em { display: block; }
+.incident-timeline strong { color: var(--color-ink); font-size: 13px; font-weight: 500; font-variant-numeric: tabular-nums; }
+.incident-timeline em { margin-top: 5px; font-size: 8px; font-style: normal; letter-spacing: .06em; }
+@keyframes incidentProgress { to { transform: scaleX(1); } }
 .incident-timeline .is-supported { color: var(--color-supported); }
 .incident-timeline .is-inconclusive { color: var(--color-inconclusive); }
 .incident-timeline .is-challenged { color: var(--color-challenged); }
@@ -200,6 +214,7 @@
   .docs-hero aside { max-width: 560px; }
   .docs-cta { display: block; }
   .docs-cta > div:last-child { margin-top: 40px; }
+  .incident-topline { grid-template-columns: 1fr 1fr; }
 }
 
 @media (max-width: 680px) {
@@ -231,4 +246,12 @@
   .docs-section__title h2 { font-size: 38px; }
   .reader-list { margin-left: 0; }
   .reader-list li { grid-template-columns: 40px 1fr; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .incident-live i,
+  .incident-timeline span.is-active::after { animation: none; }
+  .incident-band,
+  .incident-marker,
+  .incident-result strong { transition: none; }
 }
