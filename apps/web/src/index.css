@@ -46,6 +46,10 @@ body,
   min-height: 100%;
 }
 
+html {
+  scroll-behavior: smooth;
+}
+
 body {
   margin: 0;
   background: var(--color-bg);
@@ -109,4 +113,10 @@ details > summary::-webkit-details-marker {
 * {
   box-sizing: border-box;
   scrollbar-color: var(--color-line) var(--color-bg);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  html {
+    scroll-behavior: auto;
+  }
 }
