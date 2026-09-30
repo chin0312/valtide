@@ -28,11 +28,17 @@ import { ReferenceComparison } from "./views/ReferenceComparison";
 import { ModelEvidence } from "./views/ModelEvidence";
 import { filterDemoResults, filterHistoricalResults, filterOperationalResults, OPERATIONAL_HISTORY_LIMITS, type DemoRange, type HistoricalRange, type OperationalRange } from "./views/OperationalTimeline";
 import { ObservationAudit } from "./components/ObservationAudit";
+import { Hero } from "./components/Hero";
 
 type Context = "Operational" | "Historical" | "Demo";
 const EMPTY_RESULTS: ValuationResult[] = [];
 
 export default function App() {
+  const showConsole = typeof window === "undefined" || new URLSearchParams(window.location.search).get("view") === "console";
+  return showConsole ? <ValidationConsole /> : <Hero />;
+}
+
+function ValidationConsole() {
   const [context, setContext] = useState<Context>("Operational");
   const [range, setRange] = useState<OperationalRange>("24H");
   const [historicalRange, setHistoricalRange] = useState<HistoricalRange>("ALL");
@@ -100,7 +106,7 @@ export default function App() {
     : "Backend unavailable. Showing the last available data.";
 
   return (
-    <div className="mx-auto min-h-full max-w-[1480px] px-4 py-4 sm:px-6">
+    <div id="validation-console" className="mx-auto min-h-full max-w-[1480px] px-4 py-4 sm:px-6">
       <AppHeader backendUp={backendUp} chainUp={!!controlPlane} source={source} assets={assets.data} context={context} onContextChange={setContext} />
 
       <main className="space-y-4">
@@ -169,7 +175,7 @@ function AppHeader({ backendUp, chainUp, source, assets, context, onContextChang
   return (
     <header className="mb-4 flex flex-wrap items-center justify-between gap-4 border-b pb-4" style={{ borderColor: "var(--color-line-subtle)" }}>
       <div className="flex flex-wrap items-center gap-3 sm:gap-6">
-        <h1 className="text-[22px] font-semibold tracking-[-0.04em] text-ink">Valtide</h1>
+        <a href="./" className="flex items-center gap-2.5 text-[22px] font-semibold tracking-[-0.04em] text-ink no-underline"><span className="valtide-logo-crop"><img src="/valtide-logo.jpg" alt="" /></span><span>Valtide</span></a>
         <nav aria-label="Evidence context" className="flex gap-1 rounded p-1" style={{ border: "1px solid var(--color-line)" }}>{(["Operational", "Historical", "Demo"] as Context[]).map((option) => <button key={option} aria-pressed={context === option} onClick={() => onContextChange(option)} className="rounded px-2.5 py-1.5 text-xs font-medium" style={{ background: context === option ? "var(--color-panel-2)" : undefined, color: context === option ? "var(--color-ink)" : "var(--color-muted)" }}>{option}</button>)}</nav>
         <AssetSelector assets={assets} />
       </div>

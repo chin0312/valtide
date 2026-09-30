@@ -13,6 +13,7 @@ const { mergeObservations, rebasePosition } = load("../src/lib/playback.ts");
 const { ReasonCodes } = load("../src/components/ReasonCodes.tsx");
 const { RegistryPanel } = load("../src/components/RegistryPanel.tsx");
 const { ObservationAudit } = load("../src/components/ObservationAudit.tsx");
+const { Hero } = load("../src/components/Hero.tsx");
 const { default: App, AssetSelector } = load("../src/App.tsx");
 const { deliveryStatusLabel, pipelineStatusLabel } = load("../src/lib/format.ts");
 const { chartDomain, clampViewport, lowerBoundTimestamp, minimumViewportWidth, panViewport, shouldRenderStateDots, sliceChartDataForViewport, upperBoundTimestamp, wheelGestureIntent, wheelZoomScale, zoomSensitivity, zoomViewport } = load("../src/components/EscalationChart.tsx");
@@ -81,6 +82,14 @@ function appWith({result, rows, chain, error} = {}) {
   query.clear();
   return html;
 }
+
+test("Divergence hero opens the validation console as a clean page", () => {
+  const html = render(Hero);
+  assert.match(html, /Where the prices/);
+  assert.match(html, /stop <span>agreeing\.<\/span>/);
+  assert.match(html, /href="\?view=console"/);
+  assert.match(html, /src="\/valtide-logo\.jpg"/);
+});
 
 test("Cold Operational stays unavailable even when Demo is cached", () => {
   const html = appWith({error:"503 data_unavailable"});
