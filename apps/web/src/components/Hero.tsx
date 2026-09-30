@@ -295,14 +295,27 @@ export function Hero() {
 
   return (
     <section ref={heroRef} className="valtide-hero" aria-labelledby="valtide-hero-title">
-      <a className="valtide-hero__brand" href="#valtide-hero-title" aria-label="Valtide home">
-        <span className="valtide-logo-crop valtide-logo-crop--hero"><img src="/valtide-logo.jpg" alt="" /></span>
-        <span>Valtide</span>
-      </a>
+      <header className="valtide-hero__nav">
+        <a className="valtide-hero__brand" href="/" aria-label="Valtide home">
+          <span className="valtide-logo-crop valtide-logo-crop--hero"><img src="/valtide-logo.jpg" alt="" /></span>
+          <span>Valtide</span>
+        </a>
+        <nav aria-label="Primary navigation">
+          <a href="#incident">Product</a>
+          <a href="#method">Methodology</a>
+          <a href="/docs">Docs</a>
+        </nav>
+        <a className="valtide-hero__nav-action" href="?view=console">Open console <span aria-hidden="true">↗</span></a>
+      </header>
 
       <div className="valtide-hero__copy">
-        <h1 id="valtide-hero-title">Where the prices<br />stop <span>agreeing.</span></h1>
-        <a className="valtide-hero__action" href="?view=console">Explore the divergence <span aria-hidden="true">↗</span></a>
+        <p className="valtide-hero__eyebrow">Independent valuation evidence for tokenized collateral</p>
+        <h1 id="valtide-hero-title">When markets disagree,<br />know what the <span>evidence supports.</span></h1>
+        <p className="valtide-hero__lede">Valtide challenges the reference a protocol relies on, quantifies uncertainty, and makes a standardized Evidence State usable by curator-defined policies on X Layer.</p>
+        <div className="valtide-hero__actions">
+          <a className="valtide-hero__action" href="#incident">Replay a divergence <span aria-hidden="true">↓</span></a>
+          <a className="valtide-hero__secondary" href="?view=console">Open validation console <span aria-hidden="true">↗</span></a>
+        </div>
       </div>
 
       <div className="valtide-hero__motion" aria-label="Animated market divergence">
@@ -310,6 +323,13 @@ export function Hero() {
         <div ref={realLabelRef} className="valtide-hero__label valtide-hero__label--real" aria-hidden="true"><i /><span>Real world</span></div>
         <div ref={valtideLabelRef} className="valtide-hero__label valtide-hero__label--valtide" aria-hidden="true"><i /><span>Valtide</span></div>
         <div ref={tokenLabelRef} className="valtide-hero__label valtide-hero__label--token" aria-hidden="true"><i /><span>Token</span></div>
+      </div>
+
+      <div className="valtide-hero__principles" aria-label="Product principles">
+        <span>Independent challenger</span>
+        <span>Calibrated uncertainty</span>
+        <span>Curator-owned policy</span>
+        <span>X Layer attestations</span>
       </div>
 
       <p className="sr-only">Three animated lines begin together and diverge across the screen. The real-world reference holds, the tokenized market moves away, and Valtide tracks between them. Move the pointer left or right to close or widen the gap.</p>

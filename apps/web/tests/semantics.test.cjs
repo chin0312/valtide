@@ -14,6 +14,8 @@ const { ReasonCodes } = load("../src/components/ReasonCodes.tsx");
 const { RegistryPanel } = load("../src/components/RegistryPanel.tsx");
 const { ObservationAudit } = load("../src/components/ObservationAudit.tsx");
 const { Hero } = load("../src/components/Hero.tsx");
+const { LandingPage } = load("../src/components/LandingPage.tsx");
+const { DocsPage } = load("../src/components/DocsPage.tsx");
 const { default: App, AssetSelector } = load("../src/App.tsx");
 const { deliveryStatusLabel, pipelineStatusLabel } = load("../src/lib/format.ts");
 const { chartDomain, clampViewport, lowerBoundTimestamp, minimumViewportWidth, panViewport, shouldRenderStateDots, sliceChartDataForViewport, upperBoundTimestamp, wheelGestureIntent, wheelZoomScale, zoomSensitivity, zoomViewport } = load("../src/components/EscalationChart.tsx");
@@ -83,12 +85,34 @@ function appWith({result, rows, chain, error} = {}) {
   return html;
 }
 
-test("Divergence hero opens the validation console as a clean page", () => {
+test("Divergence hero states the product category and opens the validation console", () => {
   const html = render(Hero);
-  assert.match(html, /Where the prices/);
-  assert.match(html, /stop <span>agreeing\.<\/span>/);
+  assert.match(html, /Independent valuation evidence for tokenized collateral/);
+  assert.match(html, /When markets disagree/);
+  assert.match(html, /evidence supports/);
   assert.match(html, /href="\?view=console"/);
+  assert.match(html, /href="\/docs"/);
   assert.match(html, /src="\/valtide-logo\.jpg"/);
+});
+
+test("Prototype landing uses canonical demo values and preserves product boundaries", () => {
+  const html = render(LandingPage);
+  for (const value of ["$180.00", "$178.20", "$179.11", "3.96σ", "P1a-C", "0.2.0"]) assert.match(html, new RegExp(value.replace("$", "\\$")));
+  assert.match(html, /deterministic demonstration data—not live, operational, or historical performance evidence/);
+  assert.match(html, /Valtide says what the evidence supports/);
+  assert.match(html, /curator-owned mapping/);
+  assert.match(html, /browser is read-only/);
+  assert.match(html, /X Layer testnet · Chain ID 1952/);
+  assert.match(html, /Not a replacement oracle/);
+});
+
+test("Documentation separates evidence, policy, contexts and current scope", () => {
+  const html = render(DocsPage);
+  for (const value of ["SUPPORTED", "INCONCLUSIVE", "CHALLENGED", "Operational", "Historical", "Demo", "NVDAx / NVDA", "SPYx · not onboarded"]) assert.match(html, new RegExp(value));
+  assert.match(html, /Valtide.*determines the Evidence State/);
+  assert.match(html, /Curators.*define the Policy Action/);
+  assert.match(html, /Exactly six canonical five-minute observations/);
+  assert.match(html, /not audited production lending infrastructure/);
 });
 
 test("Cold Operational stays unavailable even when Demo is cached", () => {

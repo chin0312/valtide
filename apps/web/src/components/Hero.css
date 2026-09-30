@@ -9,10 +9,6 @@
 }
 
 .valtide-hero__brand {
-  position: absolute;
-  z-index: 4;
-  top: clamp(22px, 3.2vw, 46px);
-  left: clamp(24px, 4.5vw, 72px);
   display: inline-flex;
   align-items: center;
   gap: 10px;
@@ -22,6 +18,31 @@
   letter-spacing: -0.04em;
   text-decoration: none;
 }
+
+.valtide-hero__nav {
+  position: absolute;
+  z-index: 5;
+  top: 0;
+  left: 0;
+  display: grid;
+  width: 100%;
+  grid-template-columns: 1fr auto 1fr;
+  align-items: center;
+  padding: 24px clamp(24px, 4.5vw, 72px);
+  border-bottom: 1px solid rgba(37, 50, 55, 0.55);
+}
+
+.valtide-hero__nav nav { display: flex; gap: 32px; }
+.valtide-hero__nav nav a,
+.valtide-hero__nav-action {
+  color: var(--color-ink-dim);
+  font-size: 12px;
+  text-decoration: none;
+  transition: color 160ms ease;
+}
+.valtide-hero__nav nav a:hover,
+.valtide-hero__nav-action:hover { color: var(--color-ink); }
+.valtide-hero__nav-action { justify-self: end; }
 
 .valtide-logo-crop {
   position: relative;
@@ -48,21 +69,43 @@
 .valtide-hero__copy {
   position: absolute;
   z-index: 3;
-  top: clamp(132px, 18vh, 190px);
+  top: clamp(132px, 18vh, 176px);
   left: clamp(24px, 6.4vw, 104px);
 }
 
+.valtide-hero__eyebrow {
+  max-width: 520px;
+  margin: 0 0 22px;
+  color: var(--color-accent);
+  font-size: 10px;
+  font-weight: 500;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+}
+
 .valtide-hero__copy h1 {
-  max-width: 760px;
+  max-width: 940px;
   margin: 0;
   color: var(--color-ink);
-  font-size: clamp(56px, 6.15vw, 104px);
+  font-size: clamp(46px, 5.3vw, 84px);
   font-weight: 500;
   letter-spacing: -0.068em;
   line-height: 0.93;
 }
 
 .valtide-hero__copy h1 span { color: var(--color-accent); }
+
+.valtide-hero__lede {
+  max-width: 660px;
+  margin: 24px 0 0;
+  padding-right: 14px;
+  background: var(--color-bg);
+  color: var(--color-ink-dim);
+  font-size: clamp(14px, 1.2vw, 17px);
+  line-height: 1.6;
+}
+
+.valtide-hero__actions { display: flex; width: fit-content; flex-wrap: wrap; align-items: center; gap: 24px; padding-right: 18px; background: var(--color-bg); }
 
 .valtide-hero__action {
   display: inline-flex;
@@ -82,6 +125,19 @@
 
 .valtide-hero__action:hover { background: var(--color-accent-hover); transform: translateY(-1px); }
 .valtide-hero__action:focus-visible { outline: 1px solid var(--color-ink); outline-offset: 3px; }
+
+.valtide-hero__secondary {
+  display: inline-flex;
+  min-height: 46px;
+  align-items: center;
+  gap: 26px;
+  margin-top: 34px;
+  color: var(--color-ink);
+  border-bottom: 1px solid var(--color-line-strong);
+  font-size: 12px;
+  font-weight: 500;
+  text-decoration: none;
+}
 
 .valtide-hero__motion {
   position: absolute;
@@ -114,14 +170,41 @@
 .valtide-hero__label--valtide { color: var(--color-series-valtide); }
 .valtide-hero__label--token { color: var(--color-series-token); }
 
+.valtide-hero__principles {
+  position: absolute;
+  z-index: 3;
+  right: clamp(24px, 4.5vw, 72px);
+  bottom: 28px;
+  left: clamp(24px, 4.5vw, 72px);
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  border-top: 1px solid var(--color-line-subtle);
+}
+
+.valtide-hero__principles span {
+  padding: 16px 18px 0;
+  color: var(--color-muted);
+  border-left: 1px solid var(--color-line-subtle);
+  font-size: 10px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+.valtide-hero__principles span:first-child { padding-left: 0; border-left: 0; }
+
 @media (max-width: 760px) {
   .valtide-hero { min-height: 560px; }
-  .valtide-hero__brand { top: 20px; left: 20px; }
-  .valtide-hero__copy { top: 112px; left: 20px; }
-  .valtide-hero__copy h1 { font-size: clamp(46px, 15vw, 74px); }
+  .valtide-hero__nav { grid-template-columns: 1fr auto; padding: 18px 20px; }
+  .valtide-hero__nav nav { display: none; }
+  .valtide-hero__copy { top: 108px; right: 20px; left: 20px; }
+  .valtide-hero__copy h1 { font-size: clamp(42px, 12.5vw, 66px); }
+  .valtide-hero__lede { max-width: 92%; font-size: 14px; }
   .valtide-hero__action { margin-top: 24px; }
+  .valtide-hero__secondary { margin-top: 24px; }
   .valtide-hero__label { gap: 5px; font-size: 8px; }
   .valtide-hero__label i { width: 5px; height: 5px; }
+  .valtide-hero__principles { right: 20px; bottom: 18px; left: 20px; grid-template-columns: 1fr 1fr; }
+  .valtide-hero__principles span { padding: 10px 8px 0; font-size: 8px; }
+  .valtide-hero__principles span:nth-child(3) { padding-left: 0; border-left: 0; }
 }
 
 @media (prefers-reduced-motion: reduce) {

@@ -28,14 +28,25 @@ import { ReferenceComparison } from "./views/ReferenceComparison";
 import { ModelEvidence } from "./views/ModelEvidence";
 import { filterDemoResults, filterHistoricalResults, filterOperationalResults, OPERATIONAL_HISTORY_LIMITS, type DemoRange, type HistoricalRange, type OperationalRange } from "./views/OperationalTimeline";
 import { ObservationAudit } from "./components/ObservationAudit";
-import { Hero } from "./components/Hero";
+import { LandingPage } from "./components/LandingPage";
+import { DocsPage } from "./components/DocsPage";
 
 type Context = "Operational" | "Historical" | "Demo";
 const EMPTY_RESULTS: ValuationResult[] = [];
 
 export default function App() {
   const showConsole = typeof window === "undefined" || new URLSearchParams(window.location.search).get("view") === "console";
-  return showConsole ? <ValidationConsole /> : <Hero />;
+  const path = typeof window === "undefined" ? "/" : window.location.pathname.replace(/\/+$/, "") || "/";
+  useEffect(() => {
+    document.title = showConsole
+      ? "Valtide — Validation Console"
+      : path === "/docs" || path.startsWith("/docs/")
+        ? "Valtide Docs — Collateral Validation Evidence"
+        : "Valtide — Independent Collateral Validation";
+  }, [path, showConsole]);
+  if (showConsole) return <ValidationConsole />;
+  if (path === "/docs" || path.startsWith("/docs/")) return <DocsPage />;
+  return <LandingPage />;
 }
 
 function ValidationConsole() {
