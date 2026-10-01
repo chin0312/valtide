@@ -10,6 +10,7 @@ from dataclasses import dataclass
 from datetime import UTC, datetime, timedelta
 
 from valtide_api import publisher as publisher_module
+from valtide_api.assets import resolve_asset_config
 from valtide_api.clock import (
     FIVE_MINUTES,
     next_5m_boundary,
@@ -46,6 +47,7 @@ def _build_snapshot_with_settlement_retry(
     snapshot_builder: SnapshotBuilder,
     canonical_ts: datetime,
     *,
+    asset: str,
     max_attempts: int,
     retry_delay_seconds: float,
 ) -> MarketSnapshot:
@@ -57,7 +59,7 @@ def _build_snapshot_with_settlement_retry(
 
     for attempt in range(max_attempts):
         try:
-            return snapshot_builder(observation_ts=canonical_ts)
+            return snapshot_builder(asset=asset, observation_ts=canonical_ts)
         except ExactNvdaxCandleUnavailable:
             if attempt + 1 == max_attempts:
                 raise
@@ -99,6 +101,7 @@ def run_live_tick(
     attempt_at = datetime.now(UTC)
 
     try:
+        resolve_asset_config(asset)
         canonical_ts = require_canonical_5m(canonical_ts, "canonical_ts")
         record = store.load_runtime(asset)
         if record is not None and record.state is not None:
@@ -130,6 +133,7 @@ def run_live_tick(
         snapshot = _build_snapshot_with_settlement_retry(
             snapshot_builder,
             canonical_ts,
+            asset=asset,
             max_attempts=int(
                 getattr(settings, "live_settlement_max_attempts", _NVDAX_SETTLEMENT_MAX_ATTEMPTS)
             ),
@@ -213,6 +217,7 @@ class LiveScheduler:
     ):
         settings = get_settings()
         self.asset = asset or settings.live_scheduler_asset
+        self.asset_config = resolve_asset_config(self.asset, settings)
         self.store = store or get_runtime_store()
         self._tick = tick
         self._now = now or (lambda: datetime.now(UTC))
@@ -313,6 +318,7 @@ class LiveScheduler:
                 self._publisher_fn,
                 result,
                 settings=self._settings,
+                asset=self.asset,
             )
         except publisher_module.PublisherError as exc:
             error = self._safe_publication_error(exc)

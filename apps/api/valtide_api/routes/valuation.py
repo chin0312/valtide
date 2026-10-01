@@ -37,6 +37,6 @@ def get_live_valuation(asset: str) -> ValuationResult:
     if asset not in SUPPORTED_ASSETS:
         raise HTTPException(status_code=404, detail=f"asset '{asset}' not supported")
     try:
-        return run_live_valuation()
+        return run_live_valuation(asset=asset)
     except LiveDataUnavailable as exc:
         raise HTTPException(status_code=503, detail=str(exc)) from exc

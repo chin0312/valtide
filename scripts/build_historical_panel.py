@@ -19,6 +19,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "apps" / "api"))
 
 # The path bootstrap intentionally precedes these first-party imports.
 # isort: off
+from valtide_api.assets import resolve_asset_config
 from valtide_api.adapters import equity, okx, reference
 from valtide_api.clock import FIVE_MINUTES, require_canonical_5m
 from valtide_api.session import classify
@@ -147,17 +148,29 @@ def _write(path: Path, rows: list[dict[str, str]]) -> None:
             temp_path.unlink(missing_ok=True)
 
 
-def build_panel(start: datetime, end: datetime, output: Path) -> int:
+def build_panel(
+    start: datetime,
+    end: datetime,
+    output: Path,
+    *,
+    asset: str = "NVDAx",
+) -> int:
+    asset_config = resolve_asset_config(asset)
     chain_index, token_address = okx.resolve_nvdax_deployment()
 
     token_candles = okx.get_historical_candles(chain_index, token_address, start, end)
     # Fetch a causal pre-range lookback so the first requested row can use a
     # strictly prior trusted underlying bar as its causal anchor. The lookback
     # is only for initialization; emitted panel rows remain within [start, end].
-    underlying_bars = equity.get_stock_bars("NVDA", start - UNDERLYING_LOOKBACK, end)
+    underlying_bars = equity.get_stock_bars(
+        asset_config.underlying_symbol,
+        start - UNDERLYING_LOOKBACK,
+        end,
+    )
     reference_candles = reference.get_okx_xperp_index_candles(
         start=start,
         end=end,
+        index_id=asset_config.reference_under_test_instrument,
     )
     rows = build_rows(start, end, token_candles, underlying_bars, reference_candles)
     _write(output, rows)
@@ -176,9 +189,16 @@ def main() -> None:
     parser.add_argument("--output", required=True, type=Path)
     parser.add_argument("--asset", default="NVDAx")
     args = parser.parse_args()
-    if args.asset != "NVDAx":
-        raise SystemExit("P0.5 historical panel builder currently supports only NVDAx")
-    build_panel(_parse_datetime(args.start), _parse_datetime(args.end), args.output)
+    try:
+        resolve_asset_config(args.asset)
+    except ValueError as exc:
+        raise SystemExit(str(exc)) from exc
+    build_panel(
+        _parse_datetime(args.start),
+        _parse_datetime(args.end),
+        args.output,
+        asset=args.asset,
+    )
 
 
 if __name__ == "__main__":

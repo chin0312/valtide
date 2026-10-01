@@ -9,8 +9,12 @@ from enum import Enum
 
 from pydantic import BaseModel, Field
 
-# Assets the backend supports today. One place so routes don't drift.
-SUPPORTED_ASSETS = {"NVDAx"}
+from valtide_api.assets import supported_asset_names
+
+# Compatibility export for existing route/import callers.  The registry in
+# assets.py is the source of truth; this derived immutable set prevents routes
+# from drifting into their own asset lists.
+SUPPORTED_ASSETS = frozenset(supported_asset_names())
 
 
 class MarketState(str, Enum):

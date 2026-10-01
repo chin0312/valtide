@@ -6,6 +6,7 @@ import csv
 from datetime import UTC, datetime
 from pathlib import Path
 
+from valtide_api.assets import resolve_asset_config
 from valtide_api.clock import require_canonical_5m
 from valtide_api.models import MarketSnapshot, MarketState
 
@@ -33,7 +34,11 @@ def _parse_ts(value: str) -> datetime:
     return dt if dt.tzinfo else dt.replace(tzinfo=UTC)
 
 
-def load_panel_snapshots(path: str | Path) -> list[MarketSnapshot]:
+def load_panel_snapshots(
+    path: str | Path,
+    *,
+    asset: str = "NVDAx",
+) -> list[MarketSnapshot]:
     """Build one snapshot per canonical row after an R0 anchor is established.
 
     Missing token observations remain in the sequence as ``token_price=None``.
@@ -42,6 +47,7 @@ def load_panel_snapshots(path: str | Path) -> list[MarketSnapshot]:
     panels should provide explicit reference-under-test columns; older fixtures
     retain their explicit stale-NVDA fallback semantics.
     """
+    asset_config = resolve_asset_config(asset)
     path = Path(path)
     snapshots: list[MarketSnapshot] = []
     last_close: float | None = None
@@ -127,12 +133,12 @@ def load_panel_snapshots(path: str | Path) -> list[MarketSnapshot]:
 
             snapshots.append(
                 MarketSnapshot(
-                    asset="NVDAx",
+                    asset=asset_config.asset,
                     observation_ts=ts,
                     token_price=nvdax,
                     token_volume=_num(row.get("nvdax_volume")),
                     token_volume_usd=_num(row.get("nvdax_volume_usd")),
-                    token_source="okx_onchainos" if nvdax is not None else None,
+                    token_source=asset_config.token_source if nvdax is not None else None,
                     token_observed_at=ts if nvdax is not None else None,
                     underlying_reference=nvda,
                     underlying_reference_ts=ts if nvda is not None else None,
@@ -146,7 +152,7 @@ def load_panel_snapshots(path: str | Path) -> list[MarketSnapshot]:
                     market_state=_market_state(row.get("session_state"), ts),
                     source_provenance={
                         "panel": path.name,
-                        "token": "okx_onchainos" if nvdax is not None else "",
+                        "token": asset_config.token_source if nvdax is not None else "",
                         "reference_under_test": reference_source,
                     },
                 )

@@ -88,6 +88,7 @@ must remain visible rather than being described as directly observed coverage.
 
 ```text
 config.py        settings from .env and CORS origins
+assets.py        canonical production AssetConfig registry and fail-closed resolution
 models.py        MarketSnapshot, ChallengerEstimate, ValuationResult, enums
 
 adapters/
@@ -172,6 +173,13 @@ and `502` for a chain, transaction, or read-back failure.
   `AUTO_PUBLISH_ENABLED` is independent; a public demo can enable automatic
   delivery while leaving the manual route disabled. A successful write is
   followed by Registry and RiskGuard read-back verification.
+
+Asset support is explicit and registry-backed. The production registry currently
+contains only `NVDAx`; `/api/assets`, source/model dispatch, historical-panel
+resolution, scheduler identity, and X Layer reads use the requested registered
+asset. Unknown assets return `404`, while a binding or deployment mismatch
+fails closed rather than receiving NVDAx defaults. See
+`docs/ASSET_INTEGRATION_FOUNDATION.md` for the future promotion checklist.
 
 ## 8. Run locally
 

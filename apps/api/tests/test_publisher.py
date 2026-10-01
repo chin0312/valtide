@@ -1,3 +1,4 @@
+from dataclasses import replace
 from datetime import UTC, datetime
 from pathlib import Path
 from types import SimpleNamespace
@@ -99,6 +100,27 @@ def test_evidence_hash_input_is_deterministic_and_material(result, deployment_co
 
     assert first == second
     assert canonical_evidence_bytes(changed, deployment_config) != first
+
+
+def test_publisher_rejects_cross_asset_result_and_deployment_binding(result, deployment_config):
+    foreign_result = result.model_copy(update={"asset": "SPYx"})
+
+    with pytest.raises(PublishabilityError):
+        build_attestation(
+            foreign_result,
+            config=deployment_config,
+            validity_seconds=900,
+        )
+
+    with pytest.raises(PublishabilityError):
+        canonical_evidence_bytes(foreign_result, deployment_config)
+
+    with pytest.raises(PublishabilityError):
+        build_attestation(
+            result,
+            config=replace(deployment_config, asset="SPYx"),
+            validity_seconds=900,
+        )
 
 
 @pytest.mark.parametrize(
@@ -434,6 +456,31 @@ def test_publish_preflight_rejects_unauthorized_signer(result, publisher_setting
     w3.eth.registry.authorized = False
     with pytest.raises(ChainPreflightError, match="authorized"):
         publish(result, settings=publisher_settings, web3_client=w3)
+
+
+def test_publish_preflight_rejects_demo_vault_bound_to_another_asset(
+    result, publisher_settings, fake_chain
+):
+    _config, w3 = fake_chain
+    w3.eth.vault.asset_id = "0x" + "99" * 32
+
+    with pytest.raises(ChainPreflightError, match="asset ID"):
+        publish(result, settings=publisher_settings, web3_client=w3)
+
+
+def test_publish_rejects_result_asset_different_from_requested_asset(
+    result, publisher_settings, fake_chain
+):
+    _config, w3 = fake_chain
+    foreign_result = result.model_copy(update={"asset": "SPYx"})
+
+    with pytest.raises(PublishabilityError, match="result asset"):
+        publish(
+            foreign_result,
+            settings=publisher_settings,
+            web3_client=w3,
+            asset="NVDAx",
+        )
 
 
 def test_publish_idempotency_returns_existing_published_at(result, publisher_settings, fake_chain):

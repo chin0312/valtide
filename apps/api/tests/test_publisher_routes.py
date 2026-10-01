@@ -73,9 +73,10 @@ def test_publish_success_returns_structured_receipt(monkeypatch):
         ),
     )
 
-    def fake_publish(received_result, settings):
+    def fake_publish(received_result, settings, *, asset):
         assert received_result is result
         assert settings is not None
+        assert asset == "NVDAx"
         return _receipt("published", "0x" + "55" * 32, 777)
 
     monkeypatch.setattr(publish_route.publisher, "publish", fake_publish)
@@ -104,7 +105,7 @@ def test_publish_already_published_returns_null_transaction(monkeypatch):
     monkeypatch.setattr(
         publish_route.publisher,
         "publish",
-        lambda _result, settings: _receipt("already_published", None, 888),
+        lambda _result, settings, *, asset: _receipt("already_published", None, 888),
     )
 
     response = client.post("/api/publish/NVDAx")
@@ -125,7 +126,11 @@ def test_onchain_status_returns_mocked_control_plane(monkeypatch):
         "evidence_state": "INCONCLUSIVE",
         "policy_action": "REQUIRE_REVIEW",
     }
-    monkeypatch.setattr(onchain_route.publisher, "read_control_plane", lambda: expected)
+    monkeypatch.setattr(
+        onchain_route.publisher,
+        "read_control_plane",
+        lambda *, asset: expected if asset == "NVDAx" else {},
+    )
 
     response = client.get("/api/onchain/NVDAx")
 
@@ -135,5 +140,11 @@ def test_onchain_status_returns_mocked_control_plane(monkeypatch):
 
 def test_onchain_status_rejects_unsupported_asset():
     response = client.get("/api/onchain/FOOx")
+
+    assert response.status_code == 404
+
+
+def test_onchain_status_rejects_unregistered_research_asset():
+    response = client.get("/api/onchain/SPYx")
 
     assert response.status_code == 404

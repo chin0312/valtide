@@ -9,6 +9,7 @@ from __future__ import annotations
 
 from fastapi import APIRouter, HTTPException, Query, Response
 
+from valtide_api.assets import AssetConfigurationError
 from valtide_api.data_source import resolve_snapshots
 from valtide_api.models import SUPPORTED_ASSETS, ValuationResult
 from valtide_api.replay import replay
@@ -26,9 +27,15 @@ def get_replay(
     if asset not in SUPPORTED_ASSETS:
         raise HTTPException(status_code=404, detail=f"asset '{asset}' not supported")
     try:
-        snapshots, source_label = resolve_snapshots(source=source, scenario=scenario)
+        snapshots, source_label = resolve_snapshots(
+            asset=asset,
+            source=source,
+            scenario=scenario,
+        )
     except FileNotFoundError:
         raise HTTPException(status_code=404, detail="data source not found") from None
+    except AssetConfigurationError as exc:
+        raise HTTPException(status_code=503, detail=str(exc)) from exc
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
 
