@@ -4,14 +4,18 @@ from dataclasses import replace
 from datetime import UTC, datetime, timedelta
 from types import MappingProxyType
 
+# Ruff versions differ on whether the root-level script is first-party here.
+# isort: off
 import scripts.build_historical_panel as historical_panel
-import valtide_api.assets as assets_module
 from scripts.build_historical_panel import build_rows
+
+import valtide_api.assets as assets_module
 from valtide_api.adapters.equity import RawEquityBar
 from valtide_api.adapters.okx import RawCandle
 from valtide_api.adapters.reference import RawReferenceCandle
 from valtide_api.assets import resolve_asset_config
 from valtide_api.panel import load_panel_snapshots
+# isort: on
 
 
 def test_panel_builder_preserves_grid_and_does_not_fill_token_or_reference():
