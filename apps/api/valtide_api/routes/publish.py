@@ -6,7 +6,7 @@ from fastapi import APIRouter, HTTPException
 
 from valtide_api import publisher
 from valtide_api.config import get_settings
-from valtide_api.models import SUPPORTED_ASSETS
+from valtide_api.routes._asset_guard import require_api_asset
 from valtide_api.runtime_store import RuntimeStateIntegrityError, get_runtime_store
 
 router = APIRouter(prefix="/api", tags=["publish"])
@@ -14,8 +14,7 @@ router = APIRouter(prefix="/api", tags=["publish"])
 
 @router.post("/publish/{asset}")
 def post_publish(asset: str) -> dict:
-    if asset not in SUPPORTED_ASSETS:
-        raise HTTPException(status_code=404, detail=f"asset '{asset}' not supported")
+    require_api_asset(asset, "runtime", "quant", "onchain")
 
     if not get_settings().publish_enabled:
         raise HTTPException(status_code=503, detail="publication is disabled")

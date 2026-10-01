@@ -26,7 +26,7 @@ from datetime import UTC, datetime
 
 import httpx
 
-from valtide_api.adapters import equity, okx, reference
+from valtide_api import market_sources, token_market
 from valtide_api.assets import (
     AssetConfigurationError,
     UnsupportedAssetError,
@@ -43,8 +43,11 @@ class LiveDataUnavailable(RuntimeError):
     """Raised when a required live input cannot be fetched."""
 
 
-class ExactNvdaxCandleUnavailable(LiveDataUnavailable):
-    """Raised when the exact confirmed NVDAx candle is not available yet."""
+class ExactTokenCandleUnavailable(LiveDataUnavailable):
+    """Raised when the exact confirmed token candle is not available yet."""
+
+
+ExactNvdaxCandleUnavailable = ExactTokenCandleUnavailable  # compatibility import
 
 
 def build_live_snapshot(
@@ -59,6 +62,12 @@ def build_live_snapshot(
         asset_config = resolve_asset_config(asset, settings)
     except (AssetConfigurationError, UnsupportedAssetError) as exc:
         raise LiveDataUnavailable(str(exc)) from exc
+    if not asset_config.capabilities.live_data:
+        raise LiveDataUnavailable(f"live data is unavailable for '{asset}'")
+    try:
+        token_label = token_market.source_label(asset_config)
+    except AssetConfigurationError as exc:
+        raise LiveDataUnavailable(str(exc)) from exc
     # Value the most recently settled bar. The current forming bar has no
     # confirmed reference candle yet, so valuing it would always drop the
     # comparator; one boundary back is settled and its candle is confirmed.
@@ -69,34 +78,34 @@ def build_live_snapshot(
         raise LiveDataUnavailable(str(exc)) from exc
 
     try:
-        token_candle = okx.get_nvdax_candle_at(now, client=client)
-    except ExactNvdaxCandleUnavailable:
+        token_candle = token_market.get_exact_candle(asset_config, now, client=client)
+    except ExactTokenCandleUnavailable:
         raise
     except (httpx.HTTPError, KeyError, TypeError, ValueError, RuntimeError) as exc:
         raise LiveDataUnavailable(
-            "NVDAx exact confirmed candle unavailable (OKX OnchainOS)."
+            f"{asset_config.asset} exact confirmed candle unavailable ({token_label})."
         ) from exc
     if token_candle is None:
-        raise ExactNvdaxCandleUnavailable(
-            "NVDAx exact confirmed candle unavailable (OKX OnchainOS)."
+        raise ExactTokenCandleUnavailable(
+            f"{asset_config.asset} exact confirmed candle unavailable ({token_label})."
         )
+    if token_candle.ts != now or token_candle.confirm != 1:
+        raise LiveDataUnavailable("token adapter returned a noncanonical or unconfirmed candle")
 
     try:
         # Alpaca's `end` bound can include the boundary itself. Cap the query at
         # the valued bar so the next canonical boundary can never enter the
         # underlying measurement set.
-        bars = equity.get_trusted_bars(
-            asset_config.underlying_symbol,
-            client=client,
-            now=now,
-        )
+        bars = market_sources.underlying_live(asset_config, client=client, now=now)
     except (httpx.HTTPError, KeyError, TypeError, ValueError, RuntimeError) as exc:
         raise LiveDataUnavailable(
-            f"{asset_config.underlying_symbol} underlying unavailable (Alpaca — check key/feed)."
+            f"{asset_config.underlying_symbol} underlying unavailable "
+            f"({asset_config.underlying_source.capitalize()} — check key/feed)."
         ) from exc
     if not bars:
         raise LiveDataUnavailable(
-            f"{asset_config.underlying_symbol} underlying unavailable (Alpaca — check key/feed)."
+            f"{asset_config.underlying_symbol} underlying unavailable "
+            f"({asset_config.underlying_source.capitalize()} — check key/feed)."
         )
 
     # The latest bar at or before the valued bar's close is the current-bucket
@@ -134,16 +143,17 @@ def build_live_snapshot(
     # valued bar (ts == now, age 0), identical to the historical panel join. When
     # it is not yet confirmed or unreachable, keep the reference identity and let
     # validation mark COMPARATOR_UNAVAILABLE rather than substituting NVDA.
-    ref = reference.get_confirmed_index_bar(
-        now,
-        asset_config.reference_under_test_instrument,
-        client=client,
-    )
+    try:
+        ref = market_sources.reference_live(asset_config, client=client, now=now)
+    except AssetConfigurationError as exc:
+        raise LiveDataUnavailable(str(exc)) from exc
     if ref is not None:
         pt, pt_source, pt_ts = ref.price, ref.source, ref.ts
         reference_age = int((now - ref.ts).total_seconds())
     else:
-        pt, pt_source, pt_ts, reference_age = None, "okx_xperp_index", None, None
+        pt, pt_source, pt_ts, reference_age = (
+            None, asset_config.reference_under_test_source, None, None
+        )
 
     # A gross token/underlying unit mismatch is judged by validation
     # (TOKEN_UNIT_SUSPECT), not fatally here; an economic depeg must reach the
@@ -169,8 +179,8 @@ def build_live_snapshot(
         market_state=market_state,
         external_reference=None,
         source_provenance={
-            "token": f"okx_onchainos@{token_candle.ts.isoformat()}",
-            "underlying": f"alpaca@{last.ts.isoformat()}",
+            "token": f"{asset_config.token_source}@{token_candle.ts.isoformat()}",
+            "underlying": f"{asset_config.underlying_source}@{last.ts.isoformat()}",
             "reference_under_test": (
                 f"{pt_source}@{pt_ts.isoformat()}" if pt_ts is not None else pt_source
             ),
@@ -196,5 +206,8 @@ def run_live_valuation(
         client=client,
         asset=asset,
     )
-    result, _ = run_inference(snapshot, None)
+    try:
+        result, _ = run_inference(snapshot, None)
+    except AssetConfigurationError as exc:
+        raise LiveDataUnavailable(str(exc)) from exc
     return result

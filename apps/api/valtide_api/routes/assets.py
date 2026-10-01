@@ -8,6 +8,7 @@ from fastapi import APIRouter
 from pydantic import BaseModel
 
 from valtide_api.assets import production_asset_configs
+from valtide_api.quant_runtime import quant_runtime_available
 
 router = APIRouter(prefix="/api", tags=["assets"])
 
@@ -26,10 +27,7 @@ def list_assets() -> list[AssetInfo]:
             asset=config.asset,
             token_source=config.token_source,
             underlying_source=config.underlying_source,
-            model_available=(
-                config.quant_model_id == "P1a-C"
-                and config.quant_model_version == "0.2.0"
-            ),
+            model_available=quant_runtime_available(config),
         )
         for config in production_asset_configs()
     ]

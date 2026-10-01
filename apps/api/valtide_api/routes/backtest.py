@@ -10,8 +10,9 @@ from pydantic import BaseModel
 
 from valtide_api.assets import AssetConfigurationError
 from valtide_api.data_source import resolve_snapshots
-from valtide_api.models import SUPPORTED_ASSETS, EvidenceState
+from valtide_api.models import EvidenceState
 from valtide_api.replay import replay
+from valtide_api.routes._asset_guard import require_api_asset
 
 router = APIRouter(prefix="/api", tags=["backtest"])
 
@@ -35,8 +36,7 @@ class BacktestMetrics(BaseModel):
 def get_backtest(
     asset: str, source: str = "scenario", scenario: str = "weekend_divergence"
 ) -> BacktestMetrics:
-    if asset not in SUPPORTED_ASSETS:
-        raise HTTPException(status_code=404, detail=f"asset '{asset}' not supported")
+    require_api_asset(asset, "historical_data", "quant")
 
     try:
         snapshots, source_label = resolve_snapshots(
@@ -87,7 +87,7 @@ def get_backtest(
         output_source = "scenario"
     else:
         note = (
-            "Metrics use only rows with a contemporaneous trusted NVDA observation; "
+            "Metrics use only rows with a contemporaneous trusted underlying observation; "
             "they are historical diagnostics, not production guarantees."
         )
         output_source = "historical"

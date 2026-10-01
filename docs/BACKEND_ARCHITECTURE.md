@@ -88,26 +88,28 @@ must remain visible rather than being described as directly observed coverage.
 
 ```text
 config.py        settings from .env and CORS origins
-assets.py        canonical production AssetConfig registry and fail-closed resolution
+assets.py        NVDAx-only registry, capabilities, and panel-key resolution
+token_market.py  token candle adapter registry and exact-candle dispatch
+market_sources.py underlying/reference adapter registry
 models.py        MarketSnapshot, ChallengerEstimate, ValuationResult, enums
 
 adapters/
-  okx.py         NVDAx token candles
+  okx.py         configured OnchainOS token candles (NVDAx compatibility wrappers)
   equity.py      latest available trusted NVDA bar
   reference.py   OKX X-Perp reference under test
   dexscreener.py optional NVDAx diagnostic quote
 
 session.py       timestamp → market session
 normalizer.py    shared token/underlying scale invariant
-quant_runtime.py thin adapter around packaged QuantService
+quant_runtime.py artifact-backed runtime registry and thin QuantService adapter
 validation.py    backend Evidence State engine
-panel.py         canonical 5-minute panel loader
+panel.py         asset-neutral panel loader and contained legacy NVDA normalization
 scenario.py      explicit scripted scenario loader
 data_source.py   panel/scenario source selection
 replay.py        sequential quant + validation pipeline
 live.py          cold-start live diagnostic
 clock.py         canonical UTC five-minute boundaries
-scheduler.py     single-process warmed live scheduler
+scheduler.py     explicit asset workers; NVDAx alone is enabled today
 runtime_store.py SQLite state/result and publication status persistence
 history.py      read-only warmed operational history
 state_store.py   in-memory compatibility cache for non-HTTP callers

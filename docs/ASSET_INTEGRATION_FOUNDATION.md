@@ -6,12 +6,11 @@ current NVDAx production path.
 
 ## Current state
 
-`apps/api/valtide_api/assets.py` is the canonical production asset registry.
-It currently contains exactly one enabled entry: `NVDAx`. `/api/assets`, live
-source selection, quant dispatch, historical-panel loading, scheduler identity,
-and the publisher all resolve through that registered asset boundary. An
-unknown or unregistered name fails closed; it cannot inherit NVDAx state,
-artifacts, IDs, or a panel path.
+`apps/api/valtide_api/assets.py` is the production asset registry. It contains
+only `NVDAx`. A registered asset has separate capability declarations for live
+data, historical data, quant, warmed runtime, onchain use, and API exposure.
+Registration alone starts no scheduler and exposes no route. All asset-scoped
+routes check exposure and their required capabilities before reading state.
 
 The existing NVDAx behavior remains:
 
@@ -25,17 +24,49 @@ OKX OnchainOS NVDAx + Alpaca NVDA + OKX X-Perp NVDA-USD
 
 ## Ownership of configuration
 
-- `AssetConfig` owns behavioral identity and source/model selection: asset name,
-  underlying symbol, token/reference source names, the OKX X-Perp instrument,
-  quant model identity, and the asset-aware historical-panel resolution.
+- `AssetConfig` owns behavioral identity, source/adapter keys, token-market
+  deployment selection, reference instrument and Registry reference name,
+  quant runtime key, historical panel key, and capability declarations. The
+  current NVDAx environment overrides still resolve its token pin, reference
+  instrument, and panel path.
 - The deployment manifest remains authoritative for deployed contract addresses,
   `assetId`, `referenceId`, and the deployed model-version hash. The publisher's
-  single deployment resolver verifies those values against the registry entry.
-- The packaged quant artifact owns the executable P1a-C implementation and its
-  runtime metadata. The backend dispatch seam maps the registered NVDAx config
-  to the existing default artifact; it does not reimplement model mathematics.
+  resolver checks the hashes against asset identity, reference identity, and
+  the registered quant artifact. The current manifest's `demo` binding is
+  supported unchanged; a future manifest can use `assets[asset]` with
+  `assetId`, `referenceId`, `modelVersion`, and `demoVault` per asset.
+- The packaged quant artifact owns model ID and version. `quant_runtime.py`
+  registers a factory plus artifact metadata loader under a runtime key. It
+  checks the loaded artifact's asset, model ID, and version before inference.
+  `/api/assets.model_available` queries this registration, not a model-name
+  constant in the route.
 - Existing environment variables remain the compatibility boundary for NVDAx
   deployment/source overrides. They are validated as a pair where applicable.
+
+## Data and runtime boundaries
+
+`token_market.py` dispatches exact confirmed and historical token candles by
+adapter key. The OKX adapter accepts the configured chain index and token
+address. Pinned values take precedence; only the current NVDAx compatibility
+config permits cached discovery. Future assets must pin a deployment.
+
+`market_sources.py` dispatches the underlying symbol and reference instrument
+for live and historical reads. The current adapters remain Alpaca and the
+public OKX X-Perp index. `live.py` assembles an asset-scoped snapshot; the
+scheduler retries only absence of the exact confirmed token candle at the same
+canonical timestamp. Quant and validation behavior remain unchanged.
+
+New panels use asset-neutral columns (`token_close`, `underlying_close`,
+availability, volumes, exact timestamps, trusted anchor, and reference under
+test) plus `asset`, underlying symbol, token source, token chain/address, and
+reference instrument identity. The loader verifies this identity and rejects
+cross-asset use. Existing NVDA panels with `nvdax_*` / `nvda_*` fields are
+normalized in one legacy compatibility function; only NVDAx may use them.
+
+`build_enabled_schedulers` accepts an explicit asset tuple and builds one
+independent worker per selected, ready asset. The current Railway settings
+select only `LIVE_SCHEDULER_ASSET=NVDAx`. In-process publisher calls share a
+single lock so separate future asset workers cannot race the signer nonce.
 
 Adding a config entry alone must never promote an asset to production. Runtime
 support, quant artifact readiness, scheduler activation, publication binding,
@@ -48,15 +79,18 @@ A future asset requires an explicit review and green evidence for each step:
 1. Quant research approved.
 2. Data provenance approved.
 3. Model and calibration approved.
-4. `AssetConfig` created with the correct sources and identity.
-5. A compatible quant artifact registered and dispatched explicitly.
-6. X Layer deployment IDs and contract bindings created and verified.
-7. DemoVault deployed and policy-bound if required.
-8. Asset-specific scheduler/runtime activation enabled intentionally.
-9. Publisher and onchain read paths pass cross-asset isolation tests.
-10. Frontend exposure activated separately.
-11. Full backend, quant, contract, and integration checks are green.
+4. `AssetConfig` created with correct sources, pinned token deployment, keys,
+   and initially disabled capabilities/exposure.
+5. Source adapters registered in `token_market.py` / `market_sources.py`.
+6. Real canonical historical panel and asset-bound path registered.
+7. Validated quant artifact and factory registered in `quant_runtime.py`.
+8. X Layer asset binding added to the deployment manifest and checked against
+   the artifact version; DemoVault deployed and policy-bound if required.
+9. Runtime worker enabled explicitly; existing Railway NVDAx env remains the
+   one-worker default. Additional worker selection needs explicit deployment
+   configuration, not merely a registry entry.
+10. Isolation, numerical regression, and control-plane tests pass.
+11. API exposure and frontend activation occur as separate reviewed steps.
 
-The backend currently implements only the NVDAx branch of this checklist.
-Research files or a local panel do not make another asset supported, and no
-additional asset is published by this foundation refactor.
+Research files or a local panel do not make an asset supported. No additional
+asset, quant artifact, X Layer binding, or frontend exposure is activated here.

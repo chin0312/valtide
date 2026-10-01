@@ -1,13 +1,16 @@
 """Tests for the canonical historical-panel join."""
 
+from dataclasses import replace
 from datetime import UTC, datetime, timedelta
+from types import MappingProxyType
 
 import scripts.build_historical_panel as historical_panel
+import valtide_api.assets as assets_module
 from scripts.build_historical_panel import build_rows
-
 from valtide_api.adapters.equity import RawEquityBar
 from valtide_api.adapters.okx import RawCandle
 from valtide_api.adapters.reference import RawReferenceCandle
+from valtide_api.assets import resolve_asset_config
 from valtide_api.panel import load_panel_snapshots
 
 
@@ -24,15 +27,18 @@ def test_panel_builder_preserves_grid_and_does_not_fill_token_or_reference():
     ]
     reference = [RawReferenceCandle(start, 180, 181, 179, 180.0, 1)]
 
-    rows = build_rows(start, end, token, underlying, reference)
+    rows = build_rows(
+        start, end, token, underlying, reference,
+        config=resolve_asset_config("NVDAx"), deployment=("501", "0xtest"),
+    )
 
     assert len(rows) == 3
-    assert rows[0]["nvdax_available"] == "TRUE"
-    assert rows[0]["nvdax_volume_usd"] == "90000"
-    assert rows[1]["nvdax_available"] == "FALSE"
+    assert rows[0]["token_available"] == "TRUE"
+    assert rows[0]["token_volume_usd"] == "90000"
+    assert rows[1]["token_available"] == "FALSE"
     assert rows[1]["reference_under_test_available"] == "FALSE"
-    assert rows[1]["nvda_available"] == "FALSE"
-    assert rows[2]["nvdax_close"] == "180.3"
+    assert rows[1]["underlying_available"] == "FALSE"
+    assert rows[2]["token_close"] == "180.3"
     assert rows[0]["last_trusted_reference"] == "179.0"
     assert rows[0]["last_trusted_reference_ts"].endswith("13:55:00Z")
 
@@ -43,23 +49,20 @@ def test_panel_builder_fetches_underlying_lookback_for_anchor(monkeypatch, tmp_p
     requested_ranges = []
 
     monkeypatch.setattr(
-        historical_panel.okx,
-        "resolve_nvdax_deployment",
-        lambda: ("196", "0xabc"),
-    )
-    monkeypatch.setattr(
-        historical_panel.okx,
+        historical_panel.token_market,
         "get_historical_candles",
-        lambda *args: [],
+        lambda *args: ([], ("196", "0xabc")),
     )
 
     def fake_stock_bars(symbol, fetch_start, fetch_end):
         requested_ranges.append((symbol, fetch_start, fetch_end))
         return [RawEquityBar(fetch_start, 179, 180, 178, 179.0, 900)]
 
-    monkeypatch.setattr(historical_panel.equity, "get_stock_bars", fake_stock_bars)
     monkeypatch.setattr(
-        historical_panel.reference,
+        historical_panel.market_sources.equity, "get_stock_bars", fake_stock_bars
+    )
+    monkeypatch.setattr(
+        historical_panel.market_sources.reference,
         "get_okx_xperp_index_candles",
         lambda **kwargs: [],
     )
@@ -82,7 +85,10 @@ def test_weekend_row_uses_prior_friday_anchor_without_forward_fill(tmp_path):
     token = [RawCandle(start, 182, 183, 181, 182.0, 500, 91_000, 1)]
     reference = [RawReferenceCandle(start, 181, 182, 180, 181.5, 1)]
 
-    rows = build_rows(start, start, token, [friday_anchor], reference)
+    rows = build_rows(
+        start, start, token, [friday_anchor], reference,
+        config=resolve_asset_config("NVDAx"), deployment=("501", "0xtest"),
+    )
     output = tmp_path / "weekend_panel.csv"
     historical_panel._write(output, rows)
     snapshots = load_panel_snapshots(output)
@@ -109,3 +115,39 @@ def test_panel_write_validates_before_replacing_existing_file(tmp_path):
         raise AssertionError("empty panel was accepted")
 
     assert output.read_text() == "known-good-panel\n"
+
+
+def test_builder_uses_synthetic_asset_sources_without_nvda_dispatch(monkeypatch, tmp_path):
+    base = resolve_asset_config("NVDAx")
+    synthetic = replace(
+        base, asset="TESTx", underlying_symbol="TEST", okx_chain_index="777",
+        token_address="0xsynthetic", allow_token_discovery=False,
+        capabilities=replace(base.capabilities, api_exposed=False),
+    )
+    monkeypatch.setattr(
+        assets_module, "_ASSET_REGISTRY",
+        MappingProxyType({"NVDAx": assets_module._NVDA_CONFIG, "TESTx": synthetic}),
+    )
+    start = datetime(2026, 9, 22, 14, 0, tzinfo=UTC)
+    anchor = RawEquityBar(start - timedelta(minutes=5), 1, 1, 1, 1.0, 10)
+    seen = []
+
+    def token(config, first, last):
+        seen.append((config.asset, config.okx_chain_index, config.token_address, first, last))
+        return [RawCandle(start, 2, 2, 2, 2.0, 10, 20, 1)], ("777", "0xsynthetic")
+
+    monkeypatch.setattr(historical_panel.token_market, "get_historical_candles", token)
+    monkeypatch.setattr(
+        historical_panel.market_sources, "underlying_historical",
+        lambda config, *_args: [anchor],
+    )
+    monkeypatch.setattr(
+        historical_panel.market_sources, "reference_historical",
+        lambda config, *_args: [RawReferenceCandle(start, 2, 2, 2, 2.0, 1)],
+    )
+    path = tmp_path / "synthetic.csv"
+    assert historical_panel.build_panel(start, start, path, asset="TESTx") == 1
+    assert seen == [("TESTx", "777", "0xsynthetic", start, start)]
+    snapshots = load_panel_snapshots(path, asset="TESTx")
+    assert [snapshot.asset for snapshot in snapshots] == ["TESTx"]
+    assert snapshots[0].last_trusted_reference_ts == anchor.ts

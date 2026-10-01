@@ -6,7 +6,7 @@ import csv
 from datetime import UTC, datetime
 from pathlib import Path
 
-from valtide_api.assets import resolve_asset_config
+from valtide_api.assets import AssetConfig, resolve_asset_config
 from valtide_api.clock import require_canonical_5m
 from valtide_api.models import MarketSnapshot, MarketState
 
@@ -16,6 +16,50 @@ _FIVE_MINUTES = 300
 
 class PanelTimestampError(ValueError):
     """Raised when a panel is not an ordered canonical 5-minute sequence."""
+
+
+class PanelIdentityError(ValueError):
+    """Raised when a panel's source identity does not match the requested asset."""
+
+
+_CANONICAL_IDENTITY = (
+    "asset", "underlying_symbol", "token_source", "token_chain_index",
+    "token_address", "reference_under_test_instrument",
+)
+
+
+def _canonical_row(row: dict[str, str], config: AssetConfig, *, legacy: bool) -> dict[str, str]:
+    if legacy:
+        if config.asset != "NVDAx":
+            raise PanelIdentityError("legacy NVDA panel cannot be loaded for another asset")
+        return {
+            **row,
+            "asset": "NVDAx",
+            "underlying_symbol": "NVDA",
+            "token_source": config.token_source,
+            "token_close": row.get("nvdax_close", ""),
+            "token_volume": row.get("nvdax_volume", ""),
+            "token_volume_usd": row.get("nvdax_volume_usd", ""),
+            "token_available": row.get("nvdax_available", ""),
+            "underlying_close": row.get("nvda_close", ""),
+            "underlying_available": row.get("nvda_available", ""),
+        }
+    expected = {
+        "asset": config.asset,
+        "underlying_symbol": config.underlying_symbol,
+        "token_source": config.token_source,
+        "reference_under_test_instrument": config.reference_under_test_instrument,
+        "reference_under_test_source": config.reference_under_test_source,
+    }
+    if any(row.get(key) != value for key, value in expected.items()):
+        raise PanelIdentityError("canonical panel identity does not match requested asset")
+    if not row.get("token_chain_index") or not row.get("token_address"):
+        raise PanelIdentityError("canonical panel has no token deployment identity")
+    if config.okx_chain_index and row["token_chain_index"] != config.okx_chain_index:
+        raise PanelIdentityError("canonical panel token chain does not match configured asset")
+    if config.token_address and row["token_address"] != config.token_address:
+        raise PanelIdentityError("canonical panel token address does not match configured asset")
+    return row
 
 
 def _num(value: str | None) -> float | None:
@@ -55,7 +99,20 @@ def load_panel_snapshots(
     previous_ts: datetime | None = None
 
     with path.open(newline="") as f:
-        for row in csv.DictReader(f):
+        reader = csv.DictReader(f)
+        fields = set(reader.fieldnames or ())
+        legacy = "nvdax_close" in fields and "nvda_close" in fields
+        if not legacy and not set(_CANONICAL_IDENTITY).issubset(fields):
+            raise PanelIdentityError("canonical panel is missing required identity fields")
+        if legacy and asset_config.asset != "NVDAx":
+            raise PanelIdentityError("legacy NVDA panel cannot be loaded for another asset")
+        if not legacy and not {
+            "token_close", "token_available", "underlying_close", "underlying_available",
+            "reference_under_test_available", "reference_under_test_source",
+        }.issubset(fields):
+            raise PanelIdentityError("canonical panel is missing required market fields")
+        for raw_row in reader:
+            row = _canonical_row(raw_row, asset_config, legacy=legacy)
             try:
                 ts = require_canonical_5m(_parse_ts(row["timestamp_utc"]), "panel timestamp")
             except ValueError as exc:
@@ -70,10 +127,21 @@ def load_panel_snapshots(
                     )
             previous_ts = ts
 
-            nvda = _num(row.get("nvda_close")) if _flag(row.get("nvda_available")) else None
-            nvdax = (
-                _num(row.get("nvdax_close")) if _flag(row.get("nvdax_available")) else None
+            underlying = (
+                _num(row.get("underlying_close"))
+                if _flag(row.get("underlying_available")) else None
             )
+            token = (
+                _num(row.get("token_close")) if _flag(row.get("token_available")) else None
+            )
+            if token is not None and row.get("token_observed_at"):
+                if _parse_ts(row["token_observed_at"]) != ts:
+                    raise PanelIdentityError("token observation does not match canonical timestamp")
+            if underlying is not None and row.get("underlying_observed_at"):
+                if _parse_ts(row["underlying_observed_at"]) != ts:
+                    raise PanelIdentityError(
+                        "underlying observation does not match canonical timestamp"
+                    )
 
             # Validate explicit provenance timestamps even on an anchor-only
             # row that will not be emitted as a public snapshot.
@@ -111,8 +179,8 @@ def load_panel_snapshots(
             # The first trusted underlying row establishes the anchor only;
             # it is not a public/evaluable challenger observation.
             if previous_last_close is None or previous_last_close_ts is None:
-                if nvda is not None:
-                    last_close, last_close_ts = nvda, ts
+                if underlying is not None:
+                    last_close, last_close_ts = underlying, ts
                 continue
 
             # A gross token/underlying unit mismatch is now judged per-snapshot by
@@ -126,7 +194,7 @@ def load_panel_snapshots(
             ) = _reference_fields(
                 row,
                 ts,
-                nvda,
+                underlying,
                 previous_last_close,
                 previous_last_close_ts,
             )
@@ -135,13 +203,13 @@ def load_panel_snapshots(
                 MarketSnapshot(
                     asset=asset_config.asset,
                     observation_ts=ts,
-                    token_price=nvdax,
-                    token_volume=_num(row.get("nvdax_volume")),
-                    token_volume_usd=_num(row.get("nvdax_volume_usd")),
-                    token_source=asset_config.token_source if nvdax is not None else None,
-                    token_observed_at=ts if nvdax is not None else None,
-                    underlying_reference=nvda,
-                    underlying_reference_ts=ts if nvda is not None else None,
+                    token_price=token,
+                    token_volume=_num(row.get("token_volume")),
+                    token_volume_usd=_num(row.get("token_volume_usd")),
+                    token_source=asset_config.token_source if token is not None else None,
+                    token_observed_at=ts if token is not None else None,
+                    underlying_reference=underlying,
+                    underlying_reference_ts=ts if underlying is not None else None,
                     last_trusted_reference=previous_last_close,
                     last_trusted_reference_ts=previous_last_close_ts,
                     reference_age_seconds=int((ts - previous_last_close_ts).total_seconds()),
@@ -152,7 +220,7 @@ def load_panel_snapshots(
                     market_state=_market_state(row.get("session_state"), ts),
                     source_provenance={
                         "panel": path.name,
-                        "token": asset_config.token_source if nvdax is not None else "",
+                        "token": asset_config.token_source if token is not None else "",
                         "reference_under_test": reference_source,
                     },
                 )
@@ -160,8 +228,8 @@ def load_panel_snapshots(
 
             # Make the current underlying available as the trusted anchor for
             # the next canonical observation, never for this one.
-            if nvda is not None:
-                last_close, last_close_ts = nvda, ts
+            if underlying is not None:
+                last_close, last_close_ts = underlying, ts
     return snapshots
 
 

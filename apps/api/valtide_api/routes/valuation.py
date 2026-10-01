@@ -3,7 +3,8 @@
 from fastapi import APIRouter, HTTPException
 
 from valtide_api.live import LiveDataUnavailable, run_live_valuation
-from valtide_api.models import SUPPORTED_ASSETS, ValuationResult
+from valtide_api.models import ValuationResult
+from valtide_api.routes._asset_guard import require_api_asset
 from valtide_api.runtime_store import RuntimeStateIntegrityError, get_runtime_store
 
 router = APIRouter(prefix="/api", tags=["valuation"])
@@ -16,8 +17,7 @@ def get_valuation(asset: str) -> ValuationResult:
     Serves only a result computed by replay or the scheduler. A cold cache is an
     explicit data-unavailable condition rather than a fabricated valuation.
     """
-    if asset not in SUPPORTED_ASSETS:
-        raise HTTPException(status_code=404, detail=f"asset '{asset}' not supported")
+    require_api_asset(asset, "runtime")
     try:
         record = get_runtime_store().load_runtime(asset)
     except RuntimeStateIntegrityError as exc:
@@ -34,8 +34,7 @@ def get_live_valuation(asset: str) -> ValuationResult:
     Compute-only; does not mutate the cache. Returns 503 if a required live
     input is unavailable (e.g. OKX OnchainOS or Alpaca data is unreachable).
     """
-    if asset not in SUPPORTED_ASSETS:
-        raise HTTPException(status_code=404, detail=f"asset '{asset}' not supported")
+    require_api_asset(asset, "live_data", "quant")
     try:
         return run_live_valuation(asset=asset)
     except LiveDataUnavailable as exc:
