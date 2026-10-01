@@ -1,3 +1,4 @@
+import json
 from dataclasses import replace
 from datetime import UTC, datetime
 from pathlib import Path
@@ -65,7 +66,7 @@ def result():
         evidence_state=EvidenceState.INCONCLUSIVE,
         reason_codes=["REFERENCE_DISAGREEMENT"],
         confidence=None,
-        model_id="valtide-p1ac",
+        model_id="P1a-C",
         model_version="0.2.0",
         interval_semantics="price_space",
         interval_calibration_type="session_sym",
@@ -91,6 +92,25 @@ def test_attestation_maps_enums_hashes_and_units(result, deployment_config):
     assert attestation["modelVersion"] == deployment_config.model_version
     assert attestation["validUntil"] == attestation["observedAt"] + 900
     assert len(attestation["evidenceHash"]) == 66
+
+
+def test_future_asset_map_manifest_parses_same_nvdax_binding(tmp_path, deployment_config):
+    source = json.loads(deployment_config.manifest_path.read_text())
+    source["assets"] = {
+        "NVDAx": {**source.pop("demo"), "demoVault": source["contracts"]["DemoCollateralVault"]}
+    }
+    path = tmp_path / "multi-asset-shape.json"
+    path.write_text(json.dumps(source))
+    resolved = load_deployment_config(Settings(_env_file=None, deployment_manifest_path=path))
+    assert resolved.asset_id == deployment_config.asset_id
+    assert resolved.reference_id == deployment_config.reference_id
+    assert resolved.model_version == deployment_config.model_version
+    assert resolved.demo_vault_address == deployment_config.demo_vault_address
+
+    source["assets"] = {}
+    path.write_text(json.dumps(source))
+    with pytest.raises(publisher_module.PublisherNotConfigured, match="no binding"):
+        load_deployment_config(Settings(_env_file=None, deployment_manifest_path=path))
 
 
 def test_evidence_hash_input_is_deterministic_and_material(result, deployment_config):
@@ -131,6 +151,7 @@ def test_publisher_rejects_cross_asset_result_and_deployment_binding(result, dep
         ("reference_under_test_source", "stale_nvda"),
         ("fair_value_lower", 125.0),
         ("model_version", "0.1.0"),
+        ("model_id", "another-model"),
     ],
 )
 def test_unpublishable_results_are_rejected(result, deployment_config, field, value):

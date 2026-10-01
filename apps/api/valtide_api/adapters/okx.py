@@ -22,12 +22,13 @@ from urllib.parse import quote
 
 import httpx
 
+from valtide_api.assets import AssetConfig, AssetConfigurationError, resolve_asset_config
 from valtide_api.config import get_settings
 
 _BASE_URL = "https://web3.okx.com"
 
-_nvdax_deployment_lock = Lock()
-_nvdax_deployment_cache: tuple[str, str] | None = None
+_deployment_lock = Lock()
+_deployment_cache: dict[str, tuple[str, str]] = {}
 
 
 @dataclass
@@ -86,12 +87,8 @@ def _get(path: str, params: dict[str, str | None], client: httpx.Client) -> dict
     return body["data"]
 
 
-def discover_nvdax(client: httpx.Client | None = None) -> list[dict]:
-    """Return NVDAx deployments from the RWA token list, ordered by 24h volume.
-
-    Mirrors James's discover_nvdax(): issuer/category filters, then match on
-    tokenSymbol == 'NVDAx'. Caller picks the highest-volume deployment.
-    """
+def discover_rwa_token(config: AssetConfig, client: httpx.Client | None = None) -> list[dict]:
+    """Discover exact symbol/underlying matches; discovery is opt-in per asset."""
     owns_client = client is None
     client = client or httpx.Client(timeout=30, transport=httpx.HTTPTransport(retries=5))
     try:
@@ -104,7 +101,11 @@ def discover_nvdax(client: httpx.Client | None = None) -> list[dict]:
         matches = [
             r
             for r in data
-            if r.get("tokenSymbol") == "NVDAx" or r.get("stockCode") in ("NVDA", "NVDAx")
+            if r.get("tokenSymbol") == config.asset
+            or (
+                config.asset == "NVDAx"
+                and r.get("stockCode") in (config.underlying_symbol, config.asset)
+            )
         ]
         matches.sort(key=lambda r: float(r.get("volume24h") or 0), reverse=True)
         return matches
@@ -113,47 +114,50 @@ def discover_nvdax(client: httpx.Client | None = None) -> list[dict]:
             client.close()
 
 
-def resolve_nvdax_deployment(client: httpx.Client | None = None) -> tuple[str, str]:
-    """Resolve the canonical NVDAx deployment once for this process.
-
-    Explicit chain/address settings are authoritative and avoid discovery. With
-    no overrides, the existing deterministic RWA discovery ordering is used and
-    its selected deployment is cached so a five-minute tick does not repeat the
-    discovery request. The cache contains only public deployment metadata.
-    """
-    settings = get_settings()
-    chain_index = settings.okx_nvdax_chain_index.strip()
-    token_address = settings.okx_nvdax_token_address.strip()
+def resolve_token_deployment(
+    config: AssetConfig, client: httpx.Client | None = None
+) -> tuple[str, str]:
+    """Prefer a pinned deployment; only explicit legacy discovery may fall back."""
+    chain_index = (config.okx_chain_index or "").strip()
+    token_address = (config.token_address or "").strip()
     if bool(chain_index) != bool(token_address):
-        raise ValueError(
-            "OKX_NVDAX_CHAIN_INDEX and OKX_NVDAX_TOKEN_ADDRESS must be configured together"
-        )
+        raise AssetConfigurationError("token chain index and address must be configured together")
     if chain_index and token_address:
         return chain_index, token_address
+    if not config.allow_token_discovery:
+        raise AssetConfigurationError(f"token deployment must be pinned for '{config.asset}'")
 
-    global _nvdax_deployment_cache
-    with _nvdax_deployment_lock:
-        if _nvdax_deployment_cache is not None:
-            return _nvdax_deployment_cache
-        deployments = discover_nvdax(client=client)
+    with _deployment_lock:
+        if config.asset in _deployment_cache:
+            return _deployment_cache[config.asset]
+        deployments = discover_rwa_token(config, client=client)
         if not deployments:
-            raise RuntimeError("no NVDAx deployment found from OKX OnchainOS")
+            raise RuntimeError(f"no deployment found for '{config.asset}' from OKX OnchainOS")
         deployment = deployments[0]
         chain_index = str(deployment.get("chainIndex") or deployment.get("chainId") or "")
         token_address = str(
             deployment.get("tokenContractAddress") or deployment.get("tokenAddress") or ""
         )
         if not chain_index or not token_address:
-            raise RuntimeError("selected NVDAx deployment is missing chain index or token address")
-        _nvdax_deployment_cache = (chain_index, token_address)
-        return _nvdax_deployment_cache
+            raise RuntimeError("selected token deployment is missing chain index or token address")
+        _deployment_cache[config.asset] = (chain_index, token_address)
+        return _deployment_cache[config.asset]
+
+
+def discover_nvdax(client: httpx.Client | None = None) -> list[dict]:
+    """Compatibility wrapper for the existing NVDAx discovery interface."""
+    return discover_rwa_token(resolve_asset_config("NVDAx"), client=client)
+
+
+def resolve_nvdax_deployment(client: httpx.Client | None = None) -> tuple[str, str]:
+    """Compatibility wrapper for the existing NVDAx deployment interface."""
+    return resolve_token_deployment(resolve_asset_config("NVDAx"), client=client)
 
 
 def clear_nvdax_deployment_cache() -> None:
     """Clear the process-local deployment cache for tests/admin refreshes."""
-    global _nvdax_deployment_cache
-    with _nvdax_deployment_lock:
-        _nvdax_deployment_cache = None
+    with _deployment_lock:
+        _deployment_cache.clear()
 
 
 def get_historical_candles(
@@ -212,11 +216,12 @@ def get_historical_candles(
             client.close()
 
 
-def get_nvdax_candle_at(
+def get_token_candle_at(
+    config: AssetConfig,
     observation_ts: datetime,
     client: httpx.Client | None = None,
 ) -> RawCandle | None:
-    """Return only the exact confirmed NVDAx candle at ``observation_ts``.
+    """Return only the exact confirmed token candle at ``observation_ts``.
 
     The live scheduler values a settled canonical five-minute bucket. This helper
     deliberately rejects neighboring, future, or unconfirmed candles instead of
@@ -225,7 +230,7 @@ def get_nvdax_candle_at(
     from valtide_api.clock import require_canonical_5m
 
     observation_ts = require_canonical_5m(observation_ts, "observation_ts")
-    chain_index, token_address = resolve_nvdax_deployment(client=client)
+    chain_index, token_address = resolve_token_deployment(config, client=client)
     candles = get_historical_candles(
         chain_index,
         token_address,
@@ -238,3 +243,10 @@ def get_nvdax_candle_at(
         if candle.ts == observation_ts and candle.confirm == 1:
             return candle
     return None
+
+
+def get_nvdax_candle_at(
+    observation_ts: datetime, client: httpx.Client | None = None
+) -> RawCandle | None:
+    """Compatibility wrapper; orchestration uses the generic token boundary."""
+    return get_token_candle_at(resolve_asset_config("NVDAx"), observation_ts, client=client)

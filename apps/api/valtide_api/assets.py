@@ -8,7 +8,7 @@ corresponding explicit deployment/runtime configuration.
 
 from __future__ import annotations
 
-from collections.abc import Mapping
+from collections.abc import Callable, Mapping
 from dataclasses import dataclass, replace
 from pathlib import Path
 from types import MappingProxyType
@@ -31,6 +31,16 @@ class AssetConfigurationError(AssetRegistryError):
 
 
 @dataclass(frozen=True)
+class AssetCapabilities:
+    live_data: bool = False
+    historical_data: bool = False
+    quant: bool = False
+    runtime: bool = False
+    onchain: bool = False
+    api_exposed: bool = False
+
+
+@dataclass(frozen=True)
 class AssetConfig:
     """Immutable behavioral configuration for one registered asset."""
 
@@ -38,20 +48,19 @@ class AssetConfig:
     underlying_symbol: str
     token_source: str
     underlying_source: str
+    token_market_key: str
     okx_chain_index: str | None
     token_address: str | None
+    allow_token_discovery: bool
     reference_under_test_source: str
     reference_under_test_instrument: str
     # The Registry reference identity is intentionally distinct from the vendor
     # instrument name.  It is the existing public identity hashed in the
     # deployment manifest and must not be changed by this refactor.
     xlayer_reference_name: str
-    quant_model_id: str
-    quant_model_version: str
-    historical_panel_path: Path | None
-    xlayer_asset_id: str | None
-    xlayer_reference_id: str | None
-    demo_vault_address: str | None
+    quant_runtime_key: str
+    historical_panel_key: str
+    capabilities: AssetCapabilities
     production_enabled: bool
 
 
@@ -60,17 +69,16 @@ _NVDA_CONFIG = AssetConfig(
     underlying_symbol="NVDA",
     token_source="okx_onchainos",
     underlying_source="alpaca",
+    token_market_key="okx_onchainos",
     okx_chain_index=None,
     token_address=None,
+    allow_token_discovery=True,
     reference_under_test_source="okx_xperp_index",
     reference_under_test_instrument="NVDA-USD",
     xlayer_reference_name="OKX_NVDA_USD_INDEX",
-    quant_model_id="P1a-C",
-    quant_model_version="0.2.0",
-    historical_panel_path=None,
-    xlayer_asset_id=None,
-    xlayer_reference_id=None,
-    demo_vault_address=None,
+    quant_runtime_key="nvdax_p1ac_default",
+    historical_panel_key="nvdax_panel",
+    capabilities=AssetCapabilities(True, True, True, True, True, True),
     production_enabled=True,
 )
 
@@ -82,6 +90,12 @@ _ASSET_REGISTRY: Mapping[str, AssetConfig] = MappingProxyType(
     }
 )
 
+_HISTORICAL_PANEL_PATHS: Mapping[str, tuple[str, Callable[[Settings], Path]]] = (
+    MappingProxyType({
+        "nvdax_panel": ("NVDAx", lambda settings: settings.resolved_historical_panel_path),
+    })
+)
+
 
 def supported_asset_names() -> tuple[str, ...]:
     """Return registered production asset names in deterministic order."""
@@ -89,7 +103,7 @@ def supported_asset_names() -> tuple[str, ...]:
     return tuple(
         config.asset
         for config in _ASSET_REGISTRY.values()
-        if config.production_enabled
+        if config.production_enabled and config.capabilities.api_exposed
     )
 
 
@@ -99,7 +113,7 @@ def production_asset_configs() -> tuple[AssetConfig, ...]:
     return tuple(
         config
         for config in _ASSET_REGISTRY.values()
-        if config.production_enabled
+        if config.production_enabled and config.capabilities.api_exposed
     )
 
 
@@ -127,7 +141,6 @@ def resolve_asset_config(asset: str, settings: Settings | None = None) -> AssetC
             raise AssetConfigurationError(
                 "OKX_NVDAX_CHAIN_INDEX and OKX_NVDAX_TOKEN_ADDRESS must be configured together"
             )
-        historical_path = getattr(settings, "resolved_historical_panel_path", None)
         reference_instrument = str(
             getattr(
                 settings,
@@ -144,11 +157,14 @@ def resolve_asset_config(asset: str, settings: Settings | None = None) -> AssetC
             config,
             okx_chain_index=chain_index or None,
             token_address=token_address or None,
-            historical_panel_path=historical_path,
             reference_under_test_instrument=reference_instrument,
         )
 
-    raise AssetConfigurationError(f"no resolver is defined for asset '{asset}'")
+    if bool(config.okx_chain_index) != bool(config.token_address):
+        raise AssetConfigurationError("token chain index and address must be configured together")
+    if not config.allow_token_discovery and not config.okx_chain_index:
+        raise AssetConfigurationError(f"token deployment must be pinned for '{asset}'")
+    return config
 
 
 def is_supported_asset(asset: str) -> bool:
@@ -157,13 +173,29 @@ def is_supported_asset(asset: str) -> bool:
     return asset in supported_asset_names()
 
 
+def resolve_historical_panel_path(config: AssetConfig, settings: Settings | None = None) -> Path:
+    """Resolve an explicitly registered panel key, never a global fallback."""
+    if not config.capabilities.historical_data:
+        raise AssetConfigurationError(f"historical data is unavailable for '{config.asset}'")
+    registered = _HISTORICAL_PANEL_PATHS.get(config.historical_panel_key)
+    if registered is None or registered[0] != config.asset:
+        raise AssetConfigurationError(f"no historical panel is registered for '{config.asset}'")
+    if settings is None:
+        from valtide_api.config import get_settings
+
+        settings = get_settings()
+    return registered[1](settings)
+
+
 __all__ = [
     "AssetConfig",
+    "AssetCapabilities",
     "AssetConfigurationError",
     "AssetRegistryError",
     "UnsupportedAssetError",
     "is_supported_asset",
     "production_asset_configs",
     "resolve_asset_config",
+    "resolve_historical_panel_path",
     "supported_asset_names",
 ]

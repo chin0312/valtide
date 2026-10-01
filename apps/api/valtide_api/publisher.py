@@ -27,6 +27,7 @@ from valtide_api.assets import (
 )
 from valtide_api.config import Settings, get_settings
 from valtide_api.models import EvidenceState, ValuationResult
+from valtide_api.quant_runtime import resolve_quant_runtime
 
 _ADDRESS_RE = re.compile(r"^0x[0-9a-fA-F]{40}$")
 _BYTES32_RE = re.compile(r"^0x[0-9a-fA-F]{64}$")
@@ -203,11 +204,21 @@ def resolve_asset_deployment(
         raise
     except AssetConfigurationError as exc:
         raise PublisherNotConfigured(str(exc)) from exc
+    if not asset_config.capabilities.onchain:
+        raise PublisherNotConfigured(f"onchain binding is unavailable for '{asset}'")
 
     path = settings.resolved_deployment_manifest_path
     manifest = _load_manifest(path)
     contracts = manifest.get("contracts")
-    demo = manifest.get("demo")
+    bindings = manifest.get("assets")
+    if bindings is not None:
+        if not isinstance(bindings, dict) or not isinstance(bindings.get(asset), dict):
+            raise PublisherNotConfigured(f"deployment manifest has no binding for '{asset}'")
+        demo = bindings[asset]
+    elif asset == "NVDAx":
+        demo = manifest.get("demo")
+    else:
+        raise PublisherNotConfigured(f"deployment manifest has no binding for '{asset}'")
     if not isinstance(contracts, dict) or not isinstance(demo, dict):
         raise PublisherNotConfigured("deployment manifest is missing contracts or demo metadata")
 
@@ -218,7 +229,10 @@ def resolve_asset_deployment(
             settings.registry_address or contracts["ValtideValidationRegistry"]
         )
         risk_guard_address = str(settings.risk_guard_address or contracts["ValtideRiskGuard"])
-        demo_vault_address = str(settings.demo_vault_address or contracts["DemoCollateralVault"])
+        demo_vault_address = str(
+            demo["demoVault"] if bindings is not None
+            else (settings.demo_vault_address or contracts["DemoCollateralVault"])
+        )
         asset_id = str(demo["assetId"])
         reference_id = str(demo["referenceId"])
         model_version = str(demo["modelVersion"])
@@ -242,7 +256,11 @@ def resolve_asset_deployment(
         raise PublisherNotConfigured(
             f"deployment reference ID does not match registered asset {asset_config.asset}"
         )
-    if keccak_text(asset_config.quant_model_version) != model_version:
+    try:
+        runtime_spec = resolve_quant_runtime(asset_config)
+    except AssetConfigurationError as exc:
+        raise PublisherNotConfigured("quant runtime is not ready for deployment") from exc
+    if keccak_text(runtime_spec.model_version) != model_version:
         raise PublisherNotConfigured(
             f"deployment model version does not match asset {asset_config.asset}"
         )
@@ -316,7 +334,11 @@ def _validate_deployment_binding(
         raise PublishabilityError(
             "deployment reference ID does not match the requested asset"
         )
-    if config.model_version != keccak_text(asset_config.quant_model_version):
+    try:
+        runtime_spec = resolve_quant_runtime(asset_config)
+    except AssetConfigurationError as exc:
+        raise PublishabilityError("quant runtime is not ready for publication") from exc
+    if config.model_version != keccak_text(runtime_spec.model_version):
         raise PublishabilityError(
             "deployment model version does not match the requested asset"
         )
@@ -396,6 +418,12 @@ def build_attestation(
         raise PublishabilityError("publication validity must be positive")
     if result.asset != requested_asset:
         raise PublishabilityError("result asset does not match the requested asset")
+    try:
+        runtime_spec = resolve_quant_runtime(asset_config)
+    except AssetConfigurationError as exc:
+        raise PublishabilityError("quant runtime is not ready for publication") from exc
+    if result.model_id != runtime_spec.model_id:
+        raise PublishabilityError("valuation model ID does not match the registered runtime")
     if result.reference_under_test is None or result.reference_deviation_pct is None:
         raise PublishabilityError("reference-under-test observation is required")
     if result.reference_under_test_source != asset_config.reference_under_test_source:

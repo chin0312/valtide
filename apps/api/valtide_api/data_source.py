@@ -8,7 +8,11 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from valtide_api.assets import AssetConfigurationError, resolve_asset_config
+from valtide_api.assets import (
+    AssetConfigurationError,
+    resolve_asset_config,
+    resolve_historical_panel_path,
+)
 from valtide_api.config import get_settings
 from valtide_api.models import MarketSnapshot
 from valtide_api.panel import load_panel_snapshots
@@ -30,7 +34,7 @@ def resolve_snapshots(
     """
     settings = get_settings()
     asset_config = resolve_asset_config(asset, settings)
-    generated_panel = asset_config.historical_panel_path
+    generated_panel = resolve_historical_panel_path(asset_config, settings)
     selected_panel = Path(panel_path) if panel_path is not None else None
     if selected_panel is None:
         selected_panel = generated_panel

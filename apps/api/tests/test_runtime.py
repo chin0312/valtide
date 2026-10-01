@@ -11,7 +11,12 @@ from valtide_api.live import ExactNvdaxCandleUnavailable, LiveDataUnavailable
 from valtide_api.models import MarketSnapshot, MarketState
 from valtide_api.publisher import PublicationError
 from valtide_api.runtime_store import RuntimeStateIntegrityError, RuntimeStore
-from valtide_api.scheduler import LiveScheduler, TickResult, run_live_tick
+from valtide_api.scheduler import (
+    LiveScheduler,
+    TickResult,
+    build_enabled_schedulers,
+    run_live_tick,
+)
 
 _ANCHOR = datetime(2026, 9, 19, 13, 0, tzinfo=UTC)
 
@@ -46,6 +51,34 @@ def _builder_for(snapshots: list[MarketSnapshot]):
         return by_timestamp[observation_ts]
 
     return build, calls
+
+
+def test_scheduler_worker_selection_is_explicit_and_single_asset(tmp_path, monkeypatch):
+    store = RuntimeStore(tmp_path / "runtime.sqlite3")
+    settings = SimpleNamespace(
+        live_scheduler_enabled=True, live_scheduler_asset="NVDAx", auto_publish_enabled=False
+    )
+    monkeypatch.setattr(scheduler_module, "get_settings", lambda: settings)
+    workers = build_enabled_schedulers(settings, store)
+    assert len(workers) == 1
+    assert workers[0].asset == "NVDAx"
+    assert build_enabled_schedulers(settings, store, assets=()) == ()
+
+
+def test_wrong_asset_snapshot_is_not_persisted_or_published(tmp_path):
+    store = RuntimeStore(tmp_path / "runtime.sqlite3")
+    timestamp = _ANCHOR + timedelta(minutes=5)
+    result = run_live_tick(
+        "NVDAx", timestamp, store=store,
+        snapshot_builder=lambda **_kwargs: _snapshot(timestamp).model_copy(
+            update={"asset": "TESTx"}
+        ),
+    )
+    assert result.status == "failure"
+    assert "identity" in result.error
+    assert store.load_runtime("NVDAx").latest_result is None
+    assert store.load_history("NVDAx") == []
+    assert store.load_publication("NVDAx") is None
 
 
 def _patch_settlement_retry(monkeypatch, *, attempts: int = 5, delay: float = 0.0):
