@@ -14,6 +14,7 @@ from valtide_api.adapters.equity import RawEquityBar
 from valtide_api.adapters.okx import RawCandle
 from valtide_api.adapters.reference import RawReferenceCandle
 from valtide_api.assets import resolve_asset_config
+from valtide_api.config import Settings
 from valtide_api.panel import load_panel_snapshots
 # isort: on
 
@@ -95,7 +96,14 @@ def test_weekend_row_uses_prior_friday_anchor_without_forward_fill(tmp_path):
     )
     output = tmp_path / "weekend_panel.csv"
     historical_panel._write(output, rows)
-    snapshots = load_panel_snapshots(output)
+    snapshots = load_panel_snapshots(
+        output,
+        settings=Settings(
+            _env_file=None,
+            okx_nvdax_chain_index="501",
+            okx_nvdax_token_address="0xtest",
+        ),
+    )
 
     assert len(snapshots) == 1
     snapshot = snapshots[0]

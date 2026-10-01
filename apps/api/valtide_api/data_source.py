@@ -44,16 +44,22 @@ def resolve_snapshots(
             raise AssetConfigurationError(
                 f"historical panel is not configured for asset '{asset}'"
             )
-        snapshots = load_panel_snapshots(selected_panel, asset=asset)
-        return _validate_asset_snapshots(snapshots, asset), "historical_panel"
+        snapshots = load_panel_snapshots(selected_panel, asset=asset, settings=settings)
+        return _validate_asset_snapshots(snapshots, asset), _panel_source_label(snapshots)
     if source == "scenario":
         return _validate_asset_snapshots(load_scenario(scenario), asset), "scenario"
     if source == "auto":
         if selected_panel is not None and selected_panel.exists():
-            snapshots = load_panel_snapshots(selected_panel, asset=asset)
-            return _validate_asset_snapshots(snapshots, asset), "historical_panel"
+            snapshots = load_panel_snapshots(selected_panel, asset=asset, settings=settings)
+            return _validate_asset_snapshots(snapshots, asset), _panel_source_label(snapshots)
         return _validate_asset_snapshots(load_scenario(scenario), asset), "scenario"
     raise ValueError(f"unsupported replay source: {source}")
+
+
+def _panel_source_label(snapshots: list[MarketSnapshot]) -> str:
+    if snapshots and snapshots[0].source_provenance.get("panel_schema") == "legacy_nvda_diagnostic":
+        return "legacy_nvda_panel_diagnostic"
+    return "historical_panel"
 
 
 def _validate_asset_snapshots(

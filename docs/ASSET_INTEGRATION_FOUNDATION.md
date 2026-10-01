@@ -61,7 +61,12 @@ availability, volumes, exact timestamps, trusted anchor, and reference under
 test) plus `asset`, underlying symbol, token source, token chain/address, and
 reference instrument identity. The loader verifies this identity and rejects
 cross-asset use. Existing NVDA panels with `nvdax_*` / `nvda_*` fields are
-normalized in one legacy compatibility function; only NVDAx may use them.
+normalized in one legacy compatibility function; only NVDAx may use them. A
+canonical panel is accepted as production-grade historical evidence only when
+the configured chain-index and token-address pins both exist and match its
+deployment columns. Loading is offline and never performs OKX discovery. A
+legacy panel has no independently verifiable deployment identity: replay marks
+it `legacy_nvda_panel_diagnostic`, and historical backtest metrics are omitted.
 
 `build_enabled_schedulers` accepts an explicit asset tuple and builds one
 independent worker per selected, ready asset. The current Railway settings

@@ -6,6 +6,7 @@ from types import MappingProxyType
 import pytest
 
 import valtide_api.assets as assets_module
+from valtide_api.config import Settings
 from valtide_api.models import EvidenceState
 from valtide_api.panel import PanelIdentityError, PanelTimestampError, load_panel_snapshots
 from valtide_api.replay import replay
@@ -27,6 +28,14 @@ def _write(tmp_path, contents: str = _CSV):
     path = tmp_path / "p0_panel_5m.csv"
     path.write_text(contents)
     return path
+
+
+def _pinned_settings(chain="501", address="0xtest"):
+    return Settings(
+        _env_file=None,
+        okx_nvdax_chain_index=chain,
+        okx_nvdax_token_address=address,
+    )
 
 
 def test_missing_token_row_is_preserved(tmp_path):
@@ -65,6 +74,21 @@ def test_reference_is_live_then_explicit_stale_reference(tmp_path):
     assert snapshots[0].underlying_reference is None
     assert snapshots[0].last_trusted_reference == 180.0
     assert snapshots[0].last_trusted_reference_ts.minute == 0
+
+
+def test_legacy_panel_is_explicitly_labelled_diagnostic(tmp_path, monkeypatch):
+    import valtide_api.data_source as data_source
+
+    monkeypatch.setattr(data_source, "get_settings", lambda: Settings(_env_file=None))
+    path = _write(tmp_path)
+    snapshots, source = data_source.resolve_snapshots(
+        source="panel",
+        panel_path=path,
+        asset="NVDAx",
+    )
+    assert snapshots
+    assert source == "legacy_nvda_panel_diagnostic"
+    assert snapshots[0].source_provenance["token_deployment_verified"] == "false"
 
 
 def test_reference_age_grows_over_canonical_grid(tmp_path):
@@ -209,27 +233,41 @@ def _generic_rows(asset="NVDAx", underlying="NVDA", chain="501", address="0xtest
     ]
 
 
-def test_generic_panel_loads_asset_neutral_columns_and_causal_anchor(tmp_path):
-    config = assets_module.resolve_asset_config("NVDAx")
+def test_generic_panel_loads_offline_against_pinned_deployment(tmp_path, monkeypatch):
+    from valtide_api.adapters import okx
+
+    monkeypatch.setattr(
+        okx,
+        "resolve_token_deployment",
+        lambda *_args, **_kwargs: (_ for _ in ()).throw(AssertionError("network lookup")),
+    )
+    settings = _pinned_settings()
+    config = assets_module.resolve_asset_config("NVDAx", settings)
     rows = _generic_rows(
         chain=config.okx_chain_index or "501", address=config.token_address or "0xtest"
     )
-    snapshots = load_panel_snapshots(_write(tmp_path, "\n".join([_GENERIC_COLUMNS, *rows]) + "\n"))
+    snapshots = load_panel_snapshots(
+        _write(tmp_path, "\n".join([_GENERIC_COLUMNS, *rows]) + "\n"),
+        settings=settings,
+    )
     assert len(snapshots) == 1
     assert snapshots[0].token_price == 180.3
     assert snapshots[0].token_volume_usd == 123456.0
     assert snapshots[0].last_trusted_reference == 180.0
     assert snapshots[0].last_trusted_reference_ts < snapshots[0].observation_ts
     assert snapshots[0].underlying_reference is None
+    assert snapshots[0].source_provenance["token_deployment_verified"] == "true"
 
 
 def test_legacy_normalization_matches_equivalent_canonical_snapshots(tmp_path):
-    config = assets_module.resolve_asset_config("NVDAx")
+    settings = _pinned_settings()
+    config = assets_module.resolve_asset_config("NVDAx", settings)
     rows = _generic_rows(
         chain=config.okx_chain_index or "501", address=config.token_address or "0xtest"
     )
     canonical = load_panel_snapshots(
-        _write(tmp_path, "\n".join([_GENERIC_COLUMNS, *rows]) + "\n")
+        _write(tmp_path, "\n".join([_GENERIC_COLUMNS, *rows]) + "\n"),
+        settings=settings,
     )
     legacy_columns = (
         "timestamp_utc,nvda_close,nvdax_close,nvdax_volume,nvdax_volume_usd,"
@@ -250,6 +288,8 @@ def test_legacy_normalization_matches_equivalent_canonical_snapshots(tmp_path):
     assert [snapshot.model_dump(exclude={"source_provenance"}) for snapshot in canonical] == [
         snapshot.model_dump(exclude={"source_provenance"}) for snapshot in legacy
     ]
+    assert legacy[0].source_provenance["panel_schema"] == "legacy_nvda_diagnostic"
+    assert legacy[0].source_provenance["token_deployment_verified"] == "false"
 
 
 def test_generic_panel_rejects_missing_or_mismatched_identity(tmp_path):
@@ -266,7 +306,83 @@ def test_generic_panel_rejects_missing_or_mismatched_identity(tmp_path):
 def test_generic_panel_rejects_wrong_reference_source(tmp_path):
     rows = [row.replace("okx_xperp_index", "another_reference") for row in _generic_rows()]
     with pytest.raises(PanelIdentityError, match="identity"):
-        load_panel_snapshots(_write(tmp_path, "\n".join([_GENERIC_COLUMNS, *rows]) + "\n"))
+        load_panel_snapshots(
+            _write(tmp_path, "\n".join([_GENERIC_COLUMNS, *rows]) + "\n"),
+            settings=_pinned_settings(),
+        )
+
+
+@pytest.mark.parametrize(
+    ("identity_field", "wrong_value"),
+    [
+        ("asset", "SPYx"),
+        ("token_source", "another_token_source"),
+        ("token_chain_index", "999"),
+        ("token_address", "0xwrong"),
+    ],
+)
+def test_hybrid_schema_cannot_hide_wrong_canonical_identity(
+    tmp_path, identity_field, wrong_value
+):
+    fields = [*_GENERIC_COLUMNS.split(","), "nvda_close", "nvdax_close"]
+    records = [row.split(",") for row in _generic_rows()]
+    for record in records:
+        record[fields.index(identity_field)] = wrong_value
+        record.extend(["180.0", "180.1"])
+    lines = [",".join(fields), *(",".join(record) for record in records)]
+    with pytest.raises(PanelIdentityError, match="ambiguous hybrid"):
+        load_panel_snapshots(_write(tmp_path, "\n".join(lines) + "\n"), settings=_pinned_settings())
+
+
+def test_legacy_shape_cannot_hide_wrong_reference_source(tmp_path):
+    columns = (
+        "timestamp_utc,nvda_close,nvdax_close,nvda_available,nvdax_available,"
+        "reference_under_test_source"
+    )
+    rows = [
+        "2026-09-20T14:00:00Z,180.0,180.1,TRUE,TRUE,wrong_reference",
+        "2026-09-20T14:05:00Z,180.0,180.2,TRUE,TRUE,wrong_reference",
+    ]
+    with pytest.raises(PanelIdentityError, match="reference source"):
+        load_panel_snapshots(_write(tmp_path, "\n".join([columns, *rows]) + "\n"))
+
+
+def test_partial_canonical_columns_plus_legacy_schema_are_ambiguous(tmp_path):
+    columns = "timestamp_utc,nvda_close,nvdax_close,token_close"
+    rows = [
+        "2026-09-20T14:00:00Z,180.0,180.1,180.1",
+        "2026-09-20T14:05:00Z,180.0,180.2,180.2",
+    ]
+    with pytest.raises(PanelIdentityError, match="ambiguous hybrid"):
+        load_panel_snapshots(_write(tmp_path, "\n".join([columns, *rows]) + "\n"))
+
+
+def test_canonical_panel_requires_an_independent_pinned_deployment(tmp_path, monkeypatch):
+    from valtide_api.adapters import okx
+
+    monkeypatch.setattr(
+        okx,
+        "resolve_token_deployment",
+        lambda *_args, **_kwargs: (_ for _ in ()).throw(AssertionError("network lookup")),
+    )
+    rows = _generic_rows()
+    path = _write(tmp_path, "\n".join([_GENERIC_COLUMNS, *rows]) + "\n")
+    with pytest.raises(PanelIdentityError, match="deployment is unverified"):
+        load_panel_snapshots(path, settings=Settings(_env_file=None))
+
+
+@pytest.mark.parametrize(
+    ("chain", "address", "error"),
+    [
+        ("999", "0xtest", "chain"),
+        ("501", "0xwrong", "address"),
+    ],
+)
+def test_canonical_panel_rejects_wrong_pinned_deployment(tmp_path, chain, address, error):
+    rows = _generic_rows()
+    path = _write(tmp_path, "\n".join([_GENERIC_COLUMNS, *rows]) + "\n")
+    with pytest.raises(PanelIdentityError, match=error):
+        load_panel_snapshots(path, settings=_pinned_settings(chain, address))
 
 
 def test_generic_panel_rejects_misdated_underlying_observation(tmp_path):
@@ -279,7 +395,8 @@ def test_generic_panel_rejects_misdated_underlying_observation(tmp_path):
     with pytest.raises(PanelIdentityError, match="underlying observation"):
         csv_rows = [",".join(columns), *(",".join(row) for row in rows)]
         load_panel_snapshots(
-            _write(tmp_path, "\n".join(csv_rows) + "\n")
+            _write(tmp_path, "\n".join(csv_rows) + "\n"),
+            settings=_pinned_settings(),
         )
 
 

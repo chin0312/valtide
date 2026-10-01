@@ -8,6 +8,7 @@ from pathlib import Path
 
 from valtide_api.assets import AssetConfig, resolve_asset_config
 from valtide_api.clock import require_canonical_5m
+from valtide_api.config import Settings
 from valtide_api.models import MarketSnapshot, MarketState
 
 _NA = {"", "NA", "N/A", "NaN", "nan", "null", "None"}
@@ -24,14 +25,44 @@ class PanelIdentityError(ValueError):
 
 _CANONICAL_IDENTITY = (
     "asset", "underlying_symbol", "token_source", "token_chain_index",
-    "token_address", "reference_under_test_instrument",
+    "token_address", "reference_under_test_instrument", "reference_under_test_source",
 )
+_CANONICAL_SCHEMA_MARKERS = (
+    frozenset(_CANONICAL_IDENTITY)
+    - {"reference_under_test_source"}
+    | frozenset({
+        "token_close", "token_volume", "token_volume_usd", "token_available",
+        "token_observed_at", "underlying_close", "underlying_available",
+        "underlying_observed_at",
+    })
+)
+_LEGACY_SCHEMA_MARKERS = frozenset({
+    "nvda_close", "nvdax_close", "nvda_available", "nvdax_available",
+    "nvda_volume", "nvdax_volume", "nvdax_volume_usd",
+})
+
+
+def _panel_schema(fields: set[str]) -> str:
+    """Classify canonical and legacy schemas without allowing hybrid fallback."""
+    has_canonical_identity = bool(fields & _CANONICAL_SCHEMA_MARKERS)
+    has_legacy_fields = bool(fields & _LEGACY_SCHEMA_MARKERS)
+    if has_canonical_identity:
+        if has_legacy_fields:
+            raise PanelIdentityError("ambiguous hybrid canonical/legacy panel schema")
+        return "canonical"
+    if {"nvda_close", "nvdax_close"}.issubset(fields):
+        return "legacy_nvda_diagnostic"
+    raise PanelIdentityError("panel does not match a supported canonical or legacy schema")
 
 
 def _canonical_row(row: dict[str, str], config: AssetConfig, *, legacy: bool) -> dict[str, str]:
     if legacy:
         if config.asset != "NVDAx":
             raise PanelIdentityError("legacy NVDA panel cannot be loaded for another asset")
+        if row.get("reference_under_test_source") not in (
+            None, "", config.reference_under_test_source
+        ):
+            raise PanelIdentityError("legacy panel reference source does not match requested asset")
         return {
             **row,
             "asset": "NVDAx",
@@ -55,9 +86,9 @@ def _canonical_row(row: dict[str, str], config: AssetConfig, *, legacy: bool) ->
         raise PanelIdentityError("canonical panel identity does not match requested asset")
     if not row.get("token_chain_index") or not row.get("token_address"):
         raise PanelIdentityError("canonical panel has no token deployment identity")
-    if config.okx_chain_index and row["token_chain_index"] != config.okx_chain_index:
+    if row["token_chain_index"] != config.okx_chain_index:
         raise PanelIdentityError("canonical panel token chain does not match configured asset")
-    if config.token_address and row["token_address"] != config.token_address:
+    if row["token_address"] != config.token_address:
         raise PanelIdentityError("canonical panel token address does not match configured asset")
     return row
 
@@ -82,6 +113,7 @@ def load_panel_snapshots(
     path: str | Path,
     *,
     asset: str = "NVDAx",
+    settings: Settings | None = None,
 ) -> list[MarketSnapshot]:
     """Build one snapshot per canonical row after an R0 anchor is established.
 
@@ -91,7 +123,7 @@ def load_panel_snapshots(
     panels should provide explicit reference-under-test columns; older fixtures
     retain their explicit stale-NVDA fallback semantics.
     """
-    asset_config = resolve_asset_config(asset)
+    asset_config = resolve_asset_config(asset, settings)
     path = Path(path)
     snapshots: list[MarketSnapshot] = []
     last_close: float | None = None
@@ -101,9 +133,15 @@ def load_panel_snapshots(
     with path.open(newline="") as f:
         reader = csv.DictReader(f)
         fields = set(reader.fieldnames or ())
-        legacy = "nvdax_close" in fields and "nvda_close" in fields
+        schema = _panel_schema(fields)
+        legacy = schema == "legacy_nvda_diagnostic"
         if not legacy and not set(_CANONICAL_IDENTITY).issubset(fields):
             raise PanelIdentityError("canonical panel is missing required identity fields")
+        if not legacy and (not asset_config.okx_chain_index or not asset_config.token_address):
+            raise PanelIdentityError(
+                "canonical panel deployment is unverified; pin OKX_NVDAX_CHAIN_INDEX "
+                "and OKX_NVDAX_TOKEN_ADDRESS for offline verification"
+            )
         if legacy and asset_config.asset != "NVDAx":
             raise PanelIdentityError("legacy NVDA panel cannot be loaded for another asset")
         if not legacy and not {
@@ -222,6 +260,12 @@ def load_panel_snapshots(
                         "panel": path.name,
                         "token": asset_config.token_source if token is not None else "",
                         "reference_under_test": reference_source,
+                        "panel_schema": schema,
+                        "token_deployment_verified": str(not legacy).lower(),
+                        "token_deployment": (
+                            f"{row.get('token_chain_index', '')}:"
+                            f"{row.get('token_address', '')}"
+                        ) if not legacy else "unverified_legacy_nvda",
                     },
                 )
             )

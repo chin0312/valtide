@@ -77,3 +77,23 @@ def test_scenario_backtest_does_not_claim_ground_truth_metrics(monkeypatch):
     assert body["window_end"] == "2026-09-19T14:00:00Z"
     assert body["model_id"] == "P1a-C"
     assert body["model_version"] == "0.2.0"
+
+
+def test_legacy_panel_backtest_is_explicitly_diagnostic(monkeypatch):
+    snapshot = _snapshot(datetime(2026, 9, 19, 14, 0, tzinfo=UTC), 180.0)
+    monkeypatch.setattr(
+        backtest_route,
+        "resolve_snapshots",
+        lambda **_: ([snapshot], "legacy_nvda_panel_diagnostic"),
+    )
+
+    response = TestClient(app).get("/api/backtest/NVDAx?source=historical")
+
+    assert response.status_code == 200
+    body = response.json()
+    assert body["source"] == "legacy_panel_diagnostic"
+    assert body["n_observations"] == 1
+    assert body["n_evaluable"] == 0
+    assert body["mae"] is None
+    assert body["rmse"] is None
+    assert "provenance is unverified" in body["note"]
