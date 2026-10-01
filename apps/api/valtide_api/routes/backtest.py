@@ -56,10 +56,12 @@ def get_backtest(
     for r in results:
         counts[r.evidence_state.value] += 1
 
+    legacy_diagnostic = source_label == "legacy_nvda_panel_diagnostic"
     evaluable = [
         (snapshot, result)
         for snapshot, result in zip(snapshots, results, strict=True)
-        if source_label == "historical_panel" and snapshot.underlying_reference is not None
+        if source_label == "historical_panel"
+        and snapshot.underlying_reference is not None
     ]
     errors = [
         result.valtide_fair_value - snapshot.underlying_reference
@@ -85,6 +87,12 @@ def get_backtest(
             "the scenario has no empirical ground truth."
         )
         output_source = "scenario"
+    elif legacy_diagnostic:
+        note = (
+            "Legacy NVDA panel deployment provenance is unverified; this replay is "
+            "diagnostic only and is excluded from empirical backtest metrics."
+        )
+        output_source = "legacy_panel_diagnostic"
     else:
         note = (
             "Metrics use only rows with a contemporaneous trusted underlying observation; "
