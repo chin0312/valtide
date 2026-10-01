@@ -29,7 +29,7 @@ def post_publish(asset: str) -> dict:
         raise HTTPException(status_code=409, detail="no validation result to publish yet")
 
     try:
-        receipt = publisher.publish(result, settings=get_settings())
+        receipt = publisher.publish(result, settings=get_settings(), asset=asset)
     except publisher.PublisherNotConfigured as exc:
         raise HTTPException(status_code=503, detail=str(exc)) from exc
     except publisher.PublishabilityError as exc:

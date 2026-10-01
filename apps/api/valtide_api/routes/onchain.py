@@ -15,7 +15,7 @@ def get_onchain(asset: str) -> dict:
     if asset not in SUPPORTED_ASSETS:
         raise HTTPException(status_code=404, detail=f"asset '{asset}' not supported")
     try:
-        return publisher.read_control_plane()
+        return publisher.read_control_plane(asset=asset)
     except publisher.PublisherNotConfigured as exc:
         raise HTTPException(status_code=503, detail=str(exc)) from exc
     except publisher.ChainPreflightError as exc:
@@ -27,7 +27,7 @@ def get_onchain_enforcement(asset: str) -> dict:
     if asset not in SUPPORTED_ASSETS:
         raise HTTPException(status_code=404, detail=f"asset '{asset}' not supported")
     try:
-        return publisher.check_demo_vault_enforcement()
+        return publisher.check_demo_vault_enforcement(asset=asset)
     except publisher.PublisherNotConfigured as exc:
         raise HTTPException(status_code=503, detail=str(exc)) from exc
     except publisher.ChainPreflightError as exc:

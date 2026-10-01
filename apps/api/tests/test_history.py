@@ -44,7 +44,8 @@ def _snapshot(timestamp: datetime) -> MarketSnapshot:
 def _builder(snapshots):
     by_ts = {snapshot.observation_ts: snapshot for snapshot in snapshots}
 
-    def build(*, observation_ts):
+    def build(*, asset, observation_ts):
+        assert asset == "NVDAx"
         return by_ts[observation_ts]
 
     return build
@@ -70,7 +71,8 @@ def test_failed_tick_does_not_append_history(tmp_path):
     timestamp = _ANCHOR + timedelta(minutes=5)
     store = RuntimeStore(tmp_path / "runtime.sqlite3")
 
-    def failing_builder(*, observation_ts):  # noqa: ARG001
+    def failing_builder(*, asset, observation_ts):  # noqa: ARG001
+        assert asset == "NVDAx"
         raise RuntimeError("synthetic source outage")
 
     failed = run_live_tick("NVDAx", timestamp, store=store, snapshot_builder=failing_builder)

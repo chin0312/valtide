@@ -46,7 +46,11 @@ async def lifespan(app: FastAPI):
             "the next tick must repair the state explicitly"
         )
 
-    scheduler = LiveScheduler(store=runtime_store) if settings.live_scheduler_enabled else None
+    scheduler = (
+        LiveScheduler(asset=settings.live_scheduler_asset, store=runtime_store)
+        if settings.live_scheduler_enabled
+        else None
+    )
     if scheduler is not None:
         await scheduler.start()
         logger.info("Live scheduler enabled for asset=%s", settings.live_scheduler_asset)

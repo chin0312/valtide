@@ -19,7 +19,32 @@ from valtide_quant_service import (
     MarketSnapshot as QuantMarketSnapshot,
 )
 
+from valtide_api.assets import AssetConfig, AssetConfigurationError, resolve_asset_config
 from valtide_api.models import ChallengerEstimate, MarketSnapshot
+
+
+def get_quant_service(
+    asset: str | AssetConfig,
+    *,
+    state: FilterState | None = None,
+) -> QuantService:
+    """Resolve the explicitly registered quant artifact for ``asset``.
+
+    The dispatch seam is intentionally narrow.  NVDAx is the only registered
+    production asset and continues to use the packaged P1a-C default artifacts;
+    an unsupported asset cannot accidentally load those artifacts.
+    """
+
+    config = asset if isinstance(asset, AssetConfig) else resolve_asset_config(asset)
+    if (
+        not config.production_enabled
+        or config.quant_model_id != "P1a-C"
+        or config.quant_model_version != "0.2.0"
+    ):
+        raise AssetConfigurationError(
+            f"no compatible quant runtime is registered for asset '{config.asset}'"
+        )
+    return QuantService.from_default_artifacts(state=state)
 
 
 def estimate(
@@ -43,9 +68,10 @@ def estimate(
         if prior_m is not None and prior_P is not None
         else None
     )
-    service = QuantService.from_default_artifacts(state=state)
+    asset_config = resolve_asset_config(snapshot.asset)
+    service = get_quant_service(asset_config, state=state)
     quant_snapshot = QuantMarketSnapshot(
-        asset=snapshot.asset,
+        asset=asset_config.asset,
         timestamp=snapshot.observation_ts,
         quant_session=snapshot.market_state.value,
         token_price=snapshot.token_price,
@@ -75,4 +101,4 @@ def estimate(
     )
 
 
-__all__ = ["StateGapError", "estimate"]
+__all__ = ["StateGapError", "estimate", "get_quant_service"]

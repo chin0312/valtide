@@ -27,6 +27,11 @@ from datetime import UTC, datetime
 import httpx
 
 from valtide_api.adapters import equity, okx, reference
+from valtide_api.assets import (
+    AssetConfigurationError,
+    UnsupportedAssetError,
+    resolve_asset_config,
+)
 from valtide_api.clock import FIVE_MINUTES, canonical_5m_boundary, require_canonical_5m
 from valtide_api.config import get_settings
 from valtide_api.models import MarketSnapshot, MarketState, ValuationResult
@@ -45,9 +50,15 @@ class ExactNvdaxCandleUnavailable(LiveDataUnavailable):
 def build_live_snapshot(
     client: httpx.Client | None = None,
     observation_ts: datetime | None = None,
+    *,
+    asset: str = "NVDAx",
 ) -> MarketSnapshot:
     """Assemble a MarketSnapshot from the live sources. Raises if a required one fails."""
     settings = get_settings()
+    try:
+        asset_config = resolve_asset_config(asset, settings)
+    except (AssetConfigurationError, UnsupportedAssetError) as exc:
+        raise LiveDataUnavailable(str(exc)) from exc
     # Value the most recently settled bar. The current forming bar has no
     # confirmed reference candle yet, so valuing it would always drop the
     # comparator; one boundary back is settled and its candle is confirmed.
@@ -74,13 +85,19 @@ def build_live_snapshot(
         # Alpaca's `end` bound can include the boundary itself. Cap the query at
         # the valued bar so the next canonical boundary can never enter the
         # underlying measurement set.
-        bars = equity.get_trusted_bars("NVDA", client=client, now=now)
+        bars = equity.get_trusted_bars(
+            asset_config.underlying_symbol,
+            client=client,
+            now=now,
+        )
     except (httpx.HTTPError, KeyError, TypeError, ValueError, RuntimeError) as exc:
         raise LiveDataUnavailable(
-            "NVDA underlying unavailable (Alpaca — check key/feed)."
+            f"{asset_config.underlying_symbol} underlying unavailable (Alpaca — check key/feed)."
         ) from exc
     if not bars:
-        raise LiveDataUnavailable("NVDA underlying unavailable (Alpaca — check key/feed).")
+        raise LiveDataUnavailable(
+            f"{asset_config.underlying_symbol} underlying unavailable (Alpaca — check key/feed)."
+        )
 
     # The latest bar at or before the valued bar's close is the current-bucket
     # underlying measurement (NVDA@T). The trusted anchor must be strictly before
@@ -117,7 +134,11 @@ def build_live_snapshot(
     # valued bar (ts == now, age 0), identical to the historical panel join. When
     # it is not yet confirmed or unreachable, keep the reference identity and let
     # validation mark COMPARATOR_UNAVAILABLE rather than substituting NVDA.
-    ref = reference.get_confirmed_index_bar(now, settings.okx_xperp_index_id, client=client)
+    ref = reference.get_confirmed_index_bar(
+        now,
+        asset_config.reference_under_test_instrument,
+        client=client,
+    )
     if ref is not None:
         pt, pt_source, pt_ts = ref.price, ref.source, ref.ts
         reference_age = int((now - ref.ts).total_seconds())
@@ -128,12 +149,12 @@ def build_live_snapshot(
     # (TOKEN_UNIT_SUSPECT), not fatally here; an economic depeg must reach the
     # Evidence State, not raise a 503.
     return MarketSnapshot(
-        asset="NVDAx",
+        asset=asset_config.asset,
         observation_ts=now,
         token_price=token_candle.close,
         token_volume=token_candle.volume,
         token_volume_usd=token_candle.volume_usd,
-        token_source="okx_onchainos",
+        token_source=asset_config.token_source,
         token_observed_at=token_candle.ts,
         token_liquidity_usd=None,
         underlying_reference=underlying_current,
@@ -160,6 +181,8 @@ def build_live_snapshot(
 def run_live_valuation(
     client: httpx.Client | None = None,
     observation_ts: datetime | None = None,
+    *,
+    asset: str = "NVDAx",
 ) -> ValuationResult:
     """Build a live snapshot and run one cold-start inference.
 
@@ -168,6 +191,10 @@ def run_live_valuation(
     on-demand diagnostic, not an equivalent to a warmed sequential production
     state. It does not mutate the cache.
     """
-    snapshot = build_live_snapshot(observation_ts=observation_ts, client=client)
+    snapshot = build_live_snapshot(
+        observation_ts=observation_ts,
+        client=client,
+        asset=asset,
+    )
     result, _ = run_inference(snapshot, None)
     return result
