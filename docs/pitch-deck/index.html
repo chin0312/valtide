@@ -1248,173 +1248,123 @@
      - canvas-card 内首位插入 <canvas class="ascii-bg" aria-hidden="true">,本文件底部 IIFE 自动启动
      - 主标题反白 weight 200,强调字用斜体而非 var(--accent)(底已是蓝,蓝压蓝看不见)
      - 不要再放编号大字"01"——chrome-min 已经标 01/NN -->
-<section class="slide accent" data-animate="hero" data-slide-id="cover" data-layout="SWISS-COVER-ASCII">
+<!-- ============ 1 · Cover ============ -->
+<section class="slide" data-animate="hero" data-slide-id="cover" data-layout="S09">
   <div class="canvas-card">
-    <canvas class="ascii-bg" aria-hidden="true"></canvas>
-    <div class="chrome-min">
-      <div class="l">VALTIDE · OKX DEV DAY</div>
-      <div class="r">01 / 06</div>
+    <div class="chrome-min"><div class="l">VALTIDE</div><div class="r">OKX DEV DAY · 2026</div></div>
+    <div style="flex:1;display:flex;flex-direction:column;justify-content:center;gap:3.6vh">
+      <div data-anim="kicker" class="t-cat" style="color:var(--accent);font-size:max(15px,1.05vw);letter-spacing:.12em">ON-CHAIN PRICE VALIDATION FOR TOKENIZED STOCKS</div>
+      <h1 data-anim="title" style="font-family:var(--sans);font-weight:250;font-size:min(7.4vw,12.5vh);line-height:1.0;letter-spacing:-.03em;color:var(--ink);max-width:15ch">The brakes for tokenized-stock lending.</h1>
+      <p data-anim="lead" style="font-family:var(--sans);font-weight:400;font-size:max(20px,1.6vw);line-height:1.5;color:var(--text-secondary);max-width:52ch">Tokenized stocks trade all day, every day. The real stock does not. We stop lending protocols from trading on a price that has gone stale.</p>
     </div>
+    <div class="t-meta" style="color:var(--text-helper);border-top:1px solid var(--border-subtle);padding-top:2vh">Live on X Layer testnet · NVDAx</div>
+  </div>
+</section>
 
-    <!-- 主体:padding 必须为 0,不要再叠 5vw,否则左右对不齐 chrome-min -->
-    <div style="flex:1;padding:0;display:grid;grid-template-rows:auto 1fr auto;gap:2.6vh">
-      <div data-anim="kicker" class="t-meta" style="color:rgba(255,255,255,.78);letter-spacing:.22em">ON-CHAIN PRICE VALIDATION · LIVE ON X LAYER</div>
-
-      <h1 data-anim="title" style="align-self:center;font-family:var(--sans),var(--sans-zh);font-weight:200;font-size:min(9.4vw,16vh);line-height:.96;letter-spacing:-.025em;color:#fff">The brakes for<br/><span style="font-style:italic;font-weight:300">tokenized-stock</span> lending.</h1>
-
-      <div data-anim="bottom" style="display:grid;grid-template-rows:auto auto;gap:1.6vh;border-top:1px solid rgba(255,255,255,.22);padding-top:2vh">
-        <div data-anim="lead" class="lead" style="max-width:56ch;color:rgba(255,255,255,.86)">Tokenized stocks trade 24/7. The real stock closes nights and weekends. When the price drifts, Valtide stops the lending protocol from trading on it.</div>
-        <div style="display:flex;justify-content:space-between;align-items:end">
-          <div class="t-meta" style="color:rgba(255,255,255,.6)">VALTIDE · 2026-10</div>
-          <div class="t-meta" style="color:rgba(255,255,255,.6)">→ swipe / arrow keys</div>
-        </div>
-      </div>
+<!-- ============ 2 · The problem ============ -->
+<section class="slide" data-animate="statement" data-slide-id="gap" data-layout="S03">
+  <div class="canvas-card">
+    <div class="chrome-min"><div class="l">THE PROBLEM</div><div class="r">02 / 06</div></div>
+    <div style="flex:1;display:flex;flex-direction:column;justify-content:center;gap:3.4vh">
+      <h2 data-anim="title" style="font-family:var(--sans);font-weight:250;font-size:min(5.6vw,9.4vh);line-height:1.06;letter-spacing:-.025em;color:var(--ink);max-width:19ch">A token that never stops trading, priced on a stock that closes every night.</h2>
+      <p data-anim="lead" style="font-family:var(--sans);font-weight:400;font-size:max(20px,1.5vw);line-height:1.55;color:var(--text-secondary);max-width:60ch">Nights and weekends, the real stock market is shut. The token keeps trading on thin volume, so its price drifts from the real company. Lending apps keep lending and liquidating against that stale price — and nobody is checking whether it can still be trusted.</p>
     </div>
   </div>
 </section>
 
-<!-- ============ 第 2 页 · The gap · dark statement ============ -->
-<section class="slide dark" data-animate="statement" data-slide-id="gap" data-layout="S09">
-  <div class="canvas-card">
-    <div class="chrome-min"><div class="l">THE GAP</div><div class="r">02 / 06</div></div>
-    <div style="flex:1;display:flex;flex-direction:column;justify-content:center;gap:3vh">
-      <div data-anim="kicker" class="t-cat" style="color:var(--accent)">The problem</div>
-      <h2 data-anim="title" class="h-xl" style="max-width:22ch">A 24/7 token, priced against a market that's closed half the week.</h2>
-      <p data-anim="lead" class="lead" style="max-width:62ch;color:rgba(255,255,255,.72)">While the real stock is closed, the on-chain price runs on thin pools and a stale reference. Lending protocols keep lending and liquidating against it. Every new collateral type works — until the first time it doesn't.</p>
-    </div>
-  </div>
-</section>
-
-<!-- ============ 第 3 页 · The gate · four cards ============ -->
+<!-- ============ 3 · What we do ============ -->
 <section class="slide" data-animate="grid-reveal" data-slide-id="gate" data-layout="S19">
   <div class="canvas-card">
-    <div class="chrome-min"><div class="l">HOW IT WORKS</div><div class="r">03 / 06</div></div>
-    <div style="height:3px;width:80px;background:var(--accent);margin:1vh 0 2.4vh"></div>
-    <h2 class="h-md" style="margin-bottom:4vh;max-width:26ch">From price to on-chain decision, in four steps.</h2>
+    <div class="chrome-min"><div class="l">WHAT WE DO</div><div class="r">03 / 06</div></div>
+    <div style="height:4px;width:96px;background:var(--accent);margin:1.4vh 0 2.8vh"></div>
+    <h2 style="font-family:var(--sans);font-weight:300;font-size:min(3.8vw,6.4vh);line-height:1.1;letter-spacing:-.02em;color:var(--ink);max-width:26ch;margin-bottom:5vh">We check the price a lending app relies on, and stop it when that price can't be trusted.</h2>
     <div class="grid-12" style="gap:1.2vw">
-      <div class="card-fill span-3" data-anim="card" style="padding:2.6vh 1.5vw;display:flex;flex-direction:column;gap:1.2vh">
-        <div class="t-meta">— 01 / OBSERVE</div>
-        <div style="font-family:var(--sans);font-weight:400;font-size:max(19px,1.5vw);letter-spacing:-.01em">Price drifts</div>
-        <p style="font-size:max(15px,.88vw);line-height:1.5;color:var(--text-secondary)">The token moves away from the real stock on thin, off-hours liquidity.</p>
+      <div class="card-fill span-3" data-anim="card" style="padding:3vh 1.6vw;display:flex;flex-direction:column;gap:1.4vh">
+        <div class="t-meta" style="color:var(--accent);font-size:max(14px,.9vw)">STEP 1</div>
+        <div style="font-family:var(--sans);font-weight:500;font-size:max(21px,1.8vw);letter-spacing:-.01em;color:var(--ink)">Watch</div>
+        <p style="font-size:max(16px,1vw);line-height:1.5;color:var(--text-secondary)">We track the token's price against the real stock, minute by minute.</p>
       </div>
-      <div class="card-fill span-3" data-anim="card" style="padding:2.6vh 1.5vw;display:flex;flex-direction:column;gap:1.2vh">
-        <div class="t-meta">— 02 / ESTIMATE</div>
-        <div style="font-family:var(--sans);font-weight:400;font-size:max(19px,1.5vw);letter-spacing:-.01em">Fair value + range</div>
-        <p style="font-size:max(15px,.88vw);line-height:1.5;color:var(--text-secondary)">An independent model estimates value with a calibrated range, not one number.</p>
+      <div class="card-fill span-3" data-anim="card" style="padding:3vh 1.6vw;display:flex;flex-direction:column;gap:1.4vh">
+        <div class="t-meta" style="color:var(--accent);font-size:max(14px,.9vw)">STEP 2</div>
+        <div style="font-family:var(--sans);font-weight:500;font-size:max(21px,1.8vw);letter-spacing:-.01em;color:var(--ink)">Judge</div>
+        <p style="font-size:max(16px,1vw);line-height:1.5;color:var(--text-secondary)">We estimate a fair price, and the range it should stay within.</p>
       </div>
-      <div class="card-fill span-3" data-anim="card" style="padding:2.6vh 1.5vw;display:flex;flex-direction:column;gap:1.2vh">
-        <div class="t-meta">— 03 / VALIDATE</div>
-        <div style="font-family:var(--sans);font-weight:400;font-size:max(19px,1.5vw);letter-spacing:-.01em">A clear verdict</div>
-        <p style="font-size:max(15px,.88vw);line-height:1.5;color:var(--text-secondary)">SUPPORTED, INCONCLUSIVE, or CHALLENGED — each with reasons you can replay.</p>
+      <div class="card-fill span-3" data-anim="card" style="padding:3vh 1.6vw;display:flex;flex-direction:column;gap:1.4vh">
+        <div class="t-meta" style="color:var(--accent);font-size:max(14px,.9vw)">STEP 3</div>
+        <div style="font-family:var(--sans);font-weight:500;font-size:max(21px,1.8vw);letter-spacing:-.01em;color:var(--ink)">Flag</div>
+        <p style="font-size:max(16px,1vw);line-height:1.5;color:var(--text-secondary)">If the price breaks out of that range, we mark it CHALLENGED.</p>
       </div>
-      <div class="card-accent span-3" data-anim="card" style="padding:2.6vh 1.5vw;display:flex;flex-direction:column;gap:1.2vh">
-        <div class="t-meta">— 04 / ENFORCE</div>
-        <div style="font-family:var(--sans);font-weight:400;font-size:max(19px,1.5vw);letter-spacing:-.01em">On-chain stop</div>
-        <p style="font-size:max(15px,.88vw);line-height:1.5;color:var(--accent-on);opacity:.9">A vault reads the verdict and blocks new borrowing on a challenged price.</p>
+      <div class="card-accent span-3" data-anim="card" style="padding:3vh 1.6vw;display:flex;flex-direction:column;gap:1.4vh">
+        <div class="t-meta" style="color:var(--accent-on);font-size:max(14px,.9vw);opacity:.8">STEP 4</div>
+        <div style="font-family:var(--sans);font-weight:500;font-size:max(21px,1.8vw);letter-spacing:-.01em;color:var(--accent-on)">Stop</div>
+        <p style="font-size:max(16px,1vw);line-height:1.5;color:var(--accent-on);opacity:.92">The lending app reads that on-chain and blocks new borrowing.</p>
       </div>
     </div>
   </div>
 </section>
 
-<!-- ============ 第 4 页 · Proof · KPI row (dark) ============ -->
-<section class="slide dark" data-animate="measure-up" data-slide-id="proof" data-layout="S06">
+<!-- ============ 4 · The evidence ============ -->
+<section class="slide" data-animate="measure-up" data-slide-id="proof" data-layout="S06">
   <div class="canvas-card">
-    <div class="chrome-min"><div class="l">PROOF</div><div class="r">04 / 06</div></div>
-    <div data-anim="kicker" class="t-cat" style="color:var(--accent);margin-bottom:1.4vh">Calibrated, not guessed</div>
-    <h2 class="h-md" style="margin-bottom:5vh;max-width:30ch">Honest uncertainty on held-out NVDA data — and live on-chain.</h2>
-    <div class="kpi-row-4">
-      <div class="kpi-cell" data-anim="kpi"><div class="lbl">Interval coverage</div><div class="nb">94.3<span class="unit">%</span></div><div class="note">90% target range, 11,828 held-out points.</div></div>
-      <div class="kpi-cell" data-anim="kpi"><div class="lbl">Interval width</div><div class="nb">37<span class="unit">bps</span></div><div class="note">Useful, not vague.</div></div>
-      <div class="kpi-cell" data-anim="kpi"><div class="lbl">Fair-value error</div><div class="nb">6.75<span class="unit">bps</span></div><div class="note">Mean absolute error vs the real stock.</div></div>
-      <div class="kpi-cell" data-anim="kpi"><div class="lbl">On X Layer</div><div class="nb">3</div><div class="note">Registry, RiskGuard, vault — deployed.</div></div>
+    <div class="chrome-min"><div class="l">THE EVIDENCE</div><div class="r">04 / 06</div></div>
+    <h2 style="font-family:var(--sans);font-weight:300;font-size:min(3.8vw,6.4vh);line-height:1.1;letter-spacing:-.02em;color:var(--ink);max-width:24ch;margin-bottom:5.5vh">It works — and we measured it on real market data.</h2>
+    <div class="grid-12" style="gap:2.4vw;align-items:start">
+      <div class="span-4" data-anim="kpi">
+        <div style="font-family:var(--sans);font-weight:250;font-size:min(7.4vw,13vh);line-height:.85;letter-spacing:-.03em;color:var(--accent)">94%</div>
+        <div style="font-weight:600;font-size:max(18px,1.2vw);margin-top:2vh;color:var(--ink)">Our confidence ranges are honest</div>
+        <p style="font-size:max(16px,1.02vw);line-height:1.5;color:var(--text-secondary);margin-top:1vh">When we gave a &ldquo;90% confident&rdquo; price range, the real price landed inside it 94% of the time. Tested on 11,828 real NVDA data points.</p>
+      </div>
+      <div class="span-4" data-anim="kpi">
+        <div style="font-family:var(--sans);font-weight:250;font-size:min(7.4vw,13vh);line-height:.85;letter-spacing:-.03em;color:var(--accent)">0.37%</div>
+        <div style="font-weight:600;font-size:max(18px,1.2vw);margin-top:2vh;color:var(--ink)">And the range stays tight</div>
+        <p style="font-size:max(16px,1.02vw);line-height:1.5;color:var(--text-secondary);margin-top:1vh">That price range is only about a third of a percent wide, so it is precise enough to act on &mdash; not a vague guess.</p>
+      </div>
+      <div class="span-4" data-anim="kpi">
+        <div style="font-family:var(--sans);font-weight:250;font-size:min(7.4vw,13vh);line-height:.85;letter-spacing:-.03em;color:var(--accent)">Live</div>
+        <div style="font-weight:600;font-size:max(18px,1.2vw);margin-top:2vh;color:var(--ink)">Already running on X Layer</div>
+        <p style="font-size:max(16px,1.02vw);line-height:1.5;color:var(--text-secondary);margin-top:1vh">Three smart contracts deployed on X Layer testnet: the price registry, the policy guard, and a demo lending vault.</p>
+      </div>
     </div>
   </div>
 </section>
 
-<!-- ============ 第 5 页 · Why us, why now · three cards ============ -->
+<!-- ============ 5 · The opportunity ============ -->
 <section class="slide" data-animate="grid-reveal" data-slide-id="why" data-layout="S13">
   <div class="canvas-card">
-    <div class="chrome-min"><div class="l">WHY US, WHY NOW</div><div class="r">05 / 06</div></div>
-    <h2 class="h-md" style="margin:1vh 0 4vh;max-width:30ch">A neutral layer the market needs — and it compounds as the market grows.</h2>
+    <div class="chrome-min"><div class="l">THE OPPORTUNITY</div><div class="r">05 / 06</div></div>
+    <h2 style="font-family:var(--sans);font-weight:300;font-size:min(3.8vw,6.4vh);line-height:1.1;letter-spacing:-.02em;color:var(--ink);max-width:24ch;margin:1vh 0 4.5vh">Why this is a business, and why now.</h2>
     <div class="grid-12" style="gap:1.2vw">
-      <div class="card-fill span-4" data-anim="card" style="padding:3vh 1.8vw;display:flex;flex-direction:column;gap:1.4vh">
-        <div class="t-cat">The market</div>
-        <div style="font-family:var(--sans);font-weight:400;font-size:max(20px,1.7vw);letter-spacing:-.01em">24/7 tokenized stocks on X Layer</div>
-        <p style="font-size:max(15px,.9vw);line-height:1.55;color:var(--text-secondary)">OKX, Aumo, and Agama already hold this exposure. They carry this risk today.</p>
+      <div class="card-fill span-4" data-anim="card" style="padding:3.4vh 1.9vw;display:flex;flex-direction:column;gap:1.6vh">
+        <div class="t-cat" style="color:var(--accent);font-size:max(14px,.92vw)">THE MARKET</div>
+        <div style="font-family:var(--sans);font-weight:500;font-size:max(21px,1.8vw);letter-spacing:-.01em;color:var(--ink)">New, and nobody covers it</div>
+        <p style="font-size:max(16px,1vw);line-height:1.55;color:var(--text-secondary)">Tokenized stocks just went 24/7 on X Layer. Every protocol holding them as collateral carries this risk, and nothing independent checks it today.</p>
       </div>
-      <div class="card-fill span-4" data-anim="card" style="padding:3vh 1.8vw;display:flex;flex-direction:column;gap:1.4vh">
-        <div class="t-cat">The business</div>
-        <div style="font-family:var(--sans);font-weight:400;font-size:max(20px,1.7vw);letter-spacing:-.01em">Per-protocol subscription</div>
-        <p style="font-size:max(15px,.9vw);line-height:1.55;color:var(--text-secondary)">Vaults and treasury products pay for validated, enforced price states.</p>
+      <div class="card-fill span-4" data-anim="card" style="padding:3.4vh 1.9vw;display:flex;flex-direction:column;gap:1.6vh">
+        <div class="t-cat" style="color:var(--accent);font-size:max(14px,.92vw)">HOW WE EARN</div>
+        <div style="font-family:var(--sans);font-weight:500;font-size:max(21px,1.8vw);letter-spacing:-.01em;color:var(--ink)">A subscription per protocol</div>
+        <p style="font-size:max(16px,1vw);line-height:1.55;color:var(--text-secondary)">A flat monthly fee for each protocol we protect. Our first customers are the lending and yield products already live on X Layer, like Aumo and Agama.</p>
       </div>
-      <div class="card-accent span-4" data-anim="card" style="padding:3vh 1.8vw;display:flex;flex-direction:column;gap:1.4vh">
-        <div class="t-cat">The moat</div>
-        <div style="font-family:var(--sans);font-weight:400;font-size:max(20px,1.7vw);letter-spacing:-.01em">Every protocol sharpens us</div>
-        <p style="font-size:max(15px,.9vw);line-height:1.55;color:var(--accent-on);opacity:.92">More coverage means more real divergences, better calibration, harder to copy.</p>
+      <div class="card-accent span-4" data-anim="card" style="padding:3.4vh 1.9vw;display:flex;flex-direction:column;gap:1.6vh">
+        <div class="t-cat" style="color:var(--accent-on);font-size:max(14px,.92vw);opacity:.85">OUR EDGE</div>
+        <div style="font-family:var(--sans);font-weight:500;font-size:max(21px,1.8vw);letter-spacing:-.01em;color:var(--accent-on)">Neutral, and it compounds</div>
+        <p style="font-size:max(16px,1vw);line-height:1.55;color:var(--accent-on);opacity:.92">A protocol can't grade its own price, so they need someone neutral. And every protocol we add gives us more data, which makes us harder to copy.</p>
       </div>
     </div>
   </div>
 </section>
 
-<!-- ============ 示例:最后一页 · Closing Manifesto · 左 IKB+ASCII / 右白底 takeaway ============
-     与封面 IKB 首尾呼应,但收束更克制:左半保留 ASCII 呼吸场承载宣言,右半白底列 3 条 takeaway.
-     第 03 条用 var(--accent) IKB 蓝强调("单一锚点"原则),首尾形成"色彩闭环". -->
-<section class="slide split" data-animate="split-statement" data-slide-id="closing" data-layout="SWISS-CLOSING-ASCII">
+<!-- ============ 6 · Close ============ -->
+<section class="slide" data-animate="statement" data-slide-id="closing" data-layout="S10">
   <div class="canvas-card">
-    <div class="split-half">
-      <!-- 左半 · IKB 宣言 + ASCII 呼吸场 -->
-      <div class="half b-accent" style="padding:5.6vh 3.6vw 4.4vh;justify-content:space-between;position:relative;overflow:hidden">
-        <canvas class="ascii-bg" aria-hidden="true"></canvas>
-        <div class="chrome-min" style="margin-bottom:0;position:relative;z-index:1">
-          <div class="l">06 / 06</div>
-          <div class="r">CLOSING</div>
-        </div>
-
-        <div data-anim="manifesto" style="display:flex;flex-direction:column;gap:2vh;position:relative;z-index:1">
-          <div class="t-meta" style="color:rgba(255,255,255,.78);letter-spacing:.22em;margin-bottom:1.6vh">THE TAKEAWAY</div>
-          <h2 style="font-family:var(--sans),var(--sans-zh);font-size:min(7vw,12vh);line-height:.96;letter-spacing:-.025em;font-weight:200;color:#fff">The brakes<br/>aren't built <span style="font-style:italic;font-weight:300">yet</span>.</h2>
-          <div style="font-family:var(--sans),var(--sans-zh);font-size:max(15px,1vw);line-height:1.6;color:rgba(255,255,255,.82);font-weight:400;max-width:38ch;margin-top:1.4vh">Tokenized assets are moving on-chain fast. We built the safety layer, and it's live on X Layer.</div>
-        </div>
-
-        <div data-anim="signature" style="display:flex;justify-content:space-between;align-items:end;border-top:1px solid rgba(255,255,255,.22);padding-top:2vh;position:relative;z-index:1">
-          <div class="t-meta" style="color:rgba(255,255,255,.62)">VALTIDE · X LAYER</div>
-          <div class="t-meta" style="color:rgba(255,255,255,.62)">2026.10.07</div>
-        </div>
-      </div>
-
-      <!-- 右半 · 三条 takeaway · 白底承载理性收束 -->
-      <div class="half" style="padding:5.6vh 3.6vw 4.4vh;justify-content:space-between">
-        <div class="chrome-min">
-          <div class="l">TAKEAWAYS</div>
-          <div class="r">03 RULES</div>
-        </div>
-
-        <div data-anim="rules" style="display:flex;flex-direction:column;gap:0">
-          <div style="display:grid;grid-template-columns:auto 1fr;gap:2vw;align-items:start;padding:2.6vh 0;border-top:1px solid var(--border-subtle)">
-            <div style="font-family:var(--sans);font-weight:200;font-size:min(4.4vw,7.8vh);line-height:.9;color:var(--text-primary)">01</div>
-            <div>
-              <h3 style="font-family:var(--sans),var(--sans-zh);font-weight:400;font-size:max(18px,1.8vw);line-height:1.2;letter-spacing:-.015em;color:var(--text-primary);margin-bottom:1vh">We stop bad trades, on-chain</h3>
-              <p style="font-family:var(--sans),var(--sans-zh);font-size:max(16px,.94vw);line-height:1.6;color:var(--text-secondary);font-weight:400">Not another price feed — a neutral gate that refuses to vouch for a drifting price.</p>
-            </div>
-          </div>
-          <div style="display:grid;grid-template-columns:auto 1fr;gap:2vw;align-items:start;padding:2.6vh 0;border-top:1px solid var(--border-subtle)">
-            <div style="font-family:var(--sans);font-weight:200;font-size:min(4.4vw,7.8vh);line-height:.9;color:var(--text-primary)">02</div>
-            <div>
-              <h3 style="font-family:var(--sans),var(--sans-zh);font-weight:400;font-size:max(18px,1.8vw);line-height:1.2;letter-spacing:-.015em;color:var(--text-primary);margin-bottom:1vh">Already live on X Layer</h3>
-              <p style="font-family:var(--sans),var(--sans-zh);font-size:max(16px,.94vw);line-height:1.6;color:var(--text-secondary);font-weight:400">Deployed contracts, calibrated model, a working demo you can replay.</p>
-            </div>
-          </div>
-          <div style="display:grid;grid-template-columns:auto 1fr;gap:2vw;align-items:start;padding:2.6vh 0;border-top:1px solid var(--border-subtle);border-bottom:2px solid var(--accent)">
-            <div style="font-family:var(--sans);font-weight:200;font-size:min(4.4vw,7.8vh);line-height:.9;color:var(--accent)">03</div>
-            <div>
-              <h3 style="font-family:var(--sans),var(--sans-zh);font-weight:400;font-size:max(18px,1.8vw);line-height:1.2;letter-spacing:-.015em;color:var(--accent);margin-bottom:1vh">The safety layer for every on-chain RWA</h3>
-              <p style="font-family:var(--sans),var(--sans-zh);font-size:max(16px,.94vw);line-height:1.6;color:var(--text-secondary);font-weight:400">Stocks first, then bonds and commodities — all on X Layer.</p>
-            </div>
-          </div>
-        </div>
-
-        <div data-anim="foot" class="t-meta" style="color:var(--text-helper);text-align:right">→ 完 · END OF FIELD NOTE</div>
-      </div>
+    <div class="chrome-min"><div class="l">06 / 06</div><div class="r">VALTIDE</div></div>
+    <div style="flex:1;display:flex;flex-direction:column;justify-content:center;gap:3.4vh">
+      <h2 data-anim="title" style="font-family:var(--sans);font-weight:250;font-size:min(6vw,10vh);line-height:1.04;letter-spacing:-.025em;color:var(--ink);max-width:18ch">The market went 24/7. The safety layer didn't.</h2>
+      <p data-anim="lead" style="font-family:var(--sans);font-weight:400;font-size:max(20px,1.5vw);line-height:1.5;color:var(--text-secondary);max-width:52ch">We built it. It's live on X Layer, and we're starting with the protocols that need it most.</p>
+    </div>
+    <div data-anim="foot" style="display:flex;gap:3vw;border-top:1px solid var(--border-subtle);padding-top:2.4vh">
+      <span class="t-cat" style="color:var(--accent);font-size:max(15px,1.05vw)">Independent</span>
+      <span class="t-cat" style="color:var(--accent);font-size:max(15px,1.05vw)">Enforced on-chain</span>
+      <span class="t-cat" style="color:var(--accent);font-size:max(15px,1.05vw)">Fully auditable</span>
     </div>
   </div>
 </section>
@@ -1445,10 +1395,10 @@ const SPEAKER_NOTES = [
     transition: 'From the live demo to the evidence behind it', cue: 'Run the demo now; fall back to the recording if network fails'
   },
   {
-    id: 'proof', title: 'Proof', section: 'Evidence', minutes: 0.4,
-    purpose: 'Back the claim with real numbers',
-    talk: ['90% range covered 94.3% on held-out NVDA data', 'Tight interval (~37 bps), low fair-value error', 'Three contracts deployed on X Layer testnet'],
-    transition: 'Why this is a company, not a feature'
+    id: 'proof', title: 'The evidence', section: 'Evidence', minutes: 0.4,
+    purpose: 'Back the claim with real, plainly-explained numbers',
+    talk: ['Our 90%-confidence range held the real price 94% of the time, on 11,828 real NVDA points', 'That range is only about 0.37% wide, so it is precise enough to act on', 'Three contracts already deployed on X Layer testnet'],
+    transition: 'Why this is a business, not a feature'
   },
   {
     id: 'why', title: 'Why us, why now', section: 'Business', minutes: 0.5,
