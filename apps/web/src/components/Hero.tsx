@@ -310,8 +310,8 @@ export function Hero() {
       </header>
 
       <div className="valtide-hero__copy">
-        <p className="valtide-hero__eyebrow">Independent valuation evidence for tokenized collateral</p>
-        <h1 id="valtide-hero-title">When markets disagree,<br />know what the <span>evidence supports.</span></h1>
+        <p className="valtide-hero__eyebrow">On-chain price validation for tokenized stocks · Live on X Layer testnet</p>
+        <h1 id="valtide-hero-title">The brakes for<br /><span>tokenized-stock lending.</span></h1>
       </div>
 
       <div className="valtide-hero__motion" aria-label="Animated market divergence">
@@ -322,7 +322,7 @@ export function Hero() {
       </div>
 
       <div className="valtide-hero__lower">
-        <p className="valtide-hero__lede">Valtide challenges the reference a protocol relies on, quantifies uncertainty, and makes a standardized Evidence State usable by curator-defined policies on X Layer.</p>
+        <p className="valtide-hero__lede">Tokenized stocks trade 24/7. The real stock closes nights and weekends. When the on-chain price drifts, Valtide flags it and the lending protocol stops trading on it — enforced on X Layer.</p>
         <div className="valtide-hero__actions">
           <a className="valtide-hero__action" href="#incident">Replay a divergence <span aria-hidden="true">↓</span></a>
           <a className="valtide-hero__secondary" href="?view=console">Open validation console <span aria-hidden="true">↗</span></a>
@@ -330,10 +330,10 @@ export function Hero() {
       </div>
 
       <div className="valtide-hero__principles" aria-label="Product principles">
-        <span>Independent challenger</span>
+        <span>Says when to stop</span>
         <span>Calibrated uncertainty</span>
-        <span>Curator-owned policy</span>
-        <span>X Layer attestations</span>
+        <span>Protocol owns the policy</span>
+        <span>Enforced on X Layer</span>
       </div>
 
       <p className="sr-only">Three animated lines begin together and diverge across the screen. The real-world reference holds, the tokenized market moves away, and Valtide tracks between them. Move the pointer left or right to close or widen the gap.</p>
