@@ -25,10 +25,10 @@ function scaleTop(value: number | null) {
 }
 
 const storySteps = [
-  { number: "01", label: "Observe", title: "A reference separates from the market evidence.", body: "Valtide keeps the reference under test, tokenized-market price, trusted anchor, market state, and timestamps visibly separate." },
-  { number: "02", label: "Estimate", title: "Uncertainty remains part of the answer.", body: "The independent challenger produces a fair-value estimate with calibrated interval bounds—not a single price presented as truth." },
-  { number: "03", label: "Validate", title: "Disagreement becomes an explainable Evidence State.", body: "The backend returns SUPPORTED, INCONCLUSIVE, or CHALLENGED together with reason codes and model provenance." },
-  { number: "04", label: "Respond", title: "The protocol keeps control of policy.", body: "A curator-owned mapping turns evidence into a Policy Action. The consuming application decides how that action is enforced." },
+  { number: "01", label: "Observe", title: "The on-chain price drifts from the real stock.", body: "While the real market is closed, the token trades on thin pools and a stale reference. Valtide keeps the token price, the trusted anchor, and the reference under test side by side." },
+  { number: "02", label: "Estimate", title: "We build a fair value — with a range, not false precision.", body: "An independent model estimates fair value and a calibrated interval around it, instead of one number presented as truth." },
+  { number: "03", label: "Validate", title: "The gap becomes a clear verdict.", body: "The backend returns SUPPORTED, INCONCLUSIVE, or CHALLENGED, each with reason codes and model provenance you can replay." },
+  { number: "04", label: "Respond", title: "The protocol decides what to do.", body: "A curator-owned rule turns the verdict into an action — from monitor up to blocking new borrowing. Valtide reports the state; the protocol owns the response." },
 ] as const;
 
 export function LandingPage() {
@@ -53,8 +53,8 @@ export function LandingPage() {
           <div className="section-index"><span>01</span><span>DETERMINISTIC DEMO</span></div>
           <div className="story-heading">
             <p className="marketing-kicker">One incident, fully traced</p>
-            <h2>A reference is only useful while the evidence can support it.</h2>
-            <p>This replay uses Valtide’s canonical six-observation <code>weekend_divergence</code> demo scenario. It is deterministic demonstration data—not live, operational, or historical performance evidence.</p>
+            <h2>Watch a weekend price drift get caught.</h2>
+            <p>This replay uses Valtide’s canonical six-observation <code>weekend_divergence</code> scenario. It is deterministic demo data — not live, operational, or historical performance evidence.</p>
           </div>
 
           <div className="incident-frame" aria-label="Canonical Valtide demo scenario">
@@ -101,7 +101,7 @@ export function LandingPage() {
           <div className="section-index"><span>02</span><span>THE REASONING CHAIN</span></div>
           <div className="story-heading story-heading--split">
             <h2>Not another price.<br />A test of the price already in use.</h2>
-            <p>Valtide preserves the disagreement rather than averaging every source into one opaque number. The reference under test remains outside the independent challenger feature set.</p>
+            <p>Valtide doesn't average every source into one opaque number. It keeps the disagreement, and checks the reference a protocol already relies on against an independent estimate.</p>
           </div>
           <div className="reasoning-grid">
             {storySteps.map((step) => <article key={step.number}>
