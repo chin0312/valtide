@@ -3,7 +3,7 @@ import { Icon, type IconName } from "./Icon";
 
 export function Panel({ title, icon, subtitle, right, children, className = "" }: { title?: string; icon?: IconName; subtitle?: string; right?: ReactNode; children: ReactNode; className?: string }) {
   return (
-    <section className={`card-shadow rounded-[10px] p-5 ${className}`} style={{ background: "var(--color-panel)", border: "1px solid var(--color-line-subtle)" }}>
+    <section className={`card-shadow rounded-[10px] p-6 ${className}`} style={{ background: "var(--color-panel)", border: "1px solid var(--color-line-subtle)" }}>
       {(title || right) && (
         <header className="mb-4 flex items-start justify-between gap-4 border-b pb-3" style={{ borderColor: "var(--color-line-subtle)" }}>
           <div>

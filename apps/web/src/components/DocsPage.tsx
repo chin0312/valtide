@@ -1,105 +1,152 @@
+import { useEffect, useState } from "react";
 import { MarketingFooter } from "./LandingPage";
+import { MarketingHeader } from "./Hero";
 
-const roles = [
-  { id: "everyone", label: "New to Valtide", title: "Understand what Valtide validates", items: ["What Valtide is", "How to read a result", "Evidence State meanings", "Core glossary"] },
-  { id: "curators", label: "Curators and risk teams", title: "Investigate and govern", items: ["Curator workflow", "Evidence versus policy", "Freshness and stale attestations", "Historical and Demo boundaries"] },
-  { id: "developers", label: "Developers and integrators", title: "Consume Valtide evidence", items: ["Read-only API paths", "ValidationRegistry", "RiskGuard", "Attestation and deployment reference"] },
-  { id: "researchers", label: "Researchers", title: "Review the challenger", items: ["Valuation methodology", "Prediction intervals", "Point-in-time correctness", "Evaluation limitations"] },
+type VisualKind = "context" | "finding" | "boundary" | "triage" | "freshness" | "policy" | "payload" | "contracts" | "guard" | "signals" | "interval" | "evaluation";
+type GuideId = "everyone" | "curators" | "developers" | "researchers";
+
+type Guide = {
+  id: GuideId;
+  label: string;
+  eyebrow: string;
+  title: string;
+  summary: string;
+  outcome: string;
+  cta: string;
+  href: string;
+  walkthrough: readonly { eyebrow: string; title: string; body: string; tip: string; visual: VisualKind }[];
+  checks: readonly [string, string][];
+};
+
+const guides: readonly Guide[] = [
+  {
+    id: "everyone", label: "New to Valtide", eyebrow: "A two-minute orientation", title: "Read the result without guessing what it means.",
+    summary: "Start with the product language, then follow one result from its evidence context to the response configured by the curator.",
+    outcome: "You will know what Valtide validates, what the three Evidence States mean, and where evidence stops and policy begins.",
+    cta: "Open the demo result", href: "/?view=console",
+    walkthrough: [
+      { eyebrow: "Begin with context", title: "Know what kind of evidence you are looking at.", body: "Operational, Historical, and Demo are different evidence lanes. The selected lane appears in the console header and is never silently substituted.", tip: "For your first visit, choose Demo. It contains six synthetic observations designed to explain the workflow.", visual: "context" },
+      { eyebrow: "Read the finding", title: "Read the range and state together.", body: "Compare the reference under test with Valtide fair value and its calibrated range. Then use the Evidence State as the plain-language interpretation—not as proof of a true price.", tip: "A point estimate without its uncertainty range is incomplete.", visual: "finding" },
+      { eyebrow: "Keep the boundary clear", title: "Evidence describes. Policy decides.", body: "Valtide determines whether the evidence supports, cannot resolve, or challenges the reference. A curator maps that state to a Policy Action; the consuming application enforces it.", tip: "SUPPORTED does not automatically mean ALLOW, and CHALLENGED does not automatically mean liquidate.", visual: "boundary" },
+    ],
+    checks: [["SUPPORTED", "No material reason to challenge the reference from the available evidence."], ["INCONCLUSIVE", "The evidence is too weak or inconsistent to make a strong call."], ["CHALLENGED", "The reference is materially inconsistent with sufficiently strong independent evidence."]],
+  },
+  {
+    id: "curators", label: "Curators and risk teams", eyebrow: "Investigation and governance", title: "Move from an evidence exception to a defensible response.",
+    summary: "Triage the finding, verify freshness and provenance, then apply the response rules owned by your protocol.",
+    outcome: "You will be able to investigate a challenged result without treating the model as a policy engine.",
+    cta: "Inspect the policy view", href: "/?view=console",
+    walkthrough: [
+      { eyebrow: "Triage the exception", title: "Start with the reason for the challenge.", body: "Check the deviation, model distance, market state, and structured reason codes before deciding whether an exception is actionable.", tip: "Reason codes come from the backend. The browser displays them without reclassifying the result.", visual: "triage" },
+      { eyebrow: "Verify the record", title: "Freshness and provenance come before policy.", body: "Confirm the observation timestamp, source timestamps, model version, attestation valid-until time, and your maximum accepted age.", tip: "A valid attestation can still be too old for a specific policy owner.", visual: "freshness" },
+      { eyebrow: "Apply your response", title: "Map evidence through curator-owned policy.", body: "RiskGuard evaluates the current Evidence State and freshness against your configured mapping. The resulting action is a governance choice, not a model output.", tip: "Document why the mapping is appropriate for this collateral and revisit it as liquidity or market structure changes.", visual: "policy" },
+    ],
+    checks: [["Before escalation", "Confirm context, timestamp, market state, and source availability."], ["Before changing policy", "Separate a one-off data issue from a persistent evidence pattern."], ["Before enforcement", "Verify that the operational result and onchain attestation are synchronized."]],
+  },
+  {
+    id: "developers", label: "Developers and integrators", eyebrow: "Integration path", title: "Consume evidence without moving the trust boundary.",
+    summary: "Treat the API result and onchain attestation as authoritative inputs, preserve their provenance, and let the deployed guard enforce configured policy.",
+    outcome: "You will know which fields to consume, how publication reaches X Layer, and which checks belong in an integration.",
+    cta: "Open the API reference", href: "https://valtide-api-production.up.railway.app/docs",
+    walkthrough: [
+      { eyebrow: "Consume the result", title: "Keep the response intact.", body: "Use the backend Evidence State, estimate, calibrated bounds, reason codes, timestamps, and source provenance. Do not recompute classification in the client.", tip: "Treat unknown reason codes as displayable structured data rather than as fatal parsing errors.", visual: "payload" },
+      { eyebrow: "Follow publication", title: "Separate observation from delivery.", body: "The publisher writes an authorized attestation to ValidationRegistry. Curator policy is stored separately, and RiskGuard evaluates both before the consumer acts.", tip: "The browser is read-only: it never signs or initiates a transaction.", visual: "contracts" },
+      { eyebrow: "Enforce safely", title: "Fail closed on stale or mismatched state.", body: "Check chain ID, contract addresses, asset identity, sequence, valid-until, policy maximum age, and current attestation before accepting a decision.", tip: "Do not pair cached operational evidence with a newer onchain policy state.", visual: "guard" },
+    ],
+    checks: [["Current asset", "NVDAx / NVDA is the supported vertical slice; SPYx is not onboarded."], ["Current network", "ValidationRegistry and RiskGuard are deployed on X Layer testnet."], ["Current status", "Research prototype—not audited production lending infrastructure."]],
+  },
+  {
+    id: "researchers", label: "Researchers", eyebrow: "Model and evaluation review", title: "Audit the challenger without overstating the evidence.",
+    summary: "Inspect the point-in-time inputs, uncertainty construction, and evaluation design before drawing conclusions from coverage or interval width.",
+    outcome: "You will understand what the challenger estimates, how its range is evaluated, and which claims the evidence cannot support.",
+    cta: "Read the methodology", href: "https://github.com/chin0312/valtide/blob/main/docs/METHODOLOGY.md",
+    walkthrough: [
+      { eyebrow: "Reconstruct the information set", title: "Keep every signal point-in-time correct.", body: "The reference under test stays separate from token-market evidence, the trusted anchor, market state, and source freshness. The tested reference is excluded from model inputs.", tip: "Cross-source agreement is not proof of independence; sources can share data or methodology.", visual: "signals" },
+      { eyebrow: "Inspect uncertainty", title: "Evaluate the interval, not just its center.", body: "Valtide returns a fair-value estimate with a calibrated prediction interval. Wider ranges express greater uncertainty rather than false precision.", tip: "Coverage and interval width must be read together. Neither establishes point-price truth.", visual: "interval" },
+      { eyebrow: "Read the evaluation", title: "Compare like with like.", body: "The historical test isolates uncertainty-range construction: both methods use the same point estimates. It is not a comparison with an oracle provider or a production track record.", tip: "The June–September 2026 test contains 11,828 observations and targets 90% coverage.", visual: "evaluation" },
+    ],
+    checks: [["94.3% coverage", "Share of contemporaneous trusted benchmarks captured at a 90% target."], ["19% narrower", "Mean interval width versus a conventional Gaussian range using the same point estimates."], ["What is not claimed", "Production performance, perfect independence, or an observable exact true value."]],
+  },
 ] as const;
 
 const glossary = [
-  ["Reference under test", "The explicitly identified price or valuation methodology Valtide evaluates. In the current NVDAx deployment, this is the OKX X-Perp NVDA index."],
-  ["Valtide fair value", "The independent challenger model’s point estimate. It is a model output, not an objectively proven true price."],
-  ["Prediction interval", "The calibrated uncertainty range around the challenger estimate."],
-  ["Evidence State", "Valtide’s standardized interpretation of whether the reference under test is supported, inconclusive, or challenged by available evidence."],
-  ["Policy Action", "A response configured by the curator or consuming protocol. It is not generated by the quant model."],
-  ["Attestation", "The authorized onchain record of a validation observation stored by the ValidationRegistry."],
-  ["Freshness", "Whether an attestation remains valid under both its valid-until time and the policy owner’s maximum age."],
-  ["Reason codes", "Structured backend explanations for an Evidence State, preserved by the frontend without recomputation."],
+  { term: "Reference under test", definition: "The explicitly identified price or valuation methodology Valtide evaluates. In the current NVDAx deployment, this is the OKX X-Perp NVDA index.", example: "In the demo result, the reference is the $180.00 index value being evaluated." },
+  { term: "Valtide fair value", definition: "The independent challenger model’s point estimate. It is a model output, not an objectively proven true price.", example: "$179.11 is the challenger’s center estimate—not a replacement oracle price." },
+  { term: "Prediction interval", definition: "The calibrated uncertainty range around the challenger estimate.", example: "$178.81–$179.41 expresses uncertainty around a $179.11 estimate at the selected coverage target." },
+  { term: "Evidence State", definition: "Valtide’s standardized interpretation of whether the reference under test is supported, inconclusive, or challenged by available evidence.", example: "CHALLENGED means the reference is materially inconsistent with sufficiently strong evidence; it does not prove the reference wrong." },
+  { term: "Policy Action", definition: "A response configured by the curator or consuming protocol. It is not generated by the quant model.", example: "A curator may map CHALLENGED to RESTRICT_NEW_RISK." },
+  { term: "Attestation", definition: "The authorized onchain record of a validation observation stored by the ValidationRegistry.", example: "The record carries the observation time, evidence commitment, sequence, and validity window." },
+  { term: "Freshness", definition: "Whether an attestation remains valid under both its valid-until time and the policy owner’s maximum age.", example: "An unexpired valid-until can still fail a curator’s stricter maximum-age rule." },
+  { term: "Reason codes", definition: "Structured backend explanations for an Evidence State, preserved by the frontend without recomputation.", example: "REFERENCE_UNDER_TEST_OUTSIDE_INTERVAL explains why a result was classified as CHALLENGED." },
 ] as const;
 
+const glossarySupplements: Record<GuideId, readonly { term: string; definition: string; example: string }[]> = {
+  everyone: [
+    { term: "Evidence context", definition: "The lane in which a result should be interpreted: Operational, Historical, or Demo.", example: "Demo contains synthetic observations for learning; it is not live evidence." },
+    { term: "Trusted anchor", definition: "An external benchmark used as one independent input to the challenger model.", example: "It helps orient the estimate but does not become an unquestioned true price." },
+    { term: "Market state", definition: "Whether the strongest reference market is open, closed, or otherwise constrained when the observation is made.", example: "A closed market can increase uncertainty and widen the prediction interval." },
+  ],
+  curators: [
+    { term: "Maximum age", definition: "The policy owner’s limit on how old an attestation may be when it is used.", example: "A 15-minute limit can reject a still-unexpired attestation observed 16 minutes ago." },
+    { term: "Stale evidence", definition: "An attestation that fails either its valid-until check or the applicable maximum-age rule.", example: "STALE is evaluated before a consumer relies on the configured state-to-action mapping." },
+    { term: "Enforcement", definition: "The consuming application’s implementation of the Policy Action returned by its guard.", example: "RESTRICT_NEW_RISK might disable new borrowing while leaving repayment available." },
+  ],
+  developers: [
+    { term: "Evidence commitment", definition: "The cryptographic commitment that ties an attestation to its supporting evidence payload.", example: "Use it to verify that an API payload corresponds to the authorized onchain record." },
+    { term: "Valid until", definition: "The timestamp after which the attestation is no longer valid, regardless of the Evidence State it contains.", example: "Check it again at decision time instead of relying on a cached frontend status." },
+    { term: "Model provenance", definition: "The model version and associated metadata needed to identify how a result was produced.", example: "Preserve it with timestamps and source provenance when logging a decision." },
+  ],
+  researchers: [
+    { term: "Challenger model", definition: "The independent model that estimates fair value and uncertainty without using the reference under test as an input.", example: "Its output challenges or supports the reference; it does not replace it." },
+    { term: "Calibration", definition: "The process of aligning an interval’s empirical coverage with its stated coverage target.", example: "A 90% target should be assessed using both observed coverage and interval width." },
+    { term: "Point-in-time correctness", definition: "The requirement that every model input was genuinely available at the observation timestamp.", example: "Later revisions or future market data must not leak into a historical evaluation." },
+  ],
+};
+
+function GuideVisual({ kind }: { kind: VisualKind }) {
+  return <div className={`guide-shot guide-shot--${kind}`} role="img" aria-label={`${kind} product interface example`}>
+    <div className="guide-shot__chrome"><i /><i /><i /><span>VALTIDE VALIDATION CONSOLE</span></div>
+    {kind === "context" && <div className="shot-context"><p>EVIDENCE CONTEXT</p><div><b>Operational</b><b>Historical</b><b className="is-active">Demo</b></div><small>Demo scenario · 6 synthetic steps</small><span className="shot-callout">Choose the evidence lane here</span></div>}
+    {kind === "finding" && <div className="shot-finding"><div><small>CURRENT FINDING · DEMO</small><strong>Evidence supports the reference</strong><p>Available evidence does not materially challenge the price being tested.</p></div><div className="shot-metrics"><span><small>REFERENCE</small><b>$180.00</b></span><span className="is-spotlit"><small>VALTIDE FAIR VALUE</small><b>$180.00</b><em>$179.56–$180.44</em></span><span><small>EVIDENCE STATE</small><b className="is-supported">SUPPORTED</b></span></div><span className="shot-callout">Read center + range + state</span></div>}
+    {kind === "boundary" && <div className="shot-boundary"><div><small>EVIDENCE</small><strong>SUPPORTED</strong><p>Token and challenger agree</p></div><i>→</i><div className="is-spotlit"><small>CURATOR POLICY</small><strong>Allow new borrowing</strong><p>Configured mapping · ALLOW</p></div><i>→</i><div><small>CONSUMER</small><strong>Policy check passed</strong><p>Enforced by the application</p></div><span className="shot-callout">The middle decision belongs to the curator</span></div>}
+    {kind === "triage" && <div className="shot-triage"><div><small>CURRENT FINDING</small><strong className="is-challenged">Reference is challenged</strong><p>Outside the calibrated range by +4.0σ</p></div><div className="shot-reasons is-spotlit"><small>WHY THIS STATE</small><b>REFERENCE_OUTSIDE_INTERVAL</b><b>TOKEN_AND_CHALLENGER_DISAGREE</b></div><span className="shot-callout">Start with structured reasons</span></div>}
+    {kind === "freshness" && <div className="shot-freshness"><div className="is-spotlit"><small>ATTESTATION</small><strong>Sequence 184</strong><p>Observed 14:25 UTC</p><p>Valid until 14:40 UTC</p></div><div><small>POLICY LIMIT</small><strong>Maximum age</strong><p>15 minutes</p><b className="is-supported">FRESH</b></div><span className="shot-callout">Both clocks must pass</span></div>}
+    {kind === "policy" && <div className="shot-policy"><div><small>EVIDENCE STATE</small><strong>SUPPORTED</strong><strong>INCONCLUSIVE</strong><strong>CHALLENGED</strong><strong>STALE</strong></div><div className="is-spotlit"><small>YOUR POLICY MAPPING</small><b>ALLOW</b><b>REQUIRE REVIEW</b><b>RESTRICT NEW RISK</b><b>REQUIRE REVIEW</b></div><span className="shot-callout">Curators own this mapping</span></div>}
+    {kind === "payload" && <div className="shot-code is-spotlit"><code>{`{\n  "evidence_state": "SUPPORTED",\n  "fair_value": 180.00,\n  "interval": [179.56, 180.44],\n  "reason_codes": ["TOKEN_AND_CHALLENGER_AGREE"],\n  "observed_at": "2026-09-19T14:00:00Z"\n}`}</code><span className="shot-callout">Consume; do not reclassify</span></div>}
+    {kind === "contracts" && <div className="shot-contracts"><b>Publisher</b><i>→</i><b className="is-spotlit">ValidationRegistry<small>attestation</small></b><i>+</i><b>Curator Policy<small>mapping</small></b><i>→</i><b>RiskGuard<small>freshness + state</small></b><span className="shot-callout">Evidence and policy stay separate</span></div>}
+    {kind === "guard" && <div className="shot-guard"><small>INTEGRATION CHECK</small><p><b>✓</b> Chain ID and contract match</p><p><b>✓</b> Asset and sequence match</p><p><b>✓</b> Attestation is within max age</p><p className="is-spotlit"><b>✓</b> Registry state read at decision time</p><span className="shot-callout">Check again at enforcement</span></div>}
+    {kind === "signals" && <div className="shot-signals"><div><small>REFERENCE UNDER TEST</small><strong>$180.00</strong><em>excluded from inputs</em></div><div className="is-spotlit"><span><small>TOKEN MARKET</small><b>$178.20</b></span><span><small>TRUSTED ANCHOR</small><b>$180.00</b></span><span><small>MARKET STATE</small><b>CLOSED</b></span></div><span className="shot-callout">Preserve the information set</span></div>}
+    {kind === "interval" && <div className="shot-interval"><small>90% CALIBRATED PREDICTION INTERVAL</small><div className="interval-axis"><i /><span className="interval-band">$178.66 – $179.56</span><b className="interval-fair">Fair value<br />$179.11</b><b className="interval-ref">Reference<br />$180.00</b></div><span className="shot-callout">Judge the range with the center</span></div>}
+    {kind === "evaluation" && <div className="shot-evaluation"><span><small>OBSERVATIONS</small><strong>11,828</strong></span><span className="is-spotlit"><small>BENCHMARK COVERAGE</small><strong>94.3%</strong><em>90% target</em></span><span><small>MEAN RANGE WIDTH</small><strong>19% tighter</strong><em>vs Gaussian baseline</em></span><span className="shot-callout">Coverage is not point accuracy</span></div>}
+  </div>;
+}
+
 export function DocsPage() {
+  const [selectedRole, setSelectedRole] = useState(() => {
+    if (typeof window === "undefined") return 0;
+    const requestedProfile = new URLSearchParams(window.location.search).get("profile");
+    const requestedIndex = guides.findIndex((candidate) => candidate.id === requestedProfile);
+    return requestedIndex < 0 ? 0 : requestedIndex;
+  });
+  const guide = guides[selectedRole];
+  const supplementaryTerms = glossarySupplements[guide.id];
+  useEffect(() => {
+    const targetId = window.location.hash.slice(1);
+    if (!targetId) return;
+    window.requestAnimationFrame(() => document.getElementById(targetId)?.scrollIntoView());
+  }, []);
   return <div className="marketing-shell docs-page">
-    <header className="docs-header">
-      <a className="docs-brand" href="/"><span className="valtide-logo-crop"><img src="/valtide-logo.jpg" alt="" /></span><span>Valtide</span><i>Docs</i></a>
-      <nav><a href="/">Product</a><a href="#glossary">Glossary</a><a href="https://valtide-api-production.up.railway.app/docs" target="_blank" rel="noreferrer">API reference ↗</a></nav>
-      <a className="docs-console" href="/?view=console">Open console ↗</a>
-    </header>
-
+    <MarketingHeader page />
     <main>
-      <section className="docs-hero">
-        <div>
-          <p className="marketing-kicker">Valtide documentation</p>
-          <h1>Understand collateral valuations when markets disagree.</h1>
-          <p>Valtide independently evaluates whether a tokenized-equity collateral reference remains supported by available market evidence. Learn how evidence is produced, interpreted, and made usable by curator-defined policies on X Layer.</p>
-          <div className="docs-hero__actions"><a className="primary-link" href="#start">Start with Valtide ↓</a><a className="text-link" href="#glossary">Explore the glossary →</a></div>
-        </div>
-        <aside><span>CORE OWNERSHIP BOUNDARY</span><p><strong>Valtide</strong> determines the Evidence State.</p><p><strong>Curators</strong> define the Policy Action.</p><p><strong>Consumers</strong> enforce the resulting action.</p><small>The browser is a read-only observer.</small></aside>
-      </section>
-
-      <section id="start" className="docs-section">
-        <div className="docs-section__title"><span>01</span><div><p className="marketing-kicker">Start by role</p><h2>Follow the path that matches your responsibility.</h2></div></div>
-        <div className="role-grid">{roles.map((role, index) => <article id={role.id} key={role.id}><span>0{index + 1}</span><p>{role.label}</p><h3>{role.title}</h3><ul>{role.items.map((item) => <li key={item}>{item}</li>)}</ul></article>)}</div>
-      </section>
-
-      <section id="methodology" className="docs-section docs-section--flow">
-        <div className="docs-section__title"><span>02</span><div><p className="marketing-kicker">How Valtide works</p><h2>From named reference to consumer-owned enforcement.</h2></div></div>
-        <div className="docs-flow">
-          <article><span>01 · OBSERVE</span><h3>Collect point-in-time evidence</h3><p>The selected reference, tokenized-market signal, trusted anchor, market state, freshness, and available independent evidence remain explicit.</p></article>
-          <article><span>02 · ESTIMATE</span><h3>Run the independent challenger</h3><p>P1a-C produces a fair-value estimate and calibrated interval. The reference under test is excluded from the independent challenger feature set.</p></article>
-          <article><span>03 · VALIDATE</span><h3>Return an Evidence State</h3><p>The backend classifies the observation and returns reason codes. The frontend does not recompute the state.</p></article>
-          <article><span>04 · RESPOND</span><h3>Evaluate curator-owned policy</h3><p>RiskGuard maps fresh evidence through the consuming application’s configured policy. The consumer owns enforcement.</p></article>
-        </div>
-      </section>
-
-      <section className="docs-section">
-        <div className="docs-section__title"><span>03</span><div><p className="marketing-kicker">Interpretation</p><h2>Three Evidence States. No implied policy instruction.</h2></div></div>
-        <div className="evidence-doc-grid">
-          <article className="supported"><span>SUPPORTED</span><p>Available independent evidence does not provide a material reason to challenge the reference under test.</p><small>This does not mean the reference is proven correct.</small></article>
-          <article className="inconclusive"><span>INCONCLUSIVE</span><p>Evidence is not sufficiently strong or consistent to support or materially challenge the reference.</p><small>Abstention is intentional when evidence is weak.</small></article>
-          <article className="challenged"><span>CHALLENGED</span><p>The reference under test is materially inconsistent with sufficiently strong independent evidence.</p><small>This does not mean the reference is definitely wrong.</small></article>
-        </div>
-      </section>
-
-      <section id="read-result" className="docs-section docs-section--reader">
-        <div className="docs-section__title"><span>04</span><div><p className="marketing-kicker">Read a validation result</p><h2>Move from context to evidence before looking at policy.</h2></div></div>
-        <ol className="reader-list">
-          <li><span>01</span><div><strong>Confirm the context</strong><p>Operational, Historical, and Demo are separate evidence lanes. They are never silently substituted.</p></div></li>
-          <li><span>02</span><div><strong>Identify the asset and reference</strong><p>Check the selected asset, observation timestamp, market state, named reference under test, and source freshness.</p></div></li>
-          <li><span>03</span><div><strong>Inspect estimate and uncertainty</strong><p>Read the fair-value center and interval together. A point estimate without uncertainty is insufficient.</p></div></li>
-          <li><span>04</span><div><strong>Interpret the Evidence State</strong><p>Use the deviation, evidence quality, reason codes, and source provenance. Do not infer correctness from the state name alone.</p></div></li>
-          <li><span>05</span><div><strong>Separate policy and enforcement</strong><p>Policy labels are configured mappings. Current onchain enforcement is comparable only when the operational result and attestation are synchronized.</p></div></li>
-        </ol>
-      </section>
-
-      <section className="docs-section docs-section--contexts">
-        <div className="docs-section__title"><span>05</span><div><p className="marketing-kicker">Evidence contexts</p><h2>Operational, Historical, and Demo mean different things.</h2></div></div>
-        <div className="context-grid">
-          <article><span>OPERATIONAL</span><p>Latest persisted warmed result, successful scheduler history, runtime state, and current deployed control-plane reads. Gaps remain gaps.</p></article>
-          <article><span>HISTORICAL</span><p>Point-in-time research panel with verified provenance. Policy labels use today’s configured mapping and are not historical onchain decisions.</p></article>
-          <article><span>DEMO</span><p>Exactly six canonical five-minute observations in the deterministic <code>weekend_divergence</code> scenario. It is not track record or historical performance.</p></article>
-        </div>
-      </section>
-
-      <section id="glossary" className="docs-section">
-        <div className="docs-section__title"><span>06</span><div><p className="marketing-kicker">Core glossary</p><h2>Use the product’s terms precisely.</h2></div></div>
-        <dl className="glossary-grid">{glossary.map(([term, definition]) => <div key={term}><dt>{term}</dt><dd>{definition}</dd></div>)}</dl>
-      </section>
-
-      <section className="docs-section docs-section--scope">
-        <div>
-          <p className="marketing-kicker">Current product scope</p>
-          <h2>A defensible vertical slice, not a fabricated asset universe.</h2>
-          <dl><div><dt>Supported asset</dt><dd>NVDAx / NVDA</dd></div><div><dt>Roadmap asset</dt><dd>SPYx · not onboarded</dd></div><div><dt>Reference under test</dt><dd>OKX X-Perp NVDA index</dd></div><div><dt>Network</dt><dd>X Layer testnet · 1952</dd></div><div><dt>Model</dt><dd>P1a-C · 0.2.0</dd></div></dl>
-        </div>
-        <div>
-          <p className="marketing-kicker">Trust and limitations</p>
-          <h2>What the interface must never imply.</h2>
-          <ul><li>No exact “true” fair value is observable while the strongest market is closed.</li><li>Cross-source agreement is not proof of truth; systems may share data or methodology.</li><li>Historical diagnostics are research evidence, not production guarantees.</li><li>The testnet contracts are not audited production lending infrastructure.</li><li>Valtide does not choose a universal LTV, trade, liquidate, or custody assets.</li></ul>
-        </div>
-      </section>
-
-      <section className="docs-cta"><div><p className="marketing-kicker">Move from explanation to evidence</p><h2>Inspect the current interface or review the source.</h2></div><div><a className="primary-link" href="/?view=console">Open validation console ↗</a><a className="text-link" href="https://github.com/chin0312/valtide" target="_blank" rel="noreferrer">View repository ↗</a></div></section>
+      <section className="docs-hero"><div><p className="marketing-kicker">Valtide documentation</p><h1>One product. A guide for what you need to do.</h1><p>Choose your profile and the documentation below will adapt—from the language and workflow to the product views worth paying attention to.</p><div className="docs-hero__actions"><a className="primary-link" href="#start">Choose your guide ↓</a><a className="text-link" href="#glossary">Use the glossary →</a></div></div><aside><span>THE BOUNDARY TO REMEMBER</span><p><strong>Valtide</strong> determines the Evidence State.</p><p><strong>Curators</strong> define the Policy Action.</p><p><strong>Consumers</strong> enforce the resulting action.</p><small>The browser is a read-only observer.</small></aside></section>
+      <section id="start" className="docs-section docs-section--roles"><div className="docs-section__lead"><p className="marketing-kicker">Choose your profile</p><h2>What brings you to Valtide?</h2><p>Switch profiles at any time. The complete guide below updates with the concepts, tasks, and interface views most useful to that role.</p></div><div className="role-selector"><div className="role-selector__tabs" role="tablist" aria-label="Choose your Valtide role">{guides.map((role, index) => <button type="button" role="tab" id={`role-tab-${role.id}`} aria-controls="role-guide-panel" aria-selected={selectedRole === index} key={role.id} onClick={() => setSelectedRole(index)}><small>For</small>{role.label}</button>)}</div></div></section>
+      <div id="role-guide-panel" className="role-guide" role="tabpanel" aria-labelledby={`role-tab-${guide.id}`} key={guide.id}>
+        <section id="role-guide" className="docs-section role-guide__intro"><div><p className="marketing-kicker">{guide.eyebrow}</p><h2>{guide.title}</h2><p>{guide.summary}</p></div><aside><span>AFTER THIS GUIDE</span><p>{guide.outcome}</p></aside></section>
+        <section className="docs-section docs-section--walkthrough"><div className="docs-section__lead docs-section__lead--compact"><p className="marketing-kicker">Follow the interface</p><h2>See what matters, in the order it matters.</h2><p>Every part of the walkthrough is visible—no stepper, no hidden instructions.</p></div><div className="guide-walkthrough">{guide.walkthrough.map((item, index) => <article className="guide-walkthrough__row" key={item.title}><div className="guide-walkthrough__copy"><p className="marketing-kicker">{item.eyebrow}</p><h3>{item.title}</h3><p>{item.body}</p><div className="guide-tip"><span>KEEP IN MIND</span>{item.tip}</div></div><GuideVisual kind={item.visual} />{index < guide.walkthrough.length - 1 && <span className="guide-walkthrough__connector" aria-hidden="true">↓</span>}</article>)}</div></section>
+        <section className="docs-section role-checks"><div className="docs-section__lead docs-section__lead--compact"><p className="marketing-kicker">Working reference</p><h2>{guide.id === "everyone" ? "Three states, with no hidden policy instruction." : "What to verify before you move on."}</h2></div><div className="role-checks__grid">{guide.checks.map(([label, copy]) => <article key={label}><span>{label}</span><p>{copy}</p></article>)}</div><a className="role-guide__cta" href={guide.href} target={guide.href.startsWith("http") ? "_blank" : undefined} rel={guide.href.startsWith("http") ? "noreferrer" : undefined}>{guide.cta} <span aria-hidden="true">↗</span></a></section>
+      </div>
+      <section id="glossary" className="docs-section docs-section--glossary"><div className="docs-section__lead docs-section__lead--compact"><p className="marketing-kicker">Shared vocabulary</p><h2>Use the product’s terms precisely.</h2><p>These definitions stay constant across every profile. Short examples show how each term appears in the current product.</p></div><dl className="glossary-grid">{glossary.map(({ term, definition, example }) => <div key={term}><dt>{term}</dt><dd>{definition}<small className="glossary-example"><span>EXAMPLE</span>{example}</small></dd></div>)}</dl><div className="role-glossary"><div className="role-glossary__heading"><p className="marketing-kicker">Also useful for</p><h3>{guide.label}</h3><p>These supporting concepts change with your selected profile, so the glossary stays focused on the decisions and questions you are most likely to encounter.</p></div><dl className="role-glossary__grid">{supplementaryTerms.map(({ term, definition, example }) => <div key={term}><dt>{term}</dt><dd>{definition}<small>{example}</small></dd></div>)}</dl></div></section>
+      <section className="docs-section docs-section--scope"><div><p className="marketing-kicker">Current product scope</p><h2>A focused vertical slice.</h2><dl><div><dt>Supported asset</dt><dd>NVDAx / NVDA</dd></div><div><dt>Roadmap asset</dt><dd>SPYx · not onboarded</dd></div><div><dt>Reference under test</dt><dd>OKX X-Perp NVDA index</dd></div><div><dt>Network</dt><dd>X Layer testnet</dd></div></dl></div><div><p className="marketing-kicker">Trust and limitations</p><h2>Research evidence, not a production guarantee.</h2><ul><li>No exact “true” fair value is observable while the strongest market is closed.</li><li>Historical diagnostics are not production performance.</li><li>The testnet contracts are not audited production lending infrastructure.</li><li>Valtide does not choose a universal LTV, trade, liquidate, or custody assets.</li></ul></div></section>
     </main>
     <MarketingFooter />
   </div>;

@@ -16,7 +16,10 @@ const { ObservationAudit } = load("../src/components/ObservationAudit.tsx");
 const { Hero } = load("../src/components/Hero.tsx");
 const { LandingPage } = load("../src/components/LandingPage.tsx");
 const { DocsPage } = load("../src/components/DocsPage.tsx");
-const { default: App, AssetSelector } = load("../src/App.tsx");
+const { InstrumentPassport, passportStatusFor } = load("../src/components/InstrumentPassport.tsx");
+const { PolicyFoundry } = load("../src/components/PolicyFoundry.tsx");
+const { DEMO_PASSPORT_ADDRESS, MODEL_EVIDENCE_SUMMARY, POLICY_PROPOSAL } = load("../src/fixtures/prototypeData.ts");
+const { default: App } = load("../src/App.tsx");
 const { deliveryStatusLabel, pipelineStatusLabel } = load("../src/lib/format.ts");
 const { chartDomain, clampViewport, lowerBoundTimestamp, minimumViewportWidth, panViewport, shouldRenderStateDots, sliceChartDataForViewport, upperBoundTimestamp, wheelGestureIntent, wheelZoomScale, zoomSensitivity, zoomViewport } = load("../src/components/EscalationChart.tsx");
 const h = React.createElement;
@@ -85,47 +88,109 @@ function appWith({result, rows, chain, error} = {}) {
   return html;
 }
 
-test("Divergence hero states the product category and opens the validation console", () => {
+test("Clean divergence hero restores the product framing and opens the validation console", () => {
   const html = render(Hero);
   assert.match(html, /Independent valuation evidence for tokenized collateral/);
   assert.match(html, /When markets disagree/);
   assert.match(html, /evidence supports/);
+  assert.match(html, /Valtide protects DeFi from oracle failures/);
+  assert.match(html, /independent, cryptographically verified collateral valuation/);
+  assert.match(html, /Open validation console/);
+  assert.match(html, /See how it works/);
+  assert.match(html, /Animated market divergence/);
+  assert.match(html, /Independent estimate/);
+  assert.match(html, /Token market/);
+  assert.doesNotMatch(html, /Run the risk demo|From evidence to protocol response|POSITION (?:OPENED|BLOCKED)/);
+  assert.doesNotMatch(html, /RESTRICT_NEW_RISK|NEW EXPOSURE (?:OPEN|REVERTED)/);
+  assert.match(html, /11,828/);
+  assert.match(html, /94.3%/);
+  assert.match(html, /19% tighter/);
+  assert.match(html, /aria-describedby="historical-model-evidence-note"/);
+  assert.match(html, /role="tooltip"/);
+  assert.match(html, /Historical market observations tested/);
+  assert.match(html, /Benchmark prices captured/);
+  assert.match(html, /90% target/);
+  assert.match(html, /Risk ranges vs\. a conventional Gaussian baseline/);
+  assert.match(html, /Coverage above target is not automatically better/);
+  assert.match(html, /Historical results are not production guarantees or comparisons with oracle providers/);
   assert.match(html, /href="\?view=console"/);
   assert.match(html, /href="\/docs"/);
-  assert.match(html, /src="\/valtide-logo\.jpg"/);
+  assert.match(html, /logo-motion-panel--left/);
+  assert.match(html, /logo-motion-diamond/);
+  assert.match(html, /logo-motion-panel--right/);
 });
 
 test("Prototype landing uses canonical demo values and preserves product boundaries", () => {
   const html = render(LandingPage);
-  for (const value of ["$180.00", "$178.20", "$179.11", "3.96σ", "P1a-C", "0.2.0"]) assert.match(html, new RegExp(value.replace("$", "\\$")));
-  assert.match(html, /deterministic demonstration data—not live, operational, or historical performance evidence/);
+  for (const value of ["$180.00", "$178.20", "$179.11"]) assert.match(html, new RegExp(value.replace("$", "\\$")));
+  assert.match(html, /six-step synthetic incident/);
+  assert.match(html, /demonstration data—not live or historical performance/);
+  assert.match(html, /Valtide preserves the disagreement/);
+  assert.match(html, /A reference separates from the market evidence/);
   assert.match(html, /Valtide says what the evidence supports/);
-  assert.match(html, /curator-owned mapping/);
+  assert.match(html, /CURATOR \/ PROTOCOL/);
+  assert.match(html, /RESTRICT_NEW_RISK/);
+  assert.match(html, /Every conclusion leaves a trail/);
+  assert.match(html, /ValidationRegistry/);
+  assert.match(html, /Evidence hash/);
   assert.match(html, /browser is read-only/);
-  assert.match(html, /X Layer testnet · Chain ID 1952/);
-  assert.match(html, /Not a replacement oracle/);
+  assert.match(html, /X Layer testnet/);
+  assert.match(html, /does not custody assets, lend, trade, calculate LTV, or liquidate/);
+  assert.doesNotMatch(html, /step-explorer|explorer-signal/);
+  assert.doesNotMatch(html, /weekend_divergence|P1a-C|Standardized deviation/);
+  assert.doesNotMatch(html, /Always-on assets need always-on evidence|Tokenization 2030|\$5\.5T|\$2\.6T/);
 });
 
-test("Documentation separates evidence, policy, contexts and current scope", () => {
+test("Landing model proof stays synchronized with the checked-in evaluation report", () => {
+  const report = require("../../../valtide-quant-service-p1ac/evidence/p1a_c_report.json");
+  const selected = report.test.find(row => row.candidate === "P1a-C:session_sym" && row.level === 0.9);
+  assert.equal(MODEL_EVIDENCE_SUMMARY.observations, selected.n);
+  assert.equal(MODEL_EVIDENCE_SUMMARY.coverage, selected.coverage);
+  assert.equal(MODEL_EVIDENCE_SUMMARY.maeBps, selected.MAE_bps);
+  assert.equal(MODEL_EVIDENCE_SUMMARY.meanIntervalWidthBps, selected.mean_width_bps);
+  const gaussian = report.test.find(row => row.candidate === "P1a-Gaussian" && row.level === 0.9);
+  assert.equal(MODEL_EVIDENCE_SUMMARY.gaussianMeanIntervalWidthBps, gaussian.mean_width_bps);
+  assert.ok(Math.abs(MODEL_EVIDENCE_SUMMARY.intervalWidthReduction - (1 - selected.mean_width_bps / gaussian.mean_width_bps)) < 1e-12);
+});
+
+test("Documentation adapts by role and keeps evidence, policy and scope separate", () => {
   const html = render(DocsPage);
   for (const value of ["SUPPORTED", "INCONCLUSIVE", "CHALLENGED", "Operational", "Historical", "Demo", "NVDAx / NVDA", "SPYx · not onboarded"]) assert.match(html, new RegExp(value));
   assert.match(html, /Valtide.*determines the Evidence State/);
   assert.match(html, /Curators.*define the Policy Action/);
-  assert.match(html, /Exactly six canonical five-minute observations/);
+  assert.match(html, /complete guide below updates/);
+  assert.match(html, /six synthetic observations/);
+  assert.match(html, /Every part of the walkthrough is visible/);
+  assert.match(html, /context product interface example/);
+  assert.match(html, /finding product interface example/);
+  assert.match(html, /boundary product interface example/);
   assert.match(html, /not audited production lending infrastructure/);
+  for (const label of ["New to Valtide", "Curators and risk teams", "Developers and integrators", "Researchers"]) assert.match(html, new RegExp(label));
+  assert.match(html, /role="tablist"/);
+  assert.match(html, /aria-selected="true"/);
+  assert.match(html, /role="tabpanel"/);
+  assert.match(html, /Open the demo result/);
+  assert.match(html, /current NVDAx deployment, this is the OKX X-Perp NVDA index/);
+  assert.match(html, /Whether an attestation remains valid under both its valid-until time and the policy owner’s maximum age/);
+  assert.match(html, /Structured backend explanations for an Evidence State, preserved by the frontend without recomputation/);
+  for (const term of ["Evidence context", "Trusted anchor", "Market state"]) assert.match(html, new RegExp(term));
+  assert.match(html, /Short examples show how each term appears/);
+  assert.match(html, /Also useful for/);
+  const landingSource = fs.readFileSync(path.join(__dirname, "../src/components/LandingPage.tsx"), "utf8");
+  for (const profile of ["everyone", "curators", "developers", "researchers"]) assert.match(landingSource, new RegExp(`/docs\\?profile=${profile}#role-guide`));
 });
 
 test("Cold Operational stays unavailable even when Demo is cached", () => {
   const html = appWith({error:"503 data_unavailable"});
   assert.match(html,/Operational unavailable/);
-  assert.doesNotMatch(html,/Demo fixture|Scenario policy|Example demo policy/);
+  assert.doesNotMatch(html,/Demo Fixture · 6 Observations|Scenario policy|Example demo policy/);
 });
 
 test("Operational failure preserves cached evidence with a degraded label", () => {
   const html = appWith({result:fixture[0],error:"offline"});
   assert.match(html,/Operational degraded/);
   assert.match(html,/180.00/);
-  assert.doesNotMatch(html,/Demo fixture|Example demo policy/);
+  assert.doesNotMatch(html,/Demo Fixture · 6 Observations|Example demo policy/);
 });
 
 test("Prior operational evidence is not paired with current enforcement", () => {
@@ -175,12 +240,28 @@ test("Historical ranges use timestamps and Demo ranges never add observations", 
   assert.ok(filterDemoResults(fixture, "10M").every((row) => fixture.includes(row)));
 });
 
-test("Asset selector keeps NVDAx active and marks SPYx as a disabled roadmap item", () => {
-  const html = render(AssetSelector, { assets: [{asset:"NVDAx",token_source:"okx",underlying_source:"alpaca",model_available:true}], initialOpen: true });
-  assert.match(html, /NVDAx/);
-  assert.match(html, /SPYx/);
-  assert.match(html, /Coming Soon/);
-  assert.match(html, /disabled/);
+test("Instrument Passport validates addresses and resolves only the labelled fixture", () => {
+  assert.equal(passportStatusFor(""), "idle");
+  assert.equal(passportStatusFor("0xnot-an-address"), "invalid");
+  assert.equal(passportStatusFor("0x2222222222222222222222222222222222222222"), "unknown");
+  assert.equal(passportStatusFor(DEMO_PASSPORT_ADDRESS), "resolved");
+  const invalid = render(InstrumentPassport, { initialAddress: "0xnot-an-address" });
+  assert.match(invalid, /exactly 40 hexadecimal characters/);
+  const unknown = render(InstrumentPassport, { initialAddress: "0x2222222222222222222222222222222222222222" });
+  assert.match(unknown, /No verified passport fixture/);
+  assert.doesNotMatch(unknown, /SHAREHOLDER RIGHTS/);
+  const resolved = render(InstrumentPassport, { initialAddress: DEMO_PASSPORT_ADDRESS });
+  for (const value of ["PRICE EXPOSURE", "VERIFIED", "FIXTURE ASSERTION", "SHAREHOLDER RIGHTS", "NONE", "BALANCE ADJUSTMENT", "xSTOCKS WITHDRAWAL", "RIGHTS PROFILE", "DIFFERS FROM A SHARE"]) assert.match(resolved, new RegExp(value));
+  assert.match(resolved, /not live address resolution/i);
+  assert.match(resolved, /type="submit"/);
+});
+
+test("Policy Foundry renders a deterministic diff and read-only approval boundary", () => {
+  const html = render(PolicyFoundry);
+  for (const value of ["Precomputed Policy Proposal", "not generated live", "900s", "600s", "REQUIRE_REVIEW", "MONITOR", "RESTRICT_NEW_RISK", "Unsigned Calldata", "No transaction capability in this prototype"]) assert.match(html, new RegExp(value, "i"));
+  assert.doesNotMatch(html, /Agent Council|ABI SHAPE VERIFIED|Human Approval Required/);
+  assert.match(html, /Not deployed/i);
+  assert.match(POLICY_PROPOSAL.calldata, /^0xf5b39423[0-9a-f]{320}$/);
 });
 
 test("Machine publication statuses use the requested display casing", () => {
