@@ -171,6 +171,10 @@ class RuntimeStore:
                 raise RuntimeStateIntegrityError(
                     f"persisted state/result timestamps disagree for asset {asset}"
                 )
+            if latest_result.asset != asset:
+                raise RuntimeStateIntegrityError(
+                    f"persisted latest result asset does not match its key for asset {asset}"
+                )
 
         return RuntimeRecord(
             asset=asset,
@@ -356,7 +360,13 @@ class RuntimeStore:
     def _validated_runtime_values(
         state: KalmanState,
         result: ValuationResult,
+        *,
+        asset: str,
     ) -> tuple[datetime, datetime]:
+        if result.asset != asset:
+            raise RuntimeStateIntegrityError(
+                f"result asset {result.asset} does not match runtime key {asset}"
+            )
         if state.last_ts is None:
             raise RuntimeStateIntegrityError("cannot persist state without last_ts")
         try:
@@ -382,7 +392,7 @@ class RuntimeStore:
         tick_attempt_at: datetime | None = None,
         gap_steps: int = 0,
     ) -> None:
-        last_ts, result_ts = self._validated_runtime_values(state, result)
+        last_ts, result_ts = self._validated_runtime_values(state, result, asset=asset)
         attempt_at = tick_attempt_at or datetime.now(UTC)
         updated_at = datetime.now(UTC)
         self._connection.execute(
@@ -453,7 +463,7 @@ class RuntimeStore:
         gap_steps: int = 0,
     ) -> None:
         """Persist the latest warmed state and successful observation atomically."""
-        _last_ts, result_ts = self._validated_runtime_values(state, result)
+        _last_ts, result_ts = self._validated_runtime_values(state, result, asset=asset)
         with self._lock, self._connection:
             self._save_runtime_locked(
                 asset,

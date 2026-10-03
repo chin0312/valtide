@@ -38,6 +38,8 @@ def get_latest_result(asset: str) -> ValuationResult | None:
 
 
 def save_latest_result(asset: str, result: ValuationResult) -> None:
+    if result.asset != asset:
+        raise ValueError(f"result asset {result.asset} does not match state key {asset}")
     _results[asset] = result
 
 

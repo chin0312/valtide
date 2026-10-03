@@ -9,9 +9,11 @@ from __future__ import annotations
 
 from fastapi import APIRouter, HTTPException, Query, Response
 
+from valtide_api.assets import AssetConfigurationError
 from valtide_api.data_source import resolve_snapshots
-from valtide_api.models import SUPPORTED_ASSETS, ValuationResult
+from valtide_api.models import ValuationResult
 from valtide_api.replay import replay
+from valtide_api.routes._asset_guard import require_api_asset
 
 router = APIRouter(prefix="/api", tags=["replay"])
 
@@ -23,12 +25,17 @@ def get_replay(
     scenario: str = Query("weekend_divergence"),
     timestamp: str | None = Query(None, description="ISO ts; returns the single matching step"),
 ) -> list[ValuationResult]:
-    if asset not in SUPPORTED_ASSETS:
-        raise HTTPException(status_code=404, detail=f"asset '{asset}' not supported")
+    require_api_asset(asset, "historical_data", "quant")
     try:
-        snapshots, source_label = resolve_snapshots(source=source, scenario=scenario)
+        snapshots, source_label = resolve_snapshots(
+            asset=asset,
+            source=source,
+            scenario=scenario,
+        )
     except FileNotFoundError:
         raise HTTPException(status_code=404, detail="data source not found") from None
+    except AssetConfigurationError as exc:
+        raise HTTPException(status_code=503, detail=str(exc)) from exc
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
 

@@ -4,7 +4,8 @@ from __future__ import annotations
 
 from fastapi import APIRouter, HTTPException, Query
 
-from valtide_api.models import SUPPORTED_ASSETS, ValuationResult
+from valtide_api.models import ValuationResult
+from valtide_api.routes._asset_guard import require_api_asset
 from valtide_api.runtime_store import RuntimeStateIntegrityError, get_runtime_store
 
 router = APIRouter(prefix="/api", tags=["history"])
@@ -20,8 +21,7 @@ def get_history(
     This is operational history only. It never runs inference, advances state,
     publishes, or returns scenario/replay/backtest results.
     """
-    if asset not in SUPPORTED_ASSETS:
-        raise HTTPException(status_code=404, detail=f"asset '{asset}' not supported")
+    require_api_asset(asset, "runtime")
     try:
         return get_runtime_store().load_history(asset, limit=limit)
     except RuntimeStateIntegrityError as exc:

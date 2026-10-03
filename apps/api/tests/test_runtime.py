@@ -11,7 +11,12 @@ from valtide_api.live import ExactNvdaxCandleUnavailable, LiveDataUnavailable
 from valtide_api.models import MarketSnapshot, MarketState
 from valtide_api.publisher import PublicationError
 from valtide_api.runtime_store import RuntimeStateIntegrityError, RuntimeStore
-from valtide_api.scheduler import LiveScheduler, TickResult, run_live_tick
+from valtide_api.scheduler import (
+    LiveScheduler,
+    TickResult,
+    build_enabled_schedulers,
+    run_live_tick,
+)
 
 _ANCHOR = datetime(2026, 9, 19, 13, 0, tzinfo=UTC)
 
@@ -40,11 +45,40 @@ def _builder_for(snapshots: list[MarketSnapshot]):
     by_timestamp = {snapshot.observation_ts: snapshot for snapshot in snapshots}
     calls: list[datetime] = []
 
-    def build(*, observation_ts: datetime) -> MarketSnapshot:
+    def build(*, asset: str, observation_ts: datetime) -> MarketSnapshot:
+        assert asset == "NVDAx"
         calls.append(observation_ts)
         return by_timestamp[observation_ts]
 
     return build, calls
+
+
+def test_scheduler_worker_selection_is_explicit_and_single_asset(tmp_path, monkeypatch):
+    store = RuntimeStore(tmp_path / "runtime.sqlite3")
+    settings = SimpleNamespace(
+        live_scheduler_enabled=True, live_scheduler_asset="NVDAx", auto_publish_enabled=False
+    )
+    monkeypatch.setattr(scheduler_module, "get_settings", lambda: settings)
+    workers = build_enabled_schedulers(settings, store)
+    assert len(workers) == 1
+    assert workers[0].asset == "NVDAx"
+    assert build_enabled_schedulers(settings, store, assets=()) == ()
+
+
+def test_wrong_asset_snapshot_is_not_persisted_or_published(tmp_path):
+    store = RuntimeStore(tmp_path / "runtime.sqlite3")
+    timestamp = _ANCHOR + timedelta(minutes=5)
+    result = run_live_tick(
+        "NVDAx", timestamp, store=store,
+        snapshot_builder=lambda **_kwargs: _snapshot(timestamp).model_copy(
+            update={"asset": "TESTx"}
+        ),
+    )
+    assert result.status == "failure"
+    assert "identity" in result.error
+    assert store.load_runtime("NVDAx").latest_result is None
+    assert store.load_history("NVDAx") == []
+    assert store.load_publication("NVDAx") is None
 
 
 def _patch_settlement_retry(monkeypatch, *, attempts: int = 5, delay: float = 0.0):
@@ -116,7 +150,8 @@ def test_tick_failure_preserves_last_good_state_and_result(tmp_path):
     first = run_live_tick("NVDAx", first_ts, store=store, snapshot_builder=good_builder)
     before = store.load_runtime("NVDAx")
 
-    def failing_builder(*, observation_ts: datetime) -> MarketSnapshot:
+    def failing_builder(*, asset: str, observation_ts: datetime) -> MarketSnapshot:
+        assert asset == "NVDAx"
         raise RuntimeError("synthetic source outage")
 
     failed = run_live_tick(
@@ -142,7 +177,8 @@ def test_settlement_retry_uses_same_timestamp_and_persists_once(tmp_path, monkey
     inference_calls: list[datetime] = []
     original_inference = scheduler_module.run_inference
 
-    def delayed_builder(*, observation_ts):
+    def delayed_builder(*, asset, observation_ts):
+        assert asset == "NVDAx"
         nonlocal builder_attempts
         requested.append(observation_ts)
         builder_attempts += 1
@@ -181,7 +217,8 @@ def test_settlement_retry_exhaustion_preserves_old_runtime_and_history(tmp_path,
     assert first.status == "success"
     requested: list[datetime] = []
 
-    def unavailable_builder(*, observation_ts):
+    def unavailable_builder(*, asset, observation_ts):
+        assert asset == "NVDAx"
         requested.append(observation_ts)
         raise ExactNvdaxCandleUnavailable("exact T still unavailable")
 
@@ -208,7 +245,8 @@ def test_non_settlement_live_error_is_not_retried(tmp_path, monkeypatch):
     store = RuntimeStore(tmp_path / "runtime.sqlite3")
     attempts = 0
 
-    def alpaca_failure(*, observation_ts):  # noqa: ARG001
+    def alpaca_failure(*, asset, observation_ts):  # noqa: ARG001
+        assert asset == "NVDAx"
         nonlocal attempts
         attempts += 1
         raise LiveDataUnavailable("NVDA underlying unavailable (Alpaca)")
@@ -232,7 +270,8 @@ def test_runtime_integrity_error_is_not_retried(tmp_path, monkeypatch):
     store = RuntimeStore(tmp_path / "runtime.sqlite3")
     attempts = 0
 
-    def integrity_failure(*, observation_ts):  # noqa: ARG001
+    def integrity_failure(*, asset, observation_ts):  # noqa: ARG001
+        assert asset == "NVDAx"
         nonlocal attempts
         attempts += 1
         raise RuntimeStateIntegrityError("synthetic persisted-state corruption")
@@ -429,7 +468,8 @@ def test_auto_publish_persists_tick_before_publishing_and_records_success(tmp_pa
     tick = run_live_tick("NVDAx", timestamp, store=store, snapshot_builder=builder)
     calls = []
 
-    def fake_publish(result, *, settings):
+    def fake_publish(result, *, settings, asset):
+        assert asset == "NVDAx"
         assert settings.auto_publish_enabled is True
         assert settings.publish_enabled is False
         persisted = store.load_runtime("NVDAx")
@@ -471,7 +511,8 @@ def test_auto_publish_already_published_records_idempotent_status(tmp_path, monk
     store = RuntimeStore(tmp_path / "runtime.sqlite3")
     tick = run_live_tick("NVDAx", timestamp, store=store, snapshot_builder=builder)
 
-    def fake_publish(result, *, settings):  # noqa: ARG001
+    def fake_publish(result, *, settings, asset):  # noqa: ARG001
+        assert asset == "NVDAx"
         return SimpleNamespace(
             status="already_published",
             published_at=1_800_000_001,
@@ -506,7 +547,8 @@ def test_failed_or_already_processed_tick_does_not_publish(tmp_path, monkeypatch
     run_live_tick("NVDAx", first_ts, store=store, snapshot_builder=good_builder)
     duplicate = run_live_tick("NVDAx", first_ts, store=store, snapshot_builder=good_builder)
 
-    def failing_builder(*, observation_ts):  # noqa: ARG001
+    def failing_builder(*, asset, observation_ts):  # noqa: ARG001
+        assert asset == "NVDAx"
         raise RuntimeError("synthetic source outage")
 
     failed = run_live_tick("NVDAx", second_ts, store=store, snapshot_builder=failing_builder)
@@ -540,7 +582,8 @@ def test_auto_publish_failure_preserves_successful_runtime_and_scheduler_continu
     first = run_live_tick("NVDAx", first_ts, store=store, snapshot_builder=builder)
     calls = 0
 
-    def fake_publish(result, *, settings):  # noqa: ARG001
+    def fake_publish(result, *, settings, asset):  # noqa: ARG001
+        assert asset == "NVDAx"
         nonlocal calls
         calls += 1
         if calls == 1:
@@ -604,7 +647,8 @@ def test_slow_publication_does_not_block_next_tick_and_stays_serialized(tmp_path
     def fake_tick(asset, canonical_ts, *, store):
         return run_live_tick(asset, canonical_ts, store=store, snapshot_builder=builder)
 
-    def slow_publish(result, *, settings):  # noqa: ARG001
+    def slow_publish(result, *, settings, asset):  # noqa: ARG001
+        assert asset == "NVDAx"
         nonlocal active_calls, max_active_calls
         with lock:
             active_calls += 1
@@ -669,7 +713,8 @@ def test_newest_pending_observation_supersedes_older_pending_publication(
     def fake_tick(asset, canonical_ts, *, store):
         return run_live_tick(asset, canonical_ts, store=store, snapshot_builder=builder)
 
-    def slow_publish(result, *, settings):  # noqa: ARG001
+    def slow_publish(result, *, settings, asset):  # noqa: ARG001
+        assert asset == "NVDAx"
         nonlocal active_calls, max_active_calls
         with lock:
             active_calls += 1
@@ -728,7 +773,8 @@ def test_failed_in_flight_publication_still_delivers_newest_pending_observation(
     def fake_tick(asset, canonical_ts, *, store):
         return run_live_tick(asset, canonical_ts, store=store, snapshot_builder=builder)
 
-    def failing_first_publish(result, *, settings):  # noqa: ARG001
+    def failing_first_publish(result, *, settings, asset):  # noqa: ARG001
+        assert asset == "NVDAx"
         published.append(result.timestamp)
         if result.timestamp == first_ts:
             publication_started.set()

@@ -19,8 +19,15 @@ from importlib import resources
 from pathlib import Path
 from typing import Any
 
+from valtide_api.assets import (
+    AssetConfig,
+    AssetConfigurationError,
+    UnsupportedAssetError,
+    resolve_asset_config,
+)
 from valtide_api.config import Settings, get_settings
 from valtide_api.models import EvidenceState, ValuationResult
+from valtide_api.quant_runtime import resolve_quant_runtime
 
 _ADDRESS_RE = re.compile(r"^0x[0-9a-fA-F]{40}$")
 _BYTES32_RE = re.compile(r"^0x[0-9a-fA-F]{64}$")
@@ -37,10 +44,6 @@ _POLICY_ACTION_BY_CODE = {
     3: "RESTRICT_NEW_RISK",
 }
 _POLICY_ACTION_CODE = {value: key for key, value in _POLICY_ACTION_BY_CODE.items()}
-_REFERENCE_SOURCE = "okx_xperp_index"
-_CANONICAL_ASSET_NAME = "NVDAx"
-_CANONICAL_REFERENCE_NAME = "OKX_NVDA_USD_INDEX"
-_CANONICAL_MODEL_VERSION = "0.2.0"
 _EVIDENCE_SCHEMA = "valtide-evidence-v1"
 _READBACK_ATTEMPTS = 5
 _READBACK_RETRY_DELAY_SECONDS = 1.0
@@ -82,6 +85,7 @@ class EnforcementVerificationError(ChainPreflightError):
 class DeploymentConfig:
     """Public deployment metadata resolved from the manifest and env overrides."""
 
+    asset: str
     manifest_path: Path
     network: str
     chain_id: int
@@ -181,13 +185,40 @@ def _load_manifest(path: Path) -> dict[str, Any]:
     return data
 
 
-def load_deployment_config(settings: Settings | None = None) -> DeploymentConfig:
-    """Resolve public deployment metadata without requiring a private key."""
+def resolve_asset_deployment(
+    asset: str,
+    settings: Settings | None = None,
+) -> DeploymentConfig:
+    """Resolve one asset's manifest binding and validate it fail-closed.
+
+    The manifest remains authoritative for deployed addresses and bytes32
+    identifiers.  The asset registry supplies the expected human identities;
+    this single resolver verifies that the two layers still describe the same
+    asset/model before any Web3 call is attempted.
+    """
+
     settings = settings or get_settings()
+    try:
+        asset_config = resolve_asset_config(asset, settings)
+    except UnsupportedAssetError:
+        raise
+    except AssetConfigurationError as exc:
+        raise PublisherNotConfigured(str(exc)) from exc
+    if not asset_config.capabilities.onchain:
+        raise PublisherNotConfigured(f"onchain binding is unavailable for '{asset}'")
+
     path = settings.resolved_deployment_manifest_path
     manifest = _load_manifest(path)
     contracts = manifest.get("contracts")
-    demo = manifest.get("demo")
+    bindings = manifest.get("assets")
+    if bindings is not None:
+        if not isinstance(bindings, dict) or not isinstance(bindings.get(asset), dict):
+            raise PublisherNotConfigured(f"deployment manifest has no binding for '{asset}'")
+        demo = bindings[asset]
+    elif asset == "NVDAx":
+        demo = manifest.get("demo")
+    else:
+        raise PublisherNotConfigured(f"deployment manifest has no binding for '{asset}'")
     if not isinstance(contracts, dict) or not isinstance(demo, dict):
         raise PublisherNotConfigured("deployment manifest is missing contracts or demo metadata")
 
@@ -198,7 +229,10 @@ def load_deployment_config(settings: Settings | None = None) -> DeploymentConfig
             settings.registry_address or contracts["ValtideValidationRegistry"]
         )
         risk_guard_address = str(settings.risk_guard_address or contracts["ValtideRiskGuard"])
-        demo_vault_address = str(settings.demo_vault_address or contracts["DemoCollateralVault"])
+        demo_vault_address = str(
+            demo["demoVault"] if bindings is not None
+            else (settings.demo_vault_address or contracts["DemoCollateralVault"])
+        )
         asset_id = str(demo["assetId"])
         reference_id = str(demo["referenceId"])
         model_version = str(demo["modelVersion"])
@@ -214,20 +248,29 @@ def load_deployment_config(settings: Settings | None = None) -> DeploymentConfig
     reference_id = _validate_bytes32(reference_id, "reference ID")
     model_version = _validate_bytes32(model_version, "model version")
 
-    # These text identities are protocol constants, while their hashes remain
-    # in the manifest. This catches accidentally mixing a different deployment.
-    if keccak_text(_CANONICAL_ASSET_NAME) != asset_id:
-        raise PublisherNotConfigured("deployment asset ID does not match NVDAx")
-    if keccak_text(_CANONICAL_REFERENCE_NAME) != reference_id:
-        raise PublisherNotConfigured("deployment reference ID does not match the OKX index")
-    if keccak_text(_CANONICAL_MODEL_VERSION) != model_version:
-        raise PublisherNotConfigured("deployment model version does not match quant 0.2.0")
+    if keccak_text(asset_config.asset) != asset_id:
+        raise PublisherNotConfigured(
+            f"deployment asset ID does not match registered asset {asset_config.asset}"
+        )
+    if keccak_text(asset_config.xlayer_reference_name) != reference_id:
+        raise PublisherNotConfigured(
+            f"deployment reference ID does not match registered asset {asset_config.asset}"
+        )
+    try:
+        runtime_spec = resolve_quant_runtime(asset_config)
+    except AssetConfigurationError as exc:
+        raise PublisherNotConfigured("quant runtime is not ready for deployment") from exc
+    if keccak_text(runtime_spec.model_version) != model_version:
+        raise PublisherNotConfigured(
+            f"deployment model version does not match asset {asset_config.asset}"
+        )
 
     manifest_publisher = manifest.get("publisher")
     if manifest_publisher is not None:
         manifest_publisher = _validate_address(str(manifest_publisher), "publisher")
 
     return DeploymentConfig(
+        asset=asset_config.asset,
         manifest_path=path,
         network=network,
         chain_id=chain_id,
@@ -240,6 +283,15 @@ def load_deployment_config(settings: Settings | None = None) -> DeploymentConfig
         manifest_publisher=manifest_publisher,
         rpc_url=_normalize_rpc_url(settings.xlayer_rpc_url),
     )
+
+
+def load_deployment_config(
+    settings: Settings | None = None,
+    asset: str = "NVDAx",
+) -> DeploymentConfig:
+    """Backward-compatible wrapper for the asset-scoped deployment resolver."""
+
+    return resolve_asset_deployment(asset, settings)
 
 
 def _to_e8(value: float) -> int:
@@ -266,8 +318,36 @@ def _timestamp_seconds(value: datetime) -> int:
     return seconds
 
 
+def _validate_deployment_binding(
+    config: DeploymentConfig,
+    asset_config: AssetConfig,
+    *,
+    requested_asset: str,
+) -> None:
+    """Reject a deployment object whose IDs do not belong to the requested asset."""
+
+    if requested_asset != asset_config.asset or config.asset != requested_asset:
+        raise PublishabilityError("deployment binding does not match the requested asset")
+    if config.asset_id != keccak_text(asset_config.asset):
+        raise PublishabilityError("deployment asset ID does not match the requested asset")
+    if config.reference_id != keccak_text(asset_config.xlayer_reference_name):
+        raise PublishabilityError(
+            "deployment reference ID does not match the requested asset"
+        )
+    try:
+        runtime_spec = resolve_quant_runtime(asset_config)
+    except AssetConfigurationError as exc:
+        raise PublishabilityError("quant runtime is not ready for publication") from exc
+    if config.model_version != keccak_text(runtime_spec.model_version):
+        raise PublishabilityError(
+            "deployment model version does not match the requested asset"
+        )
+
+
 def canonical_evidence_bytes(result: ValuationResult, config: DeploymentConfig) -> bytes:
     """Build deterministic evidence bytes; no publication time is included."""
+    if result.asset != config.asset:
+        raise PublishabilityError("evidence result asset does not match the deployment")
     timestamp = result.timestamp.astimezone(UTC).isoformat().replace("+00:00", "Z")
     payload = {
         "schema": _EVIDENCE_SCHEMA,
@@ -314,20 +394,39 @@ def build_attestation(
     config: DeploymentConfig | None = None,
     validity_seconds: int | None = None,
     current_chain_timestamp: int | None = None,
+    *,
+    asset: str | None = None,
+    settings: Settings | None = None,
 ) -> dict[str, Any]:
     """Translate a warmed result into the Registry input fields."""
-    config = config or load_deployment_config()
-    settings = get_settings()
+    requested_asset = asset or result.asset
+    settings = settings or get_settings()
+    try:
+        asset_config = resolve_asset_config(requested_asset, settings)
+    except (UnsupportedAssetError, AssetConfigurationError) as exc:
+        raise PublishabilityError(f"asset '{requested_asset}' is not publishable") from exc
+    config = config or load_deployment_config(settings, asset=requested_asset)
+    _validate_deployment_binding(
+        config,
+        asset_config,
+        requested_asset=requested_asset,
+    )
     validity_seconds = (
         settings.publish_validity_seconds if validity_seconds is None else validity_seconds
     )
     if validity_seconds <= 0:
         raise PublishabilityError("publication validity must be positive")
-    if result.asset != _CANONICAL_ASSET_NAME:
-        raise PublishabilityError(f"asset '{result.asset}' is not publishable")
+    if result.asset != requested_asset:
+        raise PublishabilityError("result asset does not match the requested asset")
+    try:
+        runtime_spec = resolve_quant_runtime(asset_config)
+    except AssetConfigurationError as exc:
+        raise PublishabilityError("quant runtime is not ready for publication") from exc
+    if result.model_id != runtime_spec.model_id:
+        raise PublishabilityError("valuation model ID does not match the registered runtime")
     if result.reference_under_test is None or result.reference_deviation_pct is None:
         raise PublishabilityError("reference-under-test observation is required")
-    if result.reference_under_test_source != _REFERENCE_SOURCE:
+    if result.reference_under_test_source != asset_config.reference_under_test_source:
         raise PublishabilityError("reference-under-test source is not the configured OKX index")
     if result.evidence_state not in _EVIDENCE_ENUM:
         raise PublishabilityError("unknown evidence state")
@@ -631,15 +730,18 @@ def _verify_deployment(w3: Any, config: DeploymentConfig) -> tuple[Any, Any, Any
 def read_control_plane(
     settings: Settings | None = None,
     web3_client: Any | None = None,
+    *,
+    asset: str = "NVDAx",
 ) -> dict[str, Any]:
     """Read deployment, linkage, policy, and current evaluation state."""
     settings = settings or get_settings()
-    config = load_deployment_config(settings)
+    config = load_deployment_config(settings, asset=asset)
     w3 = web3_client or connect_web3(config)
     registry, guard, _vault, policy = _verify_deployment(w3, config)
     latest = _read_latest(registry, config)
     evaluation = _read_evaluation(w3, guard, config)
     return {
+        "asset": config.asset,
         "configured": True,
         "deployed": True,
         "network": config.network,
@@ -763,14 +865,22 @@ def publish(
     result: ValuationResult,
     settings: Settings | None = None,
     web3_client: Any | None = None,
+    *,
+    asset: str | None = None,
 ) -> PublishReceipt:
     """Publish one warmed result, with preflight, monotonicity, and read-back."""
     settings = settings or get_settings()
+    requested_asset = asset or result.asset
+    if result.asset != requested_asset:
+        raise PublishabilityError("result asset does not match the requested asset")
     if not settings.xlayer_rpc_url or not settings.publisher_private_key:
         raise PublisherNotConfigured(
             "set XLAYER_RPC_URL and PUBLISHER_PRIVATE_KEY for X Layer publication"
         )
-    config = load_deployment_config(settings)
+    try:
+        config = load_deployment_config(settings, asset=requested_asset)
+    except UnsupportedAssetError as exc:
+        raise PublishabilityError(f"asset '{requested_asset}' is not publishable") from exc
     w3 = web3_client or connect_web3(config)
     registry, _guard, _vault, _policy = _verify_deployment(w3, config)
     try:
@@ -791,11 +901,13 @@ def publish(
         config=config,
         validity_seconds=settings.publish_validity_seconds,
         current_chain_timestamp=chain_timestamp,
+        asset=requested_asset,
+        settings=settings,
     )
     existing = _read_latest(registry, config)
     decision = classify_existing_attestation(existing, candidate)
     if decision == "already_published":
-        state = read_control_plane(settings=settings, web3_client=w3)
+        state = read_control_plane(asset=requested_asset, settings=settings, web3_client=w3)
         return _receipt_from_state("already_published", None, config, candidate, state)
 
     input_tuple = (
@@ -846,17 +958,19 @@ def publish(
     if int(status or 0) != 1:
         raise PublicationError("X Layer publication transaction reverted")
     _readback_after_publish(registry, config, candidate)
-    state = read_control_plane(settings=settings, web3_client=w3)
+    state = read_control_plane(asset=requested_asset, settings=settings, web3_client=w3)
     return _receipt_from_state("published", tx_hash, config, candidate, state)
 
 
 def check_demo_vault_enforcement(
     settings: Settings | None = None,
     web3_client: Any | None = None,
+    *,
+    asset: str = "NVDAx",
 ) -> dict[str, Any]:
     """Simulate the DemoVault gate and compare it with RiskGuard evaluation."""
     settings = settings or get_settings()
-    config = load_deployment_config(settings)
+    config = load_deployment_config(settings, asset=asset)
     w3 = web3_client or connect_web3(config)
     _registry, guard, vault, _policy = _verify_deployment(w3, config)
     evaluation = _read_evaluation(w3, guard, config)

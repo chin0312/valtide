@@ -30,7 +30,7 @@ def _patch_sources(monkeypatch, *, quote, bar, ref, bars=None, candle=None):
     full ascending window when the current-bucket and trusted-anchor bars differ.
     """
     trusted = bars if bars is not None else ([bar] if bar is not None else [])
-    def get_candle(boundary, **_kwargs):
+    def get_candle(_config, boundary, **_kwargs):
         if quote is None:
             return None
         return candle or RawCandle(
@@ -44,9 +44,11 @@ def _patch_sources(monkeypatch, *, quote, bar, ref, bars=None, candle=None):
             1,
         )
 
-    monkeypatch.setattr(live.okx, "get_nvdax_candle_at", get_candle)
-    monkeypatch.setattr(live.equity, "get_trusted_bars", lambda *a, **k: trusted)
-    monkeypatch.setattr(live.reference, "get_confirmed_index_bar", lambda *a, **k: ref)
+    monkeypatch.setattr(live.token_market, "get_exact_candle", get_candle)
+    monkeypatch.setattr(live.market_sources.equity, "get_trusted_bars", lambda *a, **k: trusted)
+    monkeypatch.setattr(
+        live.market_sources.reference, "get_confirmed_index_bar", lambda *a, **k: ref
+    )
 
 
 def test_build_live_snapshot_uses_confirmed_reference_candle(monkeypatch):
@@ -302,15 +304,15 @@ def test_underlying_query_is_capped_at_observation_boundary(monkeypatch):
         return [bar for bar in all_bars if bar.ts <= now]
 
     monkeypatch.setattr(
-        live.okx,
-        "get_nvdax_candle_at",
-        lambda boundary, **_k: RawCandle(
+        live.token_market,
+        "get_exact_candle",
+        lambda _config, boundary, **_k: RawCandle(
             boundary, 181.0, 182.0, 180.0, 181.1, 1000.0, 181_100.0, 1
         ),
     )
-    monkeypatch.setattr(live.equity, "get_trusted_bars", get_bars)
+    monkeypatch.setattr(live.market_sources.equity, "get_trusted_bars", get_bars)
     monkeypatch.setattr(
-        live.reference,
+        live.market_sources.reference,
         "get_confirmed_index_bar",
         lambda *_a, **_k: ReferenceObservation(
             price=181.2, source="okx_xperp_index", ts=observation_ts
@@ -420,7 +422,7 @@ def test_missing_exact_okx_candle_does_not_fall_back_to_dexscreener(
             ts=observation_ts,
         ),
     )
-    monkeypatch.setattr(live.okx, "get_nvdax_candle_at", lambda *_a, **_k: None)
+    monkeypatch.setattr(live.token_market, "get_exact_candle", lambda *_a, **_k: None)
 
     with pytest.raises(ExactNvdaxCandleUnavailable, match="OKX OnchainOS"):
         build_live_snapshot(observation_ts=observation_ts)

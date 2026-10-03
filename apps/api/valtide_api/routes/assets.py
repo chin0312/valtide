@@ -7,6 +7,9 @@ asset; live data availability is reported by the valuation routes.
 from fastapi import APIRouter
 from pydantic import BaseModel
 
+from valtide_api.assets import production_asset_configs
+from valtide_api.quant_runtime import quant_runtime_available
+
 router = APIRouter(prefix="/api", tags=["assets"])
 
 
@@ -21,9 +24,10 @@ class AssetInfo(BaseModel):
 def list_assets() -> list[AssetInfo]:
     return [
         AssetInfo(
-            asset="NVDAx",
-            token_source="okx_onchainos",
-            underlying_source="alpaca",
-            model_available=True,
+            asset=config.asset,
+            token_source=config.token_source,
+            underlying_source=config.underlying_source,
+            model_available=quant_runtime_available(config),
         )
+        for config in production_asset_configs()
     ]
