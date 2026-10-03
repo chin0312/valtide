@@ -1,342 +1,257 @@
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, type ReactNode } from "react";
+import { MODEL_EVIDENCE_SUMMARY } from "../fixtures/prototypeData";
+import { AnimatedValtideLogo } from "./AnimatedValtideLogo";
 
-type LineName = "real" | "valtide" | "token";
+type LineName = "reference" | "valtide" | "token";
 type Point = { x: number; y: number };
 type Lines = Record<LineName, Point[]>;
 
-const COLORS = {
-  real: "#d8dee6",
+const COLORS: Record<LineName, string> = {
+  reference: "#d8dee6",
   valtide: "#91b9ca",
   token: "#1dd3b0",
-  calm: [29, 211, 176],
-  tension: [213, 122, 222],
-} as const;
+};
+
+function MetricInfo({ id, label, children }: { id: string; label: string; children: ReactNode }) {
+  return (
+    <span className="valtide-hero__proof-info">
+      <button type="button" aria-label={label} aria-describedby={id}>i</button>
+      <span id={id} role="tooltip" className="valtide-hero__proof-tooltip">{children}</span>
+    </span>
+  );
+}
 
 export function Hero() {
   const heroRef = useRef<HTMLElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
-  const realLabelRef = useRef<HTMLDivElement>(null);
+  const referenceLabelRef = useRef<HTMLDivElement>(null);
   const valtideLabelRef = useRef<HTMLDivElement>(null);
   const tokenLabelRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
-    const heroNode = heroRef.current;
-    const canvasNode = canvasRef.current;
-    const realLabelNode = realLabelRef.current;
-    const valtideLabelNode = valtideLabelRef.current;
-    const tokenLabelNode = tokenLabelRef.current;
-    if (!heroNode || !canvasNode || !realLabelNode || !valtideLabelNode || !tokenLabelNode) return;
+    const hero = heroRef.current;
+    const canvas = canvasRef.current;
+    const referenceLabel = referenceLabelRef.current;
+    const valtideLabel = valtideLabelRef.current;
+    const tokenLabel = tokenLabelRef.current;
+    if (!hero || !canvas || !referenceLabel || !valtideLabel || !tokenLabel) return;
+    const context = canvas.getContext("2d");
+    if (!context) return;
 
-    const drawingNode = canvasNode.getContext("2d");
-    if (!drawingNode) return;
-    const hero: HTMLElement = heroNode;
-    const canvas: HTMLCanvasElement = canvasNode;
-    const drawing: CanvasRenderingContext2D = drawingNode;
-    const realLabel: HTMLDivElement = realLabelNode;
-    const valtideLabel: HTMLDivElement = valtideLabelNode;
-    const tokenLabel: HTMLDivElement = tokenLabelNode;
-
-    const labels: Record<LineName, HTMLDivElement> = { real: realLabel, valtide: valtideLabel, token: tokenLabel };
-    const labelPositions: Record<LineName, number | null> = { real: null, valtide: null, token: null };
+    const labels: Record<LineName, HTMLDivElement> = { reference: referenceLabel, valtide: valtideLabel, token: tokenLabel };
     const prefersReducedMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
     let width = 0;
     let height = 0;
     let lineHeadX = 0;
-    let gap = 0.18;
-    let pointerGap = 0.18;
-    let lastPointerMove = -Infinity;
-    let lastFrame = performance.now();
-    let animationFrame = 0;
+    let frame = 0;
     let visible = true;
     let disposed = false;
-
-    function clamp(value: number, minimum = 0, maximum = 1) {
-      return Math.max(minimum, Math.min(maximum, value));
-    }
+    let gap = 0.24;
 
     function smoothstep(value: number) {
-      const x = clamp(value);
+      const x = Math.max(0, Math.min(1, value));
       return x * x * (3 - 2 * x);
     }
 
-    function mixColor(from: readonly number[], to: readonly number[], amount: number, alpha = 1) {
-      const channel = (index: number) => Math.round(from[index] + (to[index] - from[index]) * amount);
-      return `rgba(${channel(0)}, ${channel(1)}, ${channel(2)}, ${alpha})`;
+    function envelope(value: number) {
+      const x = Math.max(0, Math.min(1, (value - 0.12) / 0.82));
+      return x * x * (3 - 2 * x);
     }
 
-    function envelope(u: number) {
-      return smoothstep((u - 0.12) / 0.82);
+    function valuesAt(position: number, time: number) {
+      const baseline = height * 0.8
+        + Math.sin(position * 6.1 + time * 0.00025) * 7
+        + Math.sin(position * 15.3 - time * 0.00042) * 3;
+      const divergence = Math.min(height * 0.24, 185) * gap * envelope(position);
+      const reference = baseline - divergence * 0.42;
+      const token = baseline + divergence * 0.58 + Math.sin(position * 11.8 - time * 0.00048) * 3;
+      const valtide = reference + (token - reference) * 0.48 + Math.sin(position * 8.4 + time * 0.00034) * 2;
+      return { reference, valtide, token };
     }
 
-    function baseWave(u: number, time: number) {
-      return Math.sin(u * 6.1 + time * 0.00038) * 8 + Math.sin(u * 15.3 - time * 0.00064) * 3.5;
-    }
-
-    function divergenceShape(u: number) {
-      return envelope(u) * (0.82 + Math.sin(u * 4.2 - 0.4) * 0.13 + Math.sin(u * 9.8) * 0.05);
-    }
-
-    function valuesAt(u: number, time: number) {
-      const baselineRatio = width < 760 ? 0.68 : 0.58;
-      const baseline = height * baselineRatio + baseWave(u, time);
-      const separation = Math.min(height * (width < 760 ? 0.3 : 0.38), 350) * gap * divergenceShape(u);
-      const real = baseline - separation * 0.42 + Math.sin(u * 9.3 + time * 0.00042) * 3;
-      const token = baseline + separation * 0.58 + Math.sin(u * 11.8 - time * 0.00072) * 5;
-      const valtide = real + (token - real) * 0.48 + Math.sin(u * 8.4 + time * 0.00051) * 2.5;
-      return { real, valtide, token };
-    }
-
-    function sampleLines(time: number): Lines {
-      const samples = Math.max(110, Math.ceil(lineHeadX / 7));
-      const lines: Lines = { real: [], valtide: [], token: [] };
-      for (let index = 0; index <= samples; index += 1) {
-        const u = index / samples;
-        const x = u * lineHeadX;
-        const values = valuesAt(u, time);
-        lines.real.push({ x, y: values.real });
-        lines.valtide.push({ x, y: values.valtide });
-        lines.token.push({ x, y: values.token });
+    function sample(time: number): Lines {
+      const count = Math.max(100, Math.ceil(lineHeadX / 8));
+      const lines: Lines = { reference: [], valtide: [], token: [] };
+      for (let index = 0; index <= count; index += 1) {
+        const position = index / count;
+        const values = valuesAt(position, time);
+        (Object.keys(lines) as LineName[]).forEach((name) => lines[name].push({ x: position * lineHeadX, y: values[name] }));
       }
       return lines;
     }
 
     function trace(points: Point[], reverse = false) {
       const sequence = reverse ? [...points].reverse() : points;
-      sequence.forEach((point, index) => {
-        if (index === 0) drawing.moveTo(point.x, point.y);
-        else drawing.lineTo(point.x, point.y);
-      });
+      sequence.forEach((point, index) => index === 0 ? context!.moveTo(point.x, point.y) : context!.lineTo(point.x, point.y));
     }
 
-    function drawGap(lines: Lines) {
-      const tension = smoothstep((gap - 0.16) / 0.72);
-      const fill = drawing.createLinearGradient(0, 0, lineHeadX, 0);
-      fill.addColorStop(0, "rgba(29, 211, 176, 0)");
-      fill.addColorStop(0.25, mixColor(COLORS.calm, COLORS.tension, tension, 0.025 + gap * 0.035));
-      fill.addColorStop(1, mixColor(COLORS.calm, COLORS.tension, tension, 0.08 + gap * 0.14));
-      drawing.beginPath();
-      trace(lines.real);
-      trace(lines.token, true);
-      drawing.closePath();
-      drawing.fillStyle = fill;
-      drawing.fill();
-
-      drawing.save();
-      drawing.strokeStyle = mixColor(COLORS.calm, COLORS.tension, tension, 0.06 + gap * 0.15);
-      drawing.lineWidth = 1;
-      for (let index = 18; index < lines.real.length - 10; index += 5) {
-        const top = lines.real[index];
-        const bottom = lines.token[Math.min(lines.token.length - 1, index + (index % 2 ? 1 : -1))];
-        drawing.beginPath();
-        drawing.moveTo(top.x, top.y + 4);
-        drawing.lineTo(bottom.x, bottom.y - 4);
-        drawing.stroke();
-      }
-      drawing.restore();
-    }
-
-    function drawLine(points: Point[], color: string, weight: number, glow: string) {
-      const stroke = drawing.createLinearGradient(0, 0, lineHeadX, 0);
-      stroke.addColorStop(0, `${color}22`);
-      stroke.addColorStop(0.28, `${color}88`);
-      stroke.addColorStop(0.76, color);
+    function drawLine(points: Point[], color: string, weight: number) {
+      const stroke = context!.createLinearGradient(0, 0, lineHeadX, 0);
+      stroke.addColorStop(0, `${color}12`);
+      stroke.addColorStop(.24, `${color}5c`);
+      stroke.addColorStop(.4, `${color}24`);
+      stroke.addColorStop(.7, `${color}2c`);
+      stroke.addColorStop(.84, `${color}a8`);
       stroke.addColorStop(1, color);
-      drawing.save();
-      drawing.beginPath();
+      context!.save();
+      context!.beginPath();
       trace(points);
-      drawing.strokeStyle = stroke;
-      drawing.lineWidth = weight;
-      drawing.lineCap = "round";
-      drawing.lineJoin = "round";
-      drawing.shadowColor = `${color}${glow}`;
-      drawing.shadowBlur = 7;
-      drawing.stroke();
-      drawing.restore();
-    }
-
-    function drawRiders(points: Point[], time: number, color: string, speed: number) {
-      drawing.save();
-      drawing.fillStyle = color;
-      drawing.shadowColor = color;
-      drawing.shadowBlur = 5;
-      for (let dot = 0; dot < 3; dot += 1) {
-        const progress = (time * speed + dot * 0.28) % 1;
-        const index = Math.floor((0.48 + progress * 0.48) * (points.length - 1));
-        const point = points[index];
-        drawing.globalAlpha = 0.35 + progress * 0.55;
-        drawing.beginPath();
-        drawing.arc(point.x, point.y, dot === 2 ? 2.4 : 1.7, 0, Math.PI * 2);
-        drawing.fill();
-      }
-      drawing.restore();
-    }
-
-    function solveLabelPositions(time: number) {
-      const values = valuesAt(1, time);
-      const raw = [values.real, values.valtide, values.token];
-      const spacing = width < 760 ? 21 : 26;
-      const targets = [...raw];
-      targets[1] = Math.max(targets[1], targets[0] + spacing);
-      targets[2] = Math.max(targets[2], targets[1] + spacing);
-      const recenter = (raw[0] + raw[1] + raw[2] - targets[0] - targets[1] - targets[2]) / 3;
-      for (let index = 0; index < targets.length; index += 1) targets[index] += recenter;
-      if (targets[0] < 20) {
-        const shift = 20 - targets[0];
-        for (let index = 0; index < targets.length; index += 1) targets[index] += shift;
-      }
-      if (targets[2] > height - 20) {
-        const shift = targets[2] - (height - 20);
-        for (let index = 0; index < targets.length; index += 1) targets[index] -= shift;
-      }
-
-      const names: LineName[] = ["real", "valtide", "token"];
-      names.forEach((name, index) => {
-        if (labelPositions[name] === null) labelPositions[name] = targets[index];
-        labelPositions[name]! += (targets[index] - labelPositions[name]!) * 0.14;
-        labels[name].style.left = `${lineHeadX + 15}px`;
-        labels[name].style.top = `${labelPositions[name]}px`;
-      });
-      return labelPositions as Record<LineName, number>;
-    }
-
-    function drawDirectLabels(lines: Lines, positions: Record<LineName, number>) {
-      const entries = [
-        { points: lines.real, color: COLORS.real, y: positions.real },
-        { points: lines.valtide, color: COLORS.valtide, y: positions.valtide },
-        { points: lines.token, color: COLORS.token, y: positions.token },
-      ];
-      drawing.save();
-      drawing.lineWidth = 1;
-      drawing.lineCap = "round";
-      entries.forEach((entry) => {
-        const endpoint = entry.points[entry.points.length - 1];
-        drawing.strokeStyle = `${entry.color}99`;
-        drawing.beginPath();
-        drawing.moveTo(endpoint.x, endpoint.y);
-        drawing.lineTo(lineHeadX + 18, entry.y);
-        drawing.stroke();
-      });
-      drawing.restore();
+      context!.strokeStyle = stroke;
+      context!.lineWidth = weight;
+      context!.lineCap = "round";
+      context!.lineJoin = "round";
+      context!.shadowColor = `${color}44`;
+      context!.shadowBlur = 7;
+      context!.stroke();
+      context!.restore();
     }
 
     function draw(time: number) {
-      drawing.clearRect(0, 0, width, height);
-      const lines = sampleLines(time);
-      drawGap(lines);
-      drawLine(lines.real, COLORS.real, 2.2, "44");
-      drawLine(lines.valtide, COLORS.valtide, 2.8, "55");
-      drawLine(lines.token, COLORS.token, 2.4, "55");
-      drawRiders(lines.real, time, COLORS.real, 0.000035);
-      drawRiders(lines.valtide, time, COLORS.valtide, 0.000043);
-      drawRiders(lines.token, time, COLORS.token, 0.000051);
-      drawDirectLabels(lines, solveLabelPositions(time));
+      context!.clearRect(0, 0, width, height);
+      const lines = sample(time);
+      const tension = smoothstep((gap - .34) / .46);
+      const fill = context!.createLinearGradient(0, 0, lineHeadX, 0);
+      fill.addColorStop(0, "rgba(29, 211, 176, 0)");
+      fill.addColorStop(.38, `rgba(29, 211, 176, ${.01 + tension * .018})`);
+      fill.addColorStop(.72, `rgba(138, 98, 184, ${.025 + tension * .09})`);
+      fill.addColorStop(1, `rgba(213, 122, 222, ${.06 + tension * .22})`);
+      context!.beginPath();
+      trace(lines.reference);
+      trace(lines.token, true);
+      context!.closePath();
+      context!.fillStyle = fill;
+      context!.fill();
+
+      context!.save();
+      context!.strokeStyle = `rgba(213, 122, 222, ${.04 + tension * .22})`;
+      context!.lineWidth = 1;
+      for (let index = Math.floor(lines.reference.length * .38); index < lines.reference.length - 3; index += 5) {
+        const top = lines.reference[index];
+        const bottom = lines.token[Math.min(lines.token.length - 1, index + (index % 2 ? 1 : -1))];
+        context!.beginPath();
+        context!.moveTo(top.x, top.y + 3);
+        context!.lineTo(bottom.x, bottom.y - 3);
+        context!.stroke();
+      }
+      context!.restore();
+
+      drawLine(lines.reference, COLORS.reference, 2.1);
+      drawLine(lines.valtide, COLORS.valtide, 2.7);
+      drawLine(lines.token, COLORS.token, 2.3);
+
+      const endpoints = valuesAt(1, time);
+      const ordered: LineName[] = ["reference", "valtide", "token"];
+      const positions = ordered.map((name) => endpoints[name]);
+      const spacing = width < 760 ? 21 : 25;
+      positions[1] = Math.max(positions[1], positions[0] + spacing);
+      positions[2] = Math.max(positions[2], positions[1] + spacing);
+      if (positions[2] > height - 20) {
+        const shift = positions[2] - (height - 20);
+        positions[0] -= shift;
+        positions[1] -= shift;
+        positions[2] -= shift;
+      }
+      ordered.forEach((name, index) => {
+        labels[name].style.left = `${lineHeadX + 15}px`;
+        labels[name].style.top = `${positions[index]}px`;
+        const endpoint = lines[name][lines[name].length - 1];
+        context!.beginPath();
+        context!.moveTo(endpoint.x, endpoint.y);
+        context!.lineTo(lineHeadX + 18, positions[index]);
+        context!.strokeStyle = `${COLORS[name]}88`;
+        context!.lineWidth = 1;
+        context!.stroke();
+      });
     }
 
     function resize() {
-      const bounds = hero.getBoundingClientRect();
+      const bounds = canvas!.parentElement?.getBoundingClientRect() ?? hero!.getBoundingClientRect();
       width = bounds.width;
-      const lowerBand = width < 760 ? 292 : 224;
-      height = Math.max(320, bounds.height - lowerBand);
-      lineHeadX = width * (width < 760 ? 0.72 : 0.84);
-      const pixelRatio = Math.min(window.devicePixelRatio || 1, 2);
-      canvas.width = Math.round(width * pixelRatio);
-      canvas.height = Math.round(height * pixelRatio);
-      canvas.style.width = `${width}px`;
-      canvas.style.height = `${height}px`;
-      drawing.setTransform(pixelRatio, 0, 0, pixelRatio, 0, 0);
-      labelPositions.real = null;
-      labelPositions.valtide = null;
-      labelPositions.token = null;
-      draw(performance.now());
+      height = Math.max(220, bounds.height);
+      lineHeadX = width * (width < 760 ? .72 : .84);
+      const ratio = Math.min(window.devicePixelRatio || 1, 2);
+      canvas!.width = Math.round(width * ratio);
+      canvas!.height = Math.round(height * ratio);
+      canvas!.style.width = `${width}px`;
+      canvas!.style.height = `${height}px`;
+      context!.setTransform(ratio, 0, 0, ratio, 0, 0);
+      draw(prefersReducedMotion ? 0 : performance.now());
     }
 
     function animate(time: number) {
       if (disposed) return;
-      const elapsed = Math.min(64, time - lastFrame);
-      lastFrame = time;
       if (visible) {
-        const idle = time - lastPointerMove > 1600;
-        const idleGap = 0.18 + (Math.sin(time * 0.00055 - 1.2) * 0.5 + 0.5) * 0.76;
-        gap += ((idle ? idleGap : pointerGap) - gap) * Math.min(1, elapsed * 0.0055);
+        const cycle = (Math.sin(time * .00052 - 1.35) + 1) * .5;
+        gap = .22 + smoothstep(cycle) * .66;
         draw(time);
       }
-      animationFrame = requestAnimationFrame(animate);
-    }
-
-    function handlePointerMove(event: PointerEvent) {
-      const bounds = hero.getBoundingClientRect();
-      pointerGap = 0.05 + clamp((event.clientX - bounds.left) / Math.max(1, bounds.width)) * 0.94;
-      lastPointerMove = performance.now();
+      frame = requestAnimationFrame(animate);
     }
 
     const resizeObserver = new ResizeObserver(resize);
-    const intersectionObserver = new IntersectionObserver(([entry]) => {
-      visible = entry.isIntersecting;
-      if (visible && prefersReducedMotion) draw(0);
-    }, { threshold: 0.05 });
+    const intersectionObserver = new IntersectionObserver(([entry]) => { visible = entry.isIntersecting; }, { threshold: .04 });
     resizeObserver.observe(hero);
     intersectionObserver.observe(hero);
-    hero.addEventListener("pointermove", handlePointerMove, { passive: true });
     resize();
     if (prefersReducedMotion) {
-      gap = 0.72;
+      gap = .76;
       draw(0);
     } else {
-      animationFrame = requestAnimationFrame(animate);
+      frame = requestAnimationFrame(animate);
     }
 
     return () => {
       disposed = true;
-      cancelAnimationFrame(animationFrame);
+      cancelAnimationFrame(frame);
       resizeObserver.disconnect();
       intersectionObserver.disconnect();
-      hero.removeEventListener("pointermove", handlePointerMove);
     };
   }, []);
 
   return (
     <section ref={heroRef} className="valtide-hero" aria-labelledby="valtide-hero-title">
-      <header className="valtide-hero__nav">
-        <a className="valtide-hero__brand" href="/" aria-label="Valtide home">
-          <span className="valtide-logo-crop valtide-logo-crop--hero"><img src="/valtide-logo.jpg" alt="" /></span>
-          <span>Valtide</span>
-        </a>
-        <nav aria-label="Primary navigation">
-          <a href="#incident">Product</a>
-          <a href="#method">Methodology</a>
-          <a href="/docs">Docs</a>
-        </nav>
-        <a className="valtide-hero__nav-action" href="?view=console">Open console <span aria-hidden="true">↗</span></a>
-      </header>
+      <MarketingHeader />
 
       <div className="valtide-hero__copy">
         <p className="valtide-hero__eyebrow">Independent valuation evidence for tokenized collateral</p>
-        <h1 id="valtide-hero-title">When markets disagree,<br />know what the <span>evidence supports.</span></h1>
+        <h1 id="valtide-hero-title">When markets disagree,<br />know what the <span className="valtide-hero__title-accent">evidence supports.</span></h1>
+        <p className="valtide-hero__lede">Valtide protects DeFi from oracle failures with independent, cryptographically verified collateral valuation.</p>
+        <div className="valtide-hero__actions">
+          <a className="valtide-hero__action" href="?view=console">Open validation console <span aria-hidden="true">↗</span></a>
+          <a className="valtide-hero__secondary" href="#incident">See how it works <span aria-hidden="true">↓</span></a>
+        </div>
       </div>
 
       <div className="valtide-hero__motion" aria-label="Animated market divergence">
         <canvas ref={canvasRef} aria-hidden="true" />
-        <div ref={realLabelRef} className="valtide-hero__label valtide-hero__label--real" aria-hidden="true"><i /><span>Real world</span></div>
-        <div ref={valtideLabelRef} className="valtide-hero__label valtide-hero__label--valtide" aria-hidden="true"><i /><span>Valtide</span></div>
-        <div ref={tokenLabelRef} className="valtide-hero__label valtide-hero__label--token" aria-hidden="true"><i /><span>Token</span></div>
+        <div ref={referenceLabelRef} className="valtide-hero__label valtide-hero__label--reference" aria-hidden="true"><i /><span>Reference</span></div>
+        <div ref={valtideLabelRef} className="valtide-hero__label valtide-hero__label--valtide" aria-hidden="true"><i /><span>Independent estimate</span></div>
+        <div ref={tokenLabelRef} className="valtide-hero__label valtide-hero__label--token" aria-hidden="true"><i /><span>Token market</span></div>
       </div>
 
-      <div className="valtide-hero__lower">
-        <p className="valtide-hero__lede">Valtide challenges the reference a protocol relies on, quantifies uncertainty, and makes a standardized Evidence State usable by curator-defined policies on X Layer.</p>
-        <div className="valtide-hero__actions">
-          <a className="valtide-hero__action" href="#incident">Replay a divergence <span aria-hidden="true">↓</span></a>
-          <a className="valtide-hero__secondary" href="?view=console">Open validation console <span aria-hidden="true">↗</span></a>
+      <div className="valtide-hero__proof" aria-label="Historical model evidence">
+        <div className="valtide-hero__proof-intro">
+          <span className="valtide-hero__proof-heading">Historical model evidence <MetricInfo id="historical-model-evidence-note" label="About these historical model metrics">Historical evaluation from June–September 2026. Valtide tested 11,828 observations using a 90% prediction-range target. The benchmark is the contemporaneous trusted market price used for evaluation. The ranges captured that benchmark 94.3% of the time and were 19% narrower than a conventional Gaussian range built from the same price estimates. Coverage above target is not automatically better; it must be considered together with range width. Historical results are not production guarantees or comparisons with oracle providers.</MetricInfo></span>
         </div>
+        <div><strong>{MODEL_EVIDENCE_SUMMARY.observations.toLocaleString("en-US")}</strong><span>Historical market observations tested</span></div>
+        <div><strong>{(MODEL_EVIDENCE_SUMMARY.coverage * 100).toFixed(1)}%</strong><span>Benchmark prices captured</span><small>{(MODEL_EVIDENCE_SUMMARY.coverageTarget * 100).toFixed(0)}% target</small></div>
+        <div><strong>{(MODEL_EVIDENCE_SUMMARY.intervalWidthReduction * 100).toFixed(0)}% tighter</strong><span>Risk ranges vs. a conventional Gaussian baseline</span></div>
       </div>
-
-      <div className="valtide-hero__principles" aria-label="Product principles">
-        <span>Independent challenger</span>
-        <span>Calibrated uncertainty</span>
-        <span>Curator-owned policy</span>
-        <span>X Layer attestations</span>
-      </div>
-
-      <p className="sr-only">Three animated lines begin together and diverge across the screen. The real-world reference holds, the tokenized market moves away, and Valtide tracks between them. Move the pointer left or right to close or widen the gap.</p>
     </section>
   );
+}
+
+export function MarketingHeader({ page = false }: { page?: boolean }) {
+  return <header className={`valtide-hero__nav${page ? " valtide-hero__nav--page" : ""}`}>
+    <a className="valtide-hero__brand" href="/" aria-label="Valtide home">
+      <AnimatedValtideLogo className="valtide-logo-motion valtide-logo-motion--hero" />
+      <span>Valtide</span>
+    </a>
+    <nav aria-label="Primary navigation">
+      <a href="/#incident">Product</a>
+      <a href="/#method">Methodology</a>
+      <a href="/docs">Docs</a>
+    </nav>
+    <a className="valtide-hero__nav-action" href="/?view=console">Open console <span aria-hidden="true">↗</span></a>
+  </header>;
 }

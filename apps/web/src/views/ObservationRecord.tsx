@@ -23,11 +23,12 @@ export function ObservationRecord({ results, currentIndex, sourceLabelText }: { 
       icon="record"
       right={<span className="rounded px-2 py-1 font-mono text-[10px] uppercase tracking-[0.05em]" style={{ color: "var(--color-muted)", background: "var(--color-panel-2)", border: "1px solid var(--color-line)" }}>{sourceLabelText}</span>}
     >
+      <p className="mb-3 text-xs leading-5 text-muted">Counts describe classifications in the selected window—not whether prices were ultimately correct and not production performance.</p>
       <div className="grid grid-cols-2 overflow-hidden rounded-lg lg:grid-cols-4" style={{ border: "1px solid var(--color-line-subtle)" }}>
-        <RecordMetric label="Observations" value={String(results.length)} />
+        <RecordMetric label="Rows in window" value={String(results.length)} />
         <RecordMetric label="State Changes" value={String(transitions.length)} />
-        <RecordMetric label="Peak Deviation" value={sigma(maxSigma)} />
-        <RecordMetric label="Outside Interval" value={`${breaches}/${results.length}`} />
+        <RecordMetric label="Peak model distance" value={sigma(maxSigma)} />
+        <RecordMetric label="Reference outside range" value={`${breaches}/${results.length}`} />
       </div>
 
       <div className="mt-4 grid gap-5 lg:grid-cols-[minmax(0,1fr)_360px]">

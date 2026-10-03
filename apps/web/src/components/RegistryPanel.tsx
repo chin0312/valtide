@@ -29,7 +29,7 @@ export function RegistryPanel({ controlPlane, enforcement, runtime, sync, mode =
   return (
     <Panel title="X Layer Testnet" icon="chain" subtitle="X Layer · attestation delivery and collateral enforcement">
       <div className="flex flex-wrap items-center justify-between gap-3 pb-4 text-xs">
-        <div><span className="font-semibold" style={{ color: "var(--color-accent)" }}>{controlPlane.network}</span><span className="tnum ml-2" style={{ color: "var(--color-muted)" }}>Chain {controlPlane.chain_id} · DEPLOYED</span></div>
+      <div><span className="font-semibold" style={{ color: "var(--color-accent)" }}>{controlPlane.network}</span><span className="technical-mono ml-2 text-sm" style={{ color: "var(--color-muted)" }}>Chain {controlPlane.chain_id} · DEPLOYED</span></div>
         {modeNote && <span style={{ color: "var(--color-ink-dim)" }}>{modeNote}</span>}
       </div>
 
@@ -38,10 +38,10 @@ export function RegistryPanel({ controlPlane, enforcement, runtime, sync, mode =
         <PipelineStep index="02" label="Registry" value={controlPlane.exists ? controlPlane.evidence_state : "NO ATTESTATION"} />
         <PipelineStep index="03" label="Curator Policy" value={controlPlane.policy_action} />
         <PipelineStep index="04" label="RiskGuard" value={controlPlane.fresh ? "FRESH" : "STALE"} />
-        <PipelineStep index="05" label="DemoVault" value={enforcement ? (enforcement.passed ? "VERIFIED" : "CHECK FAILED") : "UNAVAILABLE"} last />
+        <PipelineStep index="05" label="DemoVault" value={enforcement ? (enforcement.passed ? "POLICY CHECK PASSED" : "CHECK FAILED") : "UNAVAILABLE"} last />
       </div>
 
-      {sync && <div className="mt-3 flex flex-wrap items-center justify-between gap-2 rounded-lg px-3 py-2 text-xs" style={{ background: "var(--color-panel-2)", border: "1px solid var(--color-line)", color: "var(--color-ink-dim)" }}><span><strong className="text-ink">Operational ↔ Registry · {sync.state}</strong> — {sync.detail}</span><span className="tnum">{unixDateTimeUTC(sync.operationalObservedAt)} / {unixDateTimeUTC(sync.registryObservedAt)}</span></div>}
+      {sync && <div className="mt-3 flex flex-wrap items-center justify-between gap-2 rounded-lg px-3 py-2 text-xs" style={{ background: "var(--color-panel-2)", border: "1px solid var(--color-line)", color: "var(--color-ink-dim)" }}><span><strong className="text-ink">Operational ↔ Registry · {sync.state}</strong> — {sync.detail}</span><span className="technical-mono text-sm">{unixDateTimeUTC(sync.operationalObservedAt)} / {unixDateTimeUTC(sync.registryObservedAt)}</span></div>}
 
       <details className="mt-4 rounded-lg" style={{ border: "1px solid var(--color-line)" }}>
         <summary className="flex items-center justify-between px-3 py-2.5 text-xs" style={{ background: "var(--color-panel-2)", color: "var(--color-ink-dim)" }}><span>Contract addresses, attestation and delivery details</span><span aria-hidden style={{ color: "var(--color-accent)" }}>＋</span></summary>
@@ -100,7 +100,7 @@ function PublicationDetails({ runtime }: { runtime?: RuntimeStatus }) {
       <Detail label="Attempted Observation" value={runtime?.last_publish_observation_ts ?? "—"} />
       <Detail label="Last Published Observation" value={runtime?.last_published_observation_ts ?? "—"} />
       <Detail label="Last Published Time" value={unixDateTimeUTC(runtime?.last_published_at)} />
-      <div className="sm:col-span-2"><dt className="text-muted">Transaction Hash</dt><dd className="tnum select-text break-all text-ink">{runtime?.last_publish_tx_hash ?? "—"}</dd></div>
+      <div className="sm:col-span-2"><dt className="text-muted">Transaction Hash</dt><dd className="technical-mono select-text break-all text-sm text-ink">{runtime?.last_publish_tx_hash ?? "—"}</dd></div>
       <div className="sm:col-span-2"><dt className="text-muted">Delivery Error</dt><dd className="break-words text-ink">{runtime?.last_publish_error ?? (runtime ? "None" : "UNAVAILABLE")}</dd></div>
     </dl>
   </details>;
@@ -115,7 +115,7 @@ function DetailGroup({ title, children }: { title: string; children: ReactNode }
 }
 
 function Detail({ label, value }: { label: string; value: string }) {
-  return <div className="flex min-w-0 items-center justify-between gap-3 text-xs"><dt style={{ color: "var(--color-muted)" }}>{label}</dt><dd className="tnum truncate font-medium text-ink" title={value}>{value}</dd></div>;
+  return <div className="flex min-w-0 items-center justify-between gap-3 text-xs"><dt style={{ color: "var(--color-muted)" }}>{label}</dt><dd className="technical-mono truncate text-sm font-medium text-ink" title={value}>{value}</dd></div>;
 }
 
 function shortHex(value: string | undefined): string {

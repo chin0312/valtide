@@ -1,11 +1,11 @@
-@import url("https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&display=swap");
+@import url("https://fonts.googleapis.com/css2?family=Lato:wght@300;400;700;900&display=swap");
 @import "tailwindcss";
 
 /* Valtide is an evidence instrument, not a trading terminal. State colour is
    deliberately separate from price direction and policy action. */
 @theme {
-  --font-sans: "Inter", "Helvetica Neue", Arial, sans-serif;
-  --font-mono: "Inter", "Helvetica Neue", Arial, sans-serif;
+  --font-sans: "Lato", "Helvetica Neue", Arial, sans-serif;
+  --font-mono: "Lato", "Helvetica Neue", Arial, sans-serif;
   --color-bg: #050708;
   --color-panel: #0b0f10;
   --color-panel-2: #111718;
@@ -16,9 +16,9 @@
   --color-ink: #f3faf7;
   --color-ink-dim: #b8c7c2;
   --color-muted: #71837d;
-  --color-accent: #affc41;
-  --color-accent-hover: #b2ff9e;
-  --color-accent-soft: #affc4117;
+  --color-accent: #b8c7c2;
+  --color-accent-hover: #f3faf7;
+  --color-accent-soft: #b8c7c217;
   --color-token: #1dd3b0;
 
   --color-series-reference: #d8dee6;
@@ -69,6 +69,38 @@ h3 {
 .tnum {
   font-family: var(--font-sans);
   font-variant-numeric: tabular-nums;
+}
+
+.technical-mono {
+  font-family: "SFMono-Regular", Menlo, Monaco, Consolas, "Liberation Mono", monospace;
+  font-variant-numeric: tabular-nums;
+}
+
+.valtide-logo-crop {
+  position: relative;
+  display: inline-block;
+  flex: 0 0 auto;
+  width: 25px;
+  height: 25px;
+  overflow: hidden;
+  border-radius: 5px;
+  background: #121318;
+}
+
+.valtide-logo-crop img {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  transform: scale(1.55);
+  filter: grayscale(1) brightness(3) contrast(2);
+}
+
+.policy-terminal {
+  background: #020505;
+  border: 1px solid rgba(175, 252, 65, .24);
+  box-shadow: inset 0 0 26px rgba(175, 252, 65, .025), 0 0 16px rgba(175, 252, 65, .035);
 }
 
 .eyebrow {

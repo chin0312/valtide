@@ -23,13 +23,14 @@ export function ModelEvidence() {
   const hasMetrics = data && data.mae != null && data.rmse != null && data.interval_coverage != null;
 
   return (
-    <Panel title="Historical Model Evidence" subtitle="Historical diagnostics, separate from the deterministic scenario replay">
+    <Panel title="Selected Historical Panel" subtitle="A focused research window, separate from both the deterministic demo and the homepage evaluation">
       {isError || !data ? (
         <div className="rounded-lg px-3 py-3 text-sm" style={{ background: "var(--color-panel-2)", border: "1px solid var(--color-line)", color: "var(--color-ink-dim)" }}>
           {isLoading ? "Loading historical model evidence…" : "Historical model evidence unavailable. Scenario verdicts are not empirical performance evidence."}
         </div>
       ) : (
         <>
+          <p className="mb-4 rounded-lg px-3 py-3 text-xs leading-5" style={{ background: "var(--color-panel-2)", border: "1px solid var(--color-line)", color: "var(--color-ink-dim)" }}>This selected panel is not the same evaluation as the 11,828-observation June–September study shown on the homepage. State counts describe classifications, not whether prices were ultimately correct.</p>
           <div className="mb-2 text-xs font-medium" style={{ color: "var(--color-ink-dim)" }}>
             Evidence States across historical observations ({total})
           </div>
@@ -52,13 +53,16 @@ export function ModelEvidence() {
             ))}
           </div>
 
-          <div className="mt-4 grid grid-cols-2 overflow-hidden rounded-lg lg:grid-cols-5" style={{ border: "1px solid var(--color-line)" }}>
-            <Metric label="Observations" value={String(data.n_observations)} hint="Rows in the historical replay." />
-            <Metric label="Evaluable Points" value={String(data.n_evaluable)} hint="Rows with a legitimate contemporaneous trusted benchmark." />
-            <Metric label="MAE" value={hasMetrics ? `$${data.mae!.toFixed(2)}` : "—"} hint="Mean absolute error against the historical benchmark." />
-            <Metric label="RMSE" value={hasMetrics ? `$${data.rmse!.toFixed(2)}` : "—"} hint="Root mean squared error against the historical benchmark." />
-            <Metric label="Interval Coverage" value={hasMetrics ? `${(data.interval_coverage! * 100).toFixed(0)}%` : "—"} hint="Historical share of benchmark observations inside the calibrated interval." />
+          <div className="mt-4 grid grid-cols-1 overflow-hidden rounded-lg sm:grid-cols-3" style={{ border: "1px solid var(--color-line)" }}>
+            <Metric label="Panel observations" value={String(data.n_observations)} hint="Rows in this selected historical window." />
+            <Metric label="Benchmark-comparable rows" value={String(data.n_evaluable)} hint="Rows with a contemporaneous trusted benchmark." />
+            <Metric label="Benchmark prices inside range" value={hasMetrics ? `${(data.interval_coverage! * 100).toFixed(0)}%` : "—"} hint="Coverage in this panel; not point-price accuracy." />
           </div>
+
+          <details className="mt-3 rounded-lg" style={{ border: "1px solid var(--color-line)" }}>
+            <summary className="cursor-pointer px-3 py-2.5 text-xs text-ink-dim">Advanced point-error diagnostics</summary>
+            <div className="grid grid-cols-1 border-t sm:grid-cols-2" style={{ borderColor: "var(--color-line)" }}><Metric label="Mean absolute error" value={hasMetrics ? `$${data.mae!.toFixed(2)}` : "—"} hint="Average distance from the contemporaneous benchmark; no competitor comparison is available." /><Metric label="Root mean squared error" value={hasMetrics ? `$${data.rmse!.toFixed(2)}` : "—"} hint="An error measure that gives more weight to larger misses; no competitor comparison is available." /></div>
+          </details>
 
           <p className="mt-3 text-xs" style={{ color: "var(--color-muted)" }}>{data.note}</p>
         </>
@@ -69,9 +73,10 @@ export function ModelEvidence() {
 
 function Metric({ label, value, hint }: { label: string; value: string; hint: string }) {
   return (
-    <div className="px-3 py-2.5" style={{ background: "var(--color-panel-2)", borderRight: "1px solid var(--color-line)" }} title={hint}>
+    <div className="px-3 py-2.5" style={{ background: "var(--color-panel-2)", borderRight: "1px solid var(--color-line)" }}>
       <div className="eyebrow" style={{ color: "var(--color-muted)" }}>{label}</div>
       <div className="tnum mt-1.5 text-xl font-medium text-ink">{value}</div>
+      <div className="mt-1 text-[10px] leading-4 text-muted">{hint}</div>
     </div>
   );
 }

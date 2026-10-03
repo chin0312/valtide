@@ -2,7 +2,6 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import {
   ApiError,
-  fetchAssets,
   fetchDemoReplay,
   fetchHealth,
   fetchHistoricalReplay,
@@ -12,7 +11,7 @@ import {
   fetchOperationalValuation,
   fetchRuntime,
 } from "./api/client";
-import type { AssetInfo, EvidenceState, OnchainControlPlane, OnchainPolicy, PolicyAction, ValuationResult } from "./api/types";
+import type { EvidenceState, OnchainControlPlane, OnchainPolicy, PolicyAction, ValuationResult } from "./api/types";
 import { EXAMPLE_DEMO_POLICY } from "./components/PolicyActionPanel";
 import { ReasonCodes } from "./components/ReasonCodes";
 import { RegistryPanel } from "./components/RegistryPanel";
@@ -30,20 +29,29 @@ import { filterDemoResults, filterHistoricalResults, filterOperationalResults, O
 import { ObservationAudit } from "./components/ObservationAudit";
 import { LandingPage } from "./components/LandingPage";
 import { DocsPage } from "./components/DocsPage";
+import { LogoMotionPrototype } from "./components/LogoMotionPrototype";
+import { AnimatedValtideLogo } from "./components/AnimatedValtideLogo";
+import { InstrumentPassport } from "./components/InstrumentPassport";
+import { PolicyFoundry } from "./components/PolicyFoundry";
 
 type Context = "Operational" | "Historical" | "Demo";
 const EMPTY_RESULTS: ValuationResult[] = [];
 
 export default function App() {
-  const showConsole = typeof window === "undefined" || new URLSearchParams(window.location.search).get("view") === "console";
+  const view = typeof window === "undefined" ? "console" : new URLSearchParams(window.location.search).get("view");
+  const showConsole = view === "console";
+  const showLogoPrototype = view === "logo";
   const path = typeof window === "undefined" ? "/" : window.location.pathname.replace(/\/+$/, "") || "/";
   useEffect(() => {
-    document.title = showConsole
+    document.title = showLogoPrototype
+      ? "Valtide — Animated Logo Prototype"
+      : showConsole
       ? "Valtide — Validation Console"
       : path === "/docs" || path.startsWith("/docs/")
         ? "Valtide Docs — Collateral Validation Evidence"
         : "Valtide — Independent Collateral Validation";
-  }, [path, showConsole]);
+  }, [path, showConsole, showLogoPrototype]);
+  if (showLogoPrototype) return <LogoMotionPrototype />;
   if (showConsole) return <ValidationConsole />;
   if (path === "/docs" || path.startsWith("/docs/")) return <DocsPage />;
   return <LandingPage />;
@@ -57,7 +65,6 @@ function ValidationConsole() {
   const isOperational = context === "Operational";
   const health = useQuery({ queryKey: ["health"], queryFn: fetchHealth, refetchInterval: 30_000 });
   const backendUp = health.data === true;
-  const assets = useQuery({ queryKey: ["assets"], queryFn: fetchAssets, retry: 0, enabled: backendUp, staleTime: 60_000 });
   const operational = useQuery({ queryKey: ["valuation", "operational", "NVDAx"], queryFn: fetchOperationalValuation, refetchInterval: 20_000, retry: 0 });
   const historyLimit = OPERATIONAL_HISTORY_LIMITS[range];
   const history = useQuery({ queryKey: ["history", "NVDAx", historyLimit], queryFn: () => fetchOperationalHistory(historyLimit), refetchInterval: 30_000, retry: 0, enabled: isOperational && !!operational.data });
@@ -99,11 +106,11 @@ function ValidationConsole() {
   const current = results[currentIndex];
   const reviewing = isOperational && !!current && !!operational.data && Date.parse(current.timestamp) < Date.parse(operational.data.timestamp);
   const source = isOperational
-    ? `Operational · ${results.length} Observations`
-    : context === "Historical" ? `Historical Panel · ${results.length} Observations`
+    ? `Operational · ${results.length} in selected window`
+    : context === "Historical" ? `Historical panel · ${results.length} in selected window`
     : !demo.data ? "Demo · Loading" : demo.data.source === "backend-scenario"
-      ? `Demo Scenario · ${demo.data.results.length} Observations`
-      : `Demo Fixture · ${demo.data.results.length} Observations`;
+      ? `Demo scenario · ${demo.data.results.length} synthetic steps`
+      : `Demo fixture · ${demo.data.results.length} synthetic steps`;
   const controlPlane = onchain.isError ? undefined : onchain.data;
   const policy = controlPlane?.policy ?? (context === "Demo" ? EXAMPLE_DEMO_POLICY : undefined);
   const policyAction = policy && current ? actionFor(policy, current.evidence_state) : null;
@@ -118,12 +125,14 @@ function ValidationConsole() {
 
   return (
     <div id="validation-console" className="mx-auto min-h-full max-w-[1480px] px-4 py-4 sm:px-6">
-      <AppHeader backendUp={backendUp} chainUp={!!controlPlane} source={source} assets={assets.data} context={context} onContextChange={setContext} />
+      <AppHeader backendUp={backendUp} chainUp={!!controlPlane} source={source} context={context} onContextChange={setContext} />
+      <div role="note" className="mb-4 rounded px-3 py-2 text-[11px] font-medium uppercase tracking-[0.06em]" style={{ color: "var(--color-ink-dim)", background: "var(--color-panel)", border: "1px solid var(--color-line-subtle)" }}>Research prototype · X Layer testnet · not production infrastructure</div>
 
       <main className="space-y-4">
         {isDegraded && current && <div role="status" className="rounded px-4 py-3 text-xs text-ink-dim" style={{ background: "var(--color-inconclusive-soft)" }}>{context} degraded · showing last available observations. {history.isError && isOperational ? "History unavailable. " : ""}{activeQuery.isError ? statusMessage : runtime.data?.last_error}</div>}
         {!current ? <Panel title={`${context} ${activeQuery.isLoading ? "loading" : "unavailable"}`}><p role="status" className="text-xs text-ink-dim">{activeQuery.isLoading ? `Loading ${context.toLowerCase()} observations…` : runtimeNotWarmed ? "Runtime not warmed yet." : statusMessage}</p></Panel> : <>
-        <MetricGrid current={current} isDemo={context === "Demo"} />
+        <DecisionSummary current={current} action={policyAction} context={context} />
+        <MetricGrid current={current} isDemo={context === "Demo"} observationCount={results.length} />
 
         <div className="grid items-stretch gap-4 xl:grid-cols-[minmax(0,1.3fr)_minmax(0,1fr)]">
           <HistoricalReplay
@@ -149,17 +158,29 @@ function ValidationConsole() {
               source={context === "Demo" ? "Scenario projection only; does not represent deployed state" : context === "Historical" || reviewing ? "Selected evidence under today's policy; not a historical on-chain decision" : "Curator mapping for this evidence; current RiskGuard action is shown separately"}
               enforced={isOperational && !reviewing ? controlPlane : undefined}
             />
+            {context === "Demo" && <details className="rounded-[10px]" style={{ background: "var(--color-panel)", border: "1px solid var(--color-line-subtle)" }}>
+              <summary className="cursor-pointer px-5 py-3 text-sm font-medium text-ink">Advanced demo · precomputed policy proposal</summary>
+              <div className="border-t p-3" style={{ borderColor: "var(--color-line-subtle)" }}><PolicyFoundry /></div>
+            </details>}
           </div>
         </div>
 
         <div className="grid gap-4 md:grid-cols-2">
           <EvidenceCard result={current} />
-          <BasisCard result={current} />
+          <details className="rounded-[10px]" style={{ background: "var(--color-panel)", border: "1px solid var(--color-line-subtle)" }}>
+            <summary className="cursor-pointer px-5 py-3 text-sm font-medium text-ink">Advanced market diagnostics</summary>
+            <div className="border-t p-3" style={{ borderColor: "var(--color-line-subtle)" }}><BasisCard result={current} /></div>
+          </details>
         </div>
 
         <ObservationRecord results={results} currentIndex={currentIndex} sourceLabelText={source} />
         </>}
         <ObservationAudit result={current} context={context} runtime={runtime.isError ? undefined : runtime.data} controlPlane={controlPlane} />
+
+        {context === "Demo" && <details className="rounded-[10px]" style={{ background: "var(--color-panel)", border: "1px solid var(--color-line-subtle)" }}>
+          <summary className="cursor-pointer px-5 py-3 text-sm font-medium text-ink">Optional demo · token-rights metadata fixture</summary>
+          <div className="border-t p-3" style={{ borderColor: "var(--color-line-subtle)" }}><InstrumentPassport /></div>
+        </details>}
 
         {context === "Historical" && <ModelEvidence />}
 
@@ -182,13 +203,12 @@ function ValidationConsole() {
   );
 }
 
-function AppHeader({ backendUp, chainUp, source, assets, context, onContextChange }: { backendUp: boolean; chainUp: boolean; source: string; assets?: AssetInfo[]; context: Context; onContextChange: (context: Context) => void }) {
+function AppHeader({ backendUp, chainUp, source, context, onContextChange }: { backendUp: boolean; chainUp: boolean; source: string; context: Context; onContextChange: (context: Context) => void }) {
   return (
     <header className="mb-4 flex flex-wrap items-center justify-between gap-4 border-b pb-4" style={{ borderColor: "var(--color-line-subtle)" }}>
       <div className="flex flex-wrap items-center gap-3 sm:gap-6">
-        <a href="./" className="flex items-center gap-2.5 text-[22px] font-semibold tracking-[-0.04em] text-ink no-underline"><span className="valtide-logo-crop"><img src="/valtide-logo.jpg" alt="" /></span><span>Valtide</span></a>
+        <a href="./" className="flex items-center gap-2.5 text-[22px] font-semibold tracking-[-0.04em] text-ink no-underline"><AnimatedValtideLogo className="valtide-logo-motion" /><span>Valtide</span></a>
         <nav aria-label="Evidence context" className="flex gap-1 rounded p-1" style={{ border: "1px solid var(--color-line)" }}>{(["Operational", "Historical", "Demo"] as Context[]).map((option) => <button key={option} aria-pressed={context === option} onClick={() => onContextChange(option)} className="rounded px-2.5 py-1.5 text-xs font-medium" style={{ background: context === option ? "var(--color-panel-2)" : undefined, color: context === option ? "var(--color-ink)" : "var(--color-muted)" }}>{option}</button>)}</nav>
-        <AssetSelector assets={assets} />
       </div>
       <div className="flex flex-wrap items-center gap-3 text-[11px]">
         <span className="rounded px-2 py-1 font-mono" style={{ color: "var(--color-accent)", background: "var(--color-accent-soft)" }}>{source}</span>
@@ -204,37 +224,31 @@ function RangeControls({ context, range, onChange }: { context: Context; range: 
   return <div className="flex gap-1" aria-label={`${context} history range`}>{options.map((option) => <button key={option} type="button" aria-pressed={range === option} onClick={() => onChange(option)} className="rounded px-2.5 py-1 font-mono text-[10px] font-medium" style={{ color: range === option ? "var(--color-accent)" : "var(--color-muted)", background: range === option ? "var(--color-accent-soft)" : undefined }}>{option}</button>)}</div>;
 }
 
-export function AssetSelector({ assets, initialOpen = false }: { assets?: AssetInfo[]; initialOpen?: boolean }) {
-  const [open, setOpen] = useState(initialOpen);
-  const [search, setSearch] = useState("");
-  const available = new Set((assets ?? []).map((asset) => asset.asset));
-  const catalog = [
-    { asset: "NVDAx", name: "NVIDIA Tokenized Equity", status: available.has("NVDAx") ? "Available" : "Current Asset" },
-    { asset: "SPYx", name: "S&P 500 Tokenized ETF", status: "Coming Soon" },
-  ];
-  const filtered = catalog.filter((entry) => `${entry.asset} ${entry.name}`.toLowerCase().includes(search.toLowerCase()));
-
-  return <div className="relative">
-    <button type="button" onClick={() => setOpen((value) => !value)} aria-expanded={open} aria-haspopup="listbox" className="rounded px-3 py-1.5 text-left" title="Select collateral asset" style={{ background: "var(--color-panel)", border: "1px solid var(--color-line)" }}><span className="tnum text-xs font-medium text-ink">NVDAx</span><span className="ml-2 text-[10px]" style={{ color: "var(--color-muted)" }}>⌄</span></button>
-    {open && <div className="absolute left-0 top-full z-30 mt-2 w-64 rounded-lg p-2" role="listbox" aria-label="Asset Selector" style={{ background: "var(--color-panel)", border: "1px solid var(--color-line)" }}>
-      <input autoFocus value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Search Assets…" aria-label="Search Assets" className="mb-2 w-full rounded px-2 py-1.5 text-xs text-ink outline-none" style={{ background: "var(--color-panel-2)", border: "1px solid var(--color-line)" }} />
-      {filtered.map((entry) => <button key={entry.asset} type="button" disabled={entry.asset === "SPYx"} className="flex w-full items-center justify-between rounded px-2 py-2 text-left disabled:cursor-not-allowed disabled:opacity-50" aria-label={`${entry.asset} ${entry.status}`} style={entry.asset === "NVDAx" ? { background: "var(--color-panel-2)" } : undefined}><span><span className="tnum block text-xs text-ink">{entry.asset}</span><span className="block text-[10px] text-muted">{entry.name}</span></span><span className="text-[10px] text-muted">{entry.status}</span></button>)}
-    </div>}
-  </div>;
-}
-
 function ConnectionLabel({ active, activeText, inactiveText }: { active: boolean; activeText: string; inactiveText: string }) {
   return <span className="inline-flex items-center gap-1.5" style={{ color: active ? "var(--color-supported)" : "var(--color-muted)" }}><i className="h-1.5 w-1.5 rounded-full" style={{ background: "currentColor" }} />{active ? activeText : inactiveText}</span>;
 }
 
-function MetricGrid({ current, isDemo }: { current: ValuationResult; isDemo: boolean }) {
+function DecisionSummary({ current, action, context }: { current: ValuationResult; action: PolicyAction | null; context: Context }) {
+  const findings: Record<EvidenceState, { title: string; detail: string }> = {
+    SUPPORTED: { title: "Evidence supports the reference", detail: "Available independent evidence does not provide a material reason to challenge the price being tested." },
+    INCONCLUSIVE: { title: "Evidence needs review", detail: "The available evidence is not strong or consistent enough to support or materially challenge the reference." },
+    CHALLENGED: { title: "Evidence challenges the reference", detail: "The reference is materially inconsistent with sufficiently strong independent evidence." },
+  };
+  const finding = findings[current.evidence_state];
+  return <section className="grid gap-4 rounded-[10px] p-5 md:grid-cols-[minmax(0,1fr)_minmax(220px,.45fr)]" style={{ background: "var(--color-panel)", border: "1px solid var(--color-line-subtle)", borderLeft: `3px solid ${EVIDENCE[current.evidence_state].fg}` }}>
+    <div><div className="eyebrow" style={{ color: "var(--color-muted)" }}>Current finding · {context}</div><h2 className="mt-2 text-2xl font-semibold tracking-[-0.03em] text-ink">{finding.title}</h2><p className="mt-2 max-w-3xl text-sm leading-6 text-ink-dim">{finding.detail}</p></div>
+    <div className="md:border-l md:pl-4" style={{ borderColor: "var(--color-line-subtle)" }}><div className="eyebrow" style={{ color: "var(--color-muted)" }}>Configured policy response</div><div className="mt-2 text-lg font-semibold text-ink">{plainAction(action)}</div><div className="technical-mono mt-1 text-xs text-muted">{action ?? "POLICY UNAVAILABLE"}</div></div>
+  </section>;
+}
+
+function MetricGrid({ current, isDemo, observationCount }: { current: ValuationResult; isDemo: boolean; observationCount: number }) {
   return (
-    <section className="grid grid-cols-2 overflow-hidden rounded-[10px] md:grid-cols-3 xl:grid-cols-6" style={{ background: "var(--color-panel)", border: "1px solid var(--color-line-subtle)" }}>
+    <section aria-label={`${observationCount} observations in the selected window; classification count, not performance`} className="grid grid-cols-2 overflow-hidden rounded-[10px] md:grid-cols-3 xl:grid-cols-6" style={{ background: "var(--color-panel)", border: "1px solid var(--color-line-subtle)" }}>
       <Metric label="Reference Under Test" value={money(current.reference_under_test)} sub="Under Test" />
       <Metric label="Valtide Fair Value" value={money(current.valtide_fair_value)} sub={`${money(current.fair_value_lower)}–${money(current.fair_value_upper)}`} />
       <Metric label="Token Market" value={money(current.token_price)} sub={current.token_source ? sourceLabel(current.token_source) : isDemo ? "Demo Scenario" : "Source Unavailable"} />
       <Metric label="Deviation" value={pct(current.reference_deviation_pct)} sub={current.evidence_state} accent={EVIDENCE[current.evidence_state].fg} />
-      <Metric label="Standardized" value={sigma(current.standardized_deviation)} sub="From Fair Value" />
+      <Metric label="Model Distance" value={sigma(current.standardized_deviation)} sub="Technical diagnostic" />
       <Metric label="Last Trusted" value={money(current.last_trusted_reference)} sub={`${ageLabel(current.reference_age_seconds)} Old`} />
     </section>
   );
@@ -249,6 +263,7 @@ function EvidenceCard({ result }: { result: ValuationResult }) {
   return (
     <Panel title="Evidence" icon="evidence">
       <div className="text-2xl font-semibold tracking-[-0.03em]" style={{ color: state.fg }}>{state.label}</div>
+      <p className="mt-2 text-sm leading-6 text-ink-dim">{result.evidence_state === "SUPPORTED" ? "The reference is not materially challenged by the available independent evidence." : result.evidence_state === "INCONCLUSIVE" ? "The evidence is too weak or mixed for a confident conclusion." : "The reference is materially inconsistent with the available independent evidence."}</p>
       <div className="mt-4"><ReasonCodes codes={result.reason_codes} evidenceState={result.evidence_state} /></div>
     </Panel>
   );
@@ -257,7 +272,8 @@ function EvidenceCard({ result }: { result: ValuationResult }) {
 function PolicyCard({ state, action, source, label, enforced }: { state?: EvidenceState; action: PolicyAction | null; source: string; label: string; enforced?: OnchainControlPlane }) {
   return (
     <Panel title="Policy" icon="shield" right={<span title={source} className="inline-flex items-center gap-1.5 text-[10px] text-muted"><Icon name="chain" size={14} />{label}</span>}>
-      <div className="tnum break-words text-xl font-semibold tracking-[-0.03em] text-ink">{action ?? "—"}</div>
+      <div className="break-words text-xl font-semibold tracking-[-0.03em] text-ink">{plainAction(action)}</div>
+      <div className="technical-mono mt-1 text-xs text-muted">Raw policy value · {action ?? "UNAVAILABLE"}</div>
       <div className="tnum mt-3 flex items-center gap-2 rounded px-2.5 py-2 text-[10px]" style={{ background: "var(--color-panel-2)", color: "var(--color-ink-dim)", border: "1px solid var(--color-line)" }}>{state ?? "UNREAD"}<Icon name="arrow" size={12} />{action ?? "UNAVAILABLE"}</div>
       {enforced && <div className="mt-2 flex flex-wrap justify-between gap-2 text-[10px] text-ink-dim"><span>Current RiskGuard · {enforced.fresh ? "FRESH" : "STALE"}</span><strong className="text-ink">{enforced.policy_action}</strong></div>}
     </Panel>
@@ -285,4 +301,12 @@ function actionFor(policy: OnchainPolicy, state: EvidenceState): PolicyAction {
   if (state === "SUPPORTED") return policy.on_supported;
   if (state === "INCONCLUSIVE") return policy.on_inconclusive;
   return policy.on_challenged;
+}
+
+function plainAction(action: PolicyAction | null): string {
+  if (action === "ALLOW") return "Allow new borrowing";
+  if (action === "MONITOR") return "Proceed while monitoring";
+  if (action === "REQUIRE_REVIEW") return "Pause and review";
+  if (action === "RESTRICT_NEW_RISK") return "Block new borrowing";
+  return "Policy unavailable";
 }

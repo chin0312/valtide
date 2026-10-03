@@ -47,5 +47,5 @@ export function ObservationAudit({ result, context, runtime, controlPlane }: {
 }
 
 function Field({ label, value }: { label: string; value?: string | null }) {
-  return <div className="min-w-0"><dt className="text-[10px] text-muted">{label}</dt><dd className="tnum break-words text-ink">{value ?? "—"}</dd></div>;
+  return <div className="min-w-0"><dt className="text-[10px] text-muted">{label}</dt><dd className="technical-mono break-words text-sm text-ink">{value ?? "—"}</dd></div>;
 }

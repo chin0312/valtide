@@ -1,0 +1,110 @@
+.logo-motion-stage {
+  display: grid;
+  width: 100%;
+  min-height: 100svh;
+  place-items: center;
+  overflow: hidden;
+  background:
+    radial-gradient(circle at 50% 48%, rgba(255, 255, 255, .07), transparent 36%),
+    #0d0e13;
+}
+
+.logo-motion-trigger {
+  display: inline-block;
+  width: min(52vw, 360px);
+  aspect-ratio: 1;
+  flex: 0 0 auto;
+}
+
+.valtide-logo-motion {
+  --logo-shadow-y: 1px;
+  --logo-shadow-blur: 2px;
+  --logo-diamond-shadow-y: 1px;
+  --logo-diamond-shadow-blur: 3px;
+  width: 25px;
+  height: 25px;
+  overflow: hidden;
+  border-radius: 5px;
+  background: #0d0e13;
+}
+
+.valtide-logo-motion--hero {
+  width: 28px;
+  height: 28px;
+}
+
+.logo-motion-mark {
+  position: relative;
+  display: block;
+  width: 100%;
+  height: 100%;
+  perspective: 760px;
+  perspective-origin: 50% 50%;
+  cursor: default;
+}
+
+.logo-motion-panel,
+.logo-motion-diamond {
+  position: absolute;
+  display: block;
+  will-change: transform, filter;
+}
+
+.logo-motion-panel {
+  top: 23%;
+  width: 15%;
+  height: 54%;
+  background: #fff;
+  filter: brightness(1) drop-shadow(0 var(--logo-shadow-y, 10px) var(--logo-shadow-blur, 18px) rgba(255, 255, 255, .1));
+  backface-visibility: visible;
+}
+
+.logo-motion-panel--left {
+  left: 26%;
+  clip-path: polygon(0 0, 100% 20%, 100% 80%, 0 100%);
+  transform-origin: 100% 50%;
+  animation: valtide-panel-left 3.2s cubic-bezier(.45, 0, .2, 1) 1 both;
+}
+
+.logo-motion-panel--right {
+  right: 26%;
+  clip-path: polygon(0 20%, 100% 0, 100% 100%, 0 80%);
+  transform-origin: 0 50%;
+  animation: valtide-panel-right 3.2s cubic-bezier(.45, 0, .2, 1) 1 both;
+}
+
+.logo-motion-diamond {
+  z-index: 2;
+  top: 45%;
+  left: 45%;
+  width: 10%;
+  aspect-ratio: 1;
+  border-radius: 5%;
+  background: #fff;
+  box-shadow: 0 var(--logo-diamond-shadow-y, 8px) var(--logo-diamond-shadow-blur, 24px) rgba(0, 0, 0, .22), 0 0 18px rgba(255, 255, 255, .13);
+  transform: rotate(45deg);
+  animation: valtide-diamond-swivel 3.2s cubic-bezier(.45, 0, .2, 1) 1 both;
+}
+
+@keyframes valtide-panel-left {
+  0%, 14% { transform: translateX(0) rotateY(0); filter: brightness(1) drop-shadow(0 var(--logo-shadow-y, 10px) var(--logo-shadow-blur, 18px) rgba(255, 255, 255, .1)); }
+  45%, 55% { transform: translateX(10%) rotateY(-22deg); filter: brightness(1.05) drop-shadow(0 var(--logo-shadow-y, 9px) var(--logo-shadow-blur, 15px) rgba(255, 255, 255, .14)); }
+  86%, 100% { transform: translateX(0) rotateY(0); filter: brightness(1) drop-shadow(0 var(--logo-shadow-y, 10px) var(--logo-shadow-blur, 18px) rgba(255, 255, 255, .1)); }
+}
+
+@keyframes valtide-panel-right {
+  0%, 14% { transform: translateX(0) rotateY(0); filter: brightness(1) drop-shadow(0 var(--logo-shadow-y, 10px) var(--logo-shadow-blur, 18px) rgba(255, 255, 255, .1)); }
+  45%, 55% { transform: translateX(-10%) rotateY(22deg); filter: brightness(1.05) drop-shadow(0 var(--logo-shadow-y, 9px) var(--logo-shadow-blur, 15px) rgba(255, 255, 255, .14)); }
+  86%, 100% { transform: translateX(0) rotateY(0); filter: brightness(1) drop-shadow(0 var(--logo-shadow-y, 10px) var(--logo-shadow-blur, 18px) rgba(255, 255, 255, .1)); }
+}
+
+@keyframes valtide-diamond-swivel {
+  0%, 14% { transform: rotate(45deg) rotateY(0) scale(1); filter: brightness(1); }
+  45%, 55% { transform: rotate(82deg) rotateY(58deg) scale(1.035); filter: brightness(1.12); }
+  86%, 100% { transform: rotate(45deg) rotateY(0) scale(1); filter: brightness(1); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .logo-motion-panel,
+  .logo-motion-diamond { animation: none; }
+}

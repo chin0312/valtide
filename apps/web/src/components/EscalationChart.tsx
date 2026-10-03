@@ -346,10 +346,10 @@ export function EscalationChart({ results, index, playhead = index, onSelect, re
           data={renderData}
           margin={CHART_MARGIN}
         >
-          <XAxis type="number" dataKey="ts" domain={viewportDomain} allowDataOverflow tickFormatter={(value: number) => timeAxisUTC(Number(value), multiDay)} stroke="var(--color-muted)" fontFamily="Inter" fontSize={10} tickLine={false} axisLine={{ stroke: "var(--color-line)" }} minTickGap={42} />
-          <YAxis domain={[min - pad, max + pad]} allowDataOverflow stroke="var(--color-muted)" fontFamily="Inter" fontSize={10} tickLine={false} axisLine={false} width={50} tickFormatter={(value: number) => `$${value.toFixed(yDecimals)}`} />
+          <XAxis type="number" dataKey="ts" domain={viewportDomain} allowDataOverflow tickFormatter={(value: number) => timeAxisUTC(Number(value), multiDay)} stroke="var(--color-muted)" fontFamily="Lato, Helvetica Neue, Arial, sans-serif" fontSize={10} tickLine={false} axisLine={{ stroke: "var(--color-line)" }} minTickGap={42} />
+          <YAxis domain={[min - pad, max + pad]} allowDataOverflow stroke="var(--color-muted)" fontFamily="Lato, Helvetica Neue, Arial, sans-serif" fontSize={10} tickLine={false} axisLine={false} width={50} tickFormatter={(value: number) => `$${value.toFixed(yDecimals)}`} />
           <Tooltip
-            contentStyle={{ background: "#111718", border: "1px solid #253237", borderRadius: 8, fontSize: 11, color: "#f3faf7", fontFamily: "Inter" }}
+            contentStyle={{ background: "#111718", border: "1px solid #253237", borderRadius: 8, fontSize: 11, color: "#f3faf7", fontFamily: "Lato, Helvetica Neue, Arial, sans-serif" }}
             labelStyle={{ color: "#b8c7c2", marginBottom: 6 }}
             labelFormatter={(label) => dateTimeUTC(new Date(Number(label)).toISOString())}
             formatter={(value, name) => {
