@@ -9,11 +9,15 @@ from valtide_api import publisher
 from valtide_api.assets import (
     AssetConfigurationError,
     api_asset_configs,
-    historical_panel_available,
+    inspect_historical_panel,
 )
 from valtide_api.config import get_settings, scheduler_asset_enabled
 from valtide_api.quant_runtime import quant_runtime_available
-from valtide_api.runtime_store import RuntimeStateIntegrityError, get_runtime_store
+from valtide_api.runtime_store import (
+    RuntimeStateIntegrityError,
+    get_runtime_store,
+    runtime_identity_for_asset,
+)
 
 router = APIRouter(prefix="/api", tags=["assets"])
 
@@ -28,6 +32,11 @@ class AssetInfo(BaseModel):
     model_available: bool
     quant_artifact_ready: bool
     historical_data_available: bool
+    historical_panel_file_available: bool
+    canonical_panel_verified: bool
+    historical_replay_ready: bool
+    historical_replay_mode: str | None = None
+    historical_panel_error_code: str | None = None
     live_data_configured: bool
     live_market_data_available: bool
     runtime_ready: bool
@@ -72,9 +81,20 @@ def list_assets() -> list[AssetInfo]:
     items: list[AssetInfo] = []
     for config in api_asset_configs():
         quant_ready = quant_runtime_available(config)
-        historical_ready = (
+        panel_status = inspect_historical_panel(config, settings)
+        panel_file_available = panel_status.file_available
+        canonical_panel_verified = panel_status.canonical_identity_verified
+        historical_replay_ready = bool(
             config.capabilities.historical_data
-            and historical_panel_available(config, settings)
+            and panel_status.replay_compatible
+            and quant_ready
+        )
+        historical_replay_mode = (
+            "canonical"
+            if historical_replay_ready and canonical_panel_verified
+            else "legacy_diagnostic"
+            if historical_replay_ready
+            else None
         )
         live_configured = _live_data_configured(config, settings)
         scheduler_selected = scheduler_asset_enabled(settings, config.asset)
@@ -86,7 +106,14 @@ def list_assets() -> list[AssetInfo]:
         )
         onchain_configured = _onchain_binding_configured(config, settings)
         try:
-            record = store.load_runtime(config.asset)
+            record = (
+                store.load_runtime(
+                    config.asset,
+                    expected_identity=runtime_identity_for_asset(config.asset, settings),
+                )
+                if quant_ready and config.capabilities.runtime
+                else None
+            )
         except RuntimeStateIntegrityError:
             record = None
         result = record.latest_result if record is not None else None
@@ -120,7 +147,9 @@ def list_assets() -> list[AssetInfo]:
             readiness_errors.append("MODEL_FIT_BLOCKED")
         elif not quant_ready:
             readiness_errors.append("QUANT_ARTIFACT_UNAVAILABLE")
-        if not historical_ready:
+        if panel_status.error_code:
+            readiness_errors.append(panel_status.error_code)
+        if not historical_replay_ready:
             readiness_errors.append("HISTORICAL_DATA_UNAVAILABLE")
         if not config.capabilities.runtime or not quant_ready:
             readiness_errors.append("RUNTIME_NOT_READY")
@@ -142,7 +171,14 @@ def list_assets() -> list[AssetInfo]:
                 reference_profile=config.reference_profile,
                 model_available=quant_ready,
                 quant_artifact_ready=quant_ready,
-                historical_data_available=historical_ready,
+                # Backward-compatible field now means the replay path can
+                # actually execute, not merely that an arbitrary CSV exists.
+                historical_data_available=historical_replay_ready,
+                historical_panel_file_available=panel_file_available,
+                canonical_panel_verified=canonical_panel_verified,
+                historical_replay_ready=historical_replay_ready,
+                historical_replay_mode=historical_replay_mode,
+                historical_panel_error_code=panel_status.error_code,
                 live_data_configured=live_configured,
                 live_market_data_available=live_observation_available,
                 runtime_ready=runtime_ready,

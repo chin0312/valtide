@@ -30,6 +30,7 @@ from valtide_api.runtime_store import (
     RuntimeStateIntegrityError,
     RuntimeStore,
     get_runtime_store,
+    runtime_identity_for_asset,
 )
 from valtide_api.state_store import KalmanState, save_latest_result, save_state
 
@@ -135,11 +136,14 @@ def run_live_tick(
     store = store or get_runtime_store()
     snapshot_builder = snapshot_builder or build_live_snapshot
     attempt_at = datetime.now(UTC)
+    runtime_identity: str | None = None
 
     try:
-        resolve_asset_config(asset)
+        settings = get_settings()
+        asset_config = resolve_asset_config(asset, settings)
         canonical_ts = require_canonical_5m(canonical_ts, "canonical_ts")
-        record = store.load_runtime(asset)
+        runtime_identity = runtime_identity_for_asset(asset, settings)
+        record = store.load_runtime(asset, expected_identity=runtime_identity)
         if record is not None and record.state is not None:
             prior = record.state
             if prior.last_ts is None:
@@ -155,6 +159,7 @@ def run_live_tick(
                     "already_processed",
                     attempt_at=attempt_at,
                     gap_steps=0,
+                    identity=runtime_identity,
                 )
                 return TickResult(
                     asset=asset,
@@ -165,7 +170,6 @@ def run_live_tick(
                     state_restored=True,
                 )
 
-        settings = get_settings()
         snapshot = _build_snapshot_with_settlement_retry(
             snapshot_builder,
             canonical_ts,
@@ -184,6 +188,10 @@ def run_live_tick(
         if snapshot.asset != asset or snapshot.observation_ts != canonical_ts:
             raise RuntimeStateIntegrityError(
                 "live snapshot identity does not match the requested asset and observation"
+            )
+        if snapshot.reference_profile != asset_config.reference_profile:
+            raise RuntimeStateIntegrityError(
+                "live snapshot reference profile does not match the configured asset profile"
             )
         state: KalmanState | None = record.state if record is not None else None
         state_restored = state is not None
@@ -214,6 +222,7 @@ def run_live_tick(
             tick_status="success",
             tick_attempt_at=attempt_at,
             gap_steps=gap_steps,
+            identity=runtime_identity,
         )
         # Keep the old in-memory compatibility layer warm for non-HTTP callers;
         # SQLite remains the canonical source for the API.
@@ -229,7 +238,13 @@ def run_live_tick(
         )
     except Exception as exc:  # noqa: BLE001 - tick failures must preserve prior state
         error = f"{type(exc).__name__}: {exc}"
-        store.record_tick_status(asset, "failure", error=error, attempt_at=attempt_at)
+        store.record_tick_status(
+            asset,
+            "failure",
+            error=error,
+            attempt_at=attempt_at,
+            identity=runtime_identity,
+        )
         logger.exception("Live tick failed for %s at %s", asset, canonical_ts)
         return TickResult(
             asset=asset,

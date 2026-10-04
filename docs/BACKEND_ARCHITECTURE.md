@@ -56,10 +56,13 @@ NVDAx retains the legacy `legacy_xperp_vs_p1ac` profile using the confirmed
 OKX X-Perp index. The four-asset catalog declares
 `xstock_vs_p1ac_challenger`, where the observed token candle is compared with a
 P1a challenger that has already assimilated that same token observation. This
-is not an independent-source comparison; disagreement is not proof of which
-price is correct. Each result carries its `reference_profile` and source
-provenance. A missing configured reference is not replaced with another asset
-or another source.
+should be described as **model-based challenger evidence**, not as two fully
+independent observations. Disagreement is not proof of which price is correct.
+The separate NVDAx `legacy_xperp_vs_p1ac` identity compares against the OKX
+X-Perp index and must not be blended with xStock-profile historical Evidence
+States. Each result carries its `reference_profile` and source provenance. A
+missing configured reference is not replaced with another asset or another
+source.
 
 Historical replay may explicitly use `stale_nvda` or a scenario reference; the
 identity is then part of the snapshot and is valid for that replay.

@@ -10,13 +10,16 @@ Valtide is designed to validate tokenized-equity collateral valuations using an 
 The methodology has two layers:
 
 1. **Challenger valuation** — estimate a latent current equity value and uncertainty using point-in-time market information;
-2. **Reference validation** — test whether the reference under test is consistent with the challenger estimate and other independent evidence.
+2. **Reference validation** — test whether the reference under test is consistent with the challenger estimate and other evidence, with source dependence declared by the active reference profile.
 
 The reference under test is the explicit price or valuation methodology
 Valtide evaluates. For the deployed NVDAx vertical slice, the live reference
-under test is the OKX X-Perp NVDA index. Other references may be evaluated by
-future adapters, but a reference under test must remain outside the independent
-challenger feature set to avoid circular validation.
+under test is the separate OKX X-Perp NVDA index. The
+`xstock_vs_p1ac_challenger` profile instead compares the observed xStock price
+with model-based challenger evidence after P1a has assimilated that same token
+observation. That profile is not a comparison of two fully independent
+observations and does not prove which price is correct. Evidence and historical
+results must remain identified by their reference profile.
 
 The product is therefore not asking only:
 
@@ -24,7 +27,7 @@ The product is therefore not asking only:
 
 It is asking:
 
-> **“Is the price methodology currently used for collateral valuation still supported by independent evidence?”**
+> **“Is the price methodology currently used for collateral valuation supported by the evidence available under its declared reference profile?”**
 
 This is a nowcasting and model-validation problem, not a long-horizon equity forecast.
 
@@ -36,7 +39,7 @@ This is a nowcasting and model-validation problem, not a long-horizon equity for
 
 For an observation timestamp `t` during a closed, fragmented or lower-quality market period:
 
-> **Is the reference under test supported by independent evidence?**
+> **Is the reference under test supported by the evidence available under its declared profile?**
 
 In the primary real-world workflow, the reference under test is the production collateral reference.
 
@@ -225,7 +228,10 @@ Subject to point-in-time availability:
 
 ## 7. Independence Policy
 
-The challenger model is valuable only if it is meaningfully independent from the reference under test it validates.
+The challenger model's independence is profile-specific. It is separate from
+the legacy NVDAx OKX X-Perp reference inputs, while the xStock comparison uses
+the same xStock observation as a P1a input and must be described as
+model-based challenger evidence rather than an independent-source test.
 
 ### 7.1 Core benchmark model
 
@@ -445,7 +451,7 @@ CHALLENGED
 
 ### SUPPORTED
 
-Available independent evidence does not provide a material reason to challenge the reference under test.
+Available evidence under the declared profile does not provide a material reason to challenge the reference under test.
 
 This does **not** mean that the reference is proven correct.
 
@@ -472,7 +478,7 @@ The ability to abstain is an important property of a credible validation system.
 
 ### CHALLENGED
 
-The reference under test is materially inconsistent with sufficiently strong independent evidence.
+The reference under test is materially inconsistent with sufficiently strong evidence under the declared profile.
 
 This does **not** mean that the reference is definitely wrong. It means the evidence is strong enough to justify challenge and downstream investigation under a curator-defined policy.
 

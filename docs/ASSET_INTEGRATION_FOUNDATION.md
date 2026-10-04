@@ -65,9 +65,11 @@ generic `token_market` boundary and assembles an asset-scoped snapshot. NVDAx
 retains its explicit `legacy_xperp_vs_p1ac` profile. The four-asset catalog
 declares `xstock_vs_p1ac_challenger`: the observed token is compared with a
 challenger that has already assimilated that same token input, so the comparison
-is not between independent sources and disagreement alone does not identify a
-correct price. The scheduler retries only absence of the exact confirmed token
-candle at the same canonical timestamp.
+is model-based challenger evidence, not two fully independent observations;
+disagreement alone does not identify a correct price. The separate NVDAx
+`legacy_xperp_vs_p1ac` profile's historical Evidence States are not comparable
+with states from the xStock profile. The scheduler retries only absence of the
+exact confirmed token candle at the same canonical timestamp.
 
 New panels use asset-neutral columns (`token_close`, `underlying_close`,
 availability, volumes, exact timestamps, trusted anchor, and reference under

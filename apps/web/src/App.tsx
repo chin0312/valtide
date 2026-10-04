@@ -275,7 +275,11 @@ function ConnectionLabel({ active, activeText, inactiveText }: { active: boolean
 }
 
 function DecisionSummary({ current, action, context }: { current: ValuationResult; action: PolicyAction | null; context: Context }) {
-  const findings: Record<EvidenceState, { title: string; detail: string }> = {
+  const findings: Record<EvidenceState, { title: string; detail: string }> = current.reference_profile === "xstock_vs_p1ac_challenger" ? {
+    SUPPORTED: { title: "Model-based challenger evidence supports the observed xStock price", detail: "P1a has assimilated this same xStock observation before the comparison. This is model-based challenger evidence, not two fully independent observations; disagreement alone does not establish which price is correct." },
+    INCONCLUSIVE: { title: "Model-based challenger evidence needs review", detail: "P1a has assimilated this same xStock observation before the comparison. The model-based evidence is not strong or consistent enough for a confident conclusion." },
+    CHALLENGED: { title: "Model-based challenger evidence challenges the observed xStock price", detail: "P1a has assimilated this same xStock observation before the comparison. This is not an independent-source test and does not prove which price is correct." },
+  } : {
     SUPPORTED: { title: "Evidence supports the reference", detail: "Available independent evidence does not provide a material reason to challenge the price being tested." },
     INCONCLUSIVE: { title: "Evidence needs review", detail: "The available evidence is not strong or consistent enough to support or materially challenge the reference." },
     CHALLENGED: { title: "Evidence challenges the reference", detail: "The reference is materially inconsistent with sufficiently strong independent evidence." },
@@ -306,10 +310,21 @@ function Metric({ label, value, sub, accent }: { label: string; value: string; s
 
 function EvidenceCard({ result }: { result: ValuationResult }) {
   const state = EVIDENCE[result.evidence_state];
+  const detail = result.reference_profile === "xstock_vs_p1ac_challenger"
+    ? result.evidence_state === "SUPPORTED"
+      ? "Model-based challenger evidence does not materially challenge the observed xStock price. P1a has assimilated this same observation; these are not two fully independent observations."
+      : result.evidence_state === "CHALLENGED"
+        ? "Model-based challenger evidence is materially inconsistent with the observed xStock price. P1a has assimilated this same observation; disagreement does not prove which price is correct."
+        : "The model-based challenger evidence is too weak or mixed for a confident conclusion. P1a has assimilated this same xStock observation."
+    : result.evidence_state === "SUPPORTED"
+      ? "The reference is not materially challenged by the available independent evidence."
+      : result.evidence_state === "CHALLENGED"
+        ? "The reference is materially inconsistent with the available independent evidence."
+        : "The evidence is too weak or mixed for a confident conclusion.";
   return (
     <Panel title="Evidence" icon="evidence">
       <div className="text-2xl font-semibold tracking-[-0.03em]" style={{ color: state.fg }}>{state.label}</div>
-      <p className="mt-2 text-sm leading-6 text-ink-dim">{result.evidence_state === "SUPPORTED" ? "The reference is not materially challenged by the available independent evidence." : result.evidence_state === "INCONCLUSIVE" ? "The evidence is too weak or mixed for a confident conclusion." : "The reference is materially inconsistent with the available independent evidence."}</p>
+      <p className="mt-2 text-sm leading-6 text-ink-dim">{detail}</p>
       <div className="mt-4"><ReasonCodes codes={result.reason_codes} evidenceState={result.evidence_state} /></div>
     </Panel>
   );

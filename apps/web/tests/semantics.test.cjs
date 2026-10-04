@@ -12,6 +12,7 @@ const { filterOperationalResults, filterHistoricalResults, filterDemoResults } =
 const { mergeObservations, rebasePosition } = load("../src/lib/playback.ts");
 const { ReasonCodes } = load("../src/components/ReasonCodes.tsx");
 const { RegistryPanel } = load("../src/components/RegistryPanel.tsx");
+const { ReferenceComparison } = load("../src/views/ReferenceComparison.tsx");
 const { ObservationAudit } = load("../src/components/ObservationAudit.tsx");
 const { Hero } = load("../src/components/Hero.tsx");
 const { LandingPage } = load("../src/components/LandingPage.tsx");
@@ -104,9 +105,8 @@ test("Asynchronous polling retains newest results and anchors replay by timestam
   assert.equal(rebasePosition(1.5,rows,fixture.slice(1)),0.5);
 });
 
-function appWith({result, rows, chain, error, assetList} = {}) {
+function appWith({result, rows, chain, error, assetList, profile = "legacy_xperp_vs_p1ac"} = {}) {
   const query = new QueryClient({defaultOptions:{queries:{retry:false,retryOnMount:false}}});
-  const profile = "legacy_xperp_vs_p1ac";
   query.setQueryData(["health"],true);
   query.setQueryData(["assets"],assetList ?? [{
     asset:"NVDAx",token_source:"okx_onchainos",underlying_source:"alpaca",
@@ -284,6 +284,33 @@ test("Null reference, all reasons and unavailable policy remain truthful", () =>
   for (const code of result.reason_codes) assert.ok(html.includes(code));
   assert.match(html,/UNAVAILABLE/);
   assert.match(render(ReasonCodes,{codes:result.reason_codes,evidenceState:result.evidence_state}),/Global fallback calibration/);
+});
+
+test("xStock comparison is labelled model-based evidence, not independent observations", () => {
+  const xstock = render(ReferenceComparison, {
+    r: {...fixture[0], reference_profile:"xstock_vs_p1ac_challenger"},
+  });
+  assert.match(xstock, /Model-based challenger evidence/);
+  assert.match(xstock, /P1a assimilates this same xStock observation/);
+  assert.match(xstock, /not two fully independent observations/);
+
+  const legacy = render(ReferenceComparison, {
+    r: {...fixture[0], reference_profile:"legacy_xperp_vs_p1ac"},
+  });
+  assert.match(legacy, /separate OKX X-Perp index/);
+  assert.doesNotMatch(legacy, /xStock observation/);
+});
+
+test("Decision summary explains xStock dependence while retaining the legacy profile", () => {
+  const xstock = appWith({
+    result: {...fixture[0], reference_profile:"xstock_vs_p1ac_challenger"},
+    profile:"xstock_vs_p1ac_challenger",
+  });
+  assert.match(xstock, /Model-based challenger evidence supports the observed xStock price/);
+  assert.match(xstock, /not two fully independent observations/);
+
+  const legacy = appWith({result: {...fixture[0], reference_profile:"legacy_xperp_vs_p1ac"}});
+  assert.match(legacy, /Available independent evidence/);
 });
 
 test("Observation and delivery audit survives unavailable X Layer reads", () => {

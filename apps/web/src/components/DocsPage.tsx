@@ -29,7 +29,7 @@ const guides: readonly Guide[] = [
       { eyebrow: "Read the finding", title: "Read the range and state together.", body: "Compare the reference under test with Valtide fair value and its calibrated range. Then use the Evidence State as the plain-language interpretation—not as proof of a true price.", tip: "A point estimate without its uncertainty range is incomplete.", visual: "finding" },
       { eyebrow: "Keep the boundary clear", title: "Evidence describes. Policy decides.", body: "Valtide determines whether the evidence supports, cannot resolve, or challenges the reference. A curator maps that state to a Policy Action; the consuming application enforces it.", tip: "SUPPORTED does not automatically mean ALLOW, and CHALLENGED does not automatically mean liquidate.", visual: "boundary" },
     ],
-    checks: [["SUPPORTED", "No material reason to challenge the reference from the available evidence."], ["INCONCLUSIVE", "The evidence is too weak or inconsistent to make a strong call."], ["CHALLENGED", "The reference is materially inconsistent with sufficiently strong independent evidence."]],
+    checks: [["SUPPORTED", "No material reason to challenge the reference from the available evidence."], ["INCONCLUSIVE", "The evidence is too weak or inconsistent to make a strong call."], ["CHALLENGED", "The reference is materially inconsistent with sufficiently strong evidence; source dependence follows the named profile."]],
   },
   {
     id: "curators", label: "Curators and risk teams", eyebrow: "Investigation and governance", title: "Move from an evidence exception to a defensible response.",
@@ -61,7 +61,7 @@ const guides: readonly Guide[] = [
     outcome: "You will understand what the challenger estimates, how its range is evaluated, and which claims the evidence cannot support.",
     cta: "Read the methodology", href: "https://github.com/chin0312/valtide/blob/main/docs/METHODOLOGY.md",
     walkthrough: [
-      { eyebrow: "Reconstruct the information set", title: "Keep every signal point-in-time correct.", body: "The reference profile identifies the observed source and its relationship to model inputs. NVDAx's X-Perp comparator is separate; the xStock-versus-challenger profile reuses the token observation after it has been assimilated.", tip: "The xStock comparison is not independent, and disagreement alone does not prove which price is correct.", visual: "signals" },
+      { eyebrow: "Reconstruct the information set", title: "Keep every signal point-in-time correct.", body: "The reference profile identifies the observed source and its relationship to model inputs. NVDAx's legacy X-Perp comparator is separate; the xStock profile compares the observed token with model-based challenger evidence after P1a has assimilated that same token observation.", tip: "The xStock and challenger values are not two fully independent observations; disagreement alone does not prove which price is correct.", visual: "signals" },
       { eyebrow: "Inspect uncertainty", title: "Evaluate the interval, not just its center.", body: "Valtide returns a fair-value estimate with a calibrated prediction interval. Wider ranges express greater uncertainty rather than false precision.", tip: "Coverage and interval width must be read together. Neither establishes point-price truth.", visual: "interval" },
       { eyebrow: "Read the evaluation", title: "Compare like with like.", body: "The historical test isolates uncertainty-range construction: both methods use the same point estimates. It is not a comparison with an oracle provider or a production track record.", tip: "The June–September 2026 test contains 11,828 observations and targets 90% coverage.", visual: "evaluation" },
     ],
@@ -70,8 +70,8 @@ const guides: readonly Guide[] = [
 ] as const;
 
 const glossary = [
-  { term: "Reference under test", definition: "The explicitly identified price or valuation methodology Valtide evaluates. NVDAx uses the OKX X-Perp NVDA index; the xStock challenger profile reuses the token observation after assimilation and is not an independent-source test.", example: "In the demo result, the reference is the $180.00 index value being evaluated." },
-  { term: "Valtide fair value", definition: "The independent challenger model’s point estimate. It is a model output, not an objectively proven true price.", example: "$179.11 is the challenger’s center estimate—not a replacement oracle price." },
+      { term: "Reference under test", definition: "The explicitly identified price or valuation methodology Valtide evaluates. NVDAx uses the OKX X-Perp NVDA index as a separate reference; the xStock profile compares the observed token with model-based challenger evidence after P1a has assimilated that same token observation.", example: "In the legacy NVDAx profile, the reference is the $180.00 index value being evaluated." },
+  { term: "Valtide fair value", definition: "The challenger model’s point estimate. For the xStock profile, the estimate has assimilated the same observed token price being compared, so the pair is not two fully independent observations. It is a model output, not an objectively proven true price.", example: "$179.11 is the challenger’s center estimate—not a replacement oracle price." },
   { term: "Prediction interval", definition: "The calibrated uncertainty range around the challenger estimate.", example: "$178.81–$179.41 expresses uncertainty around a $179.11 estimate at the selected coverage target." },
   { term: "Evidence State", definition: "Valtide’s standardized interpretation of whether the reference under test is supported, inconclusive, or challenged by available evidence.", example: "CHALLENGED means the reference is materially inconsistent with sufficiently strong evidence; it does not prove the reference wrong." },
   { term: "Policy Action", definition: "A response configured by the curator or consuming protocol. It is not generated by the quant model.", example: "A curator may map CHALLENGED to RESTRICT_NEW_RISK." },
@@ -97,7 +97,7 @@ const glossarySupplements: Record<GuideId, readonly { term: string; definition: 
     { term: "Model provenance", definition: "The model version and associated metadata needed to identify how a result was produced.", example: "Preserve it with timestamps and source provenance when logging a decision." },
   ],
   researchers: [
-    { term: "Challenger model", definition: "The independent model that estimates fair value and uncertainty without using the reference under test as an input.", example: "Its output challenges or supports the reference; it does not replace it." },
+    { term: "Challenger model", definition: "A model that estimates fair value and uncertainty. The legacy NVDAx X-Perp profile uses a separate reference; in the xStock profile, P1a assimilates the same token observation later compared with its output, so describe the result as model-based challenger evidence rather than two independent observations.", example: "Its output informs the Evidence State; it does not prove a true price or replace a reference." },
     { term: "Calibration", definition: "The process of aligning an interval’s empirical coverage with its stated coverage target.", example: "A 90% target should be assessed using both observed coverage and interval width." },
     { term: "Point-in-time correctness", definition: "The requirement that every model input was genuinely available at the observation timestamp.", example: "Later revisions or future market data must not leak into a historical evaluation." },
   ],

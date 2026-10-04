@@ -11,7 +11,11 @@ from valtide_api.config import Settings
 from valtide_api.live import ExactNvdaxCandleUnavailable, LiveDataUnavailable
 from valtide_api.models import MarketSnapshot, MarketState
 from valtide_api.publisher import PublicationError
-from valtide_api.runtime_store import RuntimeStateIntegrityError, RuntimeStore
+from valtide_api.runtime_store import (
+    RuntimeStateIntegrityError,
+    RuntimeStore,
+    runtime_identity_for_asset,
+)
 from valtide_api.scheduler import (
     LiveScheduler,
     TickResult,
@@ -35,10 +39,14 @@ def _snapshot(timestamp: datetime) -> MarketSnapshot:
         reference_age_seconds=int((timestamp - _ANCHOR).total_seconds()),
         reference_under_test=185.7,
         reference_under_test_source="okx_xperp_index",
+        reference_profile="legacy_xperp_vs_p1ac",
         reference_under_test_ts=timestamp,
         reference_under_test_age_seconds=0,
         market_state=MarketState.CLOSED,
-        source_provenance={"test": "warmed_runtime"},
+        source_provenance={
+            "test": "warmed_runtime",
+            "reference_profile": "legacy_xperp_vs_p1ac",
+        },
     )
 
 
@@ -145,6 +153,170 @@ def test_warmed_tick_persists_and_restores_across_store_restart(tmp_path):
     assert record.state is not None
     assert record.state.last_ts == second_ts
     assert record.latest_result == second.result
+
+
+def test_legacy_sqlite_state_is_preserved_but_not_resumed_without_identity(tmp_path):
+    first_ts = _ANCHOR + timedelta(hours=2)
+    second_ts = first_ts + timedelta(minutes=5)
+    third_ts = second_ts + timedelta(minutes=5)
+    path = tmp_path / "legacy-runtime.sqlite3"
+    builder, _calls = _builder_for(
+        [_snapshot(first_ts), _snapshot(second_ts), _snapshot(third_ts)]
+    )
+    old_store = RuntimeStore(path)
+    first = run_live_tick("NVDAx", first_ts, store=old_store, snapshot_builder=builder)
+    assert first.status == "success"
+    # Simulate a pre-generation SQLite database while preserving its runtime
+    # and history rows exactly as an existing production file would be.
+    with old_store._connection:
+        old_store._connection.execute("DROP TABLE runtime_generation")
+        old_store._connection.execute("DROP TABLE valuation_history_generation")
+    old_store.close()
+
+    identity = runtime_identity_for_asset("NVDAx")
+    migrated = RuntimeStore(path)
+    legacy = migrated.load_runtime("NVDAx", expected_identity=identity)
+    assert legacy is not None
+    assert legacy.identity_verified is False
+    assert legacy.state is None
+    assert legacy.latest_result is None
+    assert migrated.load_history("NVDAx") == [first.result]
+    assert migrated.load_history(
+        "NVDAx", expected_identity=identity, reference_profile="legacy_xperp_vs_p1ac"
+    ) == []
+
+    second = run_live_tick("NVDAx", second_ts, store=migrated, snapshot_builder=builder)
+    assert second.status == "success"
+    assert second.state_restored is False
+    archived = migrated._connection.execute(
+        "SELECT * FROM runtime_state_archive WHERE asset = 'NVDAx'"
+    ).fetchone()
+    assert archived is not None
+    assert archived["prior_runtime_identity"] is None
+    assert archived["state_last_ts"] == first_ts.isoformat()
+    assert archived["latest_result_json"] == first.result.model_dump_json()
+    assert migrated.load_history("NVDAx") == [first.result, second.result]
+    assert migrated.load_history(
+        "NVDAx", expected_identity=identity, reference_profile="legacy_xperp_vs_p1ac"
+    ) == [second.result]
+    mismatched = migrated.load_runtime(
+        "NVDAx", expected_identity="old-chain1-discovery"
+    )
+    assert mismatched is not None
+    assert mismatched.identity_verified is False
+    migrated.close()
+
+    restarted = RuntimeStore(path)
+    third = run_live_tick("NVDAx", third_ts, store=restarted, snapshot_builder=builder)
+    assert third.status == "success"
+    assert third.state_restored is True
+    assert restarted.load_history(
+        "NVDAx", expected_identity=identity, reference_profile="legacy_xperp_vs_p1ac"
+    ) == [second.result, third.result]
+
+
+def test_old_chain_or_reference_profile_generation_is_archived_not_resumed(tmp_path):
+    first_ts = _ANCHOR + timedelta(hours=3)
+    second_ts = first_ts + timedelta(minutes=5)
+    path = tmp_path / "old-discovery-runtime.sqlite3"
+    builder, _calls = _builder_for([_snapshot(first_ts), _snapshot(second_ts)])
+    store = RuntimeStore(path)
+    first = run_live_tick("NVDAx", first_ts, store=store, snapshot_builder=builder)
+    assert first.status == "success"
+
+    # A previous runtime generation may have used an unverified discovered
+    # token deployment or a different reference profile. Treat the opaque
+    # prior fingerprint as incompatible with today's pinned binding.
+    old_identity = "legacy-ethereum-discovery-or-xperp-profile"
+    current_identity = runtime_identity_for_asset("NVDAx")
+    with store._connection:
+        store._connection.execute(
+            "UPDATE runtime_generation SET runtime_identity = ? WHERE asset = ?",
+            (old_identity, "NVDAx"),
+        )
+        store._connection.execute(
+            "UPDATE valuation_history_generation SET runtime_identity = ? WHERE asset = ?",
+            (old_identity, "NVDAx"),
+        )
+
+    incompatible = store.load_runtime("NVDAx", expected_identity=current_identity)
+    assert incompatible is not None
+    assert incompatible.identity_verified is False
+    assert incompatible.state is None
+    assert incompatible.latest_result is None
+    assert store.load_history(
+        "NVDAx",
+        expected_identity=current_identity,
+        reference_profile="legacy_xperp_vs_p1ac",
+    ) == []
+    # Unfiltered local/audit history remains intact and is not deleted.
+    assert store.load_history("NVDAx") == [first.result]
+
+    failed = run_live_tick(
+        "NVDAx",
+        second_ts,
+        store=store,
+        snapshot_builder=lambda **_kwargs: (_ for _ in ()).throw(
+            RuntimeError("temporary source outage")
+        ),
+    )
+    assert failed.status == "failure"
+    # A failed new-generation attempt must not relabel the incompatible old
+    # carried state as belonging to today's pinned source/profile.
+    still_incompatible = store.load_runtime(
+        "NVDAx", expected_identity=current_identity
+    )
+    assert still_incompatible is not None
+    assert still_incompatible.identity_verified is False
+    assert still_incompatible.state is None
+    assert store.load_history("NVDAx") == [first.result]
+
+    second = run_live_tick("NVDAx", second_ts, store=store, snapshot_builder=builder)
+    assert second.status == "success"
+    assert second.state_restored is False
+    archived = store._connection.execute(
+        "SELECT prior_runtime_identity FROM runtime_state_archive WHERE asset = ?",
+        ("NVDAx",),
+    ).fetchone()
+    assert archived["prior_runtime_identity"] == old_identity
+    assert store.load_history(
+        "NVDAx",
+        expected_identity=current_identity,
+        reference_profile="legacy_xperp_vs_p1ac",
+    ) == [second.result]
+    store.close()
+
+    restarted = RuntimeStore(path)
+    record = restarted.load_runtime("NVDAx", expected_identity=current_identity)
+    assert record is not None
+    assert record.identity_verified is True
+    assert record.state is not None
+    assert record.state.last_ts == second_ts
+    assert restarted.load_history(
+        "NVDAx",
+        expected_identity=current_identity,
+        reference_profile="legacy_xperp_vs_p1ac",
+    ) == [second.result]
+
+
+def test_initial_tick_failure_status_is_bound_without_creating_state(tmp_path):
+    store = RuntimeStore(tmp_path / "first-failure.sqlite3")
+    identity = runtime_identity_for_asset("NVDAx")
+    store.record_tick_status(
+        "NVDAx",
+        "failure",
+        error="ExactTokenCandleUnavailable",
+        identity=identity,
+    )
+
+    record = store.load_runtime("NVDAx", expected_identity=identity)
+
+    assert record is not None
+    assert record.identity_verified is True
+    assert record.state is None
+    assert record.latest_result is None
+    assert record.last_tick_status == "failure"
+    assert record.last_tick_error == "ExactTokenCandleUnavailable"
 
 
 def test_duplicate_tick_is_idempotent_and_does_not_fetch_again(tmp_path):

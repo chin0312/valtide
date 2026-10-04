@@ -130,7 +130,7 @@ export function LandingPage() {
           <div className="section-index"><span>02</span><span>THE REASONING CHAIN</span></div>
           <div className="story-heading story-heading--split">
             <h2>Not another price.<br />A test of the price already in use.</h2>
-            <p>Valtide preserves the disagreement rather than averaging every source into one opaque number. The reference under test remains outside the independent challenger feature set.</p>
+            <p>Valtide preserves the disagreement rather than averaging every source into one opaque number. The relationship depends on the reference profile: in the xStock profile P1a assimilates the same token observation, so the comparison is model-based challenger evidence—not two fully independent observations.</p>
           </div>
           <div className="reasoning-grid" aria-label="Valtide reasoning chain">
             {storySteps.map((step) => <article key={step.number}><div><span>{step.number}</span><span>{step.label}</span></div><h3>{step.title}</h3><p>{step.body}</p></article>)}

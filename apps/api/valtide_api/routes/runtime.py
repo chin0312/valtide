@@ -10,7 +10,11 @@ from pydantic import BaseModel
 from valtide_api.config import get_settings, scheduler_asset_enabled
 from valtide_api.quant_runtime import quant_runtime_available
 from valtide_api.routes._asset_guard import require_api_asset
-from valtide_api.runtime_store import RuntimeStateIntegrityError, get_runtime_store
+from valtide_api.runtime_store import (
+    RuntimeStateIntegrityError,
+    get_runtime_store,
+    runtime_identity_for_asset,
+)
 
 router = APIRouter(prefix="/api", tags=["runtime"])
 
@@ -20,6 +24,7 @@ class RuntimeStatus(BaseModel):
     scheduler_enabled: bool
     has_state: bool
     has_live_result: bool
+    runtime_identity_verified: bool | None = None
     last_state_timestamp: datetime | None
     last_result_timestamp: datetime | None
     last_tick_status: str | None
@@ -99,7 +104,13 @@ def get_runtime(asset: str) -> RuntimeStatus:
     )
     store = get_runtime_store()
     try:
-        record = store.load_runtime(asset)
+        record = (
+            store.load_runtime(
+                asset, expected_identity=runtime_identity_for_asset(asset, settings)
+            )
+            if config.capabilities.runtime and quant_runtime_available(config)
+            else None
+        )
     except RuntimeStateIntegrityError:
         runtime_error = "RuntimeStateIntegrityError: runtime state is invalid"
         raw = store.raw_status(asset) or {}
@@ -118,6 +129,7 @@ def get_runtime(asset: str) -> RuntimeStatus:
             scheduler_enabled=scheduler_enabled,
             has_state=False,
             has_live_result=False,
+            runtime_identity_verified=False,
             last_state_timestamp=_parse_optional(raw.get("state_last_ts")),
             last_result_timestamp=_parse_optional(raw.get("latest_result_ts")),
             last_tick_status=raw.get("last_tick_status"),
@@ -132,11 +144,16 @@ def get_runtime(asset: str) -> RuntimeStatus:
         scheduler_enabled=scheduler_enabled,
         has_state=record is not None and record.state is not None,
         has_live_result=record is not None and record.latest_result is not None,
+        runtime_identity_verified=(record.identity_verified if record else None),
         last_state_timestamp=record.state.last_ts if record and record.state else None,
         last_result_timestamp=(
             record.latest_result.timestamp if record and record.latest_result else None
         ),
-        last_tick_status=record.last_tick_status if record else None,
+        last_tick_status=(
+            "identity_unverified"
+            if record is not None and record.identity_verified is False
+            else record.last_tick_status if record else None
+        ),
         last_tick_attempt_at=record.last_tick_attempt_at if record else None,
         last_error=record.last_tick_error if record else None,
         last_gap_steps=record.last_gap_steps if record else 0,

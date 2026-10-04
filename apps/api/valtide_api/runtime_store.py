@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import hashlib
+import json
 import sqlite3
 import threading
 from dataclasses import dataclass
@@ -30,6 +32,7 @@ class RuntimeRecord:
     last_tick_error: str | None
     last_tick_attempt_at: datetime | None
     last_gap_steps: int
+    identity_verified: bool | None = None
 
 
 @dataclass(frozen=True)
@@ -65,6 +68,29 @@ def _parse_optional_int(value: int | str | None, label: str) -> int | None:
         return int(value)
     except (TypeError, ValueError) as exc:
         raise RuntimeStateIntegrityError(f"invalid persisted {label}: {value!r}") from exc
+
+
+def runtime_identity_for_asset(asset: str, settings=None) -> str:
+    """Return a non-secret fingerprint for the active data/profile/model binding."""
+    from valtide_api.assets import resolve_asset_config
+    from valtide_api.quant_runtime import resolve_quant_runtime
+
+    config = resolve_asset_config(asset, settings)
+    runtime = resolve_quant_runtime(config)
+    binding = {
+        "asset": config.asset,
+        "token_source": config.token_source,
+        "token_chain_index": config.okx_chain_index,
+        "token_address": config.token_address,
+        "reference_profile": config.reference_profile,
+        "reference_source": config.reference_under_test_source,
+        "reference_instrument": config.reference_under_test_instrument,
+        "quant_runtime_key": config.quant_runtime_key,
+        "model_id": runtime.model_id,
+        "model_version": runtime.model_version,
+    }
+    encoded = json.dumps(binding, sort_keys=True, separators=(",", ":")).encode()
+    return hashlib.sha256(encoded).hexdigest()
 
 
 class RuntimeStore:
@@ -124,14 +150,87 @@ class RuntimeStore:
                 )
                 """
             )
+            # Additive generation tables keep legacy SQLite rows intact while
+            # allowing current state/history to be bound to a verified runtime
+            # identity. Rows without generation records remain preserved but
+            # are not resumable or included in current-profile history APIs.
+            self._connection.execute(
+                """
+                CREATE TABLE IF NOT EXISTS runtime_generation (
+                    asset TEXT PRIMARY KEY,
+                    runtime_identity TEXT NOT NULL,
+                    updated_at TEXT NOT NULL
+                )
+                """
+            )
+            self._connection.execute(
+                """
+                CREATE TABLE IF NOT EXISTS runtime_state_archive (
+                    archive_id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    asset TEXT NOT NULL,
+                    prior_runtime_identity TEXT,
+                    archived_at TEXT NOT NULL,
+                    state_m REAL,
+                    state_p REAL,
+                    state_last_ts TEXT,
+                    latest_result_json TEXT,
+                    latest_result_ts TEXT,
+                    updated_at TEXT,
+                    last_tick_status TEXT,
+                    last_tick_error TEXT,
+                    last_tick_attempt_at TEXT,
+                    last_gap_steps INTEGER NOT NULL DEFAULT 0
+                )
+                """
+            )
+            self._connection.execute(
+                """
+                CREATE TABLE IF NOT EXISTS valuation_history_generation (
+                    asset TEXT NOT NULL,
+                    observation_ts TEXT NOT NULL,
+                    runtime_identity TEXT NOT NULL,
+                    reference_profile TEXT NOT NULL,
+                    PRIMARY KEY (asset, observation_ts)
+                )
+                """
+            )
 
-    def load_runtime(self, asset: str) -> RuntimeRecord | None:
+    def load_runtime(
+        self, asset: str, *, expected_identity: str | None = None
+    ) -> RuntimeRecord | None:
         with self._lock:
             row = self._connection.execute(
                 "SELECT * FROM runtime_state WHERE asset = ?", (asset,)
             ).fetchone()
+            identity_row = self._connection.execute(
+                "SELECT runtime_identity FROM runtime_generation WHERE asset = ?",
+                (asset,),
+            ).fetchone()
         if row is None:
             return None
+
+        identity_verified = None
+        if expected_identity is not None:
+            stored_identity = identity_row["runtime_identity"] if identity_row else None
+            identity_verified = stored_identity == expected_identity
+            if not identity_verified:
+                # Do not parse or resume stale carried state/result. The original
+                # runtime_state and history rows remain untouched for audit.
+                return RuntimeRecord(
+                    asset=asset,
+                    state=None,
+                    latest_result=None,
+                    updated_at=_parse_datetime(row["updated_at"], "updated_at"),
+                    last_tick_status=row["last_tick_status"],
+                    last_tick_error=(
+                        "persisted runtime identity is unverified for the active binding"
+                    ),
+                    last_tick_attempt_at=_parse_datetime(
+                        row["last_tick_attempt_at"], "last_tick_attempt_at"
+                    ),
+                    last_gap_steps=int(row["last_gap_steps"] or 0),
+                    identity_verified=False,
+                )
 
         state_values = (row["state_m"], row["state_p"], row["state_last_ts"])
         if any(value is not None for value in state_values) and not all(
@@ -187,6 +286,7 @@ class RuntimeStore:
                 row["last_tick_attempt_at"], "last_tick_attempt_at"
             ),
             last_gap_steps=int(row["last_gap_steps"] or 0),
+            identity_verified=identity_verified,
         )
 
     def load_publication(self, asset: str) -> PublicationRecord | None:
@@ -215,21 +315,51 @@ class RuntimeStore:
             last_publish_tx_hash=row["last_publish_tx_hash"],
         )
 
-    def load_history(self, asset: str, limit: int = 72) -> list[ValuationResult]:
+    def load_history(
+        self,
+        asset: str,
+        limit: int = 72,
+        *,
+        expected_identity: str | None = None,
+        reference_profile: str | None = None,
+    ) -> list[ValuationResult]:
         """Return successful warmed observations in chronological order."""
         if not 1 <= int(limit) <= 2016:
             raise ValueError("history limit must be between 1 and 2016")
         with self._lock:
-            rows = self._connection.execute(
-                """
-                SELECT result_json
-                FROM valuation_history
-                WHERE asset = ?
-                ORDER BY observation_ts DESC
-                LIMIT ?
-                """,
-                (asset, int(limit)),
-            ).fetchall()
+            if expected_identity is None and reference_profile is None:
+                rows = self._connection.execute(
+                    """
+                    SELECT result_json, NULL AS stored_reference_profile
+                    FROM valuation_history
+                    WHERE asset = ?
+                    ORDER BY observation_ts DESC
+                    LIMIT ?
+                    """,
+                    (asset, int(limit)),
+                ).fetchall()
+            else:
+                clauses = ["h.asset = ?"]
+                params: list[str | int] = [asset]
+                if expected_identity is not None:
+                    clauses.append("g.runtime_identity = ?")
+                    params.append(expected_identity)
+                if reference_profile is not None:
+                    clauses.append("g.reference_profile = ?")
+                    params.append(reference_profile)
+                params.append(int(limit))
+                rows = self._connection.execute(
+                    f"""
+                    SELECT h.result_json, g.reference_profile AS stored_reference_profile
+                    FROM valuation_history AS h
+                    JOIN valuation_history_generation AS g
+                      ON g.asset = h.asset AND g.observation_ts = h.observation_ts
+                    WHERE {' AND '.join(clauses)}
+                    ORDER BY h.observation_ts DESC
+                    LIMIT ?
+                    """,
+                    params,
+                ).fetchall()
         results: list[ValuationResult] = []
         for row in reversed(rows):
             try:
@@ -237,6 +367,9 @@ class RuntimeStore:
                 require_canonical_5m(result.timestamp, "persisted history.timestamp")
                 if result.asset != asset:
                     raise ValueError("persisted history asset does not match its key")
+                stored_profile = row["stored_reference_profile"]
+                if stored_profile is not None and result.reference_profile != stored_profile:
+                    raise ValueError("persisted history profile does not match its generation")
             except (TypeError, ValueError) as exc:
                 raise RuntimeStateIntegrityError(
                     f"invalid persisted valuation history for asset {asset}"
@@ -391,10 +524,61 @@ class RuntimeStore:
         tick_error: str | None = None,
         tick_attempt_at: datetime | None = None,
         gap_steps: int = 0,
+        identity: str | None = None,
     ) -> None:
         last_ts, result_ts = self._validated_runtime_values(state, result, asset=asset)
         attempt_at = tick_attempt_at or datetime.now(UTC)
         updated_at = datetime.now(UTC)
+        if identity is not None:
+            prior = self._connection.execute(
+                "SELECT * FROM runtime_state WHERE asset = ?", (asset,)
+            ).fetchone()
+            prior_generation = self._connection.execute(
+                "SELECT runtime_identity FROM runtime_generation WHERE asset = ?",
+                (asset,),
+            ).fetchone()
+            prior_identity = (
+                prior_generation["runtime_identity"] if prior_generation else None
+            )
+            if (
+                prior is not None
+                and prior_identity != identity
+                and any(
+                    prior[field] is not None
+                    for field in (
+                        "state_m", "state_p", "state_last_ts",
+                        "latest_result_json", "latest_result_ts",
+                    )
+                )
+            ):
+                # Preserve the complete old row before its single-active-runtime
+                # slot is advanced. This is additive migration behavior; legacy
+                # operational history itself is never deleted or rewritten.
+                self._connection.execute(
+                    """
+                    INSERT INTO runtime_state_archive (
+                        asset, prior_runtime_identity, archived_at, state_m, state_p,
+                        state_last_ts, latest_result_json, latest_result_ts, updated_at,
+                        last_tick_status, last_tick_error, last_tick_attempt_at,
+                        last_gap_steps
+                    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                    """,
+                    (
+                        asset,
+                        prior_identity,
+                        datetime.now(UTC).isoformat(),
+                        prior["state_m"],
+                        prior["state_p"],
+                        prior["state_last_ts"],
+                        prior["latest_result_json"],
+                        prior["latest_result_ts"],
+                        prior["updated_at"],
+                        prior["last_tick_status"],
+                        prior["last_tick_error"],
+                        prior["last_tick_attempt_at"],
+                        prior["last_gap_steps"],
+                    ),
+                )
         self._connection.execute(
             """
             INSERT INTO runtime_state (
@@ -428,6 +612,17 @@ class RuntimeStore:
                 gap_steps,
             )
         )
+        if identity is not None:
+            self._connection.execute(
+                """
+                INSERT INTO runtime_generation (asset, runtime_identity, updated_at)
+                VALUES (?, ?, ?)
+                ON CONFLICT(asset) DO UPDATE SET
+                    runtime_identity = excluded.runtime_identity,
+                    updated_at = excluded.updated_at
+                """,
+                (asset, identity, updated_at.isoformat()),
+            )
 
     def save_runtime(
         self,
@@ -439,6 +634,7 @@ class RuntimeStore:
         tick_error: str | None = None,
         tick_attempt_at: datetime | None = None,
         gap_steps: int = 0,
+        identity: str | None = None,
     ) -> None:
         with self._lock, self._connection:
             self._save_runtime_locked(
@@ -449,6 +645,7 @@ class RuntimeStore:
                 tick_error=tick_error,
                 tick_attempt_at=tick_attempt_at,
                 gap_steps=gap_steps,
+                identity=identity,
             )
 
     def save_runtime_and_history(
@@ -461,6 +658,7 @@ class RuntimeStore:
         tick_error: str | None = None,
         tick_attempt_at: datetime | None = None,
         gap_steps: int = 0,
+        identity: str | None = None,
     ) -> None:
         """Persist the latest warmed state and successful observation atomically."""
         _last_ts, result_ts = self._validated_runtime_values(state, result, asset=asset)
@@ -473,8 +671,9 @@ class RuntimeStore:
                 tick_error=tick_error,
                 tick_attempt_at=tick_attempt_at,
                 gap_steps=gap_steps,
+                identity=identity,
             )
-            self._connection.execute(
+            inserted = self._connection.execute(
                 """
                 INSERT INTO valuation_history (asset, observation_ts, result_json, created_at)
                 VALUES (?, ?, ?, ?)
@@ -487,6 +686,15 @@ class RuntimeStore:
                     datetime.now(UTC).isoformat(),
                 ),
             )
+            if identity is not None and inserted.rowcount == 1:
+                self._connection.execute(
+                    """
+                    INSERT INTO valuation_history_generation (
+                        asset, observation_ts, runtime_identity, reference_profile
+                    ) VALUES (?, ?, ?, ?)
+                    """,
+                    (asset, result_ts.isoformat(), identity, result.reference_profile),
+                )
 
     def record_tick_status(
         self,
@@ -496,10 +704,37 @@ class RuntimeStore:
         error: str | None = None,
         attempt_at: datetime | None = None,
         gap_steps: int = 0,
+        identity: str | None = None,
     ) -> None:
         attempt_at = attempt_at or datetime.now(UTC)
         updated_at = datetime.now(UTC)
         with self._lock, self._connection:
+            previous = self._connection.execute(
+                "SELECT state_m, state_p, state_last_ts, latest_result_json, latest_result_ts "
+                "FROM runtime_state WHERE asset = ?",
+                (asset,),
+            ).fetchone()
+            previous_generation = self._connection.execute(
+                "SELECT runtime_identity FROM runtime_generation WHERE asset = ?",
+                (asset,),
+            ).fetchone()
+            has_persisted_generation = previous is not None and any(
+                previous[field] is not None
+                for field in (
+                    "state_m", "state_p", "state_last_ts",
+                    "latest_result_json", "latest_result_ts",
+                )
+            )
+            may_bind_identity = bool(
+                identity is not None
+                and (
+                    not has_persisted_generation
+                    or (
+                        previous_generation is not None
+                        and previous_generation["runtime_identity"] == identity
+                    )
+                )
+            )
             self._connection.execute(
                 """
                 INSERT INTO runtime_state (
@@ -522,10 +757,22 @@ class RuntimeStore:
                     gap_steps,
                 ),
             )
+            if may_bind_identity:
+                self._connection.execute(
+                    """
+                    INSERT INTO runtime_generation (asset, runtime_identity, updated_at)
+                    VALUES (?, ?, ?)
+                    ON CONFLICT(asset) DO UPDATE SET
+                        runtime_identity = excluded.runtime_identity,
+                        updated_at = excluded.updated_at
+                    """,
+                    (asset, identity, updated_at.isoformat()),
+                )
 
     def reset_runtime(self, asset: str) -> None:
         with self._lock, self._connection:
             self._connection.execute("DELETE FROM runtime_state WHERE asset = ?", (asset,))
+            self._connection.execute("DELETE FROM runtime_generation WHERE asset = ?", (asset,))
 
     def raw_status(self, asset: str) -> dict[str, Any] | None:
         """Read status columns without parsing state, for corruption diagnostics."""

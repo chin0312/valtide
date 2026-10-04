@@ -19,7 +19,7 @@ export const EVIDENCE: Record<EvidenceState, EvidenceStyle> = {
     label: "SUPPORTED",
     headline: "Reference under test is supported",
     description:
-      "Available independent evidence provides no material reason to challenge the reference under test.",
+      "Available evidence provides no material reason to challenge the reference under test; source dependence is defined by the active reference profile.",
     icon: "✓",
     fg: "var(--color-supported)",
     soft: "var(--color-supported-soft)",
@@ -39,7 +39,7 @@ export const EVIDENCE: Record<EvidenceState, EvidenceStyle> = {
     label: "CHALLENGED",
     headline: "Reference under test is challenged",
     description:
-      "The reference under test is materially inconsistent with sufficiently strong independent evidence; that is not proof it is objectively wrong.",
+      "The reference under test is materially inconsistent with sufficiently strong evidence; that is not proof it is objectively wrong.",
     icon: "!",
     fg: "var(--color-challenged)",
     soft: "var(--color-challenged-soft)",

@@ -3,7 +3,9 @@
 from __future__ import annotations
 
 import csv
+from dataclasses import dataclass
 from datetime import UTC, datetime
+from functools import lru_cache
 from pathlib import Path
 
 from valtide_api.assets import AssetConfig, resolve_asset_config
@@ -21,6 +23,17 @@ class PanelTimestampError(ValueError):
 
 class PanelIdentityError(ValueError):
     """Raised when a panel's source identity does not match the requested asset."""
+
+
+@dataclass(frozen=True)
+class PanelReadiness:
+    """Cheap-to-query panel identity/readiness result (no model replay)."""
+
+    file_available: bool
+    schema: str | None = None
+    canonical_identity_verified: bool = False
+    replay_compatible: bool = False
+    error_code: str | None = None
 
 
 _CANONICAL_IDENTITY = (
@@ -98,6 +111,216 @@ def _canonical_row(row: dict[str, str], config: AssetConfig, *, legacy: bool) ->
     return row
 
 
+def _validate_panel_header(
+    schema: str,
+    fields: set[str],
+    config: AssetConfig,
+    settings: Settings,
+) -> None:
+    legacy = schema == "legacy_nvda_diagnostic"
+    if schema == "canonical_hybrid" and not set(_CANONICAL_IDENTITY).issubset(fields):
+        raise PanelIdentityError("ambiguous hybrid canonical/legacy panel schema")
+    if not legacy and not set(_CANONICAL_IDENTITY).issubset(fields):
+        raise PanelIdentityError("canonical panel is missing required identity fields")
+    if not legacy and config.asset == "NVDAx" and not (
+        settings.okx_nvdax_chain_index and settings.okx_nvdax_token_address
+    ):
+        raise PanelIdentityError(
+            "canonical NVDAx panel provenance is unverified; pin "
+            "OKX_NVDAX_CHAIN_INDEX and OKX_NVDAX_TOKEN_ADDRESS"
+        )
+    if not legacy and (not config.okx_chain_index or not config.token_address):
+        raise PanelIdentityError(
+            "canonical panel deployment is unverified; pin OKX_NVDAX_CHAIN_INDEX "
+            "and OKX_NVDAX_TOKEN_ADDRESS for offline verification"
+        )
+    if legacy and config.asset != "NVDAx":
+        raise PanelIdentityError("legacy NVDA panel cannot be loaded for another asset")
+    if not legacy and not {
+        "token_close", "token_available", "underlying_close", "underlying_available",
+        "reference_under_test_available", "reference_under_test_source",
+    }.issubset(fields):
+        raise PanelIdentityError("canonical panel is missing required market fields")
+
+
+def inspect_panel_readiness(
+    path: str | Path,
+    *,
+    asset: str,
+    settings: Settings | None = None,
+) -> PanelReadiness:
+    """Verify panel identity and structural replayability without inference.
+
+    The CSV is scanned once per file stat/configuration and the result is cached.
+    This avoids constructing a large snapshot sequence or running the quant model
+    for every `/api/assets` request while still checking identity on every row.
+    """
+    if settings is None:
+        from valtide_api.config import get_settings
+
+        settings = get_settings()
+    try:
+        config = resolve_asset_config(asset, settings)
+        panel_path = Path(path).resolve(strict=True)
+        stat = panel_path.stat()
+    except (OSError, ValueError):
+        return PanelReadiness(False, error_code="PANEL_FILE_UNAVAILABLE")
+
+    return _inspect_panel_cached(
+        str(panel_path),
+        stat.st_mtime_ns,
+        stat.st_size,
+        config,
+        str(getattr(settings, "okx_nvdax_chain_index", "") or "").strip(),
+        str(getattr(settings, "okx_nvdax_token_address", "") or "").strip(),
+    )
+
+
+@lru_cache(maxsize=32)
+def _inspect_panel_cached(
+    path: str,
+    _mtime_ns: int,
+    _size: int,
+    config: AssetConfig,
+    nvda_chain_pin: str,
+    nvda_address_pin: str,
+) -> PanelReadiness:
+    # Recreate only the two legacy NVDA pin fields needed by the shared header
+    # validator. No network lookup or deployment discovery occurs here.
+    from valtide_api.config import Settings
+
+    settings = Settings(
+        _env_file=None,
+        okx_nvdax_chain_index=nvda_chain_pin,
+        okx_nvdax_token_address=nvda_address_pin,
+    )
+    schema: str | None = None
+    try:
+        with Path(path).open(newline="", encoding="utf-8-sig") as stream:
+            reader = csv.DictReader(stream)
+            headers = reader.fieldnames or []
+            if len(headers) != len(set(headers)):
+                raise PanelIdentityError("panel has duplicate header columns")
+            fields = set(headers)
+            schema = _panel_schema(fields)
+            _validate_panel_header(schema, fields, config, settings)
+            legacy = schema == "legacy_nvda_diagnostic"
+            last_close: float | None = None
+            previous_ts: datetime | None = None
+            row_count = 0
+            replay_rows = 0
+
+            for raw_row in reader:
+                if None in raw_row:
+                    raise PanelIdentityError("panel row has more fields than its header")
+                if not any(value not in (None, "") for value in raw_row.values()):
+                    raise PanelIdentityError("panel contains an empty row")
+                row = _canonical_row(raw_row, config, legacy=legacy)
+                if schema == "canonical_hybrid":
+                    # Check row identity before classifying the otherwise
+                    # ambiguous schema, so an incorrect identity is never hidden.
+                    raise PanelIdentityError("ambiguous hybrid canonical/legacy panel schema")
+                try:
+                    timestamp = require_canonical_5m(
+                        _parse_ts(row["timestamp_utc"]), "panel timestamp"
+                    )
+                except (KeyError, TypeError, ValueError) as exc:
+                    raise PanelTimestampError("invalid canonical panel timestamp") from exc
+                if previous_ts is not None and (timestamp - previous_ts).total_seconds() != 300:
+                    raise PanelTimestampError(
+                        "panel timestamps must advance by exactly 5 minutes"
+                    )
+                previous_ts = timestamp
+                row_count += 1
+
+                token = _num(row.get("token_close"))
+                token_available = _flag(row.get("token_available"))
+                underlying = (
+                    _num(row.get("underlying_close"))
+                    if _flag(row.get("underlying_available"))
+                    else None
+                )
+                if token_available and token is None:
+                    raise PanelIdentityError("available token observation has no price")
+                if _flag(row.get("underlying_available")) and underlying is None:
+                    raise PanelIdentityError("available underlying observation has no price")
+                for price_field in (
+                    "token_volume", "token_volume_usd", "reference_under_test",
+                    "last_trusted_reference",
+                ):
+                    _num(row.get(price_field))
+
+                for value_field, available, label in (
+                    ("token_observed_at", token_available, "token"),
+                    (
+                        "underlying_observed_at",
+                        _flag(row.get("underlying_available")),
+                        "underlying",
+                    ),
+                ):
+                    value = row.get(value_field)
+                    if available and value and _parse_ts(value) != timestamp:
+                        raise PanelIdentityError(
+                            f"{label} observation does not match canonical timestamp"
+                        )
+
+                reference_available = _flag(row.get("reference_under_test_available"))
+                reference = _num(row.get("reference_under_test"))
+                if reference_available and reference is None:
+                    raise PanelIdentityError("available reference observation has no price")
+                reference_ts_value = row.get("reference_under_test_ts")
+                if reference_available and reference_ts_value:
+                    if _parse_ts(reference_ts_value) > timestamp:
+                        raise PanelTimestampError(
+                            "reference-under-test timestamp must not be after its panel observation"
+                        )
+
+                anchor = _num(row.get("last_trusted_reference"))
+                anchor_ts_value = row.get("last_trusted_reference_ts")
+                anchor_ts = _parse_ts(anchor_ts_value) if anchor_ts_value else None
+                if anchor is not None and anchor_ts is not None and anchor_ts >= timestamp:
+                    raise PanelTimestampError(
+                        "last trusted reference timestamp must be strictly before "
+                        "its panel observation"
+                    )
+                prior_anchor = last_close is not None or (
+                    anchor is not None and anchor_ts is not None
+                )
+                if prior_anchor:
+                    replay_rows += 1
+                elif underlying is not None:
+                    last_close = underlying
+                if underlying is not None:
+                    last_close = underlying
+
+            if schema == "canonical_hybrid":
+                raise PanelIdentityError("ambiguous hybrid canonical/legacy panel schema")
+            if row_count < 2 or replay_rows == 0:
+                return PanelReadiness(
+                    True, schema, schema == "canonical" and row_count > 0, False,
+                    "PANEL_HAS_NO_REPLAY_OBSERVATIONS",
+                )
+            return PanelReadiness(
+                True,
+                schema,
+                schema == "canonical",
+                True,
+                None,
+            )
+    except PanelTimestampError:
+        return PanelReadiness(True, schema, False, False, "PANEL_TIMESTAMP_INVALID")
+    except PanelIdentityError as exc:
+        message = str(exc)
+        error_code = (
+            "PANEL_SCHEMA_AMBIGUOUS"
+            if "ambiguous" in message
+            else "PANEL_IDENTITY_INVALID"
+        )
+        return PanelReadiness(True, schema, False, False, error_code)
+    except (OSError, csv.Error, KeyError, TypeError, ValueError, OverflowError):
+        return PanelReadiness(True, schema, False, False, "PANEL_FORMAT_INVALID")
+
+
 def _num(value: str | None) -> float | None:
     if value is None or value.strip() in _NA:
         return None
@@ -141,33 +364,13 @@ def load_panel_snapshots(
 
     with path.open(newline="") as f:
         reader = csv.DictReader(f)
-        fields = set(reader.fieldnames or ())
+        headers = reader.fieldnames or []
+        if len(headers) != len(set(headers)):
+            raise PanelIdentityError("panel has duplicate header columns")
+        fields = set(headers)
         schema = _panel_schema(fields)
+        _validate_panel_header(schema, fields, asset_config, settings)
         legacy = schema == "legacy_nvda_diagnostic"
-        canonical = schema in {"canonical", "canonical_hybrid"}
-        if schema == "canonical_hybrid" and not set(_CANONICAL_IDENTITY).issubset(fields):
-            raise PanelIdentityError("ambiguous hybrid canonical/legacy panel schema")
-        if not legacy and not set(_CANONICAL_IDENTITY).issubset(fields):
-            raise PanelIdentityError("canonical panel is missing required identity fields")
-        if not legacy and asset_config.asset == "NVDAx" and not (
-            settings.okx_nvdax_chain_index and settings.okx_nvdax_token_address
-        ):
-            raise PanelIdentityError(
-                "canonical NVDAx panel provenance is unverified; pin "
-                "OKX_NVDAX_CHAIN_INDEX and OKX_NVDAX_TOKEN_ADDRESS"
-            )
-        if not legacy and (not asset_config.okx_chain_index or not asset_config.token_address):
-            raise PanelIdentityError(
-                "canonical panel deployment is unverified; pin OKX_NVDAX_CHAIN_INDEX "
-                "and OKX_NVDAX_TOKEN_ADDRESS for offline verification"
-            )
-        if legacy and asset_config.asset != "NVDAx":
-            raise PanelIdentityError("legacy NVDA panel cannot be loaded for another asset")
-        if canonical and not {
-            "token_close", "token_available", "underlying_close", "underlying_available",
-            "reference_under_test_available", "reference_under_test_source",
-        }.issubset(fields):
-            raise PanelIdentityError("canonical panel is missing required market fields")
         for raw_row in reader:
             row = _canonical_row(raw_row, asset_config, legacy=legacy)
             if schema == "canonical_hybrid":

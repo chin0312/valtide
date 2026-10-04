@@ -8,7 +8,12 @@ import pytest
 import valtide_api.assets as assets_module
 from valtide_api.config import Settings
 from valtide_api.models import EvidenceState
-from valtide_api.panel import PanelIdentityError, PanelTimestampError, load_panel_snapshots
+from valtide_api.panel import (
+    PanelIdentityError,
+    PanelTimestampError,
+    inspect_panel_readiness,
+    load_panel_snapshots,
+)
 from valtide_api.replay import replay
 
 _COLS = (
@@ -406,6 +411,145 @@ def test_canonical_panel_rejects_wrong_pinned_deployment(tmp_path, chain, addres
     )
     with pytest.raises(PanelIdentityError, match=error):
         load_panel_snapshots(path, settings=_pinned_settings())
+
+
+def _spy_canonical_panel(tmp_path, *, chain="501", address=None, mixed=False):
+    config = assets_module.resolve_asset_config("SPYx", Settings(_env_file=None))
+    token_address = address or config.token_address
+    fields = _GENERIC_COLUMNS.split(",")
+    rows = [
+        row.replace("NVDA-USD", "SPYx")
+        .replace("okx_xperp_index", "xstock_token_market")
+        .split(",")
+        for row in _generic_rows("SPYx", "SPY", chain, token_address)
+    ]
+    if mixed:
+        fields.extend(("nvda_close", "nvdax_close"))
+        for row in rows:
+            row.extend(("180.0", "180.1"))
+    fields.append("reference_profile")
+    for row in rows:
+        row.append("xstock_vs_p1ac_challenger")
+    path = _write(
+        tmp_path,
+        "\n".join([",".join(fields), *(",".join(row) for row in rows)]) + "\n",
+    )
+    settings = Settings(_env_file=None, spyx_historical_panel_path=path)
+    return path, config, settings
+
+
+def test_panel_readiness_verifies_canonical_solana_identity_without_replay(tmp_path):
+    path, config, settings = _spy_canonical_panel(tmp_path)
+
+    status = inspect_panel_readiness(path, asset="SPYx", settings=settings)
+
+    assert status.file_available is True
+    assert status.canonical_identity_verified is True
+    assert status.replay_compatible is True
+    assert status.error_code is None
+
+
+def test_panel_readiness_separates_verified_file_from_empty_replay(tmp_path):
+    fields = _GENERIC_COLUMNS.split(",")
+    fields.append("reference_profile")
+    path = _write(tmp_path, ",".join(fields) + "\n")
+    settings = Settings(_env_file=None, spyx_historical_panel_path=path)
+
+    status = inspect_panel_readiness(path, asset="SPYx", settings=settings)
+
+    assert status.file_available is True
+    assert status.canonical_identity_verified is False
+    assert status.replay_compatible is False
+    assert status.error_code == "PANEL_HAS_NO_REPLAY_OBSERVATIONS"
+
+
+@pytest.mark.parametrize(
+    ("chain", "address", "mixed", "expected_code"),
+    [
+        ("1", "0x90a2a4c76b5d8c0bc892a69ea28aa775a8f2dd48", False, "PANEL_IDENTITY_INVALID"),
+        ("501", "0x90a2a4c76b5d8c0bc892a69ea28aa775a8f2dd48", False, "PANEL_IDENTITY_INVALID"),
+        ("1", "0x90a2a4c76b5d8c0bc892a69ea28aa775a8f2dd48", True, "PANEL_IDENTITY_INVALID"),
+    ],
+)
+def test_panel_readiness_fails_closed_for_wrong_or_mixed_deployment(
+    tmp_path, chain, address, mixed, expected_code
+):
+    path, _config, settings = _spy_canonical_panel(
+        tmp_path, chain=chain, address=address, mixed=mixed
+    )
+
+    status = inspect_panel_readiness(path, asset="SPYx", settings=settings)
+
+    assert status.file_available is True
+    assert status.canonical_identity_verified is False
+    assert status.replay_compatible is False
+    assert status.error_code == expected_code
+
+
+def test_panel_readiness_fails_closed_for_malformed_csv(tmp_path):
+    path = _write(tmp_path, "timestamp_utc,asset\nnot-a-timestamp,SPYx\n")
+    settings = Settings(_env_file=None, spyx_historical_panel_path=path)
+
+    status = inspect_panel_readiness(path, asset="SPYx", settings=settings)
+
+    assert status.file_available is True
+    assert status.canonical_identity_verified is False
+    assert status.replay_compatible is False
+    assert status.error_code in {"PANEL_IDENTITY_INVALID", "PANEL_FORMAT_INVALID"}
+
+
+def test_panel_readiness_rejects_duplicate_identity_headers(tmp_path):
+    path, _config, settings = _spy_canonical_panel(tmp_path)
+    contents = path.read_text()
+    header, *rows = contents.splitlines()
+    duplicate_header = f"{header},asset"
+    duplicate_rows = [f"{row},SPYx" for row in rows]
+    path.write_text("\n".join([duplicate_header, *duplicate_rows]) + "\n")
+
+    status = inspect_panel_readiness(path, asset="SPYx", settings=settings)
+
+    assert status.file_available is True
+    assert status.canonical_identity_verified is False
+    assert status.replay_compatible is False
+    assert status.error_code == "PANEL_IDENTITY_INVALID"
+
+
+def test_assets_api_does_not_report_ethereum_csv_as_solana_history(tmp_path, monkeypatch):
+    from fastapi.testclient import TestClient
+
+    import valtide_api.routes.assets as assets_route
+    from valtide_api.main import app
+
+    path, config, settings = _spy_canonical_panel(
+        tmp_path,
+        chain="1",
+        address="0x90a2a4c76b5d8c0bc892a69ea28aa775a8f2dd48",
+    )
+    config = replace(
+        config,
+        capabilities=replace(
+            config.capabilities,
+            quant=True,
+            historical_data=True,
+            runtime=False,
+            api_exposed=True,
+        ),
+    )
+    monkeypatch.setattr(assets_route, "api_asset_configs", lambda: (config,))
+    monkeypatch.setattr(assets_route, "get_settings", lambda: settings)
+    monkeypatch.setattr(assets_route, "quant_runtime_available", lambda _config: True)
+    monkeypatch.setattr(assets_route, "get_runtime_store", lambda: object())
+    monkeypatch.setattr(assets_route, "scheduler_asset_enabled", lambda *_args: False)
+
+    response = TestClient(app).get("/api/assets")
+
+    assert response.status_code == 200
+    asset = response.json()[0]
+    assert asset["historical_panel_file_available"] is True
+    assert asset["canonical_panel_verified"] is False
+    assert asset["historical_replay_ready"] is False
+    assert asset["historical_data_available"] is False
+    assert "PANEL_IDENTITY_INVALID" in asset["readiness_error_codes"]
 
 
 def test_generic_panel_rejects_misdated_underlying_observation(tmp_path):

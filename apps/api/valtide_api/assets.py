@@ -263,10 +263,32 @@ def resolve_historical_panel_path(config: AssetConfig, settings: Settings | None
 
 
 def historical_panel_available(config: AssetConfig, settings: Settings | None = None) -> bool:
+    """Return whether a canonical panel is identity-verified for this asset."""
     try:
-        return resolve_historical_panel_path(config, settings).is_file()
+        return inspect_historical_panel(config, settings).canonical_identity_verified
     except AssetConfigurationError:
         return False
+
+
+def historical_panel_file_available(
+    config: AssetConfig, settings: Settings | None = None
+) -> bool:
+    """Return file presence only; this is deliberately not a readiness claim."""
+    try:
+        return resolve_historical_panel_path(config, settings).is_file()
+    except (AssetConfigurationError, OSError):
+        return False
+
+
+def inspect_historical_panel(config: AssetConfig, settings: Settings | None = None):
+    """Inspect registered panel identity/readiness without running replay."""
+    from valtide_api.panel import PanelReadiness, inspect_panel_readiness
+
+    try:
+        path = resolve_historical_panel_path(config, settings)
+    except AssetConfigurationError:
+        return PanelReadiness(False, error_code="PANEL_NOT_CONFIGURED")
+    return inspect_panel_readiness(path, asset=config.asset, settings=settings)
 
 
 def registered_asset_configs() -> tuple[AssetConfig, ...]:
@@ -282,6 +304,8 @@ __all__ = [
     "UnsupportedAssetError",
     "is_supported_asset",
     "historical_panel_available",
+    "historical_panel_file_available",
+    "inspect_historical_panel",
     "api_asset_configs",
     "registered_asset_configs",
     "resolve_asset_config",

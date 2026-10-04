@@ -50,7 +50,7 @@ def test_publish_without_warmed_result_returns_409(monkeypatch):
     monkeypatch.setattr(
         publish_route,
         "get_runtime_store",
-        lambda: SimpleNamespace(load_runtime=lambda _asset: None),
+        lambda: SimpleNamespace(load_runtime=lambda _asset, **_kwargs: None),
     )
 
     response = client.post("/api/publish/NVDAx")
@@ -69,7 +69,7 @@ def test_publish_success_returns_structured_receipt(monkeypatch):
         publish_route,
         "get_runtime_store",
         lambda: SimpleNamespace(
-            load_runtime=lambda _asset: SimpleNamespace(latest_result=result)
+            load_runtime=lambda _asset, **_kwargs: SimpleNamespace(latest_result=result)
         ),
     )
 
@@ -99,7 +99,7 @@ def test_publish_already_published_returns_null_transaction(monkeypatch):
         publish_route,
         "get_runtime_store",
         lambda: SimpleNamespace(
-            load_runtime=lambda _asset: SimpleNamespace(latest_result=object())
+            load_runtime=lambda _asset, **_kwargs: SimpleNamespace(latest_result=object())
         ),
     )
     monkeypatch.setattr(
