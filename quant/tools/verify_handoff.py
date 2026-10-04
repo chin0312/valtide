@@ -10,7 +10,6 @@ from pathlib import Path, PurePosixPath
 
 from build_handoff_manifest import OUT, QUANT, REPOSITORY, render_manifest
 
-
 REFERENCE_SECTIONS = (
     "runtime_artifacts",
     "research_artifacts",

@@ -1,11 +1,10 @@
 from __future__ import annotations
 
+import argparse
 import hashlib
 import json
-import argparse
 import subprocess
 from pathlib import Path
-
 
 QUANT = Path(__file__).resolve().parents[1]
 REPOSITORY = QUANT.parent

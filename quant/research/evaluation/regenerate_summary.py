@@ -1,11 +1,10 @@
 from __future__ import annotations
 
-import csv
 import argparse
+import csv
 import io
 import json
 from pathlib import Path
-
 
 RESEARCH = Path(__file__).resolve().parents[1]
 BENCHMARK = RESEARCH / "benchmarks" / "p1ac_vs_rawc"
