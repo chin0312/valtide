@@ -1,0 +1,42 @@
+{
+  "asset_id": "NVDAx",
+  "xstock_symbol": "NVDAx",
+  "underlying_symbol": "NVDA",
+  "xstock_network": "Solana",
+  "data_start_utc": "2025-07-01T00:00:00Z",
+  "data_end_utc": "2026-09-20T23:55:00Z",
+  "rows": 128736,
+  "overlap_rows": 56359,
+  "dataset_file": "canonical_panel_5m.csv",
+  "dataset_sha256": "722929383e6ca1aa28382e828879efeccb60faabdf2bd5e05f14a721f7fc740d",
+  "compatibility_note": "Columns named nvda_* and nvdax_* are legacy P1a interface aliases for the selected underlying and xStock; they do not imply the asset is NVDA.",
+  "source": {
+    "token": "OKX OnchainOS historical 5m candles",
+    "underlying": "Alpaca 5m stock bars",
+    "multiplier_metadata": "xStocks public multiplier history"
+  },
+  "okx_deployment": {
+    "chainIndex": 501,
+    "issuer": "xStock",
+    "logoUrl": "https://static.oklink.com/cdn/web3/currency/token/large/501-Xsc9qvGR1efVDFGLrVsmkzv3qi45LTBjeUKSPmx9qEh-900/type=default_90_0?v=1782382544140",
+    "marketCap": 43409877.9872,
+    "peRatioTTM": 28.727,
+    "price": 230.5827,
+    "priceChange24H": 1.07,
+    "stockCode": "NVDA",
+    "stockMarketCap": 5582819395000,
+    "stockPrice": null,
+    "stockPriceChange24H": null,
+    "stockVolume24h": 270892014.69,
+    "tokenContractAddress": "Xsc9qvGR1efVDFGLrVsmkzv3qi45LTBjeUKSPmx9qEh",
+    "tokenName": "NVDAx",
+    "tokenSymbol": "NVDAx",
+    "tokenToAssetRatio": 1.0017,
+    "volume24h": 51967369.3207,
+    "page": 1,
+    "volume24h_num": 51967369.3207,
+    "selectedNetwork": "Solana",
+    "selectedBy": "highest_volume_on_target_network"
+  },
+  "generated_at_utc": "2026-10-01T10:25:17Z"
+}

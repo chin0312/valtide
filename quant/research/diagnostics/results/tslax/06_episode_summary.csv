@@ -1,0 +1,2 @@
+asset,episodes,median_duration_min,median_rows,episodes_with_true_tail_rate,episode_mean_p1a_better_rate,episode_mean_raw_error_bps,episode_mean_p1a_error_bps
+tslax,499,5.0,1.0,0.09418837675350701,0.25760409708305504,9.754474837862833,16.977031933147867

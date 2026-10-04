@@ -1,0 +1,120 @@
+{
+  "asset": "nvdax",
+  "purpose": "diagnose P1a lag versus xStock dislocation before training another gate",
+  "important_note": "Future prices in forward-resolution outputs are retrospective diagnostics only. They must not be used as live model features.",
+  "overall": {
+    "asset": "nvdax",
+    "selected_challenger_score": "disagreement_z",
+    "review_threshold_q90": 1.1769144691819178,
+    "tail_threshold_bps": 27.833443316902517,
+    "test_rows": 11804,
+    "support_n": 10369,
+    "support_raw_mae_bps": 4.283213877628998,
+    "support_p1a_mae_bps": 5.27259674484239,
+    "support_mean_improvement_bps": -0.9893828672133923,
+    "support_p1a_better_rate": 0.3855723792072524,
+    "support_true_tail_rate": 0.0039540939338412575,
+    "support_mean_disagreement_bps": 3.892888565897222,
+    "watch_n": 782,
+    "watch_raw_mae_bps": 8.347368810901296,
+    "watch_p1a_mae_bps": 12.185470352878582,
+    "watch_mean_improvement_bps": -3.8381015419772853,
+    "watch_p1a_better_rate": 0.3235294117647059,
+    "watch_true_tail_rate": 0.04092071611253197,
+    "watch_mean_disagreement_bps": 13.475353437707442,
+    "review_n": 653,
+    "review_raw_mae_bps": 15.268672524946838,
+    "review_p1a_mae_bps": 23.890146426389194,
+    "review_mean_improvement_bps": -8.621473901442355,
+    "review_p1a_better_rate": 0.3124042879019908,
+    "review_true_tail_rate": 0.1776416539050536,
+    "review_mean_disagreement_bps": 25.74018000280564,
+    "momentum_abs_xret3_q25_bps": 29.048493325092295,
+    "momentum_abs_xret3_q50_bps": 44.611346142202635,
+    "momentum_abs_xret3_q75_bps": 72.33813450310045,
+    "volatility_q25_bps": 16.47224196034358,
+    "volatility_q50_bps": 23.93734860584149,
+    "volatility_q75_bps": 33.11740966791373,
+    "episodes": 446
+  },
+  "momentum_quantile_cuts_bps": {
+    "q25": 29.048493325092295,
+    "q50": 44.611346142202635,
+    "q75": 72.33813450310045
+  },
+  "volatility_quantile_cuts_bps": {
+    "q25": 16.47224196034358,
+    "q50": 23.93734860584149,
+    "q75": 33.11740966791373
+  },
+  "forward_resolution_summary": [
+    {
+      "asset": "nvdax",
+      "horizon_min": 5,
+      "n": 650,
+      "gap_shrink_rate": 0.8938461538461538,
+      "mean_p1a_catchup_bps": 11.168578556510726,
+      "mean_xstock_reversion_bps": 10.156694253245787,
+      "mean_underlying_follow_xstock_direction_bps": -0.197954520217044,
+      "current_xstock_closer_to_future_underlying_rate": 0.5138461538461538,
+      "p1a_catchup_rate": 0.4338461538461538,
+      "xstock_reversion_rate": 0.46,
+      "mixed_convergence_rate": 0.0,
+      "persistent_or_wider_rate": 0.10615384615384615
+    },
+    {
+      "asset": "nvdax",
+      "horizon_min": 15,
+      "n": 643,
+      "gap_shrink_rate": 0.9222395023328149,
+      "mean_p1a_catchup_bps": 17.833655768478618,
+      "mean_xstock_reversion_bps": 7.065032863906642,
+      "mean_underlying_follow_xstock_direction_bps": 2.6289104127288256,
+      "current_xstock_closer_to_future_underlying_rate": 0.5007776049766719,
+      "p1a_catchup_rate": 0.4556765163297045,
+      "xstock_reversion_rate": 0.4665629860031104,
+      "mixed_convergence_rate": 0.0,
+      "persistent_or_wider_rate": 0.07776049766718507
+    },
+    {
+      "asset": "nvdax",
+      "horizon_min": 30,
+      "n": 637,
+      "gap_shrink_rate": 0.9167974882260597,
+      "mean_p1a_catchup_bps": 18.587214981591078,
+      "mean_xstock_reversion_bps": 7.660307280258009,
+      "mean_underlying_follow_xstock_direction_bps": 2.3484049845360118,
+      "current_xstock_closer_to_future_underlying_rate": 0.4976452119309262,
+      "p1a_catchup_rate": 0.47095761381475665,
+      "xstock_reversion_rate": 0.44583987441130296,
+      "mixed_convergence_rate": 0.0,
+      "persistent_or_wider_rate": 0.08320251177394035
+    },
+    {
+      "asset": "nvdax",
+      "horizon_min": 60,
+      "n": 627,
+      "gap_shrink_rate": 0.9505582137161085,
+      "mean_p1a_catchup_bps": 17.141751974338796,
+      "mean_xstock_reversion_bps": 9.329705139579696,
+      "mean_underlying_follow_xstock_direction_bps": -0.10611396894872199,
+      "current_xstock_closer_to_future_underlying_rate": 0.46570972886762363,
+      "p1a_catchup_rate": 0.4481658692185008,
+      "xstock_reversion_rate": 0.5023923444976076,
+      "mixed_convergence_rate": 0.0,
+      "persistent_or_wider_rate": 0.049441786283891544
+    }
+  ],
+  "episode_summary": [
+    {
+      "asset": "nvdax",
+      "episodes": 446,
+      "median_duration_min": 5.0,
+      "median_rows": 1.0,
+      "episodes_with_true_tail_rate": 0.24439461883408073,
+      "episode_mean_p1a_better_rate": 0.3600896860986547,
+      "episode_mean_raw_error_bps": 16.797687644607656,
+      "episode_mean_p1a_error_bps": 21.405713395770643
+    }
+  ]
+}

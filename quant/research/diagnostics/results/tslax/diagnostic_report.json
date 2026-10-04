@@ -1,0 +1,120 @@
+{
+  "asset": "tslax",
+  "purpose": "diagnose P1a lag versus xStock dislocation before training another gate",
+  "important_note": "Future prices in forward-resolution outputs are retrospective diagnostics only. They must not be used as live model features.",
+  "overall": {
+    "asset": "tslax",
+    "selected_challenger_score": "disagreement_bps",
+    "review_threshold_q90": 11.232398749871034,
+    "tail_threshold_bps": 31.02954600530606,
+    "test_rows": 11819,
+    "support_n": 10112,
+    "support_raw_mae_bps": 3.650098464710252,
+    "support_p1a_mae_bps": 4.451994731212869,
+    "support_mean_improvement_bps": -0.8018962665026168,
+    "support_p1a_better_rate": 0.37905458860759494,
+    "support_true_tail_rate": 0.0031645569620253164,
+    "support_mean_disagreement_bps": 2.722472441995897,
+    "watch_n": 896,
+    "watch_raw_mae_bps": 6.168561055466953,
+    "watch_p1a_mae_bps": 9.995126022329549,
+    "watch_mean_improvement_bps": -3.826564966862596,
+    "watch_p1a_better_rate": 0.2689732142857143,
+    "watch_true_tail_rate": 0.020089285714285716,
+    "watch_mean_disagreement_bps": 9.219533819229975,
+    "review_n": 811,
+    "review_raw_mae_bps": 9.549444308660048,
+    "review_p1a_mae_bps": 19.036848663407323,
+    "review_mean_improvement_bps": -9.487404354747273,
+    "review_p1a_better_rate": 0.2120838471023428,
+    "review_true_tail_rate": 0.06041923551171394,
+    "review_mean_disagreement_bps": 17.762359665977435,
+    "momentum_abs_xret3_q25_bps": 30.81856090525026,
+    "momentum_abs_xret3_q50_bps": 48.52776499949307,
+    "momentum_abs_xret3_q75_bps": 76.69573238384686,
+    "volatility_q25_bps": 16.730649451478726,
+    "volatility_q50_bps": 25.26825394539114,
+    "volatility_q75_bps": 40.233327027263385,
+    "episodes": 499
+  },
+  "momentum_quantile_cuts_bps": {
+    "q25": 30.81856090525026,
+    "q50": 48.52776499949307,
+    "q75": 76.69573238384686
+  },
+  "volatility_quantile_cuts_bps": {
+    "q25": 16.730649451478726,
+    "q50": 25.26825394539114,
+    "q75": 40.233327027263385
+  },
+  "forward_resolution_summary": [
+    {
+      "asset": "tslax",
+      "horizon_min": 5,
+      "n": 808,
+      "gap_shrink_rate": 0.8725247524752475,
+      "mean_p1a_catchup_bps": 9.714648125289088,
+      "mean_xstock_reversion_bps": 3.9740563170140875,
+      "mean_underlying_follow_xstock_direction_bps": 0.798926460976424,
+      "current_xstock_closer_to_future_underlying_rate": 0.5903465346534653,
+      "p1a_catchup_rate": 0.4368811881188119,
+      "xstock_reversion_rate": 0.43564356435643564,
+      "mixed_convergence_rate": 0.0,
+      "persistent_or_wider_rate": 0.12747524752475248
+    },
+    {
+      "asset": "tslax",
+      "horizon_min": 15,
+      "n": 805,
+      "gap_shrink_rate": 0.9142857142857143,
+      "mean_p1a_catchup_bps": 12.735589543714564,
+      "mean_xstock_reversion_bps": 4.765232208767595,
+      "mean_underlying_follow_xstock_direction_bps": -0.5799089133923813,
+      "current_xstock_closer_to_future_underlying_rate": 0.5130434782608696,
+      "p1a_catchup_rate": 0.46956521739130436,
+      "xstock_reversion_rate": 0.44472049689440996,
+      "mixed_convergence_rate": 0.0,
+      "persistent_or_wider_rate": 0.08571428571428572
+    },
+    {
+      "asset": "tslax",
+      "horizon_min": 30,
+      "n": 802,
+      "gap_shrink_rate": 0.9451371571072319,
+      "mean_p1a_catchup_bps": 16.462446145724833,
+      "mean_xstock_reversion_bps": 0.9607581888411166,
+      "mean_underlying_follow_xstock_direction_bps": 2.8722887774077974,
+      "current_xstock_closer_to_future_underlying_rate": 0.5349127182044888,
+      "p1a_catchup_rate": 0.49875311720698257,
+      "xstock_reversion_rate": 0.4463840399002494,
+      "mixed_convergence_rate": 0.0,
+      "persistent_or_wider_rate": 0.05486284289276808
+    },
+    {
+      "asset": "tslax",
+      "horizon_min": 60,
+      "n": 792,
+      "gap_shrink_rate": 0.9343434343434344,
+      "mean_p1a_catchup_bps": 21.013681825907938,
+      "mean_xstock_reversion_bps": -3.49935403758905,
+      "mean_underlying_follow_xstock_direction_bps": 7.270666278863782,
+      "current_xstock_closer_to_future_underlying_rate": 0.5113636363636364,
+      "p1a_catchup_rate": 0.4734848484848485,
+      "xstock_reversion_rate": 0.46085858585858586,
+      "mixed_convergence_rate": 0.0,
+      "persistent_or_wider_rate": 0.06565656565656566
+    }
+  ],
+  "episode_summary": [
+    {
+      "asset": "tslax",
+      "episodes": 499,
+      "median_duration_min": 5.0,
+      "median_rows": 1.0,
+      "episodes_with_true_tail_rate": 0.09418837675350701,
+      "episode_mean_p1a_better_rate": 0.25760409708305504,
+      "episode_mean_raw_error_bps": 9.754474837862833,
+      "episode_mean_p1a_error_bps": 16.977031933147867
+    }
+  ]
+}

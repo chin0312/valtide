@@ -1,0 +1,20 @@
+{
+  "deployment_model_id": "P1a-C",
+  "base_model": "P1a",
+  "model_version": "0.2.0",
+  "direct_external_estimator_inputs": [],
+  "pyth_used_by_model": false,
+  "calibration_generated_at_utc": "2026-09-22 10:06:28 UTC",
+  "selected_calibration_type": "session_sym",
+  "calibration_score_count": 22441,
+  "training_end_utc": "2026-06-23T14:15:00Z",
+  "known_limitations": [
+    "90% target interval achieved 94.31% coverage on the exposed June-Sep evaluation period.",
+    "Closed/overnight use global calibration fallback because contemporaneous NVDA labels do not exist there.",
+    "The old June-Sep evaluation window is now exposed and must not be reused as an untouched lockbox for future model selection."
+  ],
+  "artifact_sha256": {
+    "p1a_runtime.json": "4e64e3f394e222dfb01ca45adb2c12b8c3542a2f18cb9193ffe429baf116ff7e",
+    "p1a_c_calibrator.json": "e38a97cf0b8e9e5cc5222a1a2a79a6683e5bdc3aa882b800297fcdbe1bec2496"
+  }
+}

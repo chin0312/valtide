@@ -1,0 +1,297 @@
+{
+  "asset_id": "SPYx",
+  "dataset_sha256": "aa39adcd2205cd93232d4ee9cbd426a01069d0e70751f026205e88f8fa31d07b",
+  "development_test_warning": "The current test period has already been inspected during earlier Valtide development. Treat this experiment as development evidence; confirm any chosen model on a later untouched period.",
+  "full_fit": {
+    "asset_id": "SPYx",
+    "rho": 0.3694,
+    "beta_momentum": 0.0077,
+    "q_velocity": 3.5489e-08,
+    "r_underlying": 3.5768e-08,
+    "r_xstock": 5.7396e-06,
+    "logLik": 700263.0375,
+    "AIC": -1400506.0751,
+    "BIC": -1400407.7464,
+    "convergence": 0
+  },
+  "selected_calibration_type": "session_asym",
+  "point_comparison": [
+    {
+      "subset": "ALL",
+      "n": 11805,
+      "raw_mae_bps": 5.4492,
+      "raw_rmse_bps": 17.8267,
+      "p1a_mae_bps": 3.0232,
+      "p1a_rmse_bps": 4.6173,
+      "p1m_mae_bps": 3.0252,
+      "p1m_rmse_bps": 4.6172,
+      "p1m_beats_raw_rate": 0.4324,
+      "p1m_beats_p1a_rate": 0.4869
+    },
+    {
+      "subset": "SESSION:regular",
+      "n": 4826,
+      "raw_mae_bps": 5.4337,
+      "raw_rmse_bps": 17.5792,
+      "p1a_mae_bps": 4.1545,
+      "p1a_rmse_bps": 5.9108,
+      "p1m_mae_bps": 4.1555,
+      "p1m_rmse_bps": 5.9097,
+      "p1m_beats_raw_rate": 0.3792,
+      "p1m_beats_p1a_rate": 0.4921
+    },
+    {
+      "subset": "SESSION:afterhours",
+      "n": 2963,
+      "raw_mae_bps": 5.855,
+      "raw_rmse_bps": 18.9568,
+      "p1a_mae_bps": 1.7446,
+      "p1a_rmse_bps": 2.8477,
+      "p1m_mae_bps": 1.7473,
+      "p1m_rmse_bps": 2.8477,
+      "p1m_beats_raw_rate": 0.5127,
+      "p1m_beats_p1a_rate": 0.4971
+    },
+    {
+      "subset": "SESSION:overnight",
+      "n": 0,
+      "raw_mae_bps": null,
+      "raw_rmse_bps": null,
+      "p1a_mae_bps": null,
+      "p1a_rmse_bps": null,
+      "p1m_mae_bps": null,
+      "p1m_rmse_bps": null,
+      "p1m_beats_raw_rate": null,
+      "p1m_beats_p1a_rate": null
+    },
+    {
+      "subset": "SESSION:premarket",
+      "n": 4016,
+      "raw_mae_bps": 5.1684,
+      "raw_rmse_bps": 17.2526,
+      "p1a_mae_bps": 2.607,
+      "p1a_rmse_bps": 3.8341,
+      "p1m_mae_bps": 2.6096,
+      "p1m_rmse_bps": 3.8357,
+      "p1m_beats_raw_rate": 0.4373,
+      "p1m_beats_p1a_rate": 0.4731
+    },
+    {
+      "subset": "SESSION:closed",
+      "n": 0,
+      "raw_mae_bps": null,
+      "raw_rmse_bps": null,
+      "p1a_mae_bps": null,
+      "p1a_rmse_bps": null,
+      "p1m_mae_bps": null,
+      "p1m_rmse_bps": null,
+      "p1m_beats_raw_rate": null,
+      "p1m_beats_p1a_rate": null
+    }
+  ],
+  "targeted_momentum_diagnostics": [
+    {
+      "subset": "ALL",
+      "n": 11805,
+      "raw_mae_bps": 5.4492,
+      "raw_rmse_bps": 17.8267,
+      "p1a_mae_bps": 3.0232,
+      "p1a_rmse_bps": 4.6173,
+      "p1m_mae_bps": 3.0252,
+      "p1m_rmse_bps": 4.6172,
+      "p1m_beats_raw_rate": 0.4324,
+      "p1m_beats_p1a_rate": 0.4869,
+      "momentum_q75_bps": 137.2298,
+      "volatility_q75_bps": 90.933
+    },
+    {
+      "subset": "BASE_REVIEW",
+      "n": 201,
+      "raw_mae_bps": 114.5849,
+      "raw_rmse_bps": 125.696,
+      "p1a_mae_bps": 6.693,
+      "p1a_rmse_bps": 8.7778,
+      "p1m_mae_bps": 6.5002,
+      "p1m_rmse_bps": 8.6039,
+      "p1m_beats_raw_rate": 1,
+      "p1m_beats_p1a_rate": 0.801,
+      "momentum_q75_bps": 137.2298,
+      "volatility_q75_bps": 90.933
+    },
+    {
+      "subset": "TRUE_TAIL",
+      "n": 170,
+      "raw_mae_bps": 126.1584,
+      "raw_rmse_bps": 134.9059,
+      "p1a_mae_bps": 7.2982,
+      "p1a_rmse_bps": 9.2628,
+      "p1m_mae_bps": 7.0817,
+      "p1m_rmse_bps": 9.0713,
+      "p1m_beats_raw_rate": 1,
+      "p1m_beats_p1a_rate": 0.8294,
+      "momentum_q75_bps": 137.2298,
+      "volatility_q75_bps": 90.933
+    },
+    {
+      "subset": "REVIEW_HIGH_MOMENTUM_Q4",
+      "n": 51,
+      "raw_mae_bps": 175.84,
+      "raw_rmse_bps": 181.2001,
+      "p1a_mae_bps": 9.8709,
+      "p1a_rmse_bps": 12.1474,
+      "p1m_mae_bps": 9.559,
+      "p1m_rmse_bps": 11.8878,
+      "p1m_beats_raw_rate": 1,
+      "p1m_beats_p1a_rate": 0.8627,
+      "momentum_q75_bps": 137.2298,
+      "volatility_q75_bps": 90.933
+    },
+    {
+      "subset": "REVIEW_HIGH_VOL_Q4",
+      "n": 51,
+      "raw_mae_bps": 141.1749,
+      "raw_rmse_bps": 152.3775,
+      "p1a_mae_bps": 8.472,
+      "p1a_rmse_bps": 10.5928,
+      "p1m_mae_bps": 8.1195,
+      "p1m_rmse_bps": 10.2885,
+      "p1m_beats_raw_rate": 1,
+      "p1m_beats_p1a_rate": 0.8824,
+      "momentum_q75_bps": 137.2298,
+      "volatility_q75_bps": 90.933
+    },
+    {
+      "subset": "REVIEW_P1A_FALSE",
+      "n": 0,
+      "raw_mae_bps": null,
+      "raw_rmse_bps": null,
+      "p1a_mae_bps": null,
+      "p1a_rmse_bps": null,
+      "p1m_mae_bps": null,
+      "p1m_rmse_bps": null,
+      "p1m_beats_raw_rate": null,
+      "p1m_beats_p1a_rate": null,
+      "momentum_q75_bps": 137.2298,
+      "volatility_q75_bps": 90.933
+    }
+  ],
+  "challenger_metrics": [
+    {
+      "asset_id": "SPYx",
+      "tail_threshold_bps": 57.7266,
+      "disagreement_q80_bps": 40.0989,
+      "disagreement_q90_bps": 47.9841,
+      "review_precision": 0.8416,
+      "review_recall": 1,
+      "review_false_positive_rate": 0.0028,
+      "review_n": 202,
+      "true_tail_n": 170
+    }
+  ],
+  "challenger_status_profile": [
+    {
+      "p1m_status": "SUPPORT",
+      "n": 11551,
+      "raw_mae_bps": 3.3751,
+      "p1a_mae_bps": 2.9582,
+      "p1m_mae_bps": 2.9637,
+      "tail_rate": 0,
+      "p1m_beats_raw_rate": 0.4201,
+      "p1m_beats_p1a_rate": 0.4806
+    },
+    {
+      "p1m_status": "REVIEW",
+      "n": 202,
+      "raw_mae_bps": 114.2602,
+      "p1a_mae_bps": 6.665,
+      "p1m_mae_bps": 6.4718,
+      "tail_rate": 0.8416,
+      "p1m_beats_raw_rate": 1,
+      "p1m_beats_p1a_rate": 0.802
+    },
+    {
+      "p1m_status": "WATCH",
+      "n": 52,
+      "raw_mae_bps": 43.4846,
+      "p1a_mae_bps": 3.3208,
+      "p1m_mae_bps": 3.2906,
+      "tail_rate": 0,
+      "p1m_beats_raw_rate": 0.9808,
+      "p1m_beats_p1a_rate": 0.6731
+    }
+  ],
+  "interval_comparison": [
+    {
+      "model": "P1a-C",
+      "n": 11806,
+      "coverage": 0.9595,
+      "mean_width_bps": 20.3864,
+      "mean_interval_score_bps": 23.7573,
+      "MAE_bps": 3.0233,
+      "RMSE_bps": 4.6172
+    },
+    {
+      "model": "P1m-C",
+      "n": 11806,
+      "coverage": 0.9602,
+      "mean_width_bps": 20.416,
+      "mean_interval_score_bps": 23.7577,
+      "MAE_bps": 3.0252,
+      "RMSE_bps": 4.6171
+    }
+  ],
+  "pseudo_closure": [
+    {
+      "duration_min": 30,
+      "n": 11712,
+      "coverage": 0.9475,
+      "coverage_error": 0.0475,
+      "lower_miss_rate": 0.0132,
+      "upper_miss_rate": 0.0393,
+      "mean_width_bps": 30.9566,
+      "median_width_bps": 33.4829,
+      "mean_interval_score_bps": 39.468,
+      "MAE_bps": 4.9192,
+      "RMSE_bps": 7.7277
+    },
+    {
+      "duration_min": 60,
+      "n": 11616,
+      "coverage": 0.943,
+      "coverage_error": 0.043,
+      "lower_miss_rate": 0.0102,
+      "upper_miss_rate": 0.0467,
+      "mean_width_bps": 34.8619,
+      "median_width_bps": 38.2796,
+      "mean_interval_score_bps": 46.1901,
+      "MAE_bps": 5.5755,
+      "RMSE_bps": 8.8088
+    },
+    {
+      "duration_min": 120,
+      "n": 11400,
+      "coverage": 0.9374,
+      "coverage_error": 0.0374,
+      "lower_miss_rate": 0.0096,
+      "upper_miss_rate": 0.0531,
+      "mean_width_bps": 37.3694,
+      "median_width_bps": 39.3102,
+      "mean_interval_score_bps": 52.2506,
+      "MAE_bps": 6.0651,
+      "RMSE_bps": 9.7201
+    },
+    {
+      "duration_min": 240,
+      "n": 10992,
+      "coverage": 0.9339,
+      "coverage_error": 0.0339,
+      "lower_miss_rate": 0.0071,
+      "upper_miss_rate": 0.059,
+      "mean_width_bps": 38.8511,
+      "median_width_bps": 39.3303,
+      "mean_interval_score_bps": 54.7848,
+      "MAE_bps": 6.379,
+      "RMSE_bps": 10.1306
+    }
+  ]
+}

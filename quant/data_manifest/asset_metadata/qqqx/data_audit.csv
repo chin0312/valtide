@@ -1,0 +1,8 @@
+metric,value
+rows_5m,128640
+underlying_observations,58752
+token_observations,92518
+overlap_observations,45246
+token_only_observations,47272
+no_observation_rows,22616
+weekend_token_observations,23172

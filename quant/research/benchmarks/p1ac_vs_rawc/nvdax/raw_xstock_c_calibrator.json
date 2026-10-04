@@ -1,0 +1,152 @@
+{
+  "generated_at_utc": "2026-10-01 14:48:00 UTC",
+  "asset_id": "NVDAx",
+  "dataset_sha256": "722929383e6ca1aa28382e828879efeccb60faabdf2bd5e05f14a721f7fc740d",
+  "base_model": "raw_xstock",
+  "selected_calibration_type": "session_asym",
+  "primary_level": 0.9,
+  "interval_target": "contemporaneous reference-equivalent predictive interval",
+  "center_definition": "raw tokenized-equity log price; calibration changes interval only",
+  "note": "Raw-xStock-C does not alter the xStock point estimate. Empirical residual offsets are learned only from earlier observations with both xStock and underlying labels. Closed/overnight coverage is not directly observable and uses global fallback when no session-specific calibrator exists.",
+  "crossfit": {
+    "initial_fraction": 0.5,
+    "folds": 4,
+    "score_count": 22441,
+    "selector_train_folds": "1,2,3",
+    "selector_validation_fold": 4
+  },
+  "calibrators": {
+    "0.50": {
+      "type": "session_asym",
+      "level": 0.5,
+      "n": 22441,
+      "center": "raw_xstock_log_price",
+      "scale": "direct_log_error_offset",
+      "global": {
+        "sym": 0.0008,
+        "lo": -0.0007,
+        "hi": 0.0009
+      },
+      "sessions": {
+        "regular": {
+          "n": 9313,
+          "sym": 0.0008,
+          "lo": -0.0006,
+          "hi": 0.0009
+        },
+        "afterhours": {
+          "n": 5417,
+          "sym": 0.0008,
+          "lo": -0.0008,
+          "hi": 0.0008
+        },
+        "premarket": {
+          "n": 7711,
+          "sym": 0.0008,
+          "lo": -0.0007,
+          "hi": 0.0009
+        }
+      },
+      "min_session_scores": 200
+    },
+    "0.80": {
+      "type": "session_asym",
+      "level": 0.8,
+      "n": 22441,
+      "center": "raw_xstock_log_price",
+      "scale": "direct_log_error_offset",
+      "global": {
+        "sym": 0.0016,
+        "lo": -0.0014,
+        "hi": 0.0018
+      },
+      "sessions": {
+        "regular": {
+          "n": 9313,
+          "sym": 0.0016,
+          "lo": -0.0013,
+          "hi": 0.0018
+        },
+        "afterhours": {
+          "n": 5417,
+          "sym": 0.0016,
+          "lo": -0.0015,
+          "hi": 0.0016
+        },
+        "premarket": {
+          "n": 7711,
+          "sym": 0.0017,
+          "lo": -0.0015,
+          "hi": 0.0019
+        }
+      },
+      "min_session_scores": 200
+    },
+    "0.90": {
+      "type": "session_asym",
+      "level": 0.9,
+      "n": 22441,
+      "center": "raw_xstock_log_price",
+      "scale": "direct_log_error_offset",
+      "global": {
+        "sym": 0.0022,
+        "lo": -0.0019,
+        "hi": 0.0024
+      },
+      "sessions": {
+        "regular": {
+          "n": 9313,
+          "sym": 0.0021,
+          "lo": -0.0018,
+          "hi": 0.0024
+        },
+        "afterhours": {
+          "n": 5417,
+          "sym": 0.0021,
+          "lo": -0.002,
+          "hi": 0.0022
+        },
+        "premarket": {
+          "n": 7711,
+          "sym": 0.0022,
+          "lo": -0.002,
+          "hi": 0.0025
+        }
+      },
+      "min_session_scores": 200
+    },
+    "0.95": {
+      "type": "session_asym",
+      "level": 0.95,
+      "n": 22441,
+      "center": "raw_xstock_log_price",
+      "scale": "direct_log_error_offset",
+      "global": {
+        "sym": 0.0028,
+        "lo": -0.0024,
+        "hi": 0.0031
+      },
+      "sessions": {
+        "regular": {
+          "n": 9313,
+          "sym": 0.0027,
+          "lo": -0.0022,
+          "hi": 0.0031
+        },
+        "afterhours": {
+          "n": 5417,
+          "sym": 0.0028,
+          "lo": -0.0025,
+          "hi": 0.003
+        },
+        "premarket": {
+          "n": 7711,
+          "sym": 0.0029,
+          "lo": -0.0025,
+          "hi": 0.0033
+        }
+      },
+      "min_session_scores": 200
+    }
+  }
+}

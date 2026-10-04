@@ -1,0 +1,11 @@
+[build-system]
+requires=["setuptools>=69"]
+build-backend="setuptools.build_meta"
+[project]
+name="valtide-quant-service"
+version="0.2.0"
+requires-python=">=3.11"
+[tool.setuptools.packages.find]
+where=["src"]
+[tool.setuptools.package-data]
+valtide_quant_service=["model_artifacts/*.json"]

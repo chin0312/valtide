@@ -1,0 +1,2 @@
+asset_id,tail_threshold_bps,disagreement_q80_bps,disagreement_q90_bps,review_precision,review_recall,review_false_positive_rate,review_n,true_tail_n
+SPYx,57.7266023592671,40.0988748473008,47.9840891263237,0.841584158415842,1,0.00275032230339493,202,170

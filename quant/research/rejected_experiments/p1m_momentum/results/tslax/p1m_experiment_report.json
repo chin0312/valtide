@@ -1,0 +1,297 @@
+{
+  "asset_id": "TSLAx",
+  "dataset_sha256": "3acffe7bafce9231268589f78d06801de166b1e3767cda0fa5519c3365779953",
+  "development_test_warning": "The current test period has already been inspected during earlier Valtide development. Treat this experiment as development evidence; confirm any chosen model on a later untouched period.",
+  "full_fit": {
+    "asset_id": "TSLAx",
+    "rho": 0.5743,
+    "beta_momentum": 0.2297,
+    "q_velocity": 4.603e-08,
+    "r_underlying": 6.5516e-06,
+    "r_xstock": 2.4669e-06,
+    "logLik": 687453.1183,
+    "AIC": -1374886.2365,
+    "BIC": -1374787.249,
+    "convergence": 0
+  },
+  "selected_calibration_type": "global_asym",
+  "point_comparison": [
+    {
+      "subset": "ALL",
+      "n": 11819,
+      "raw_mae_bps": 4.2458,
+      "raw_rmse_bps": 7.3493,
+      "p1a_mae_bps": 5.873,
+      "p1a_rmse_bps": 9.002,
+      "p1m_mae_bps": 6.3914,
+      "p1m_rmse_bps": 9.7696,
+      "p1m_beats_raw_rate": 0.3351,
+      "p1m_beats_p1a_rate": 0.3112
+    },
+    {
+      "subset": "SESSION:regular",
+      "n": 4826,
+      "raw_mae_bps": 5.0781,
+      "raw_rmse_bps": 8.2445,
+      "p1a_mae_bps": 7.1518,
+      "p1a_rmse_bps": 10.6249,
+      "p1m_mae_bps": 7.7962,
+      "p1m_rmse_bps": 11.516,
+      "p1m_beats_raw_rate": 0.3282,
+      "p1m_beats_p1a_rate": 0.3087
+    },
+    {
+      "subset": "SESSION:afterhours",
+      "n": 2973,
+      "raw_mae_bps": 3.2755,
+      "raw_rmse_bps": 6.4384,
+      "p1a_mae_bps": 4.0632,
+      "p1a_rmse_bps": 6.8016,
+      "p1m_mae_bps": 4.372,
+      "p1m_rmse_bps": 7.409,
+      "p1m_beats_raw_rate": 0.3532,
+      "p1m_beats_p1a_rate": 0.332
+    },
+    {
+      "subset": "SESSION:overnight",
+      "n": 0,
+      "raw_mae_bps": null,
+      "raw_rmse_bps": null,
+      "p1a_mae_bps": null,
+      "p1a_rmse_bps": null,
+      "p1m_mae_bps": null,
+      "p1m_rmse_bps": null,
+      "p1m_beats_raw_rate": null,
+      "p1m_beats_p1a_rate": null
+    },
+    {
+      "subset": "SESSION:premarket",
+      "n": 4020,
+      "raw_mae_bps": 3.9643,
+      "raw_rmse_bps": 6.8222,
+      "p1a_mae_bps": 5.6763,
+      "p1a_rmse_bps": 8.2775,
+      "p1m_mae_bps": 6.1984,
+      "p1m_rmse_bps": 8.9892,
+      "p1m_beats_raw_rate": 0.3301,
+      "p1m_beats_p1a_rate": 0.2988
+    },
+    {
+      "subset": "SESSION:closed",
+      "n": 0,
+      "raw_mae_bps": null,
+      "raw_rmse_bps": null,
+      "p1a_mae_bps": null,
+      "p1a_rmse_bps": null,
+      "p1m_mae_bps": null,
+      "p1m_rmse_bps": null,
+      "p1m_beats_raw_rate": null,
+      "p1m_beats_p1a_rate": null
+    }
+  ],
+  "targeted_momentum_diagnostics": [
+    {
+      "subset": "ALL",
+      "n": 11819,
+      "raw_mae_bps": 4.2458,
+      "raw_rmse_bps": 7.3493,
+      "p1a_mae_bps": 5.873,
+      "p1a_rmse_bps": 9.002,
+      "p1m_mae_bps": 6.3914,
+      "p1m_rmse_bps": 9.7696,
+      "p1m_beats_raw_rate": 0.3351,
+      "p1m_beats_p1a_rate": 0.3112,
+      "momentum_q75_bps": 76.6957,
+      "volatility_q75_bps": 40.2333
+    },
+    {
+      "subset": "BASE_REVIEW",
+      "n": 811,
+      "raw_mae_bps": 9.5494,
+      "raw_rmse_bps": 16.0102,
+      "p1a_mae_bps": 19.0368,
+      "p1a_rmse_bps": 22.8245,
+      "p1m_mae_bps": 21.6637,
+      "p1m_rmse_bps": 25.7382,
+      "p1m_beats_raw_rate": 0.1813,
+      "p1m_beats_p1a_rate": 0.1356,
+      "momentum_q75_bps": 76.6957,
+      "volatility_q75_bps": 40.2333
+    },
+    {
+      "subset": "TRUE_TAIL",
+      "n": 99,
+      "raw_mae_bps": 44.9968,
+      "raw_rmse_bps": 47.5311,
+      "p1a_mae_bps": 33.3327,
+      "p1a_rmse_bps": 36.5422,
+      "p1m_mae_bps": 30.6293,
+      "p1m_rmse_bps": 34.6723,
+      "p1m_beats_raw_rate": 0.8788,
+      "p1m_beats_p1a_rate": 0.8889,
+      "momentum_q75_bps": 76.6957,
+      "volatility_q75_bps": 40.2333
+    },
+    {
+      "subset": "REVIEW_HIGH_MOMENTUM_Q4",
+      "n": 203,
+      "raw_mae_bps": 9.465,
+      "raw_rmse_bps": 17.4572,
+      "p1a_mae_bps": 27.0781,
+      "p1a_rmse_bps": 31.7714,
+      "p1m_mae_bps": 30.7269,
+      "p1m_rmse_bps": 35.8905,
+      "p1m_beats_raw_rate": 0.0837,
+      "p1m_beats_p1a_rate": 0.0788,
+      "momentum_q75_bps": 76.6957,
+      "volatility_q75_bps": 40.2333
+    },
+    {
+      "subset": "REVIEW_HIGH_VOL_Q4",
+      "n": 203,
+      "raw_mae_bps": 9.4966,
+      "raw_rmse_bps": 15.9384,
+      "p1a_mae_bps": 25.6354,
+      "p1a_rmse_bps": 30.1141,
+      "p1m_mae_bps": 29.7681,
+      "p1m_rmse_bps": 34.6383,
+      "p1m_beats_raw_rate": 0.1084,
+      "p1m_beats_p1a_rate": 0.1034,
+      "momentum_q75_bps": 76.6957,
+      "volatility_q75_bps": 40.2333
+    },
+    {
+      "subset": "REVIEW_P1A_FALSE",
+      "n": 639,
+      "raw_mae_bps": 5.3418,
+      "raw_rmse_bps": 7.8984,
+      "p1a_mae_bps": 20.9825,
+      "p1a_rmse_bps": 24.0875,
+      "p1m_mae_bps": 24.5412,
+      "p1m_rmse_bps": 27.8569,
+      "p1m_beats_raw_rate": 0,
+      "p1m_beats_p1a_rate": 0.0125,
+      "momentum_q75_bps": 76.6957,
+      "volatility_q75_bps": 40.2333
+    }
+  ],
+  "challenger_metrics": [
+    {
+      "asset_id": "TSLAx",
+      "tail_threshold_bps": 31.0295,
+      "disagreement_q80_bps": 9.5063,
+      "disagreement_q90_bps": 13.7947,
+      "review_precision": 0.0626,
+      "review_recall": 0.4949,
+      "review_false_positive_rate": 0.0626,
+      "review_n": 783,
+      "true_tail_n": 99
+    }
+  ],
+  "challenger_status_profile": [
+    {
+      "p1m_status": "SUPPORT",
+      "n": 10172,
+      "raw_mae_bps": 3.6447,
+      "p1a_mae_bps": 4.5047,
+      "p1m_mae_bps": 4.7801,
+      "tail_rate": 0.0031,
+      "p1m_beats_raw_rate": 0.3544,
+      "p1m_beats_p1a_rate": 0.3385
+    },
+    {
+      "p1m_status": "WATCH",
+      "n": 864,
+      "raw_mae_bps": 6.3761,
+      "p1a_mae_bps": 10.0822,
+      "p1m_mae_bps": 11.4393,
+      "tail_rate": 0.0208,
+      "p1m_beats_raw_rate": 0.2384,
+      "p1m_beats_p1a_rate": 0.1493
+    },
+    {
+      "p1m_status": "REVIEW",
+      "n": 783,
+      "raw_mae_bps": 9.7051,
+      "p1a_mae_bps": 19.0045,
+      "p1m_mae_bps": 21.7543,
+      "tail_rate": 0.0626,
+      "p1m_beats_raw_rate": 0.1916,
+      "p1m_beats_p1a_rate": 0.1354
+    }
+  ],
+  "interval_comparison": [
+    {
+      "model": "P1a-C",
+      "n": 11827,
+      "coverage": 0.9573,
+      "mean_width_bps": 38.2077,
+      "mean_interval_score_bps": 46.7983,
+      "MAE_bps": 5.8707,
+      "RMSE_bps": 8.9994
+    },
+    {
+      "model": "P1m-C",
+      "n": 11827,
+      "coverage": 0.9486,
+      "mean_width_bps": 38.5356,
+      "mean_interval_score_bps": 49.0981,
+      "MAE_bps": 6.3891,
+      "RMSE_bps": 9.7667
+    }
+  ],
+  "pseudo_closure": [
+    {
+      "duration_min": 30,
+      "n": 11784,
+      "coverage": 0.9474,
+      "coverage_error": 0.0474,
+      "lower_miss_rate": 0.0296,
+      "upper_miss_rate": 0.023,
+      "mean_width_bps": 38.6493,
+      "median_width_bps": 38.1684,
+      "mean_interval_score_bps": 49.4444,
+      "MAE_bps": 6.4753,
+      "RMSE_bps": 9.8717
+    },
+    {
+      "duration_min": 60,
+      "n": 11736,
+      "coverage": 0.9476,
+      "coverage_error": 0.0476,
+      "lower_miss_rate": 0.0295,
+      "upper_miss_rate": 0.0229,
+      "mean_width_bps": 38.6695,
+      "median_width_bps": 38.1698,
+      "mean_interval_score_bps": 49.4865,
+      "MAE_bps": 6.4832,
+      "RMSE_bps": 9.8808
+    },
+    {
+      "duration_min": 120,
+      "n": 11688,
+      "coverage": 0.9476,
+      "coverage_error": 0.0476,
+      "lower_miss_rate": 0.0293,
+      "upper_miss_rate": 0.0231,
+      "mean_width_bps": 38.6822,
+      "median_width_bps": 38.1698,
+      "mean_interval_score_bps": 49.5418,
+      "MAE_bps": 6.4869,
+      "RMSE_bps": 9.8902
+    },
+    {
+      "duration_min": 240,
+      "n": 11568,
+      "coverage": 0.9471,
+      "coverage_error": 0.0471,
+      "lower_miss_rate": 0.0296,
+      "upper_miss_rate": 0.0233,
+      "mean_width_bps": 38.6942,
+      "median_width_bps": 38.1698,
+      "mean_interval_score_bps": 49.6569,
+      "MAE_bps": 6.5145,
+      "RMSE_bps": 9.9253
+    }
+  ]
+}

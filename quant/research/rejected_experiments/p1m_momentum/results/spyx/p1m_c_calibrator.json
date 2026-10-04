@@ -1,0 +1,135 @@
+{
+  "asset_id": "SPYx",
+  "dataset_sha256": "aa39adcd2205cd93232d4ee9cbd426a01069d0e70751f026205e88f8fa31d07b",
+  "base_model": "P1m",
+  "state_equation": "m_t=m_{t-1}+v_{t-1}+beta*M_{t-1}+eta_m; v_t=rho*v_{t-1}+eta_v",
+  "momentum_feature": "causal EWMA of prior xStock 5-minute log returns; alpha=0.35",
+  "selected_calibration_type": "session_asym",
+  "primary_level": 0.9,
+  "calibrators": {
+    "0.50": {
+      "type": "session_asym",
+      "level": 0.5,
+      "n": 21848,
+      "global": {
+        "sym": 0.5629,
+        "lo": -0.7572,
+        "hi": 0.3153
+      },
+      "sessions": {
+        "regular": {
+          "n": 9167,
+          "sym": 0.6368,
+          "lo": -0.8591,
+          "hi": 0.3396
+        },
+        "afterhours": {
+          "n": 5251,
+          "sym": 0.4496,
+          "lo": -0.5755,
+          "hi": 0.2912
+        },
+        "premarket": {
+          "n": 7430,
+          "sym": 0.5721,
+          "lo": -0.7534,
+          "hi": 0.306
+        }
+      },
+      "min_session_scores": 200
+    },
+    "0.80": {
+      "type": "session_asym",
+      "level": 0.8,
+      "n": 21848,
+      "global": {
+        "sym": 1.2592,
+        "lo": -1.4714,
+        "hi": 0.9944
+      },
+      "sessions": {
+        "regular": {
+          "n": 9167,
+          "sym": 1.3628,
+          "lo": -1.5693,
+          "hi": 1.0666
+        },
+        "afterhours": {
+          "n": 5251,
+          "sym": 1.0821,
+          "lo": -1.2222,
+          "hi": 0.8568
+        },
+        "premarket": {
+          "n": 7430,
+          "sym": 1.2437,
+          "lo": -1.4872,
+          "hi": 0.9793
+        }
+      },
+      "min_session_scores": 200
+    },
+    "0.90": {
+      "type": "session_asym",
+      "level": 0.9,
+      "n": 21848,
+      "global": {
+        "sym": 1.8621,
+        "lo": -2.0642,
+        "hi": 1.5684
+      },
+      "sessions": {
+        "regular": {
+          "n": 9167,
+          "sym": 1.9565,
+          "lo": -2.1434,
+          "hi": 1.6444
+        },
+        "afterhours": {
+          "n": 5251,
+          "sym": 1.6706,
+          "lo": -1.7885,
+          "hi": 1.4897
+        },
+        "premarket": {
+          "n": 7430,
+          "sym": 1.8889,
+          "lo": -2.1473,
+          "hi": 1.5385
+        }
+      },
+      "min_session_scores": 200
+    },
+    "0.95": {
+      "type": "session_asym",
+      "level": 0.95,
+      "n": 21848,
+      "global": {
+        "sym": 2.503,
+        "lo": -2.731,
+        "hi": 2.2126
+      },
+      "sessions": {
+        "regular": {
+          "n": 9167,
+          "sym": 2.6013,
+          "lo": -2.7992,
+          "hi": 2.2412
+        },
+        "afterhours": {
+          "n": 5251,
+          "sym": 2.2702,
+          "lo": -2.3539,
+          "hi": 2.1551
+        },
+        "premarket": {
+          "n": 7430,
+          "sym": 2.5712,
+          "lo": -2.8664,
+          "hi": 2.2268
+        }
+      },
+      "min_session_scores": 200
+    }
+  }
+}
