@@ -1,0 +1,7 @@
+score,event_threshold_bps,event_prevalence,auroc,average_precision,spearman_score_vs_raw_error,asset,sample
+disagreement_bps,57.72660236,0.05002746247,0.9845802211,0.8619641374,0.9360290487,spyx,crossfit_oof_train
+disagreement_z,57.72660236,0.05002746247,0.9381913727,0.6100780495,0.8607816235,spyx,crossfit_oof_train
+innovation_abs_z,57.72660236,0.05002746247,0.9853204389,0.8609922213,0.9364353466,spyx,crossfit_oof_train
+disagreement_bps,57.72660236,0.01440067768,0.9999903941,0.9993834059,0.5312025422,spyx,untouched_test_diagnostic
+disagreement_z,57.72660236,0.01440067768,0.9991708587,0.9505957238,0.5162181492,spyx,untouched_test_diagnostic
+innovation_abs_z,57.72660236,0.01440067768,0.9999934275,0.9995687797,0.5312123576,spyx,untouched_test_diagnostic

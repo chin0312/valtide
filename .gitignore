@@ -43,3 +43,11 @@ broadcast/
 data/runtime/
 data/generated/
 *.sqlite3
+
+# Quant research source staging and local raw-data workspaces
+brush-up stats/
+**/.Renviron
+**/.r-lib/
+**/data/raw/
+**/data/processed/
+**/exports/*/canonical_panel_5m.csv

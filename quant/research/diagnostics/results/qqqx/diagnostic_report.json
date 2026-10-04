@@ -1,0 +1,120 @@
+{
+  "asset": "qqqx",
+  "purpose": "diagnose P1a lag versus xStock dislocation before training another gate",
+  "important_note": "Future prices in forward-resolution outputs are retrospective diagnostics only. They must not be used as live model features.",
+  "overall": {
+    "asset": "qqqx",
+    "selected_challenger_score": "disagreement_bps",
+    "review_threshold_q90": 37.870404097160915,
+    "tail_threshold_bps": 48.32584427016327,
+    "test_rows": 11776,
+    "support_n": 11356,
+    "support_raw_mae_bps": 2.9449334509873846,
+    "support_p1a_mae_bps": 4.893022960128125,
+    "support_mean_improvement_bps": -1.9480895091407402,
+    "support_p1a_better_rate": 0.283726664318422,
+    "support_true_tail_rate": 0.0,
+    "support_mean_disagreement_bps": 5.61521719284272,
+    "watch_n": 157,
+    "watch_raw_mae_bps": 14.70924750293121,
+    "watch_p1a_mae_bps": 20.82547505330042,
+    "watch_mean_improvement_bps": -6.116227550369207,
+    "watch_p1a_better_rate": 0.4140127388535032,
+    "watch_true_tail_rate": 0.012738853503184714,
+    "watch_mean_disagreement_bps": 32.369412986936275,
+    "review_n": 263,
+    "review_raw_mae_bps": 44.37422138242928,
+    "review_p1a_mae_bps": 20.153661064112644,
+    "review_mean_improvement_bps": 24.22056031831664,
+    "review_p1a_better_rate": 0.7376425855513308,
+    "review_true_tail_rate": 0.5247148288973384,
+    "review_mean_disagreement_bps": 60.31178337713376,
+    "momentum_abs_xret3_q25_bps": 34.98454983359878,
+    "momentum_abs_xret3_q50_bps": 55.106295837799024,
+    "momentum_abs_xret3_q75_bps": 67.43670980709825,
+    "volatility_q25_bps": 20.539907724695965,
+    "volatility_q50_bps": 25.30981440212298,
+    "volatility_q75_bps": 31.293208062762925,
+    "episodes": 237
+  },
+  "momentum_quantile_cuts_bps": {
+    "q25": 34.98454983359878,
+    "q50": 55.106295837799024,
+    "q75": 67.43670980709825
+  },
+  "volatility_quantile_cuts_bps": {
+    "q25": 20.539907724695965,
+    "q50": 25.30981440212298,
+    "q75": 31.293208062762925
+  },
+  "forward_resolution_summary": [
+    {
+      "asset": "qqqx",
+      "horizon_min": 5,
+      "n": 261,
+      "gap_shrink_rate": 0.9770114942528736,
+      "mean_p1a_catchup_bps": 17.172453374282444,
+      "mean_xstock_reversion_bps": 40.18292874563804,
+      "mean_underlying_follow_xstock_direction_bps": 1.3361480612168737,
+      "current_xstock_closer_to_future_underlying_rate": 0.26053639846743293,
+      "p1a_catchup_rate": 0.2796934865900383,
+      "xstock_reversion_rate": 0.6973180076628352,
+      "mixed_convergence_rate": 0.0,
+      "persistent_or_wider_rate": 0.022988505747126436
+    },
+    {
+      "asset": "qqqx",
+      "horizon_min": 15,
+      "n": 262,
+      "gap_shrink_rate": 0.9770992366412213,
+      "mean_p1a_catchup_bps": 19.04738262674487,
+      "mean_xstock_reversion_bps": 40.58317522407524,
+      "mean_underlying_follow_xstock_direction_bps": 1.4784827359440416,
+      "current_xstock_closer_to_future_underlying_rate": 0.2595419847328244,
+      "p1a_catchup_rate": 0.2633587786259542,
+      "xstock_reversion_rate": 0.7137404580152672,
+      "mixed_convergence_rate": 0.0,
+      "persistent_or_wider_rate": 0.022900763358778626
+    },
+    {
+      "asset": "qqqx",
+      "horizon_min": 30,
+      "n": 259,
+      "gap_shrink_rate": 0.9691119691119691,
+      "mean_p1a_catchup_bps": 18.988588248145497,
+      "mean_xstock_reversion_bps": 39.44918361341012,
+      "mean_underlying_follow_xstock_direction_bps": 0.7052834835541636,
+      "current_xstock_closer_to_future_underlying_rate": 0.28185328185328185,
+      "p1a_catchup_rate": 0.27413127413127414,
+      "xstock_reversion_rate": 0.694980694980695,
+      "mixed_convergence_rate": 0.0,
+      "persistent_or_wider_rate": 0.03088803088803089
+    },
+    {
+      "asset": "qqqx",
+      "horizon_min": 60,
+      "n": 256,
+      "gap_shrink_rate": 0.9921875,
+      "mean_p1a_catchup_bps": 17.70323031969553,
+      "mean_xstock_reversion_bps": 41.432591678928624,
+      "mean_underlying_follow_xstock_direction_bps": -0.35223696552771216,
+      "current_xstock_closer_to_future_underlying_rate": 0.2734375,
+      "p1a_catchup_rate": 0.2890625,
+      "xstock_reversion_rate": 0.703125,
+      "mixed_convergence_rate": 0.0,
+      "persistent_or_wider_rate": 0.0078125
+    }
+  ],
+  "episode_summary": [
+    {
+      "asset": "qqqx",
+      "episodes": 237,
+      "median_duration_min": 5.0,
+      "median_rows": 1.0,
+      "episodes_with_true_tail_rate": 0.5443037974683544,
+      "episode_mean_p1a_better_rate": 0.7433192686357243,
+      "episode_mean_raw_error_bps": 44.67473648111565,
+      "episode_mean_p1a_error_bps": 20.116501999659
+    }
+  ]
+}

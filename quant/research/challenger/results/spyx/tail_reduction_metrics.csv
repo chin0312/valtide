@@ -1,0 +1,4 @@
+asset,event,threshold_bps,n,raw_mae_bps,p1a_mae_bps,mean_tail_reduction_bps,p1a_better_rate,p1a_moves_toward_truth_rate,review_capture_rate,watch_or_review_capture_rate
+spyx,relative_q95,57.72660236,170,126.15838,7.298165557,118.8602145,1,1,0.9941176471,1
+spyx,fixed_25bps,25,441,71.34816614,4.724773093,66.62339305,1,1,0.387755102,0.5736961451
+spyx,fixed_50bps,50,196,116.4867182,6.797997808,109.6887204,1,1,0.8724489796,0.9948979592

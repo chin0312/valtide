@@ -1,0 +1,42 @@
+{
+  "asset_id": "AAPLx",
+  "xstock_symbol": "AAPLx",
+  "underlying_symbol": "AAPL",
+  "xstock_network": "Solana",
+  "data_start_utc": "2025-07-01T00:10:00Z",
+  "data_end_utc": "2026-09-20T23:55:00Z",
+  "rows": 128734,
+  "overlap_rows": 44842,
+  "dataset_file": "canonical_panel_5m.csv",
+  "dataset_sha256": "f58b97cdf83418f3dc74b77c298a20dc05b46bc3bdb497d9782a44a227c12240",
+  "compatibility_note": "Columns named nvda_* and nvdax_* are legacy P1a interface aliases for the selected underlying and xStock; they do not imply the asset is NVDA.",
+  "source": {
+    "token": "OKX OnchainOS historical 5m candles",
+    "underlying": "Alpaca 5m stock bars",
+    "multiplier_metadata": "xStocks public multiplier history"
+  },
+  "okx_deployment": {
+    "chainIndex": 501,
+    "issuer": "xStock",
+    "logoUrl": "https://static.oklink.com/cdn/web3/currency/token/large/501-XsbEhLAtcf6HdfpFZ5xEMdqW8nfAvcsP5bdudRLJzJp-900/type=default_90_0?v=1782383000129",
+    "marketCap": 13134949.0337,
+    "peRatioTTM": 38.016,
+    "price": 331.6427,
+    "priceChange24H": 0.85,
+    "stockCode": "AAPL",
+    "stockMarketCap": 4848989275900,
+    "stockPrice": null,
+    "stockPriceChange24H": null,
+    "stockVolume24h": 72242536.905,
+    "tokenContractAddress": "XsbEhLAtcf6HdfpFZ5xEMdqW8nfAvcsP5bdudRLJzJp",
+    "tokenName": "AAPLx",
+    "tokenSymbol": "AAPLx",
+    "tokenToAssetRatio": 1.0033,
+    "volume24h": 2128491.2066,
+    "page": 1,
+    "volume24h_num": 2128491.2066,
+    "selectedNetwork": "Solana",
+    "selectedBy": "highest_volume_on_target_network"
+  },
+  "generated_at_utc": "2026-10-01T10:42:53Z"
+}

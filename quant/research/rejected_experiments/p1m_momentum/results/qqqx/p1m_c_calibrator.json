@@ -1,0 +1,59 @@
+{
+  "asset_id": "QQQx",
+  "dataset_sha256": "758e97b56183a028949b323612510e0f993b6986d4dd57431756858f0fa20991",
+  "base_model": "P1m",
+  "state_equation": "m_t=m_{t-1}+v_{t-1}+beta*M_{t-1}+eta_m; v_t=rho*v_{t-1}+eta_v",
+  "momentum_feature": "causal EWMA of prior xStock 5-minute log returns; alpha=0.35",
+  "selected_calibration_type": "global_asym",
+  "primary_level": 0.9,
+  "calibrators": {
+    "0.50": {
+      "type": "global_asym",
+      "level": 0.5,
+      "n": 20469,
+      "global": {
+        "sym": 0.1654,
+        "lo": -0.2568,
+        "hi": 0.0266
+      },
+      "sessions": [],
+      "min_session_scores": 200
+    },
+    "0.80": {
+      "type": "global_asym",
+      "level": 0.8,
+      "n": 20469,
+      "global": {
+        "sym": 0.3223,
+        "lo": -0.4102,
+        "hi": 0.1655
+      },
+      "sessions": [],
+      "min_session_scores": 200
+    },
+    "0.90": {
+      "type": "global_asym",
+      "level": 0.9,
+      "n": 20469,
+      "global": {
+        "sym": 0.4327,
+        "lo": -0.5293,
+        "hi": 0.2513
+      },
+      "sessions": [],
+      "min_session_scores": 200
+    },
+    "0.95": {
+      "type": "global_asym",
+      "level": 0.95,
+      "n": 20469,
+      "global": {
+        "sym": 0.5509,
+        "lo": -0.6467,
+        "hi": 0.3408
+      },
+      "sessions": [],
+      "min_session_scores": 200
+    }
+  }
+}

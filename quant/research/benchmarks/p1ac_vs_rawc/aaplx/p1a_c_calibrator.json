@@ -1,0 +1,67 @@
+{
+  "generated_at_utc": "2026-10-02 04:44:05 UTC",
+  "asset_id": "AAPLx",
+  "dataset_sha256": "f58b97cdf83418f3dc74b77c298a20dc05b46bc3bdb497d9782a44a227c12240",
+  "base_model": "P1a",
+  "selected_calibration_type": "global_asym",
+  "primary_level": 0.9,
+  "interval_target": "contemporaneous reference-equivalent predictive interval",
+  "note": "Empirical calibration is validated only where the contemporaneous underlying reference is observable. Closed/overnight intervals use the selected global fallback unless a session calibration exists; their true latent-state coverage is not directly observable.",
+  "crossfit": {
+    "initial_fraction": 0.5,
+    "folds": 4,
+    "score_count": 16916,
+    "selector_train_folds": "1,2,3",
+    "selector_validation_fold": 4
+  },
+  "calibrators": {
+    "0.50": {
+      "type": "global_asym",
+      "level": 0.5,
+      "n": 16916,
+      "global": {
+        "sym": 0.4983,
+        "lo": -0.5994,
+        "hi": 0.3853
+      },
+      "sessions": [],
+      "min_session_scores": 200
+    },
+    "0.80": {
+      "type": "global_asym",
+      "level": 0.8,
+      "n": 16916,
+      "global": {
+        "sym": 1.103,
+        "lo": -1.1754,
+        "hi": 1.0047
+      },
+      "sessions": [],
+      "min_session_scores": 200
+    },
+    "0.90": {
+      "type": "global_asym",
+      "level": 0.9,
+      "n": 16916,
+      "global": {
+        "sym": 1.5856,
+        "lo": -1.6454,
+        "hi": 1.5128
+      },
+      "sessions": [],
+      "min_session_scores": 200
+    },
+    "0.95": {
+      "type": "global_asym",
+      "level": 0.95,
+      "n": 16916,
+      "global": {
+        "sym": 2.1176,
+        "lo": -2.1564,
+        "hi": 2.0529
+      },
+      "sessions": [],
+      "min_session_scores": 200
+    }
+  }
+}

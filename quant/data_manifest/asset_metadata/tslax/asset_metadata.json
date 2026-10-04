@@ -1,0 +1,42 @@
+{
+  "asset_id": "tslax",
+  "xstock_symbol": "tslax",
+  "underlying_symbol": "tsla",
+  "xstock_network": "Solana",
+  "data_start_utc": "2025-07-01T00:00:00Z",
+  "data_end_utc": "2026-09-20T23:55:00Z",
+  "rows": 128736,
+  "overlap_rows": 58147,
+  "dataset_file": "canonical_panel_5m.csv",
+  "dataset_sha256": "3acffe7bafce9231268589f78d06801de166b1e3767cda0fa5519c3365779953",
+  "compatibility_note": "Columns named nvda_* and nvdax_* are legacy P1a interface aliases for the selected underlying and xStock; they do not imply the asset is NVDA.",
+  "source": {
+    "token": "OKX OnchainOS historical 5m candles",
+    "underlying": "Alpaca 5m stock bars",
+    "multiplier_metadata": "xStocks public multiplier history"
+  },
+  "okx_deployment": {
+    "chainIndex": 501,
+    "issuer": "xStock",
+    "logoUrl": "https://static.oklink.com/cdn/web3/currency/token/large/501-XsDoVfqeBukxuZHWhdvWHBhgEHjGNst4MLodqsJHzoB-900/type=default_90_0?v=1782382989282",
+    "marketCap": 69412669.0671,
+    "peRatioTTM": 300.6864,
+    "price": 356.6297,
+    "priceChange24H": 1.85,
+    "stockCode": "TSLA",
+    "stockMarketCap": 1407839865875.6599,
+    "stockPrice": null,
+    "stockPriceChange24H": null,
+    "stockVolume24h": 123415760.88,
+    "tokenContractAddress": "XsDoVfqeBukxuZHWhdvWHBhgEHjGNst4MLodqsJHzoB",
+    "tokenName": "TSLAx",
+    "tokenSymbol": "TSLAx",
+    "tokenToAssetRatio": null,
+    "volume24h": 1502716.9669,
+    "page": 1,
+    "volume24h_num": 1502716.9669,
+    "selectedNetwork": "Solana",
+    "selectedBy": "highest_volume_on_target_network"
+  },
+  "generated_at_utc": "2026-10-01T13:00:51Z"
+}

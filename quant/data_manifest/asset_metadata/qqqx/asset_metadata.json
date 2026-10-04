@@ -1,0 +1,42 @@
+{
+  "asset_id": "QQQx",
+  "xstock_symbol": "QQQx",
+  "underlying_symbol": "QQQ",
+  "xstock_network": "Solana",
+  "data_start_utc": "2025-07-01T08:00:00Z",
+  "data_end_utc": "2026-09-20T23:55:00Z",
+  "rows": 128640,
+  "overlap_rows": 45246,
+  "dataset_file": "canonical_panel_5m.csv",
+  "dataset_sha256": "758e97b56183a028949b323612510e0f993b6986d4dd57431756858f0fa20991",
+  "compatibility_note": "Columns named nvda_* and nvdax_* are legacy P1a interface aliases for the selected underlying and xStock; they do not imply the asset is NVDA.",
+  "source": {
+    "token": "OKX OnchainOS historical 5m candles",
+    "underlying": "Alpaca 5m stock bars",
+    "multiplier_metadata": "xStocks public multiplier history"
+  },
+  "okx_deployment": {
+    "chainIndex": 501,
+    "issuer": "xStock",
+    "logoUrl": "https://static.oklink.com/cdn/web3/currency/token/large/501-Xs8S1uUs1zvS2p7iwtsG3b6fkhpvmwz4GYU3gWAmWHZ-900/type=default_90_0?v=1782382999860",
+    "marketCap": 38842138.9371,
+    "peRatioTTM": null,
+    "price": 744.327,
+    "priceChange24H": 0.87,
+    "stockCode": "QQQ",
+    "stockMarketCap": 530458327728.246,
+    "stockPrice": null,
+    "stockPriceChange24H": null,
+    "stockVolume24h": 635925835.064,
+    "tokenContractAddress": "Xs8S1uUs1zvS2p7iwtsG3b6fkhpvmwz4GYU3gWAmWHZ",
+    "tokenName": "QQQx",
+    "tokenSymbol": "QQQx",
+    "tokenToAssetRatio": 1.0035,
+    "volume24h": 1938357.4451,
+    "page": 1,
+    "volume24h_num": 1938357.4451,
+    "selectedNetwork": "Solana",
+    "selectedBy": "highest_volume_on_target_network"
+  },
+  "generated_at_utc": "2026-10-01T10:35:23Z"
+}

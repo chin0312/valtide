@@ -1,0 +1,4 @@
+asset,event,threshold_bps,n,raw_mae_bps,p1a_mae_bps,mean_tail_reduction_bps,p1a_better_rate,p1a_moves_toward_truth_rate,review_capture_rate,watch_or_review_capture_rate
+qqqx,relative_q95,48.32584427,140,65.26439794,4.568286883,60.69611106,1,1,0.9,1
+qqqx,fixed_25bps,25,294,49.37575328,6.62039008,42.7553632,0.9795918367,0.9829931973,0.5136054422,0.8197278912
+qqqx,fixed_50bps,50,131,66.37435545,4.578034512,61.79632094,1,1,0.9160305344,1

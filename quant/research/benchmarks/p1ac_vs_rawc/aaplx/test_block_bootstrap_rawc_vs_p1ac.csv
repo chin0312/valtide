@@ -1,0 +1,2 @@
+n_blocks,reps,mean_score_diff_bps,score_diff_ci_low_bps,score_diff_ci_high_bps,mean_width_diff_bps,width_diff_ci_low_bps,width_diff_ci_high_bps,mean_coverage_diff,coverage_diff_ci_low,coverage_diff_ci_high,model_a,model_b,level,interpretation
+62,2000,48.152268719602,40.1535297624022,55.4871906908212,54.88885852125,54.6784895968802,55.01453972198,0.0390355754543224,0.0216970065114739,0.0580364961484077,Raw-xStock-C:session_asym,P1a-C:global_asym,0.9,negative score_diff_bps favors Raw-xStock-C

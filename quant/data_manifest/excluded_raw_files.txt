@@ -1,0 +1,31 @@
+# Deliberately excluded from Git. Preserve in approved shared storage before deleting local copies.
+
+# Canonical panels (dataset hashes are in datasets_manifest.*)
+C:/Users/User/Desktop/okx hackathon/brush up/valtide-xstocks-e2e-solana/valtide-xstocks-e2e/01_local_data/exports/aaplx/canonical_panel_5m.csv
+C:/Users/User/Desktop/okx hackathon/brush up/valtide-xstocks-e2e-solana/valtide-xstocks-e2e/01_local_data/exports/nvdax/canonical_panel_5m.csv
+C:/Users/User/Desktop/okx hackathon/brush up/valtide-xstocks-e2e-solana/valtide-xstocks-e2e/01_local_data/exports/qqqx/canonical_panel_5m.csv
+C:/Users/User/Desktop/okx hackathon/brush up/valtide-xstocks-e2e-solana/valtide-xstocks-e2e/01_local_data/exports/spyx/canonical_panel_5m.csv
+C:/Users/User/Desktop/okx hackathon/brush up/valtide-xstocks-e2e-solana/valtide-xstocks-e2e/01_local_data/exports/tslax/canonical_panel_5m.csv
+
+# Duplicate working panels and full source observations
+.../01_local_data/data/processed/*/canonical_panel_5m.csv
+.../01_local_data/data/raw/*/underlying_alpaca_5m.csv
+.../01_local_data/data/raw/*/token_okx_5m.csv
+.../01_local_data/data/raw/*/okx_http_raw/*.json
+.../01_local_data/data/raw/*/okx_http_raw/*.meta.json
+.../01_local_data/data/raw/*/cache_manifest.json
+.../01_local_data/data/raw/*/multiplier_history.json
+
+# Local-only environment/runtime material
+.../01_local_data/.Renviron
+.../01_local_data/.r-lib/
+
+# Large model/replay outputs retained in the original result archives
+brush-up stats/valtide-*-results.tar.gz
+**/crossfit_scores.csv
+**/crossfit_fold_*_fit.rds
+**/*_full_fit.rds
+**/test_primary_intervals.csv
+**/closed_market_replay.csv
+**/pseudo_closure_detail.csv
+**/test_gate_scored_rows.csv

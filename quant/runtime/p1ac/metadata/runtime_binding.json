@@ -1,0 +1,16 @@
+{
+  "schema_version": 1,
+  "deployment_model_id": "P1a-C",
+  "model_family": "P1a",
+  "model_version": "0.2.0",
+  "asset_id": "NVDAx",
+  "dataset_sha256": "722929383e6ca1aa28382e828879efeccb60faabdf2bd5e05f14a721f7fc740d",
+  "training_end_utc": "2026-06-23T14:15:00Z",
+  "calibration_generated_at_utc": "2026-09-22 10:06:28 UTC",
+  "calibration_method": "session_sym",
+  "primary_interval_level": 0.9,
+  "parameter_sha256": "4e64e3f394e222dfb01ca45adb2c12b8c3542a2f18cb9193ffe429baf116ff7e",
+  "calibration_sha256": "e38a97cf0b8e9e5cc5222a1a2a79a6683e5bdc3aa882b800297fcdbe1bec2496",
+  "hash_normalization": "UTF-8 text with CRLF normalized to LF",
+  "scope": "NVDAx challenger estimate and calibrated uncertainty only"
+}

@@ -1,0 +1,143 @@
+{
+  "generated_at_utc": "2026-10-01 16:20:10 UTC",
+  "asset_id": "SPYx",
+  "dataset_sha256": "aa39adcd2205cd93232d4ee9cbd426a01069d0e70751f026205e88f8fa31d07b",
+  "base_model": "P1a",
+  "selected_calibration_type": "session_asym",
+  "primary_level": 0.9,
+  "interval_target": "contemporaneous reference-equivalent predictive interval",
+  "note": "Empirical calibration is validated only where the contemporaneous underlying reference is observable. Closed/overnight intervals use the selected global fallback unless a session calibration exists; their true latent-state coverage is not directly observable.",
+  "crossfit": {
+    "initial_fraction": 0.5,
+    "folds": 4,
+    "score_count": 21848,
+    "selector_train_folds": "1,2,3",
+    "selector_validation_fold": 4
+  },
+  "calibrators": {
+    "0.50": {
+      "type": "session_asym",
+      "level": 0.5,
+      "n": 21848,
+      "global": {
+        "sym": 0.5657,
+        "lo": -0.7568,
+        "hi": 0.3177
+      },
+      "sessions": {
+        "regular": {
+          "n": 9167,
+          "sym": 0.6368,
+          "lo": -0.8574,
+          "hi": 0.3416
+        },
+        "afterhours": {
+          "n": 5251,
+          "sym": 0.4458,
+          "lo": -0.5816,
+          "hi": 0.2866
+        },
+        "premarket": {
+          "n": 7430,
+          "sym": 0.5714,
+          "lo": -0.7563,
+          "hi": 0.31
+        }
+      },
+      "min_session_scores": 200
+    },
+    "0.80": {
+      "type": "session_asym",
+      "level": 0.8,
+      "n": 21848,
+      "global": {
+        "sym": 1.2637,
+        "lo": -1.4703,
+        "hi": 0.9938
+      },
+      "sessions": {
+        "regular": {
+          "n": 9167,
+          "sym": 1.3634,
+          "lo": -1.5787,
+          "hi": 1.0709
+        },
+        "afterhours": {
+          "n": 5251,
+          "sym": 1.0734,
+          "lo": -1.2151,
+          "hi": 0.8643
+        },
+        "premarket": {
+          "n": 7430,
+          "sym": 1.2474,
+          "lo": -1.4902,
+          "hi": 0.9854
+        }
+      },
+      "min_session_scores": 200
+    },
+    "0.90": {
+      "type": "session_asym",
+      "level": 0.9,
+      "n": 21848,
+      "global": {
+        "sym": 1.8642,
+        "lo": -2.0749,
+        "hi": 1.574
+      },
+      "sessions": {
+        "regular": {
+          "n": 9167,
+          "sym": 1.958,
+          "lo": -2.149,
+          "hi": 1.6447
+        },
+        "afterhours": {
+          "n": 5251,
+          "sym": 1.6713,
+          "lo": -1.7943,
+          "hi": 1.5024
+        },
+        "premarket": {
+          "n": 7430,
+          "sym": 1.883,
+          "lo": -2.1477,
+          "hi": 1.5387
+        }
+      },
+      "min_session_scores": 200
+    },
+    "0.95": {
+      "type": "session_asym",
+      "level": 0.95,
+      "n": 21848,
+      "global": {
+        "sym": 2.4931,
+        "lo": -2.7432,
+        "hi": 2.2231
+      },
+      "sessions": {
+        "regular": {
+          "n": 9167,
+          "sym": 2.6002,
+          "lo": -2.8044,
+          "hi": 2.2364
+        },
+        "afterhours": {
+          "n": 5251,
+          "sym": 2.2697,
+          "lo": -2.3475,
+          "hi": 2.1562
+        },
+        "premarket": {
+          "n": 7430,
+          "sym": 2.5972,
+          "lo": -2.8961,
+          "hi": 2.2523
+        }
+      },
+      "min_session_scores": 200
+    }
+  }
+}
