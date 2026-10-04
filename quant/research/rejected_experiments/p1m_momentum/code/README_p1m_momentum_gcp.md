@@ -1,5 +1,7 @@
 # Valtide — P1m Momentum Challenger Experiment
 
+> **Repository status:** This is a retained research procedure. Referenced GCP helper scripts and source datasets are not committed here, so remote commands described in this document are not executable from this checkout and their upload protections are not verified by CI.
+
 ## What this tests
 
 The failure-mechanism diagnostics suggested a specific P1a weakness:

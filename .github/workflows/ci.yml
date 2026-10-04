@@ -38,6 +38,14 @@ jobs:
       - name: Run quant tests
         run: python -m pytest valtide-quant-service-p1ac/tests -q
 
+      - name: Verify quant research handoff
+        run: |
+          python quant/runtime/p1ac/verify_runtime.py
+          python quant/runtime/p1ac/run_deterministic_tests.py
+          python quant/research/evaluation/regenerate_summary.py --check
+          python quant/tools/build_handoff_manifest.py --check
+          python quant/tools/verify_handoff.py
+
   backend-tests:
     name: Valtide Backend Tests
     runs-on: ubuntu-latest
@@ -78,7 +86,10 @@ jobs:
           python -m pip install -e "./apps/api[dev]"
 
       - name: Run Ruff
-        run: ruff check apps/api scripts
+        run: >-
+          ruff check apps/api scripts quant/tools
+          quant/runtime/p1ac/verify_runtime.py
+          quant/research/evaluation/regenerate_summary.py
 
       - name: Compile backend package
         run: python -m compileall -q apps/api/valtide_api

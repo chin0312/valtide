@@ -1,5 +1,7 @@
 # Valtide challenger-tail analysis — GCP
 
+> **Repository status:** This is a retained research procedure. The referenced GCP helper scripts and source datasets are not committed here, so remote commands described in this document are not executable from this checkout and their upload protections are not verified by CI.
+
 This analysis directly tests the challenger-model hypothesis:
 
 > When Valtide/P1a materially disagrees with the raw xStock, does that disagreement identify observations where the raw xStock is unusually far from the hidden contemporaneous underlying price?

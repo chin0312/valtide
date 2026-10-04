@@ -1,6 +1,8 @@
 from __future__ import annotations
 
 import csv
+import argparse
+import io
 import json
 from pathlib import Path
 
@@ -39,7 +41,9 @@ def load_metrics() -> list[dict]:
                 "rawc_coverage": rawc["coverage"],
                 "rawc_width_bps": rawc["mean_width_bps"],
                 "rawc_interval_score_bps": rawc["mean_interval_score_bps"],
-                "review_to_support_raw_error_ratio": tail["review_to_support_raw_error_ratio"],
+                "review_to_support_raw_error_ratio": tail[
+                    "review_to_support_raw_error_ratio"
+                ],
                 "tail_auroc": tail["test_relative_tail_auroc"],
                 "tail_average_precision": tail["test_relative_tail_average_precision"],
             }
@@ -47,13 +51,13 @@ def load_metrics() -> list[dict]:
     return rows
 
 
-def main() -> None:
+def render_outputs() -> dict[Path, bytes]:
     rows = load_metrics()
-    OUT_JSON.write_text(json.dumps({"assets": rows}, indent=2) + "\n")
-    with OUT_CSV.open("w", newline="") as handle:
-        writer = csv.DictWriter(handle, fieldnames=list(rows[0]))
-        writer.writeheader()
-        writer.writerows(rows)
+    json_bytes = (json.dumps({"assets": rows}, indent=2) + "\n").encode("utf-8")
+    csv_buffer = io.StringIO(newline="")
+    writer = csv.DictWriter(csv_buffer, fieldnames=list(rows[0]), lineterminator="\n")
+    writer.writeheader()
+    writer.writerows(rows)
 
     lines = [
         "# Generated research metrics",
@@ -69,7 +73,38 @@ def main() -> None:
             f"{row['p1ac_interval_score_bps']:.1f} | {row['rawc_interval_score_bps']:.1f} | "
             f"{row['review_to_support_raw_error_ratio']:.1f}x |"
         )
-    OUT_MD.write_text("\n".join(lines) + "\n")
+    return {
+        OUT_CSV: csv_buffer.getvalue().encode("utf-8"),
+        OUT_JSON: json_bytes,
+        OUT_MD: ("\n".join(lines) + "\n").encode("utf-8"),
+    }
+
+
+def main() -> None:
+    parser = argparse.ArgumentParser(
+        description="Regenerate or verify compact research metrics"
+    )
+    parser.add_argument(
+        "--check",
+        action="store_true",
+        help="verify generated metrics match checked-in source result reports without writing files",
+    )
+    args = parser.parse_args()
+    outputs = render_outputs()
+    if args.check:
+        mismatches = [
+            str(path.relative_to(RESEARCH))
+            for path, expected in outputs.items()
+            if not path.exists() or path.read_bytes() != expected
+        ]
+        if mismatches:
+            raise SystemExit(
+                "generated research metrics are stale: " + ", ".join(mismatches)
+            )
+        print("generated research metrics match checked-in result reports")
+        return
+    for path, contents in outputs.items():
+        path.write_bytes(contents)
     print(f"wrote {OUT_CSV}, {OUT_JSON}, and {OUT_MD}")
 
 

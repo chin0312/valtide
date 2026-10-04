@@ -30,7 +30,7 @@ Rscript 00_install_packages.R
 
 ## 2. Create the local secret file
 
-Copy `.Renviron.example` to `.Renviron` and fill in your OKX OnchainOS and Alpaca credentials.
+There is no checked-in `.Renviron.example` in this handoff. The R adapters require these local environment variable names: `OKX_API_KEY`, `OKX_SECRET_KEY`, `OKX_PASSPHRASE`, `ALPACA_API_KEY`, and `ALPACA_SECRET_KEY`. Set them through your local secret manager/environment, or create a private `.Renviron` file yourself; the repository ignores `.Renviron`. This documentation contains no credential values.
 
 Keep asset/date/network options out of `.Renviron`; the wrappers set those as process variables. Never commit or upload the real `.Renviron`.
 

@@ -1,5 +1,7 @@
 # Valtide — Failure Mechanism Diagnostics (GCP)
 
+> **Repository status:** This is a retained research procedure. Referenced GCP helper scripts and source datasets are not committed here, so remote commands described in this document are not executable from this checkout and their upload protections are not verified by CI.
+
 This package implements the seven diagnostic tests we designed before training another challenger/gate.
 
 ## Why this stage exists

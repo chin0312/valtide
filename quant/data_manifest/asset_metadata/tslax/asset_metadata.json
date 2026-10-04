@@ -1,7 +1,7 @@
 {
-  "asset_id": "tslax",
-  "xstock_symbol": "tslax",
-  "underlying_symbol": "tsla",
+  "asset_id": "TSLAx",
+  "xstock_symbol": "TSLAx",
+  "underlying_symbol": "TSLA",
   "xstock_network": "Solana",
   "data_start_utc": "2025-07-01T00:00:00Z",
   "data_end_utc": "2026-09-20T23:55:00Z",

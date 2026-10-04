@@ -1,12 +1,14 @@
 # Module 2 — Sanitized GCP P1a-C evaluation
 
+> **Checkout limitation:** This is a preserved workflow description, not a runnable GCP module in the current repository. The referenced `gcp/*.sh` helper scripts, prepared source panel, and `.Renviron.example` are not included. Commands below that invoke `gcp/` therefore cannot run from this checkout. The uploader's whitelist and secret-scan behavior cannot be independently verified until the exact scripts are restored and reviewed. No raw data or credentials should be added to make CI pass.
+
 This module uploads **only a prepared dataset plus the P1a/P1a-C model code** to Google Compute Engine, runs the expanding-window P1a-C calibration/evaluation, and downloads the result bundle.
 
 It deliberately contains **no market-data downloader**. OKX/Alpaca/xStocks collection and all market-data credentials stay in Module 1 on your local machine.
 
 ## Security design
 
-`gcp/upload_project.sh` does **not** tar the working directory. It creates a temporary whitelist stage containing only:
+The original external procedure states that `gcp/upload_project.sh` creates a temporary whitelist stage containing only:
 
 ```text
 R/ + config/ + scripts/ + selected gcp helpers
@@ -17,7 +19,7 @@ asset_metadata.json
 dataset.sha256
 ```
 
-It excludes `.Renviron`, `.env`, raw data, prior outputs, local package libraries, and gcloud credential files. The stage is scanned for secret-like filenames and private-key/service-account material before upload, and the same scan is rerun on the VM after extraction.
+It is intended to exclude `.Renviron`, `.env`, raw data, prior outputs, local package libraries, and gcloud credential files. Because the helper is absent, those protections are documentation claims, not verified behavior of a script in this checkout.
 
 Your `gcloud auth` credentials remain in your local Google Cloud CLI configuration; they are not copied into the archive.
 

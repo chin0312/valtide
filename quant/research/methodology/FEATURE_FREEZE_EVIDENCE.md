@@ -3,6 +3,8 @@
 **Evidence window:** 3–4 Oct 2026  
 **Purpose:** Record the new empirical evidence gathered around P1a-C before feature freeze, including what is now supported, what failed, and what remains unproven.
 
+**Evaluation boundary:** References below to a “test” or originally “untouched” block describe the chronological split used at the time of those runs. The windows and resulting metrics have since been inspected repeatedly across development; they are exposed development evidence, not fresh prospective validation.
+
 ## Executive conclusion
 
 The last two days materially changed how P1a-C should be interpreted. **P1a-C should not be treated as a replacement point-price oracle for xStock.** Raw xStock is usually the better average point estimate. The strongest evidence for P1a-C is instead that **P1a often protects against extreme xStock errors, and P1a–xStock disagreement can act as a useful challenger signal in some assets.** That ability is strong for SPYx, QQQx and AAPLx, but materially weaker for NVDAx and TSLAx because P1a can lag genuine fast-moving price discovery. Attempts to fix this through a learned gate and through direct momentum augmentation did not produce a sufficiently robust improvement, so neither should enter the frozen model.
@@ -11,7 +13,7 @@ The last two days materially changed how P1a-C should be interpreted. **P1a-C sh
 
 ## 1. Raw xStock remains the stronger default point estimate
 
-On the untouched development test blocks, raw xStock had lower MAE than P1a for NVDAx, QQQx and TSLAx, was essentially tied for AAPLx, and lost clearly only for SPYx.
+On the chronological development test blocks, raw xStock had lower MAE than P1a for NVDAx, QQQx and TSLAx, was essentially tied for AAPLx, and lost clearly only for SPYx.
 
 | Asset | Raw xStock MAE | P1a MAE | Raw RMSE | P1a RMSE | Point-estimate result |
 |---|---:|---:|---:|---:|---|
@@ -29,7 +31,7 @@ Across the five assets, simple mean MAE was **5.17 bps for raw xStock vs 5.61 bp
 
 ## 2. P1a has strong protection specifically when xStock is genuinely in the tail
 
-The strongest new evidence is the tail-error experiment. A “true tail” was defined per asset using the **95th percentile of raw-xStock error learned from cross-fit training data**, then evaluated on the untouched test block.
+The strongest new evidence is the tail-error experiment. A “true tail” was defined per asset using the **95th percentile of raw-xStock error learned from cross-fit training data**, then evaluated on that run's chronological test block. This is not a fresh untouched validation period today.
 
 | Asset | Tail threshold | Tail observations | Raw MAE in true tail | P1a MAE in true tail | P1a closer rate |
 |---|---:|---:|---:|---:|---:|

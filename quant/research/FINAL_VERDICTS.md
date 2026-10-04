@@ -1,6 +1,6 @@
 # Final candidate verdicts
 
-These verdicts use the archived CSV/JSON outputs as the source of truth. `DEPLOYMENT_CANDIDATE` means approved for the stated narrow role, not universal superiority. The only fitted runtime bundle in this handoff is NVDAx P1a-C.
+These verdicts use the committed CSV/JSON outputs as the source of truth. `DEPLOYMENT_CANDIDATE` describes the narrow research role evaluated, not automatic production approval or universal superiority. The only fitted runtime bundle in this handoff—and the only currently approved production runtime—is NVDAx P1a-C. Cross-asset results remain research evidence.
 
 | Candidate | Verdict | Differentiation | Intended role | Decision basis |
 |---|---|---|---|---|
