@@ -75,6 +75,7 @@ class MarketSnapshot(BaseModel):
     # implicitly derived. See docs/BACKEND_ARCHITECTURE.md.
     reference_under_test: float | None
     reference_under_test_source: str = Field(examples=["nvda_live", "okx_xperp_index"])
+    reference_profile: str = "unspecified"
     reference_under_test_ts: datetime | None = None
     reference_under_test_age_seconds: int | None = None
 
@@ -144,6 +145,7 @@ class ValuationResult(BaseModel):
 
     reference_under_test: float | None
     reference_under_test_source: str
+    reference_profile: str = "unspecified"
     reference_under_test_ts: datetime | None = None
     reference_under_test_age_seconds: int | None = None
     reference_deviation_pct: float | None

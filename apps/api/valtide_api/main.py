@@ -29,9 +29,13 @@ async def lifespan(app: FastAPI):
     runtime_store = get_runtime_store()
     schedulers = build_enabled_schedulers(settings, runtime_store)
     # Preserve the legacy single-asset restore even when scheduling is disabled.
-    # If explicit asset workers are added later, restore each under its own key.
+    # Explicit workers restore each state under its own asset key.
     restore_assets = dict.fromkeys(
-        (settings.live_scheduler_asset, *(worker.asset for worker in schedulers))
+        (
+            settings.live_scheduler_asset,
+            *settings.enabled_scheduler_assets,
+            *(worker.asset for worker in schedulers),
+        )
     )
     for asset in restore_assets:
         try:

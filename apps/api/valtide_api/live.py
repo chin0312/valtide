@@ -1,9 +1,12 @@
-"""Live mode — assemble a snapshot from live sources and run one inference.
+"""Live mode — assemble an asset-scoped snapshot from configured live sources.
 
-Pulls the three live inputs:
-  - NVDAx token candle  -> OKX OnchainOS exact confirmed 5m candle
-  - NVDA underlying      -> Alpaca
-  - reference under test -> OKX X-Perp confirmed index candle (public)
+The selected AssetConfig supplies:
+  - an exact confirmed token candle via the configured token-market adapter;
+  - the configured underlying symbol and provider; and
+  - the reference profile/instrument to validate.
+
+The current NVDAx profile uses the public OKX X-Perp index. The xStock profile
+uses the same token candle as its observed reference and labels that dependence.
 
 then runs a single cold-start inference.
 
@@ -109,8 +112,8 @@ def build_live_snapshot(
         )
 
     # The latest bar at or before the valued bar's close is the current-bucket
-    # underlying measurement (NVDA@T). The trusted anchor must be strictly before
-    # T, exactly as the historical panel builder joins it: otherwise NVDA@T would
+    # underlying measurement (underlying@T). The trusted anchor must be strictly before
+    # T, exactly as the historical panel builder joins it: otherwise underlying@T would
     # seed the cold-start challenger@T init before the intended post-challenger
     # assimilation, reintroducing same-timestamp leakage on the first warmed tick.
     last = bars[-1]
@@ -127,8 +130,8 @@ def build_live_snapshot(
         else None
     )
 
-    # Trusted anchor R0 must be the latest NVDA strictly before T. If the only
-    # available bar is NVDA@T, do not seed challenger@T from the same
+    # Trusted anchor R0 must be the latest underlying strictly before T. If the only
+    # available bar is underlying@T, do not seed challenger@T from the same
     # observation; fail the cold-start valuation instead of leaking causality.
     prior = [b for b in bars if b.ts < now]
     if not prior:
@@ -139,21 +142,28 @@ def build_live_snapshot(
     anchor = prior[-1]
     anchor_age = int((now - anchor.ts).total_seconds())
 
-    # Reference under test: the confirmed OKX X-Perp index candle opening at the
-    # valued bar (ts == now, age 0), identical to the historical panel join. When
-    # it is not yet confirmed or unreachable, keep the reference identity and let
-    # validation mark COMPARATOR_UNAVAILABLE rather than substituting NVDA.
-    try:
-        ref = market_sources.reference_live(asset_config, client=client, now=now)
-    except AssetConfigurationError as exc:
-        raise LiveDataUnavailable(str(exc)) from exc
-    if ref is not None:
-        pt, pt_source, pt_ts = ref.price, ref.source, ref.ts
-        reference_age = int((now - ref.ts).total_seconds())
+    # The cross-asset research profile compares the current observed xStock
+    # against its P1a challenger. It is not an independent data source: this
+    # token observation has already been assimilated by P1a before emission.
+    # NVDAx retains its separately identified OKX X-Perp comparator.
+    if asset_config.reference_profile == "xstock_vs_p1ac_challenger":
+        ref = token_candle
+        pt_source = asset_config.reference_under_test_source
+        pt = ref.close if ref is not None else None
+        pt_ts = ref.ts if ref is not None else None
+        reference_age = 0 if ref is not None else None
     else:
-        pt, pt_source, pt_ts, reference_age = (
-            None, asset_config.reference_under_test_source, None, None
-        )
+        try:
+            ref = market_sources.reference_live(asset_config, client=client, now=now)
+        except AssetConfigurationError as exc:
+            raise LiveDataUnavailable(str(exc)) from exc
+        if ref is not None:
+            pt, pt_source, pt_ts = ref.price, ref.source, ref.ts
+            reference_age = int((now - ref.ts).total_seconds())
+        else:
+            pt, pt_source, pt_ts, reference_age = (
+                None, asset_config.reference_under_test_source, None, None
+            )
 
     # A gross token/underlying unit mismatch is judged by validation
     # (TOKEN_UNIT_SUSPECT), not fatally here; an economic depeg must reach the
@@ -174,6 +184,7 @@ def build_live_snapshot(
         reference_age_seconds=anchor_age,
         reference_under_test=pt,
         reference_under_test_source=pt_source,
+        reference_profile=asset_config.reference_profile,
         reference_under_test_ts=pt_ts,
         reference_under_test_age_seconds=reference_age,
         market_state=market_state,
@@ -183,6 +194,12 @@ def build_live_snapshot(
             "underlying": f"{asset_config.underlying_source}@{last.ts.isoformat()}",
             "reference_under_test": (
                 f"{pt_source}@{pt_ts.isoformat()}" if pt_ts is not None else pt_source
+            ),
+            "reference_profile": asset_config.reference_profile,
+            **(
+                {"reference_independence": "same_xstock_input_assimilated_by_p1a"}
+                if asset_config.reference_profile == "xstock_vs_p1ac_challenger"
+                else {}
             ),
         },
     )

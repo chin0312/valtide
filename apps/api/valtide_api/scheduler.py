@@ -53,20 +53,28 @@ def build_enabled_schedulers(
     assets: tuple[str, ...] | None = None,
 ) -> tuple[LiveScheduler, ...]:
     """Build one worker per explicitly selected asset; legacy env selects one."""
-    selected = assets if assets is not None else (
-        (settings.live_scheduler_asset,) if settings.live_scheduler_enabled else ()
+    selected = assets if assets is not None else getattr(
+        settings,
+        "enabled_scheduler_assets",
+        (settings.live_scheduler_asset,) if settings.live_scheduler_enabled else (),
     )
     if len(set(selected)) != len(selected):
         raise AssetConfigurationError("duplicate scheduler asset")
     schedulers = []
     for asset in selected:
         config = resolve_asset_config(asset, settings)
-        if not (
-            config.capabilities.runtime
-            and config.capabilities.live_data
-            and quant_runtime_available(config)
-        ):
-            raise AssetConfigurationError(f"live runtime is unavailable for '{asset}'")
+        if not config.capabilities.runtime or not config.capabilities.live_data:
+            logger.warning(
+                "Live scheduler not started asset=%s readiness=runtime_or_live_data_unavailable",
+                asset,
+            )
+            continue
+        if not quant_runtime_available(config):
+            logger.warning(
+                "Live scheduler not started asset=%s readiness=quant_artifact_unavailable",
+                asset,
+            )
+            continue
         schedulers.append(LiveScheduler(asset=asset, store=store))
     return tuple(schedulers)
 

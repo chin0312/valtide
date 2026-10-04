@@ -23,7 +23,7 @@ The quantitative model remains offchain. Contracts do not calculate fair value,
 recompute intervals, determine Evidence State, set universal LTVs, custody
 assets, or liquidate positions.
 
-The current supported product path is NVDAx with:
+The only currently operational product path is NVDAx with:
 
 - OKX OnchainOS tokenized-market observations;
 - trusted underlying NVDA observations from the configured equity adapter;
@@ -31,6 +31,14 @@ The current supported product path is NVDAx with:
 - the packaged P1a-C challenger runtime;
 - backend validation and reason codes; and
 - the deployed X Layer Registry, RiskGuard, and DemoCollateralVault.
+
+The API asset catalog also lists SPYx, QQQx, and AAPLx so the Console can select
+their identities and report readiness without substituting NVDAx data. They do
+not yet have verified Solana-matched P1a-C bundles or canonical historical
+panels, so they are not operational or historically ready. TSLAx remains hidden
+as a research candidate. See
+[`docs/ASSET_INTEGRATION_FOUNDATION.md`](ASSET_INTEGRATION_FOUNDATION.md) for
+the evidence and promotion gates.
 
 ## 2. As-Built System Flow
 
@@ -128,10 +136,15 @@ fabricated observation.
 
 ### Warmed live runtime
 
-`scheduler.py` runs one in-process scheduler on canonical UTC five-minute
-boundaries. `runtime_store.py` persists carried state, the latest result, gap
-steps, scheduler status, and publication status in SQLite. Restart restores the
-persisted state; a failed tick preserves the last good result.
+`scheduler.py` runs one in-process scheduler per explicitly selected, ready
+asset on canonical UTC five-minute boundaries. The existing
+`LIVE_SCHEDULER_ENABLED` / `LIVE_SCHEDULER_ASSET` configuration remains the
+single-NVDAx compatibility path; `LIVE_SCHEDULER_ASSETS` is an optional list
+for future ready assets. Unready known assets do not start, and do not prevent
+another ready worker from starting. `runtime_store.py` persists carried state,
+the latest result, gap steps, scheduler status, and publication status by asset
+in SQLite. Restart restores each persisted state; a failed tick preserves that
+asset's last good result.
 
 `GET /api/valuation/{asset}` reads the latest warmed result. The `/live` route
 is a cold-start diagnostic and does not mutate or replace the warmed state.

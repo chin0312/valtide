@@ -1,6 +1,6 @@
 import { useQuery } from "@tanstack/react-query";
 import type { EvidenceState } from "../api/types";
-import { fetchHistoricalBacktest } from "../api/client";
+import { assetQueryKeys, fetchHistoricalBacktest } from "../api/client";
 import { Panel } from "../components/ui";
 import { EVIDENCE } from "../lib/evidence";
 import { dateTimeUTC } from "../lib/format";
@@ -10,10 +10,10 @@ const STATES: EvidenceState[] = ["SUPPORTED", "INCONCLUSIVE", "CHALLENGED"];
 // Historical evidence is deliberately separate from the deterministic scenario.
 // Scenario verdict counts are not future ground truth and must not be presented
 // as a track record or accuracy result.
-export function ModelEvidence() {
+export function ModelEvidence({ asset, profile }: { asset: string; profile: string }) {
   const { data, isError, isLoading } = useQuery({
-    queryKey: ["backtest", "historical"],
-    queryFn: fetchHistoricalBacktest,
+    queryKey: assetQueryKeys.backtest(asset, profile),
+    queryFn: () => fetchHistoricalBacktest(asset),
     staleTime: 60_000,
     retry: 0,
   });

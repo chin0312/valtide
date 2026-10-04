@@ -34,25 +34,32 @@ def resolve_snapshots(
     """
     settings = get_settings()
     asset_config = resolve_asset_config(asset, settings)
-    generated_panel = resolve_historical_panel_path(asset_config, settings)
     selected_panel = Path(panel_path) if panel_path is not None else None
-    if selected_panel is None:
-        selected_panel = generated_panel
+
+    if source == "scenario":
+        return _validate_asset_snapshots(load_scenario(scenario), asset), "scenario"
 
     if source in {"panel", "historical", "historical_panel"}:
         if selected_panel is None:
-            raise AssetConfigurationError(
-                f"historical panel is not configured for asset '{asset}'"
-            )
+            selected_panel = resolve_historical_panel_path(asset_config, settings)
         snapshots = load_panel_snapshots(selected_panel, asset=asset, settings=settings)
         return _validate_asset_snapshots(snapshots, asset), _panel_source_label(snapshots)
-    if source == "scenario":
-        return _validate_asset_snapshots(load_scenario(scenario), asset), "scenario"
     if source == "auto":
+        if selected_panel is None:
+            try:
+                selected_panel = resolve_historical_panel_path(asset_config, settings)
+            except AssetConfigurationError:
+                # Retain the original NVDA demo fallback only. Other assets may
+                # never inherit its synthetic fixture as historical evidence.
+                if asset == "NVDAx":
+                    return _validate_asset_snapshots(load_scenario(scenario), asset), "scenario"
+                raise
         if selected_panel is not None and selected_panel.exists():
             snapshots = load_panel_snapshots(selected_panel, asset=asset, settings=settings)
             return _validate_asset_snapshots(snapshots, asset), _panel_source_label(snapshots)
-        return _validate_asset_snapshots(load_scenario(scenario), asset), "scenario"
+        if asset == "NVDAx":
+            return _validate_asset_snapshots(load_scenario(scenario), asset), "scenario"
+        raise AssetConfigurationError(f"historical panel is unavailable for asset '{asset}'")
     raise ValueError(f"unsupported replay source: {source}")
 
 

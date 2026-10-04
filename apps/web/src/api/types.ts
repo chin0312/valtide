@@ -28,6 +28,7 @@ export interface ValuationResult {
 
   reference_under_test: number | null;
   reference_under_test_source: string;
+  reference_profile: string;
   reference_under_test_ts: string | null;
   reference_under_test_age_seconds: number | null;
   reference_deviation_pct: number | null;
@@ -50,7 +51,22 @@ export interface AssetInfo {
   asset: string;
   token_source: string;
   underlying_source: string;
+  reference_profile: string;
+  registered: boolean;
+  api_exposed: boolean;
   model_available: boolean;
+  quant_artifact_ready: boolean;
+  historical_data_available: boolean;
+  live_data_configured: boolean;
+  live_market_data_available: boolean;
+  runtime_ready: boolean;
+  operational_ready: boolean;
+  operational_scheduler_enabled: boolean;
+  latest_observation_timestamp: string | null;
+  latest_observation_age_seconds: number | null;
+  latest_observation_freshness: "fresh" | "stale" | "unavailable";
+  onchain_binding_configured: boolean;
+  readiness_error_codes: string[];
 }
 
 export interface BacktestMetrics {
@@ -124,6 +140,7 @@ export interface OnchainAttestation {
 }
 
 export interface OnchainControlPlane extends OnchainEvaluation {
+  asset: string;
   configured: boolean;
   deployed: boolean;
   network: string;
@@ -140,6 +157,7 @@ export interface OnchainControlPlane extends OnchainEvaluation {
 }
 
 export interface OnchainEnforcement extends OnchainEvaluation {
+  asset: string;
   expected_revert: boolean;
   reverted: boolean;
   returned_action_code: number | null;

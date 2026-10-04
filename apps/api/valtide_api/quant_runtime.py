@@ -73,7 +73,7 @@ def _artifact_identity(runtime_key: str) -> tuple[str, str, str]:
 
 def resolve_quant_runtime(asset: str | AssetConfig) -> QuantRuntimeSpec:
     config = asset if isinstance(asset, AssetConfig) else resolve_asset_config(asset)
-    if not config.production_enabled or not config.capabilities.quant:
+    if not config.capabilities.quant:
         raise AssetConfigurationError(f"quant runtime is unavailable for '{config.asset}'")
     registration = _QUANT_RUNTIME_FACTORIES.get(config.quant_runtime_key)
     if registration is None:
@@ -99,9 +99,9 @@ def get_quant_service(
 ) -> QuantService:
     """Resolve the explicitly registered quant artifact for ``asset``.
 
-    The dispatch seam is intentionally narrow.  NVDAx is the only registered
-    production asset and continues to use the packaged P1a-C default artifacts;
-    an unsupported asset cannot accidentally load those artifacts.
+    The dispatch seam is intentionally narrow. NVDAx is the only asset with a
+    validated runtime bundle. Candidate assets fail closed until their own
+    artifact registration and capability are reviewed.
     """
 
     config = asset if isinstance(asset, AssetConfig) else resolve_asset_config(asset)

@@ -48,7 +48,7 @@ def _panel_schema(fields: set[str]) -> str:
     has_legacy_fields = bool(fields & _LEGACY_SCHEMA_MARKERS)
     if has_canonical_identity:
         if has_legacy_fields:
-            raise PanelIdentityError("ambiguous hybrid canonical/legacy panel schema")
+            return "canonical_hybrid"
         return "canonical"
     if {"nvda_close", "nvdax_close"}.issubset(fields):
         return "legacy_nvda_diagnostic"
@@ -84,6 +84,11 @@ def _canonical_row(row: dict[str, str], config: AssetConfig, *, legacy: bool) ->
     }
     if any(row.get(key) != value for key, value in expected.items()):
         raise PanelIdentityError("canonical panel identity does not match requested asset")
+    panel_profile = (row.get("reference_profile") or "").strip()
+    if panel_profile and panel_profile != config.reference_profile:
+        raise PanelIdentityError("canonical panel reference profile does not match requested asset")
+    if not panel_profile and config.reference_profile != "legacy_xperp_vs_p1ac":
+        raise PanelIdentityError("canonical panel is missing its reference-profile identity")
     if not row.get("token_chain_index") or not row.get("token_address"):
         raise PanelIdentityError("canonical panel has no token deployment identity")
     if row["token_chain_index"] != config.okx_chain_index:
@@ -120,9 +125,13 @@ def load_panel_snapshots(
     Missing token observations remain in the sequence as ``token_price=None``.
     This preserves the quant runtime's 5-minute state transition without
     fabricating a token price or silently introducing a state gap. New real
-    panels should provide explicit reference-under-test columns; older fixtures
-    retain their explicit stale-NVDA fallback semantics.
+    panels provide explicit reference-under-test columns. The old NVDAx panel
+    format is normalized only by the contained legacy compatibility path.
     """
+    if settings is None:
+        from valtide_api.config import get_settings
+
+        settings = get_settings()
     asset_config = resolve_asset_config(asset, settings)
     path = Path(path)
     snapshots: list[MarketSnapshot] = []
@@ -135,8 +144,18 @@ def load_panel_snapshots(
         fields = set(reader.fieldnames or ())
         schema = _panel_schema(fields)
         legacy = schema == "legacy_nvda_diagnostic"
+        canonical = schema in {"canonical", "canonical_hybrid"}
+        if schema == "canonical_hybrid" and not set(_CANONICAL_IDENTITY).issubset(fields):
+            raise PanelIdentityError("ambiguous hybrid canonical/legacy panel schema")
         if not legacy and not set(_CANONICAL_IDENTITY).issubset(fields):
             raise PanelIdentityError("canonical panel is missing required identity fields")
+        if not legacy and asset_config.asset == "NVDAx" and not (
+            settings.okx_nvdax_chain_index and settings.okx_nvdax_token_address
+        ):
+            raise PanelIdentityError(
+                "canonical NVDAx panel provenance is unverified; pin "
+                "OKX_NVDAX_CHAIN_INDEX and OKX_NVDAX_TOKEN_ADDRESS"
+            )
         if not legacy and (not asset_config.okx_chain_index or not asset_config.token_address):
             raise PanelIdentityError(
                 "canonical panel deployment is unverified; pin OKX_NVDAX_CHAIN_INDEX "
@@ -144,13 +163,15 @@ def load_panel_snapshots(
             )
         if legacy and asset_config.asset != "NVDAx":
             raise PanelIdentityError("legacy NVDA panel cannot be loaded for another asset")
-        if not legacy and not {
+        if canonical and not {
             "token_close", "token_available", "underlying_close", "underlying_available",
             "reference_under_test_available", "reference_under_test_source",
         }.issubset(fields):
             raise PanelIdentityError("canonical panel is missing required market fields")
         for raw_row in reader:
             row = _canonical_row(raw_row, asset_config, legacy=legacy)
+            if schema == "canonical_hybrid":
+                raise PanelIdentityError("ambiguous hybrid canonical/legacy panel schema")
             try:
                 ts = require_canonical_5m(_parse_ts(row["timestamp_utc"]), "panel timestamp")
             except ValueError as exc:
@@ -195,7 +216,7 @@ def load_panel_snapshots(
                     )
 
             # Capture the strictly prior trusted anchor before constructing
-            # this row so current NVDA cannot become same-timestamp R0.
+            # this row so the current underlying cannot become same-timestamp R0.
             previous_last_close = last_close
             previous_last_close_ts = last_close_ts
             if previous_last_close is None or previous_last_close_ts is None:
@@ -253,6 +274,9 @@ def load_panel_snapshots(
                     reference_age_seconds=int((ts - previous_last_close_ts).total_seconds()),
                     reference_under_test=reference,
                     reference_under_test_source=reference_source,
+                    reference_profile=(
+                        row.get("reference_profile") or asset_config.reference_profile
+                    ),
                     reference_under_test_ts=reference_ts,
                     reference_under_test_age_seconds=reference_age,
                     market_state=_market_state(row.get("session_state"), ts),
@@ -260,6 +284,14 @@ def load_panel_snapshots(
                         "panel": path.name,
                         "token": asset_config.token_source if token is not None else "",
                         "reference_under_test": reference_source,
+                        "reference_profile": (
+                            row.get("reference_profile") or asset_config.reference_profile
+                        ),
+                        **(
+                            {"reference_independence": "same_xstock_input_assimilated_by_p1a"}
+                            if asset_config.reference_profile == "xstock_vs_p1ac_challenger"
+                            else {}
+                        ),
                         "panel_schema": schema,
                         "token_deployment_verified": str(not legacy).lower(),
                         "token_deployment": (
@@ -274,6 +306,9 @@ def load_panel_snapshots(
             # the next canonical observation, never for this one.
             if underlying is not None:
                 last_close, last_close_ts = underlying, ts
+
+        if schema == "canonical_hybrid":
+            raise PanelIdentityError("ambiguous hybrid canonical/legacy panel schema")
     return snapshots
 
 

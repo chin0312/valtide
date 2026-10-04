@@ -35,6 +35,7 @@ PANEL_COLUMNS = [
     "token_chain_index",
     "token_address",
     "reference_under_test_instrument",
+    "reference_profile",
     "session_state",
     "token_close",
     "token_volume",
@@ -99,7 +100,11 @@ def build_rows(
         token = token_by_ts.get(timestamp)
         if token is not None and token.confirm != 1:
             token = None
-        ref = reference_by_ts.get(timestamp)
+        ref = (
+            token
+            if config.reference_profile == "xstock_vs_p1ac_challenger"
+            else reference_by_ts.get(timestamp)
+        )
         rows.append(
             {
                 "timestamp_utc": timestamp.isoformat().replace("+00:00", "Z"),
@@ -109,6 +114,7 @@ def build_rows(
                 "token_chain_index": deployment[0],
                 "token_address": deployment[1],
                 "reference_under_test_instrument": config.reference_under_test_instrument,
+                "reference_profile": config.reference_profile,
                 "session_state": classify(timestamp).value,
                 "token_close": str(token.close) if token is not None else "",
                 "token_volume": str(token.volume) if token is not None else "",
@@ -156,12 +162,12 @@ def _write(path: Path, rows: list[dict[str, str]]) -> None:
         raise RuntimeError("panel contains no anchored rows")
     identity = tuple(rows[0].get(key) for key in (
         "asset", "underlying_symbol", "token_source", "token_chain_index",
-        "token_address", "reference_under_test_instrument",
+        "token_address", "reference_under_test_instrument", "reference_profile",
     ))
     if any(not value for value in identity) or any(
         tuple(row.get(key) for key in (
             "asset", "underlying_symbol", "token_source", "token_chain_index",
-            "token_address", "reference_under_test_instrument",
+            "token_address", "reference_under_test_instrument", "reference_profile",
         )) != identity for row in rows
     ):
         raise RuntimeError("panel identity must be complete and constant")
@@ -195,13 +201,22 @@ def build_panel(
     token_candles, deployment = token_market.get_historical_candles(
         asset_config, start, end
     )
+    expected_deployment = (asset_config.okx_chain_index, asset_config.token_address)
+    if not all(expected_deployment) or deployment != expected_deployment:
+        raise RuntimeError(
+            f"token adapter deployment does not match the registered identity for {asset}"
+        )
     # Fetch a causal pre-range lookback so the first requested row can use a
     # strictly prior trusted underlying bar as its causal anchor. The lookback
     # is only for initialization; emitted panel rows remain within [start, end].
     underlying_bars = market_sources.underlying_historical(
         asset_config, start - UNDERLYING_LOOKBACK, end
     )
-    reference_candles = market_sources.reference_historical(asset_config, start, end)
+    reference_candles = (
+        token_candles
+        if asset_config.reference_profile == "xstock_vs_p1ac_challenger"
+        else market_sources.reference_historical(asset_config, start, end)
+    )
     rows = build_rows(
         start, end, token_candles, underlying_bars, reference_candles,
         config=asset_config, deployment=deployment,
@@ -211,7 +226,7 @@ def build_panel(
     print(
         f"sources: token={asset_config.token_source}, "
         f"underlying={asset_config.underlying_source}_5m, "
-        f"reference_under_test={asset_config.reference_under_test_source}_historical"
+        f"reference_under_test={asset_config.reference_under_test_source}"
     )
     return len(rows)
 

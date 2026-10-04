@@ -7,7 +7,8 @@ from datetime import UTC, datetime
 from fastapi import APIRouter
 from pydantic import BaseModel
 
-from valtide_api.config import get_settings
+from valtide_api.config import get_settings, scheduler_asset_enabled
+from valtide_api.quant_runtime import quant_runtime_available
 from valtide_api.routes._asset_guard import require_api_asset
 from valtide_api.runtime_store import RuntimeStateIntegrityError, get_runtime_store
 
@@ -85,9 +86,17 @@ def _publication_fields(settings, publication, publication_error: str | None):
 
 @router.get("/runtime/{asset}", response_model=RuntimeStatus)
 def get_runtime(asset: str) -> RuntimeStatus:
-    require_api_asset(asset, "runtime")
+    # Runtime is a read-only readiness endpoint: known catalog assets can report
+    # an empty/not-enabled state without pretending to have a scheduler.
+    config = require_api_asset(asset)
 
     settings = get_settings()
+    scheduler_enabled = bool(
+        scheduler_asset_enabled(settings, asset)
+        and config.capabilities.runtime
+        and config.capabilities.live_data
+        and quant_runtime_available(config)
+    )
     store = get_runtime_store()
     try:
         record = store.load_runtime(asset)
@@ -106,9 +115,7 @@ def get_runtime(asset: str) -> RuntimeStatus:
     if runtime_error is not None:
         return RuntimeStatus(
             asset=asset,
-            scheduler_enabled=(
-                settings.live_scheduler_enabled and settings.live_scheduler_asset == asset
-            ),
+            scheduler_enabled=scheduler_enabled,
             has_state=False,
             has_live_result=False,
             last_state_timestamp=_parse_optional(raw.get("state_last_ts")),
@@ -122,9 +129,7 @@ def get_runtime(asset: str) -> RuntimeStatus:
 
     return RuntimeStatus(
         asset=asset,
-        scheduler_enabled=(
-            settings.live_scheduler_enabled and settings.live_scheduler_asset == asset
-        ),
+        scheduler_enabled=scheduler_enabled,
         has_state=record is not None and record.state is not None,
         has_live_result=record is not None and record.latest_result is not None,
         last_state_timestamp=record.state.last_ts if record and record.state else None,

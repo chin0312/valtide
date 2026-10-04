@@ -1,9 +1,8 @@
-"""Canonical production asset registry.
+"""Canonical asset identities and capability declarations.
 
-This module owns the backend's asset-specific behavioral configuration.  It is
-deliberately small: registering an entry here does not by itself make an asset
-live, publishable, or frontend-visible.  Those capabilities still require the
-corresponding explicit deployment/runtime configuration.
+Being listed in the API catalog is not proof that an asset has a fitted model,
+historical panel, scheduler, or X Layer binding. Those are independent,
+fail-closed readiness layers.
 """
 
 from __future__ import annotations
@@ -42,7 +41,7 @@ class AssetCapabilities:
 
 @dataclass(frozen=True)
 class AssetConfig:
-    """Immutable behavioral configuration for one registered asset."""
+    """Immutable application/data identity for one registered asset."""
 
     asset: str
     underlying_symbol: str
@@ -54,6 +53,7 @@ class AssetConfig:
     allow_token_discovery: bool
     reference_under_test_source: str
     reference_under_test_instrument: str
+    reference_profile: str
     # The Registry reference identity is intentionally distinct from the vendor
     # instrument name.  It is the existing public identity hashed in the
     # deployment manifest and must not be changed by this refactor.
@@ -61,7 +61,6 @@ class AssetConfig:
     quant_runtime_key: str
     historical_panel_key: str
     capabilities: AssetCapabilities
-    production_enabled: bool
 
 
 _NVDA_CONFIG = AssetConfig(
@@ -70,29 +69,98 @@ _NVDA_CONFIG = AssetConfig(
     token_source="okx_onchainos",
     underlying_source="alpaca",
     token_market_key="okx_onchainos",
-    okx_chain_index=None,
-    token_address=None,
-    allow_token_discovery=True,
+    okx_chain_index="501",
+    token_address="Xsc9qvGR1efVDFGLrVsmkzv3qi45LTBjeUKSPmx9qEh",
+    allow_token_discovery=False,
     reference_under_test_source="okx_xperp_index",
     reference_under_test_instrument="NVDA-USD",
+    reference_profile="legacy_xperp_vs_p1ac",
     xlayer_reference_name="OKX_NVDA_USD_INDEX",
     quant_runtime_key="nvdax_p1ac_default",
     historical_panel_key="nvdax_panel",
     capabilities=AssetCapabilities(True, True, True, True, True, True),
-    production_enabled=True,
+)
+
+_PRIMARY_TOKEN_DEPLOYMENTS = {
+    "SPYx": ("SPY", "XsoCS1TfEyfFhfvj8EtZ528L3CaKBDBRqRapnBbDF2W"),
+    "QQQx": ("QQQ", "Xs8S1uUs1zvS2p7iwtsG3b6fkhpvmwz4GYU3gWAmWHZ"),
+    "AAPLx": ("AAPL", "XsbEhLAtcf6HdfpFZ5xEMdqW8nfAvcsP5bdudRLJzJp"),
+}
+
+
+def _xstock_asset_config(asset: str, underlying: str, token_address: str) -> AssetConfig:
+    key = asset.lower()
+    return AssetConfig(
+        asset=asset,
+        underlying_symbol=underlying,
+        token_source="okx_onchainos",
+        underlying_source="alpaca",
+        token_market_key="okx_onchainos",
+        okx_chain_index="501",
+        token_address=token_address,
+        allow_token_discovery=False,
+        reference_under_test_source="xstock_token_market",
+        reference_under_test_instrument=asset,
+        reference_profile="xstock_vs_p1ac_challenger",
+        xlayer_reference_name=f"XSTOCK_{underlying}_USD_REFERENCE",
+        quant_runtime_key=f"{key}_p1ac_unfitted",
+        historical_panel_key=f"{key}_panel",
+        # Adapters and panel orchestration exist, but model and data artifacts
+        # are independently required before runtime or replay can be used.
+        capabilities=AssetCapabilities(
+            live_data=True,
+            historical_data=True,
+            quant=False,
+            runtime=False,
+            onchain=False,
+            api_exposed=True,
+        ),
+    )
+
+
+_PRIMARY_CONFIGS = tuple(
+    _xstock_asset_config(asset, underlying, token_address)
+    for asset, (underlying, token_address) in _PRIMARY_TOKEN_DEPLOYMENTS.items()
+)
+
+_TSLA_CANDIDATE = AssetConfig(
+    asset="TSLAx",
+    underlying_symbol="TSLA",
+    token_source="okx_onchainos",
+    underlying_source="alpaca",
+    token_market_key="okx_onchainos",
+    okx_chain_index="501",
+    token_address="XsDoVfqeBukxuZHWhdvWHBhgEHjGNst4MLodqsJHzoB",
+    allow_token_discovery=False,
+    reference_under_test_source="xstock_token_market",
+    reference_under_test_instrument="TSLAx",
+    reference_profile="xstock_vs_p1ac_challenger",
+    xlayer_reference_name="XSTOCK_TSLA_USD_REFERENCE",
+    quant_runtime_key="tslax_p1ac_unfitted",
+    historical_panel_key="tslax_panel",
+    capabilities=AssetCapabilities(
+        live_data=True,
+        historical_data=True,
+        api_exposed=False,
+    ),
 )
 
 # Keep this mapping private and immutable.  A future asset must be added only
 # with an explicit review of its behavioral, quant, and deployment bindings.
 _ASSET_REGISTRY: Mapping[str, AssetConfig] = MappingProxyType(
     {
-        _NVDA_CONFIG.asset: _NVDA_CONFIG,
+        config.asset: config
+        for config in (_NVDA_CONFIG, *_PRIMARY_CONFIGS, _TSLA_CANDIDATE)
     }
 )
 
-_HISTORICAL_PANEL_PATHS: Mapping[str, tuple[str, Callable[[Settings], Path]]] = (
+_HISTORICAL_PANEL_PATHS: Mapping[str, tuple[str, Callable[[Settings], Path | None]]] = (
     MappingProxyType({
         "nvdax_panel": ("NVDAx", lambda settings: settings.resolved_historical_panel_path),
+        "spyx_panel": ("SPYx", lambda settings: settings.resolved_spyx_historical_panel_path),
+        "qqqx_panel": ("QQQx", lambda settings: settings.resolved_qqqx_historical_panel_path),
+        "aaplx_panel": ("AAPLx", lambda settings: settings.resolved_aaplx_historical_panel_path),
+        "tslax_panel": ("TSLAx", lambda settings: settings.resolved_tslax_historical_panel_path),
     })
 )
 
@@ -103,30 +171,30 @@ def supported_asset_names() -> tuple[str, ...]:
     return tuple(
         config.asset
         for config in _ASSET_REGISTRY.values()
-        if config.production_enabled and config.capabilities.api_exposed
+        if config.capabilities.api_exposed
     )
 
 
-def production_asset_configs() -> tuple[AssetConfig, ...]:
-    """Return immutable configs for currently production-enabled assets."""
+def api_asset_configs() -> tuple[AssetConfig, ...]:
+    """Return immutable API-catalog configs, including explicitly unready assets."""
 
     return tuple(
         config
         for config in _ASSET_REGISTRY.values()
-        if config.production_enabled and config.capabilities.api_exposed
+        if config.capabilities.api_exposed
     )
 
 
 def resolve_asset_config(asset: str, settings: Settings | None = None) -> AssetConfig:
-    """Resolve one production asset, including its existing env-backed values.
+    """Resolve one registered asset, including its backward-compatible values.
 
     Unknown assets fail before any source, quant artifact, SQLite state, or
-    deployment metadata is selected.  The NVDAx environment names remain the
-    compatibility boundary for the only currently supported production asset.
+    deployment metadata is selected. The NVDAx environment names remain the
+    compatibility boundary for its existing source configuration.
     """
 
     config = _ASSET_REGISTRY.get(asset)
-    if config is None or not config.production_enabled:
+    if config is None:
         raise UnsupportedAssetError(f"asset '{asset}' not supported")
 
     if settings is None:
@@ -140,6 +208,12 @@ def resolve_asset_config(asset: str, settings: Settings | None = None) -> AssetC
         if bool(chain_index) != bool(token_address):
             raise AssetConfigurationError(
                 "OKX_NVDAX_CHAIN_INDEX and OKX_NVDAX_TOKEN_ADDRESS must be configured together"
+            )
+        if chain_index and (
+            chain_index != config.okx_chain_index or token_address != config.token_address
+        ):
+            raise AssetConfigurationError(
+                "NVDAx deployment override does not match the registered Solana token identity"
             )
         reference_instrument = str(
             getattr(
@@ -155,8 +229,6 @@ def resolve_asset_config(asset: str, settings: Settings | None = None) -> AssetC
             )
         return replace(
             config,
-            okx_chain_index=chain_index or None,
-            token_address=token_address or None,
             reference_under_test_instrument=reference_instrument,
         )
 
@@ -168,13 +240,13 @@ def resolve_asset_config(asset: str, settings: Settings | None = None) -> AssetC
 
 
 def is_supported_asset(asset: str) -> bool:
-    """Return whether ``asset`` is explicitly enabled for production."""
+    """Return whether ``asset`` is included in the public asset catalog."""
 
     return asset in supported_asset_names()
 
 
 def resolve_historical_panel_path(config: AssetConfig, settings: Settings | None = None) -> Path:
-    """Resolve an explicitly registered panel key, never a global fallback."""
+    """Resolve an explicitly registered asset panel; never inherit NVDA's path."""
     if not config.capabilities.historical_data:
         raise AssetConfigurationError(f"historical data is unavailable for '{config.asset}'")
     registered = _HISTORICAL_PANEL_PATHS.get(config.historical_panel_key)
@@ -184,7 +256,22 @@ def resolve_historical_panel_path(config: AssetConfig, settings: Settings | None
         from valtide_api.config import get_settings
 
         settings = get_settings()
-    return registered[1](settings)
+    path = registered[1](settings)
+    if path is None:
+        raise AssetConfigurationError(f"historical panel is not configured for '{config.asset}'")
+    return path
+
+
+def historical_panel_available(config: AssetConfig, settings: Settings | None = None) -> bool:
+    try:
+        return resolve_historical_panel_path(config, settings).is_file()
+    except AssetConfigurationError:
+        return False
+
+
+def registered_asset_configs() -> tuple[AssetConfig, ...]:
+    """Return every registered identity, including non-public research candidates."""
+    return tuple(_ASSET_REGISTRY.values())
 
 
 __all__ = [
@@ -194,7 +281,9 @@ __all__ = [
     "AssetRegistryError",
     "UnsupportedAssetError",
     "is_supported_asset",
-    "production_asset_configs",
+    "historical_panel_available",
+    "api_asset_configs",
+    "registered_asset_configs",
     "resolve_asset_config",
     "resolve_historical_panel_path",
     "supported_asset_names",

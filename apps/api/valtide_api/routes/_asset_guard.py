@@ -24,12 +24,18 @@ def require_api_asset(asset: str, *capabilities: str) -> AssetConfig:
     if not config.capabilities.api_exposed:
         raise HTTPException(status_code=404, detail=f"asset '{asset}' not supported")
     for capability in capabilities:
-        if not getattr(config.capabilities, capability):
-            raise HTTPException(
-                status_code=503, detail=f"{capability} is unavailable for asset '{asset}'"
-            )
-        if capability == "quant" and not quant_runtime_available(config):
-            raise HTTPException(
-                status_code=503, detail=f"quant runtime is unavailable for asset '{asset}'"
-            )
+        if capability == "onchain" and not config.capabilities.onchain:
+            raise HTTPException(status_code=503, detail="ONCHAIN_NOT_CONFIGURED")
+        if capability == "quant":
+            if not config.capabilities.quant:
+                raise HTTPException(status_code=503, detail="MODEL_FIT_BLOCKED")
+            if not quant_runtime_available(config):
+                raise HTTPException(status_code=503, detail="QUANT_ARTIFACT_UNAVAILABLE")
+        if capability == "runtime" and not config.capabilities.runtime:
+            raise HTTPException(status_code=503, detail="RUNTIME_NOT_READY")
+        if capability == "live_data" and not config.capabilities.live_data:
+            raise HTTPException(status_code=503, detail="LIVE_DATA_UNAVAILABLE")
+        if capability == "historical_data":
+            if not config.capabilities.historical_data:
+                raise HTTPException(status_code=503, detail="HISTORICAL_DATA_UNAVAILABLE")
     return config

@@ -7,6 +7,7 @@ from datetime import UTC, datetime, timedelta
 from types import SimpleNamespace
 
 import valtide_api.scheduler as scheduler_module
+from valtide_api.config import Settings
 from valtide_api.live import ExactNvdaxCandleUnavailable, LiveDataUnavailable
 from valtide_api.models import MarketSnapshot, MarketState
 from valtide_api.publisher import PublicationError
@@ -63,6 +64,25 @@ def test_scheduler_worker_selection_is_explicit_and_single_asset(tmp_path, monke
     assert len(workers) == 1
     assert workers[0].asset == "NVDAx"
     assert build_enabled_schedulers(settings, store, assets=()) == ()
+
+
+def test_multi_worker_selection_skips_known_unready_asset_without_stopping_ready_one(
+    tmp_path, monkeypatch
+):
+    store = RuntimeStore(tmp_path / "runtime.sqlite3")
+    settings = Settings(
+        _env_file=None,
+        live_scheduler_enabled=True,
+        live_scheduler_asset="NVDAx",
+        live_scheduler_assets="NVDAx,SPYx",
+        auto_publish_enabled=False,
+    )
+    monkeypatch.setattr(scheduler_module, "get_settings", lambda: settings)
+
+    workers = build_enabled_schedulers(settings, store)
+
+    assert [worker.asset for worker in workers] == ["NVDAx"]
+    assert build_enabled_schedulers(settings, store, assets=("SPYx",)) == ()
 
 
 def test_wrong_asset_snapshot_is_not_persisted_or_published(tmp_path):

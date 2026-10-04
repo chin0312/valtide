@@ -30,7 +30,9 @@ def _write(tmp_path, contents: str = _CSV):
     return path
 
 
-def _pinned_settings(chain="501", address="0xtest"):
+def _pinned_settings(
+    chain="501", address="Xsc9qvGR1efVDFGLrVsmkzv3qi45LTBjeUKSPmx9qEh"
+):
     return Settings(
         _env_file=None,
         okx_nvdax_chain_index=chain,
@@ -221,7 +223,12 @@ _GENERIC_COLUMNS = (
 )
 
 
-def _generic_rows(asset="NVDAx", underlying="NVDA", chain="501", address="0xtest"):
+def _generic_rows(
+    asset="NVDAx",
+    underlying="NVDA",
+    chain="501",
+    address="Xsc9qvGR1efVDFGLrVsmkzv3qi45LTBjeUKSPmx9qEh",
+):
     prefix = f"{asset},{underlying},okx_onchainos,{chain},{address},NVDA-USD,closed"
     return [
         f"2026-09-20T14:00:00Z,{prefix},180.1,500,90000,TRUE,"
@@ -294,13 +301,20 @@ def test_legacy_normalization_matches_equivalent_canonical_snapshots(tmp_path):
 
 def test_generic_panel_rejects_missing_or_mismatched_identity(tmp_path):
     rows = _generic_rows()
+    settings = _pinned_settings()
     with pytest.raises(PanelIdentityError):
         changed = [row.replace(",NVDAx,", ",SPYx,") for row in rows]
-        load_panel_snapshots(_write(tmp_path, "\n".join([_GENERIC_COLUMNS, *changed]) + "\n"))
+        load_panel_snapshots(
+            _write(tmp_path, "\n".join([_GENERIC_COLUMNS, *changed]) + "\n"),
+            settings=settings,
+        )
     with pytest.raises(PanelIdentityError, match="identity fields"):
         changed = [row.replace(",NVDAx,", ",") for row in rows]
         header = _GENERIC_COLUMNS.replace("asset,", "")
-        load_panel_snapshots(_write(tmp_path, "\n".join([header, *changed]) + "\n"))
+        load_panel_snapshots(
+            _write(tmp_path, "\n".join([header, *changed]) + "\n"),
+            settings=settings,
+        )
 
 
 def test_generic_panel_rejects_wrong_reference_source(tmp_path):
@@ -313,16 +327,16 @@ def test_generic_panel_rejects_wrong_reference_source(tmp_path):
 
 
 @pytest.mark.parametrize(
-    ("identity_field", "wrong_value"),
+    ("identity_field", "wrong_value", "error"),
     [
-        ("asset", "SPYx"),
-        ("token_source", "another_token_source"),
-        ("token_chain_index", "999"),
-        ("token_address", "0xwrong"),
+        ("asset", "SPYx", "identity does not match"),
+        ("token_source", "another_token_source", "identity does not match"),
+        ("token_chain_index", "999", "token chain"),
+        ("token_address", "0xwrong", "token address"),
     ],
 )
 def test_hybrid_schema_cannot_hide_wrong_canonical_identity(
-    tmp_path, identity_field, wrong_value
+    tmp_path, identity_field, wrong_value, error
 ):
     fields = [*_GENERIC_COLUMNS.split(","), "nvda_close", "nvdax_close"]
     records = [row.split(",") for row in _generic_rows()]
@@ -330,7 +344,7 @@ def test_hybrid_schema_cannot_hide_wrong_canonical_identity(
         record[fields.index(identity_field)] = wrong_value
         record.extend(["180.0", "180.1"])
     lines = [",".join(fields), *(",".join(record) for record in records)]
-    with pytest.raises(PanelIdentityError, match="ambiguous hybrid"):
+    with pytest.raises(PanelIdentityError, match=error):
         load_panel_snapshots(_write(tmp_path, "\n".join(lines) + "\n"), settings=_pinned_settings())
 
 
@@ -367,7 +381,7 @@ def test_canonical_panel_requires_an_independent_pinned_deployment(tmp_path, mon
     )
     rows = _generic_rows()
     path = _write(tmp_path, "\n".join([_GENERIC_COLUMNS, *rows]) + "\n")
-    with pytest.raises(PanelIdentityError, match="deployment is unverified"):
+    with pytest.raises(PanelIdentityError, match="provenance is unverified"):
         load_panel_snapshots(path, settings=Settings(_env_file=None))
 
 
@@ -380,9 +394,18 @@ def test_canonical_panel_requires_an_independent_pinned_deployment(tmp_path, mon
 )
 def test_canonical_panel_rejects_wrong_pinned_deployment(tmp_path, chain, address, error):
     rows = _generic_rows()
-    path = _write(tmp_path, "\n".join([_GENERIC_COLUMNS, *rows]) + "\n")
+    fields = _GENERIC_COLUMNS.split(",")
+    records = [row.split(",") for row in rows]
+    identity_column = "token_chain_index" if error == "chain" else "token_address"
+    wrong_value = chain if error == "chain" else address
+    for record in records:
+        record[fields.index(identity_column)] = wrong_value
+    path = _write(
+        tmp_path,
+        "\n".join([_GENERIC_COLUMNS, *(",".join(row) for row in records)]) + "\n",
+    )
     with pytest.raises(PanelIdentityError, match=error):
-        load_panel_snapshots(path, settings=_pinned_settings(chain, address))
+        load_panel_snapshots(path, settings=_pinned_settings())
 
 
 def test_generic_panel_rejects_misdated_underlying_observation(tmp_path):

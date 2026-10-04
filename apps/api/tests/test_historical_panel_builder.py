@@ -4,6 +4,8 @@ from dataclasses import replace
 from datetime import UTC, datetime, timedelta
 from types import MappingProxyType
 
+import pytest
+
 # Ruff versions differ on whether the root-level script is first-party here.
 # isort: off
 import scripts.build_historical_panel as historical_panel
@@ -34,7 +36,8 @@ def test_panel_builder_preserves_grid_and_does_not_fill_token_or_reference():
 
     rows = build_rows(
         start, end, token, underlying, reference,
-        config=resolve_asset_config("NVDAx"), deployment=("501", "0xtest"),
+        config=resolve_asset_config("NVDAx"),
+        deployment=("501", "Xsc9qvGR1efVDFGLrVsmkzv3qi45LTBjeUKSPmx9qEh"),
     )
 
     assert len(rows) == 3
@@ -56,7 +59,10 @@ def test_panel_builder_fetches_underlying_lookback_for_anchor(monkeypatch, tmp_p
     monkeypatch.setattr(
         historical_panel.token_market,
         "get_historical_candles",
-        lambda *args: ([], ("196", "0xabc")),
+        lambda *args: (
+            [],
+            ("501", "Xsc9qvGR1efVDFGLrVsmkzv3qi45LTBjeUKSPmx9qEh"),
+        ),
     )
 
     def fake_stock_bars(symbol, fetch_start, fetch_end):
@@ -77,6 +83,22 @@ def test_panel_builder_fetches_underlying_lookback_for_anchor(monkeypatch, tmp_p
     assert requested_ranges == [("NVDA", start - timedelta(days=7), end)]
 
 
+def test_panel_builder_rejects_adapter_deployment_mismatch(monkeypatch, tmp_path):
+    start = datetime(2026, 9, 22, 14, 0, tzinfo=UTC)
+    monkeypatch.setattr(
+        historical_panel.token_market,
+        "get_historical_candles",
+        lambda *_args: ([], ("1", "0xcrosschain")),
+    )
+    monkeypatch.setattr(
+        historical_panel.market_sources,
+        "underlying_historical",
+        lambda *_args: pytest.fail("must reject before fetching/joining other sources"),
+    )
+    with pytest.raises(RuntimeError, match="does not match the registered identity"):
+        historical_panel.build_panel(start, start, tmp_path / "mismatch.csv")
+
+
 def test_weekend_row_uses_prior_friday_anchor_without_forward_fill(tmp_path):
     start = datetime(2026, 9, 19, 10, 0, tzinfo=UTC)
     friday_anchor = RawEquityBar(
@@ -92,7 +114,8 @@ def test_weekend_row_uses_prior_friday_anchor_without_forward_fill(tmp_path):
 
     rows = build_rows(
         start, start, token, [friday_anchor], reference,
-        config=resolve_asset_config("NVDAx"), deployment=("501", "0xtest"),
+        config=resolve_asset_config("NVDAx"),
+        deployment=("501", "Xsc9qvGR1efVDFGLrVsmkzv3qi45LTBjeUKSPmx9qEh"),
     )
     output = tmp_path / "weekend_panel.csv"
     historical_panel._write(output, rows)
@@ -101,7 +124,7 @@ def test_weekend_row_uses_prior_friday_anchor_without_forward_fill(tmp_path):
         settings=Settings(
             _env_file=None,
             okx_nvdax_chain_index="501",
-            okx_nvdax_token_address="0xtest",
+            okx_nvdax_token_address="Xsc9qvGR1efVDFGLrVsmkzv3qi45LTBjeUKSPmx9qEh",
         ),
     )
 
@@ -163,3 +186,50 @@ def test_builder_uses_synthetic_asset_sources_without_nvda_dispatch(monkeypatch,
     snapshots = load_panel_snapshots(path, asset="TESTx")
     assert [snapshot.asset for snapshot in snapshots] == ["TESTx"]
     assert snapshots[0].last_trusted_reference_ts == anchor.ts
+
+
+def test_primary_xstock_panel_uses_asset_bound_token_as_labelled_reference(
+    monkeypatch, tmp_path
+):
+    start = datetime(2026, 10, 2, 14, 0, tzinfo=UTC)
+    token = RawCandle(start, 500, 501, 499, 500.5, 1000, 500_500, 1)
+    anchor = RawEquityBar(start - timedelta(minutes=5), 499, 500, 498, 499.5, 1000)
+    current = RawEquityBar(start, 500, 502, 499, 501.0, 1200)
+    adapter_calls = []
+
+    def get_historical(config, first, last):
+        adapter_calls.append(("token", config.asset, config.okx_chain_index, config.token_address))
+        assert (first, last) == (start, start)
+        return [token], (config.okx_chain_index, config.token_address)
+
+    def underlying_historical(config, first, last):
+        adapter_calls.append(("underlying", config.asset, config.underlying_symbol))
+        assert (first, last) == (start - timedelta(days=7), start)
+        return [anchor, current]
+
+    monkeypatch.setattr(historical_panel.token_market, "get_historical_candles", get_historical)
+    monkeypatch.setattr(
+        historical_panel.market_sources, "underlying_historical", underlying_historical
+    )
+    monkeypatch.setattr(
+        historical_panel.market_sources,
+        "reference_historical",
+        lambda *_args, **_kwargs: pytest.fail("xStock profile must use its configured token input"),
+    )
+
+    output = tmp_path / "spyx-panel.csv"
+    assert historical_panel.build_panel(start, start, output, asset="SPYx") == 1
+    snapshots = load_panel_snapshots(output, asset="SPYx", settings=Settings(_env_file=None))
+
+    assert adapter_calls == [
+        ("token", "SPYx", "501", "XsoCS1TfEyfFhfvj8EtZ528L3CaKBDBRqRapnBbDF2W"),
+        ("underlying", "SPYx", "SPY"),
+    ]
+    assert snapshots[0].asset == "SPYx"
+    assert snapshots[0].token_price == 500.5
+    assert snapshots[0].reference_under_test == snapshots[0].token_price
+    assert snapshots[0].reference_under_test_source == "xstock_token_market"
+    assert snapshots[0].reference_profile == "xstock_vs_p1ac_challenger"
+    assert snapshots[0].source_provenance["reference_independence"] == (
+        "same_xstock_input_assimilated_by_p1a"
+    )

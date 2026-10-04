@@ -1,5 +1,6 @@
 """Asset-registry, dispatch, and cross-asset isolation tests."""
 
+import json
 from dataclasses import replace
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
@@ -19,7 +20,6 @@ from valtide_api.assets import (
 from valtide_api.config import Settings
 from valtide_api.main import app
 from valtide_api.models import MarketSnapshot, MarketState
-from valtide_api.panel import load_panel_snapshots
 from valtide_api.publisher import build_attestation, load_deployment_config
 from valtide_api.quant_runtime import estimate, get_quant_service, resolve_quant_runtime
 from valtide_api.replay import run_inference
@@ -54,15 +54,17 @@ def _snapshot(asset: str = "NVDAx") -> MarketSnapshot:
     )
 
 
-def test_registry_contains_only_nvdax_production_asset():
-    assert supported_asset_names() == ("NVDAx",)
+def test_registry_exposes_four_primary_assets_and_keeps_tsla_as_hidden_candidate():
+    assert supported_asset_names() == ("NVDAx", "SPYx", "QQQx", "AAPLx")
+    assert "TSLAx" in {config.asset for config in assets_module.registered_asset_configs()}
+    assert not assets_module.is_supported_asset("TSLAx")
 
 
 def test_nvdax_config_keeps_existing_env_backed_bindings():
     settings = Settings(
         _env_file=None,
         okx_nvdax_chain_index="501",
-        okx_nvdax_token_address="0x" + "ab" * 20,
+        okx_nvdax_token_address="Xsc9qvGR1efVDFGLrVsmkzv3qi45LTBjeUKSPmx9qEh",
         okx_xperp_index_id="NVDA-USD",
     )
 
@@ -76,13 +78,79 @@ def test_nvdax_config_keeps_existing_env_backed_bindings():
     assert resolve_quant_runtime(config).model_id == "P1a-C"
     assert resolve_quant_runtime(config).model_version == "0.2.0"
     assert config.okx_chain_index == "501"
+    assert config.token_address == "Xsc9qvGR1efVDFGLrVsmkzv3qi45LTBjeUKSPmx9qEh"
+    assert config.allow_token_discovery is False
+
+
+def test_nvdax_defaults_to_registered_solana_pin_and_rejects_cross_chain_override():
+    config = resolve_asset_config("NVDAx", Settings(_env_file=None))
+    assert (config.okx_chain_index, config.token_address) == (
+        "501",
+        "Xsc9qvGR1efVDFGLrVsmkzv3qi45LTBjeUKSPmx9qEh",
+    )
+    with pytest.raises(AssetConfigurationError, match="does not match the registered Solana"):
+        resolve_asset_config(
+            "NVDAx",
+            Settings(
+                _env_file=None,
+                okx_nvdax_chain_index="1",
+                okx_nvdax_token_address="0xc845b2894dbddd03858fd2d643b4ef725fe0849d",
+            ),
+        )
 
 
 def test_unknown_asset_fails_closed_before_source_or_artifact_selection():
     with pytest.raises(UnsupportedAssetError):
-        resolve_asset_config("SPYx", Settings(_env_file=None))
+        resolve_asset_config("FOOx", Settings(_env_file=None))
     with pytest.raises(UnsupportedAssetError):
-        get_quant_service("SPYx")
+        get_quant_service("FOOx")
+
+
+@pytest.mark.parametrize(
+    ("asset", "underlying", "address"),
+    [
+        ("SPYx", "SPY", "XsoCS1TfEyfFhfvj8EtZ528L3CaKBDBRqRapnBbDF2W"),
+        ("QQQx", "QQQ", "Xs8S1uUs1zvS2p7iwtsG3b6fkhpvmwz4GYU3gWAmWHZ"),
+        ("AAPLx", "AAPL", "XsbEhLAtcf6HdfpFZ5xEMdqW8nfAvcsP5bdudRLJzJp"),
+    ],
+)
+def test_primary_token_bindings_are_asset_specific_and_unfitted(asset, underlying, address):
+    config = resolve_asset_config(asset, Settings(_env_file=None))
+
+    assert (config.underlying_symbol, config.okx_chain_index, config.token_address) == (
+        underlying,
+        "501",
+        address,
+    )
+    assert config.reference_profile == "xstock_vs_p1ac_challenger"
+    assert config.reference_under_test_instrument == asset
+    assert config.allow_token_discovery is False
+    assert config.capabilities.quant is False
+    assert config.capabilities.runtime is False
+    with pytest.raises(AssetConfigurationError, match="quant runtime is unavailable"):
+        get_quant_service(asset)
+
+
+def test_registered_token_identity_matches_research_data_manifest():
+    manifest = json.loads(
+        (REPO_ROOT / "quant" / "data_manifest" / "datasets_manifest.json").read_text()
+    )
+    manifest_by_asset = {row["asset_id"]: row for row in manifest}
+
+    for asset in ("NVDAx", "SPYx", "QQQx", "AAPLx", "TSLAx"):
+        source_identity = manifest_by_asset[asset]
+        overrides = {}
+        if asset == "NVDAx":
+            # Its legacy names remain environment-backed; pin the exact public
+            # manifest identity in this test rather than invoking discovery.
+            overrides = {
+                "okx_nvdax_chain_index": str(source_identity["chain_index"]),
+                "okx_nvdax_token_address": source_identity["token_address"],
+            }
+        config = resolve_asset_config(asset, Settings(_env_file=None, **overrides))
+        assert config.okx_chain_index == str(source_identity["chain_index"]) == "501"
+        assert config.token_address == source_identity["token_address"]
+        assert config.underlying_symbol == source_identity["underlying_symbol"]
 
 
 def test_partial_nvdax_deployment_binding_is_not_accepted():
@@ -99,7 +167,11 @@ def test_quant_runtime_metadata_is_artifact_owned_and_registry_drives_api(monkey
     config = resolve_asset_config("NVDAx", Settings(_env_file=None))
     spec = resolve_quant_runtime(config)
     assert (spec.asset, spec.model_id, spec.model_version) == ("NVDAx", "P1a-C", "0.2.0")
-    assert [(item.asset, item.model_available) for item in list_assets()] == [("NVDAx", True)]
+    listed = list_assets()
+    assert [item.asset for item in listed] == ["NVDAx", "SPYx", "QQQx", "AAPLx"]
+    assert listed[0].model_available is True
+    assert all(not item.model_available for item in listed[1:])
+    assert all(not item.live_market_data_available for item in listed[1:])
     monkeypatch.setattr(quant_runtime, "_QUANT_RUNTIME_FACTORIES", MappingProxyType({}))
     assert list_assets()[0].model_available is False
     assert TestClient(app).get("/api/valuation/NVDAx/live").status_code == 503
@@ -108,7 +180,7 @@ def test_quant_runtime_metadata_is_artifact_owned_and_registry_drives_api(monkey
 def test_incomplete_synthetic_capabilities_do_not_activate_production_layers():
     config = resolve_asset_config("NVDAx", Settings(_env_file=None))
     synthetic = replace(
-        config, asset="TESTx", underlying_symbol="TEST", production_enabled=True,
+        config, asset="TESTx", underlying_symbol="TEST",
         quant_runtime_key="nvdax_p1ac_default", historical_panel_key="unregistered",
         capabilities=replace(config.capabilities, api_exposed=False, runtime=False, onchain=False),
     )
@@ -137,7 +209,7 @@ def test_api_exposure_and_capabilities_are_independent(monkeypatch):
     )
     client = TestClient(app)
     assert client.get("/api/runtime/TESTx").status_code == 404
-    assert [item["asset"] for item in client.get("/api/assets").json()] == ["NVDAx"]
+    assert "TESTx" not in [item["asset"] for item in client.get("/api/assets").json()]
 
     monkeypatch.setattr(
         assets_module, "_ASSET_REGISTRY",
@@ -145,18 +217,27 @@ def test_api_exposure_and_capabilities_are_independent(monkeypatch):
             "NVDAx": assets_module._NVDA_CONFIG,
             "TESTx": replace(
                 synthetic,
-                capabilities=replace(synthetic.capabilities, api_exposed=True),
+                capabilities=replace(
+                    synthetic.capabilities,
+                    api_exposed=True,
+                    live_data=True,
+                    quant=False,
+                ),
             ),
         }),
     )
-    assert client.get("/api/runtime/TESTx").status_code == 503
-    assert client.get("/api/onchain/TESTx").status_code == 503
-    assert client.get("/api/valuation/TESTx/live").status_code == 503
+    runtime = client.get("/api/runtime/TESTx")
+    assert runtime.status_code == 200
+    assert runtime.json()["scheduler_enabled"] is False
+    assert client.get("/api/onchain/TESTx").json()["detail"] == "ONCHAIN_NOT_CONFIGURED"
+    assert client.get("/api/valuation/TESTx/live").json()["detail"] == "MODEL_FIT_BLOCKED"
 
 
 def test_historical_panel_loader_cannot_inherit_nvdax_path_for_unknown_asset(tmp_path):
-    with pytest.raises(UnsupportedAssetError):
-        load_panel_snapshots(tmp_path / "missing.csv", asset="SPYx")
+    settings = Settings(_env_file=None, historical_panel_path=tmp_path / "nvdax.csv")
+    spy = resolve_asset_config("SPYx", settings)
+    with pytest.raises(AssetConfigurationError, match="not configured for 'SPYx'"):
+        assets_module.resolve_historical_panel_path(spy, settings)
 
 
 def test_state_store_keeps_synthetic_asset_keys_independent():

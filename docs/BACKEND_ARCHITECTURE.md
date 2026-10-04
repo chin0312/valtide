@@ -35,11 +35,11 @@ quality checks, determines Evidence State, and exposes reason codes.
 ```text
 predict prior state
       ↓
-assimilate current NVDAx/token observation when available
+assimilate current asset token observation when available
       ↓
 read challenger fair value and interval
       ↓
-assimilate current NVDA only for the next timestamp
+assimilate current underlying only for the next timestamp
       ↓
 backend validates the selected reference under test
 ```
@@ -51,11 +51,15 @@ advances without a fabricated measurement and backend validation returns
 
 ## 3. Reference-under-test semantics
 
-The reference under test is an explicitly named observation, not a fallback
-slot. In live mode the intended reference is the OKX X-Perp index. If it cannot
-be fetched, the snapshot keeps that identity with a null value and validation
-returns `INCONCLUSIVE` with `COMPARATOR_UNAVAILABLE`. The backend never silently
-replaces it with stale NVDA.
+The reference under test is an explicitly named profile, not a fallback slot.
+NVDAx retains the legacy `legacy_xperp_vs_p1ac` profile using the confirmed
+OKX X-Perp index. The four-asset catalog declares
+`xstock_vs_p1ac_challenger`, where the observed token candle is compared with a
+P1a challenger that has already assimilated that same token observation. This
+is not an independent-source comparison; disagreement is not proof of which
+price is correct. Each result carries its `reference_profile` and source
+provenance. A missing configured reference is not replaced with another asset
+or another source.
 
 Historical replay may explicitly use `stale_nvda` or a scenario reference; the
 identity is then part of the snapshot and is valid for that replay.
@@ -72,7 +76,7 @@ underlying-reference freshness, reference-under-test freshness, token
 availability/quality, and model uncertainty.
 
 ```text
-SUPPORTED      independent evidence provides no material reason to challenge
+SUPPORTED      available evidence provides no material reason to challenge
 INCONCLUSIVE   evidence is unavailable, weak, stale, or unresolved
 CHALLENGED     sufficiently strong evidence materially contradicts the reference
 ```
@@ -87,15 +91,15 @@ must remain visible rather than being described as directly observed coverage.
 ## 5. Where each piece lives
 
 ```text
-config.py        settings from .env and CORS origins
-assets.py        NVDAx-only registry, capabilities, and panel-key resolution
+config.py        settings, backward-compatible NVDA env names, worker selection
+assets.py        four-asset API catalog, readiness capabilities, panel-key resolution
 token_market.py  token candle adapter registry and exact-candle dispatch
 market_sources.py underlying/reference adapter registry
 models.py        MarketSnapshot, ChallengerEstimate, ValuationResult, enums
 
 adapters/
   okx.py         configured OnchainOS token candles (NVDAx compatibility wrappers)
-  equity.py      latest available trusted NVDA bar
+  equity.py      latest available trusted configured underlying bar
   reference.py   OKX X-Perp reference under test
   dexscreener.py optional NVDAx diagnostic quote
 
@@ -109,7 +113,7 @@ data_source.py   panel/scenario source selection
 replay.py        sequential quant + validation pipeline
 live.py          cold-start live diagnostic
 clock.py         canonical UTC five-minute boundaries
-scheduler.py     explicit asset workers; NVDAx alone is enabled today
+scheduler.py     explicitly selected, isolated asset workers; only ready bundles start
 runtime_store.py SQLite state/result and publication status persistence
 history.py      read-only warmed operational history
 state_store.py   in-memory compatibility cache for non-HTTP callers
@@ -153,9 +157,10 @@ and `502` for a chain, transaction, or read-back failure.
 - Historical-panel backtests report metrics only for rows with a real
   contemporaneous underlying observation. Scenario backtests report evidence
   counts only and deliberately keep empirical metrics null.
-- The canonical live token input is the exact confirmed OKX OnchainOS NVDAx
-  candle at the settled five-minute observation. DexScreener is not substituted
-  when that candle is unavailable; its adapter is diagnostic-only.
+- The canonical live token input is the exact confirmed OKX OnchainOS candle
+  for the selected asset at the settled five-minute observation. DexScreener is
+  not a fallback. NVDAx remains on its original X-Perp profile; the other
+  catalog assets use the explicitly labelled xStock-versus-challenger profile.
 - Operational history is the chronological sequence of successful warmed
   scheduler validations. It is distinct from scenario replay and historical
   backtest metrics.
@@ -176,12 +181,19 @@ and `502` for a chain, transaction, or read-back failure.
   delivery while leaving the manual route disabled. A successful write is
   followed by Registry and RiskGuard read-back verification.
 
-Asset support is explicit and registry-backed. The production registry currently
-contains only `NVDAx`; `/api/assets`, source/model dispatch, historical-panel
-resolution, scheduler identity, and X Layer reads use the requested registered
-asset. Unknown assets return `404`, while a binding or deployment mismatch
-fails closed rather than receiving NVDAx defaults. See
-`docs/ASSET_INTEGRATION_FOUNDATION.md` for the future promotion checklist.
+Asset identity and public catalog exposure are registry-backed. The API
+catalog lists `NVDAx`, `SPYx`, `QQQx`, and `AAPLx`; `TSLAx` remains a hidden
+candidate. `/api/assets` reports live, quant, historical, scheduler, and
+onchain readiness independently. Only NVDAx currently has a complete
+registered P1a-C runtime and X Layer binding. SPYx/QQQx/AAPLx have pinned
+Solana token identities and source-adapter seams but no verified compatible
+P1a-C bundles or matching restored canonical panels, so valuation/replay do
+not fabricate results or fall back to NVDAx. Legacy single-worker
+`LIVE_SCHEDULER_ASSET` configuration remains supported; an explicit
+`LIVE_SCHEDULER_ASSETS` list may select multiple independently ready workers.
+Unready known assets are not started. Unknown assets and cross-asset identities
+fail closed. See `docs/ASSET_INTEGRATION_FOUNDATION.md` for readiness evidence
+and the promotion procedure.
 
 ## 8. Run locally
 

@@ -12,9 +12,9 @@ router = APIRouter(prefix="/api", tags=["onchain"])
 
 @router.get("/onchain/{asset}")
 def get_onchain(asset: str) -> dict:
-    require_api_asset(asset, "quant", "onchain")
+    require_api_asset(asset, "onchain", "quant")
     try:
-        return publisher.read_control_plane(asset=asset)
+        return {"asset": asset, **publisher.read_control_plane(asset=asset)}
     except publisher.PublisherNotConfigured as exc:
         raise HTTPException(status_code=503, detail=str(exc)) from exc
     except publisher.ChainPreflightError as exc:
@@ -23,9 +23,9 @@ def get_onchain(asset: str) -> dict:
 
 @router.get("/onchain/{asset}/enforcement")
 def get_onchain_enforcement(asset: str) -> dict:
-    require_api_asset(asset, "quant", "onchain")
+    require_api_asset(asset, "onchain", "quant")
     try:
-        return publisher.check_demo_vault_enforcement(asset=asset)
+        return {"asset": asset, **publisher.check_demo_vault_enforcement(asset=asset)}
     except publisher.PublisherNotConfigured as exc:
         raise HTTPException(status_code=503, detail=str(exc)) from exc
     except publisher.ChainPreflightError as exc:

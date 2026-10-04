@@ -135,7 +135,7 @@ def test_onchain_status_returns_mocked_control_plane(monkeypatch):
     response = client.get("/api/onchain/NVDAx")
 
     assert response.status_code == 200
-    assert response.json() == expected
+    assert response.json() == {"asset": "NVDAx", **expected}
 
 
 def test_onchain_status_rejects_unsupported_asset():
@@ -144,7 +144,8 @@ def test_onchain_status_rejects_unsupported_asset():
     assert response.status_code == 404
 
 
-def test_onchain_status_rejects_unregistered_research_asset():
+def test_onchain_status_reports_missing_deployment_for_registered_candidate():
     response = client.get("/api/onchain/SPYx")
 
-    assert response.status_code == 404
+    assert response.status_code == 503
+    assert response.json()["detail"] == "ONCHAIN_NOT_CONFIGURED"

@@ -8,6 +8,7 @@ import { coverageLabel, money, dateTimeUTC } from "../lib/format";
 import { advancePosition, clampPosition } from "../lib/playback";
 
 export function HistoricalReplay({
+  asset,
   results,
   position,
   setPosition,
@@ -22,6 +23,7 @@ export function HistoricalReplay({
   rangeControl,
   periodMs = 120,
 }: {
+  asset: string;
   results: ValuationResult[];
   position: number;
   setPosition: Dispatch<SetStateAction<number>>;
@@ -67,7 +69,7 @@ export function HistoricalReplay({
 
   return (
     <Panel
-      title="NVDAx Valuation Signal"
+      title={`${asset} Valuation Signal`}
       icon="signal"
       className="flex h-full min-w-0 flex-col"
       right={<span className="rounded px-2 py-1 font-mono text-[10px] uppercase tracking-[0.04em]" style={{ color: "var(--color-accent)", background: "var(--color-accent-soft)", border: "1px solid var(--color-line)" }}>{sourceLabel}</span>}
