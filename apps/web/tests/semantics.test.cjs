@@ -12,6 +12,7 @@ const { filterOperationalResults, filterHistoricalResults, filterDemoResults } =
 const { mergeObservations, rebasePosition } = load("../src/lib/playback.ts");
 const { ReasonCodes } = load("../src/components/ReasonCodes.tsx");
 const { RegistryPanel } = load("../src/components/RegistryPanel.tsx");
+const { ReferenceComparison } = load("../src/views/ReferenceComparison.tsx");
 const { ObservationAudit } = load("../src/components/ObservationAudit.tsx");
 const { Hero } = load("../src/components/Hero.tsx");
 const { LandingPage } = load("../src/components/LandingPage.tsx");
@@ -52,8 +53,36 @@ test("Historical rejects absent/wrong provenance and scenario backtest metrics",
     assert.deepEqual((await client.fetchHistoricalReplay()).results, fixture);
     global.fetch = async () => new Response(JSON.stringify({source:"scenario"}));
     await assert.rejects(client.fetchHistoricalBacktest(), /source could not be verified/);
-    global.fetch = async () => new Response(JSON.stringify({source:"historical"}));
+    global.fetch = async () => new Response(JSON.stringify({asset:"NVDAx",source:"historical"}));
     assert.equal((await client.fetchHistoricalBacktest()).source, "historical");
+  } finally { global.fetch = original; }
+});
+
+test("asset-aware request functions and query keys cannot reuse another asset", async () => {
+  assert.notDeepEqual(
+    client.assetQueryKeys.operational("NVDAx", "legacy_xperp_vs_p1ac"),
+    client.assetQueryKeys.operational("SPYx", "xstock_vs_p1ac_challenger"),
+  );
+  assert.notDeepEqual(
+    client.assetQueryKeys.history("NVDAx", 72, "legacy_xperp_vs_p1ac"),
+    client.assetQueryKeys.history("SPYx", 72, "xstock_vs_p1ac_challenger"),
+  );
+
+  const original = global.fetch;
+  let requestedUrl;
+  try {
+    global.fetch = async url => {
+      requestedUrl = String(url);
+      return new Response(JSON.stringify({...fixture[0], asset:"SPYx"}));
+    };
+    assert.equal((await client.fetchOperationalValuation("SPYx")).asset, "SPYx");
+    assert.match(requestedUrl, /\/api\/valuation\/SPYx$/);
+
+    global.fetch = async () => new Response(JSON.stringify(fixture[0]));
+    await assert.rejects(client.fetchOperationalValuation("SPYx"), /returned NVDAx for requested asset SPYx/);
+
+    global.fetch = async () => new Response(JSON.stringify({asset:"NVDAx"}));
+    await assert.rejects(client.fetchRuntime("SPYx"), /returned NVDAx runtime for SPYx/);
   } finally { global.fetch = original; }
 });
 
@@ -76,13 +105,24 @@ test("Asynchronous polling retains newest results and anchors replay by timestam
   assert.equal(rebasePosition(1.5,rows,fixture.slice(1)),0.5);
 });
 
-function appWith({result, rows, chain, error} = {}) {
+function appWith({result, rows, chain, error, assetList, profile = "legacy_xperp_vs_p1ac"} = {}) {
   const query = new QueryClient({defaultOptions:{queries:{retry:false,retryOnMount:false}}});
-  query.setQueryData(["demo-replay","canonical"],{results:fixture,source:"offline-fixture"});
-  if (result) query.setQueryData(["valuation","operational","NVDAx"],result);
-  if (rows) query.setQueryData(["history","NVDAx",288],rows);
-  if (chain) query.setQueryData(["onchain","NVDAx"],chain);
-  if (error) query.getQueryCache().build(query,{queryKey:["valuation","operational","NVDAx"]}).setState({status:"error",error:new Error(error),fetchStatus:"idle"});
+  query.setQueryData(["health"],true);
+  query.setQueryData(["assets"],assetList ?? [{
+    asset:"NVDAx",token_source:"okx_onchainos",underlying_source:"alpaca",
+    reference_profile:profile,registered:true,api_exposed:true,model_available:true,
+    quant_artifact_ready:true,historical_data_available:true,live_data_configured:true,
+    runtime_ready:true,operational_ready:true,operational_scheduler_enabled:true,
+    latest_observation_timestamp:null,latest_observation_age_seconds:null,
+    latest_observation_freshness:"unavailable",onchain_binding_configured:true,
+    readiness_error_codes:[],
+  }]);
+  query.setQueryData(["demo-replay","NVDAx","canonical"],{results:fixture,source:"offline-fixture"});
+  const operationalKey = client.assetQueryKeys.operational("NVDAx",profile);
+  if (result) query.setQueryData(operationalKey,result);
+  if (rows) query.setQueryData(client.assetQueryKeys.history("NVDAx",288,profile),rows);
+  if (chain) query.setQueryData(client.assetQueryKeys.onchain("NVDAx"),{asset:"NVDAx",...chain});
+  if (error) query.getQueryCache().build(query,{queryKey:operationalKey}).setState({status:"error",error:new Error(error),fetchStatus:"idle"});
   const html = renderToStaticMarkup(h(QueryClientProvider,{client:query},h(App)));
   query.clear();
   return html;
@@ -155,7 +195,7 @@ test("Landing model proof stays synchronized with the checked-in evaluation repo
 
 test("Documentation adapts by role and keeps evidence, policy and scope separate", () => {
   const html = render(DocsPage);
-  for (const value of ["SUPPORTED", "INCONCLUSIVE", "CHALLENGED", "Operational", "Historical", "Demo", "NVDAx / NVDA", "SPYx · not onboarded"]) assert.match(html, new RegExp(value));
+  for (const value of ["SUPPORTED", "INCONCLUSIVE", "CHALLENGED", "Operational", "Historical", "Demo", "NVDAx / NVDA", "SPYx · not operationally onboarded"]) assert.match(html, new RegExp(value));
   assert.match(html, /Valtide.*determines the Evidence State/);
   assert.match(html, /Curators.*define the Policy Action/);
   assert.match(html, /complete guide below updates/);
@@ -170,7 +210,7 @@ test("Documentation adapts by role and keeps evidence, policy and scope separate
   assert.match(html, /aria-selected="true"/);
   assert.match(html, /role="tabpanel"/);
   assert.match(html, /Open the demo result/);
-  assert.match(html, /current NVDAx deployment, this is the OKX X-Perp NVDA index/);
+  assert.match(html, /NVDAx uses the OKX X-Perp NVDA index/);
   assert.match(html, /Whether an attestation remains valid under both its valid-until time and the policy owner’s maximum age/);
   assert.match(html, /Structured backend explanations for an Evidence State, preserved by the frontend without recomputation/);
   for (const term of ["Evidence context", "Trusted anchor", "Market state"]) assert.match(html, new RegExp(term));
@@ -184,6 +224,31 @@ test("Cold Operational stays unavailable even when Demo is cached", () => {
   const html = appWith({error:"503 data_unavailable"});
   assert.match(html,/Operational unavailable/);
   assert.doesNotMatch(html,/Demo Fixture · 6 Observations|Scenario policy|Example demo policy/);
+});
+
+test("Validation Console exposes the four catalog identities without implying readiness", () => {
+  const base = {
+    token_source:"okx_onchainos",underlying_source:"alpaca",registered:true,
+    api_exposed:true,model_available:false,quant_artifact_ready:false,
+    historical_data_available:false,live_data_configured:true,runtime_ready:false,
+    operational_ready:false,operational_scheduler_enabled:false,
+    latest_observation_timestamp:null,latest_observation_age_seconds:null,
+    latest_observation_freshness:"unavailable",onchain_binding_configured:false,
+    readiness_error_codes:["MODEL_FIT_BLOCKED"],
+  };
+  const catalog = [
+    ["NVDAx","legacy_xperp_vs_p1ac"],
+    ["SPYx","xstock_vs_p1ac_challenger"],
+    ["QQQx","xstock_vs_p1ac_challenger"],
+    ["AAPLx","xstock_vs_p1ac_challenger"],
+  ].map(([asset,reference_profile]) => ({...base,asset,reference_profile}));
+  const html = appWith({assetList:catalog});
+  assert.match(html,/aria-label="Selected asset"/);
+  for (const asset of ["NVDAx","SPYx","QQQx","AAPLx"]) {
+    assert.match(html,new RegExp(`<option[^>]*>${asset}<\\/option>`));
+  }
+  assert.match(html,/MODEL_FIT_BLOCKED/);
+  assert.match(html,/No other asset/);
 });
 
 test("Operational failure preserves cached evidence with a degraded label", () => {
@@ -219,6 +284,33 @@ test("Null reference, all reasons and unavailable policy remain truthful", () =>
   for (const code of result.reason_codes) assert.ok(html.includes(code));
   assert.match(html,/UNAVAILABLE/);
   assert.match(render(ReasonCodes,{codes:result.reason_codes,evidenceState:result.evidence_state}),/Global fallback calibration/);
+});
+
+test("xStock comparison is labelled model-based evidence, not independent observations", () => {
+  const xstock = render(ReferenceComparison, {
+    r: {...fixture[0], reference_profile:"xstock_vs_p1ac_challenger"},
+  });
+  assert.match(xstock, /Model-based challenger evidence/);
+  assert.match(xstock, /P1a assimilates this same xStock observation/);
+  assert.match(xstock, /not two fully independent observations/);
+
+  const legacy = render(ReferenceComparison, {
+    r: {...fixture[0], reference_profile:"legacy_xperp_vs_p1ac"},
+  });
+  assert.match(legacy, /separate OKX X-Perp index/);
+  assert.doesNotMatch(legacy, /xStock observation/);
+});
+
+test("Decision summary explains xStock dependence while retaining the legacy profile", () => {
+  const xstock = appWith({
+    result: {...fixture[0], reference_profile:"xstock_vs_p1ac_challenger"},
+    profile:"xstock_vs_p1ac_challenger",
+  });
+  assert.match(xstock, /Model-based challenger evidence supports the observed xStock price/);
+  assert.match(xstock, /not two fully independent observations/);
+
+  const legacy = appWith({result: {...fixture[0], reference_profile:"legacy_xperp_vs_p1ac"}});
+  assert.match(legacy, /Available independent evidence/);
 });
 
 test("Observation and delivery audit survives unavailable X Layer reads", () => {

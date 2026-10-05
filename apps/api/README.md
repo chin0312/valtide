@@ -81,11 +81,16 @@ failure leaves the warmed valuation intact and does not stop the scheduler. The
 publisher performs chain-ID, bytecode, linkage, policy,
 publisher-authorization, monotonic-observation, transaction, and read-back
 checks. API reads, replay, and cold diagnostics never publish.
-The canonical live token observation is an exact confirmed OKX OnchainOS NVDAx
-five-minute candle at the settled scheduler timestamp; DexScreener remains
-available only for diagnostics or future cross-checks. `GET /api/history/{asset}`
-returns only successful warmed scheduler results and is not a backtest or
-scenario replay.
+The current operational token observation is an exact confirmed OKX OnchainOS
+NVDAx five-minute candle at the settled scheduler timestamp; DexScreener remains
+diagnostic-only. The API catalog also exposes SPYx, QQQx, and AAPLx identities
+with separate readiness fields, but these assets currently lack verified
+Solana-matched model bundles and historical panels and therefore return an
+explicit unavailable state rather than NVDAx values. NVDAx retains its OKX
+X-Perp reference profile. The catalog's xStock-versus-challenger profile reuses
+the token observation after assimilation and is not an independent-source
+comparison. `GET /api/history/{asset}` returns only successful warmed scheduler
+results and is not a backtest or scenario replay.
 
 ## Layout
 

@@ -5,17 +5,16 @@ from __future__ import annotations
 from fastapi import APIRouter, HTTPException
 
 from valtide_api import publisher
-from valtide_api.models import SUPPORTED_ASSETS
+from valtide_api.routes._asset_guard import require_api_asset
 
 router = APIRouter(prefix="/api", tags=["onchain"])
 
 
 @router.get("/onchain/{asset}")
 def get_onchain(asset: str) -> dict:
-    if asset not in SUPPORTED_ASSETS:
-        raise HTTPException(status_code=404, detail=f"asset '{asset}' not supported")
+    require_api_asset(asset, "onchain", "quant")
     try:
-        return publisher.read_control_plane()
+        return {"asset": asset, **publisher.read_control_plane(asset=asset)}
     except publisher.PublisherNotConfigured as exc:
         raise HTTPException(status_code=503, detail=str(exc)) from exc
     except publisher.ChainPreflightError as exc:
@@ -24,10 +23,9 @@ def get_onchain(asset: str) -> dict:
 
 @router.get("/onchain/{asset}/enforcement")
 def get_onchain_enforcement(asset: str) -> dict:
-    if asset not in SUPPORTED_ASSETS:
-        raise HTTPException(status_code=404, detail=f"asset '{asset}' not supported")
+    require_api_asset(asset, "onchain", "quant")
     try:
-        return publisher.check_demo_vault_enforcement()
+        return {"asset": asset, **publisher.check_demo_vault_enforcement(asset=asset)}
     except publisher.PublisherNotConfigured as exc:
         raise HTTPException(status_code=503, detail=str(exc)) from exc
     except publisher.ChainPreflightError as exc:

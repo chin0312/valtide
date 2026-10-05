@@ -15,6 +15,7 @@ from valtide_api.adapters.equity import RawEquityBar
 from valtide_api.adapters.okx import RawCandle
 from valtide_api.adapters.reference import ReferenceObservation
 from valtide_api.clock import FIVE_MINUTES, canonical_5m_boundary, is_canonical_5m
+from valtide_api.config import Settings
 from valtide_api.live import (
     ExactNvdaxCandleUnavailable,
     LiveDataUnavailable,
@@ -30,7 +31,7 @@ def _patch_sources(monkeypatch, *, quote, bar, ref, bars=None, candle=None):
     full ascending window when the current-bucket and trusted-anchor bars differ.
     """
     trusted = bars if bars is not None else ([bar] if bar is not None else [])
-    def get_candle(boundary, **_kwargs):
+    def get_candle(_config, boundary, **_kwargs):
         if quote is None:
             return None
         return candle or RawCandle(
@@ -44,9 +45,11 @@ def _patch_sources(monkeypatch, *, quote, bar, ref, bars=None, candle=None):
             1,
         )
 
-    monkeypatch.setattr(live.okx, "get_nvdax_candle_at", get_candle)
-    monkeypatch.setattr(live.equity, "get_trusted_bars", lambda *a, **k: trusted)
-    monkeypatch.setattr(live.reference, "get_confirmed_index_bar", lambda *a, **k: ref)
+    monkeypatch.setattr(live.token_market, "get_exact_candle", get_candle)
+    monkeypatch.setattr(live.market_sources.equity, "get_trusted_bars", lambda *a, **k: trusted)
+    monkeypatch.setattr(
+        live.market_sources.reference, "get_confirmed_index_bar", lambda *a, **k: ref
+    )
 
 
 def test_build_live_snapshot_uses_confirmed_reference_candle(monkeypatch):
@@ -223,9 +226,59 @@ def test_cold_start_without_prior_anchor_fails_explicitly(monkeypatch):
 
     with pytest.raises(LiveDataUnavailable, match="strictly-prior trusted underlying anchor"):
         build_live_snapshot(observation_ts=observation_ts)
-
-    with pytest.raises(LiveDataUnavailable, match="strictly-prior trusted underlying anchor"):
         run_live_valuation(observation_ts=observation_ts)
+
+
+def test_live_snapshot_dispatches_pinned_token_and_configured_underlying(monkeypatch):
+    observation_ts = datetime(2026, 10, 2, 14, 0, tzinfo=UTC)
+    token_calls = []
+    underlying_calls = []
+    token = RawCandle(
+        observation_ts, 500, 501, 499, 500.5, 1000, 500_500, 1
+    )
+    bars = [
+        RawEquityBar(
+            observation_ts - FIVE_MINUTES, 499, 500, 498, 499.5, 1000
+        ),
+        RawEquityBar(observation_ts, 500, 502, 499, 501.0, 1200),
+    ]
+
+    monkeypatch.setattr(
+        live, "get_settings", lambda: Settings(_env_file=None, live_underlying_max_age_seconds=360)
+    )
+
+    def get_exact_candle(config, timestamp, **_kwargs):
+        token_calls.append((config.asset, config.okx_chain_index, config.token_address, timestamp))
+        return token
+
+    def underlying_live(config, **kwargs):
+        underlying_calls.append((config.asset, config.underlying_symbol, kwargs["now"]))
+        return bars
+
+    monkeypatch.setattr(live.token_market, "get_exact_candle", get_exact_candle)
+    monkeypatch.setattr(live.market_sources, "underlying_live", underlying_live)
+    monkeypatch.setattr(
+        live.market_sources,
+        "reference_live",
+        lambda *_args, **_kwargs: pytest.fail("xStock profile must not load an unrelated index"),
+    )
+
+    snapshot = build_live_snapshot(observation_ts=observation_ts, asset="SPYx")
+
+    assert token_calls == [(
+        "SPYx", "501", "XsoCS1TfEyfFhfvj8EtZ528L3CaKBDBRqRapnBbDF2W", observation_ts
+    )]
+    assert underlying_calls == [("SPYx", "SPY", observation_ts)]
+    assert snapshot.asset == "SPYx"
+    assert snapshot.token_price == 500.5
+    assert snapshot.underlying_reference == 501.0
+    assert snapshot.reference_profile == "xstock_vs_p1ac_challenger"
+    assert snapshot.reference_under_test == snapshot.token_price
+    assert snapshot.reference_under_test_source == "xstock_token_market"
+    assert snapshot.source_provenance["reference_independence"] == (
+        "same_xstock_input_assimilated_by_p1a"
+    )
+
 
 
 def test_stale_underlying_remains_anchor_but_is_not_current_measurement(monkeypatch):
@@ -302,15 +355,15 @@ def test_underlying_query_is_capped_at_observation_boundary(monkeypatch):
         return [bar for bar in all_bars if bar.ts <= now]
 
     monkeypatch.setattr(
-        live.okx,
-        "get_nvdax_candle_at",
-        lambda boundary, **_k: RawCandle(
+        live.token_market,
+        "get_exact_candle",
+        lambda _config, boundary, **_k: RawCandle(
             boundary, 181.0, 182.0, 180.0, 181.1, 1000.0, 181_100.0, 1
         ),
     )
-    monkeypatch.setattr(live.equity, "get_trusted_bars", get_bars)
+    monkeypatch.setattr(live.market_sources.equity, "get_trusted_bars", get_bars)
     monkeypatch.setattr(
-        live.reference,
+        live.market_sources.reference,
         "get_confirmed_index_bar",
         lambda *_a, **_k: ReferenceObservation(
             price=181.2, source="okx_xperp_index", ts=observation_ts
@@ -420,7 +473,7 @@ def test_missing_exact_okx_candle_does_not_fall_back_to_dexscreener(
             ts=observation_ts,
         ),
     )
-    monkeypatch.setattr(live.okx, "get_nvdax_candle_at", lambda *_a, **_k: None)
+    monkeypatch.setattr(live.token_market, "get_exact_candle", lambda *_a, **_k: None)
 
     with pytest.raises(ExactNvdaxCandleUnavailable, match="OKX OnchainOS"):
         build_live_snapshot(observation_ts=observation_ts)

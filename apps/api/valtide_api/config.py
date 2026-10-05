@@ -58,6 +58,10 @@ class Settings(BaseSettings):
     # diagnostics never start a background network loop implicitly.
     live_scheduler_enabled: bool = False
     live_scheduler_asset: str = "NVDAx"
+    # Optional comma-separated expansion path. The existing single-asset
+    # setting remains the default and keeps current Railway configuration
+    # backward compatible.
+    live_scheduler_assets: str = ""
     live_settlement_grace_seconds: int = Field(default=60, ge=0)
     live_settlement_max_attempts: int = Field(default=5, ge=1)
     live_settlement_retry_delay_seconds: int = Field(default=15, ge=0)
@@ -65,6 +69,12 @@ class Settings(BaseSettings):
     historical_panel_path: Path = (
         _ENV_FILE.parent / "data" / "generated" / "nvdax_historical_5m.csv"
     )
+    # Optional asset-specific panels. Empty by default: registering an asset
+    # never silently points it at the NVDA panel.
+    spyx_historical_panel_path: Path | None = None
+    qqqx_historical_panel_path: Path | None = None
+    aaplx_historical_panel_path: Path | None = None
+    tslax_historical_panel_path: Path | None = None
     # Underlying current-measurement tolerance, kept near one canonical
     # five-minute bucket. Older underlying bars remain trusted anchors but are
     # not assimilated as if they were measurements for the current bucket. The
@@ -97,10 +107,53 @@ class Settings(BaseSettings):
         path = self.historical_panel_path
         return path if path.is_absolute() else _ENV_FILE.parent / path
 
+    def _resolve_optional_panel_path(self, path: Path | None) -> Path | None:
+        if path is None:
+            return None
+        return path if path.is_absolute() else _ENV_FILE.parent / path
+
+    @property
+    def resolved_spyx_historical_panel_path(self) -> Path | None:
+        return self._resolve_optional_panel_path(self.spyx_historical_panel_path)
+
+    @property
+    def resolved_qqqx_historical_panel_path(self) -> Path | None:
+        return self._resolve_optional_panel_path(self.qqqx_historical_panel_path)
+
+    @property
+    def resolved_aaplx_historical_panel_path(self) -> Path | None:
+        return self._resolve_optional_panel_path(self.aaplx_historical_panel_path)
+
+    @property
+    def resolved_tslax_historical_panel_path(self) -> Path | None:
+        return self._resolve_optional_panel_path(self.tslax_historical_panel_path)
+
+    @property
+    def enabled_scheduler_assets(self) -> tuple[str, ...]:
+        if not self.live_scheduler_enabled:
+            return ()
+        configured = tuple(
+            value.strip()
+            for value in self.live_scheduler_assets.split(",")
+            if value.strip()
+        )
+        return configured or (self.live_scheduler_asset,)
+
     @property
     def resolved_deployment_manifest_path(self) -> Path:
         path = self.deployment_manifest_path
         return path if path.is_absolute() else _ENV_FILE.parent / path
+
+
+def scheduler_asset_enabled(settings: Settings, asset: str) -> bool:
+    """Check explicit worker selection while preserving the legacy single-asset env."""
+    selected = getattr(settings, "enabled_scheduler_assets", None)
+    if selected is not None:
+        return asset in selected
+    return bool(
+        getattr(settings, "live_scheduler_enabled", False)
+        and getattr(settings, "live_scheduler_asset", "NVDAx") == asset
+    )
 
 
 @lru_cache

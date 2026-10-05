@@ -8,9 +8,11 @@ from datetime import datetime
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel
 
+from valtide_api.assets import AssetConfigurationError
 from valtide_api.data_source import resolve_snapshots
-from valtide_api.models import SUPPORTED_ASSETS, EvidenceState
+from valtide_api.models import EvidenceState
 from valtide_api.replay import replay
+from valtide_api.routes._asset_guard import require_api_asset
 
 router = APIRouter(prefix="/api", tags=["backtest"])
 
@@ -34,13 +36,18 @@ class BacktestMetrics(BaseModel):
 def get_backtest(
     asset: str, source: str = "scenario", scenario: str = "weekend_divergence"
 ) -> BacktestMetrics:
-    if asset not in SUPPORTED_ASSETS:
-        raise HTTPException(status_code=404, detail=f"asset '{asset}' not supported")
+    require_api_asset(asset, "historical_data", "quant")
 
     try:
-        snapshots, source_label = resolve_snapshots(source=source, scenario=scenario)
+        snapshots, source_label = resolve_snapshots(
+            asset=asset,
+            source=source,
+            scenario=scenario,
+        )
     except FileNotFoundError:
         raise HTTPException(status_code=404, detail="data source not found") from None
+    except AssetConfigurationError as exc:
+        raise HTTPException(status_code=503, detail=str(exc)) from exc
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
 
@@ -49,10 +56,12 @@ def get_backtest(
     for r in results:
         counts[r.evidence_state.value] += 1
 
+    legacy_diagnostic = source_label == "legacy_nvda_panel_diagnostic"
     evaluable = [
         (snapshot, result)
         for snapshot, result in zip(snapshots, results, strict=True)
-        if source_label == "historical_panel" and snapshot.underlying_reference is not None
+        if source_label == "historical_panel"
+        and snapshot.underlying_reference is not None
     ]
     errors = [
         result.valtide_fair_value - snapshot.underlying_reference
@@ -78,9 +87,15 @@ def get_backtest(
             "the scenario has no empirical ground truth."
         )
         output_source = "scenario"
+    elif legacy_diagnostic:
+        note = (
+            "Legacy NVDA panel deployment provenance is unverified; this replay is "
+            "diagnostic only and is excluded from empirical backtest metrics."
+        )
+        output_source = "legacy_panel_diagnostic"
     else:
         note = (
-            "Metrics use only rows with a contemporaneous trusted NVDA observation; "
+            "Metrics use only rows with a contemporaneous trusted underlying observation; "
             "they are historical diagnostics, not production guarantees."
         )
         output_source = "historical"

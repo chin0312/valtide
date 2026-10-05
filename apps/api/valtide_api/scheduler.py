@@ -8,16 +8,19 @@ import time
 from collections.abc import Awaitable, Callable
 from dataclasses import dataclass
 from datetime import UTC, datetime, timedelta
+from threading import Lock
 
 from valtide_api import publisher as publisher_module
+from valtide_api.assets import AssetConfigurationError, resolve_asset_config
 from valtide_api.clock import (
     FIVE_MINUTES,
     next_5m_boundary,
     require_canonical_5m,
 )
 from valtide_api.config import get_settings
-from valtide_api.live import ExactNvdaxCandleUnavailable, build_live_snapshot
+from valtide_api.live import ExactTokenCandleUnavailable, build_live_snapshot
 from valtide_api.models import MarketSnapshot, ValuationResult
+from valtide_api.quant_runtime import quant_runtime_available
 from valtide_api.replay import (
     _warm_state_to_first_observation_with_count,
     advance_without_measurements,
@@ -27,13 +30,15 @@ from valtide_api.runtime_store import (
     RuntimeStateIntegrityError,
     RuntimeStore,
     get_runtime_store,
+    runtime_identity_for_asset,
 )
 from valtide_api.state_store import KalmanState, save_latest_result, save_state
 
 logger = logging.getLogger("valtide.runtime")
 _PUBLICATION_SHUTDOWN_TIMEOUT_SECONDS = 5.0
-_NVDAX_SETTLEMENT_MAX_ATTEMPTS = 5
-_NVDAX_SETTLEMENT_RETRY_DELAY_SECONDS = 15.0
+_PUBLISHER_TRANSACTION_LOCK = Lock()
+_SETTLEMENT_MAX_ATTEMPTS = 5
+_SETTLEMENT_RETRY_DELAY_SECONDS = 15.0
 _LIVE_SETTLEMENT_GRACE_SECONDS = 60.0
 
 SnapshotBuilder = Callable[..., MarketSnapshot]
@@ -42,14 +47,48 @@ SleepProvider = Callable[[float], Awaitable[None]]
 PublishFunction = Callable[..., object]
 
 
+def build_enabled_schedulers(
+    settings,
+    store: RuntimeStore,
+    *,
+    assets: tuple[str, ...] | None = None,
+) -> tuple[LiveScheduler, ...]:
+    """Build one worker per explicitly selected asset; legacy env selects one."""
+    selected = assets if assets is not None else getattr(
+        settings,
+        "enabled_scheduler_assets",
+        (settings.live_scheduler_asset,) if settings.live_scheduler_enabled else (),
+    )
+    if len(set(selected)) != len(selected):
+        raise AssetConfigurationError("duplicate scheduler asset")
+    schedulers = []
+    for asset in selected:
+        config = resolve_asset_config(asset, settings)
+        if not config.capabilities.runtime or not config.capabilities.live_data:
+            logger.warning(
+                "Live scheduler not started asset=%s readiness=runtime_or_live_data_unavailable",
+                asset,
+            )
+            continue
+        if not quant_runtime_available(config):
+            logger.warning(
+                "Live scheduler not started asset=%s readiness=quant_artifact_unavailable",
+                asset,
+            )
+            continue
+        schedulers.append(LiveScheduler(asset=asset, store=store))
+    return tuple(schedulers)
+
+
 def _build_snapshot_with_settlement_retry(
     snapshot_builder: SnapshotBuilder,
     canonical_ts: datetime,
     *,
+    asset: str,
     max_attempts: int,
     retry_delay_seconds: float,
 ) -> MarketSnapshot:
-    """Retry only temporary absence of the exact settled NVDAx candle."""
+    """Retry only temporary absence of the exact settled token candle."""
     if max_attempts < 1:
         raise ValueError("settlement max attempts must be at least 1")
     if retry_delay_seconds < 0:
@@ -57,8 +96,8 @@ def _build_snapshot_with_settlement_retry(
 
     for attempt in range(max_attempts):
         try:
-            return snapshot_builder(observation_ts=canonical_ts)
-        except ExactNvdaxCandleUnavailable:
+            return snapshot_builder(asset=asset, observation_ts=canonical_ts)
+        except ExactTokenCandleUnavailable:
             if attempt + 1 == max_attempts:
                 raise
             time.sleep(retry_delay_seconds)
@@ -97,10 +136,14 @@ def run_live_tick(
     store = store or get_runtime_store()
     snapshot_builder = snapshot_builder or build_live_snapshot
     attempt_at = datetime.now(UTC)
+    runtime_identity: str | None = None
 
     try:
+        settings = get_settings()
+        asset_config = resolve_asset_config(asset, settings)
         canonical_ts = require_canonical_5m(canonical_ts, "canonical_ts")
-        record = store.load_runtime(asset)
+        runtime_identity = runtime_identity_for_asset(asset, settings)
+        record = store.load_runtime(asset, expected_identity=runtime_identity)
         if record is not None and record.state is not None:
             prior = record.state
             if prior.last_ts is None:
@@ -116,6 +159,7 @@ def run_live_tick(
                     "already_processed",
                     attempt_at=attempt_at,
                     gap_steps=0,
+                    identity=runtime_identity,
                 )
                 return TickResult(
                     asset=asset,
@@ -126,21 +170,29 @@ def run_live_tick(
                     state_restored=True,
                 )
 
-        settings = get_settings()
         snapshot = _build_snapshot_with_settlement_retry(
             snapshot_builder,
             canonical_ts,
+            asset=asset,
             max_attempts=int(
-                getattr(settings, "live_settlement_max_attempts", _NVDAX_SETTLEMENT_MAX_ATTEMPTS)
+                getattr(settings, "live_settlement_max_attempts", _SETTLEMENT_MAX_ATTEMPTS)
             ),
             retry_delay_seconds=float(
                 getattr(
                     settings,
                     "live_settlement_retry_delay_seconds",
-                    _NVDAX_SETTLEMENT_RETRY_DELAY_SECONDS,
+                    _SETTLEMENT_RETRY_DELAY_SECONDS,
                 )
             ),
         )
+        if snapshot.asset != asset or snapshot.observation_ts != canonical_ts:
+            raise RuntimeStateIntegrityError(
+                "live snapshot identity does not match the requested asset and observation"
+            )
+        if snapshot.reference_profile != asset_config.reference_profile:
+            raise RuntimeStateIntegrityError(
+                "live snapshot reference profile does not match the configured asset profile"
+            )
         state: KalmanState | None = record.state if record is not None else None
         state_restored = state is not None
         gap_steps = 0
@@ -170,6 +222,7 @@ def run_live_tick(
             tick_status="success",
             tick_attempt_at=attempt_at,
             gap_steps=gap_steps,
+            identity=runtime_identity,
         )
         # Keep the old in-memory compatibility layer warm for non-HTTP callers;
         # SQLite remains the canonical source for the API.
@@ -185,7 +238,13 @@ def run_live_tick(
         )
     except Exception as exc:  # noqa: BLE001 - tick failures must preserve prior state
         error = f"{type(exc).__name__}: {exc}"
-        store.record_tick_status(asset, "failure", error=error, attempt_at=attempt_at)
+        store.record_tick_status(
+            asset,
+            "failure",
+            error=error,
+            attempt_at=attempt_at,
+            identity=runtime_identity,
+        )
         logger.exception("Live tick failed for %s at %s", asset, canonical_ts)
         return TickResult(
             asset=asset,
@@ -213,6 +272,13 @@ class LiveScheduler:
     ):
         settings = get_settings()
         self.asset = asset or settings.live_scheduler_asset
+        self.asset_config = resolve_asset_config(self.asset, settings)
+        if not (
+            self.asset_config.capabilities.runtime
+            and self.asset_config.capabilities.live_data
+            and quant_runtime_available(self.asset_config)
+        ):
+            raise AssetConfigurationError(f"live runtime is unavailable for '{self.asset}'")
         self.store = store or get_runtime_store()
         self._tick = tick
         self._now = now or (lambda: datetime.now(UTC))
@@ -294,6 +360,9 @@ class LiveScheduler:
             return
 
         result = tick.result
+        if tick.asset != self.asset or result.asset != self.asset:
+            logger.error("auto-publish rejected mismatched scheduler asset=%s", self.asset)
+            return
         pending = self._pending_publication
         if pending is None or result.timestamp > pending.timestamp:
             self._pending_publication = result
@@ -310,9 +379,8 @@ class LiveScheduler:
         self.store.record_publication_attempt(self.asset, result.timestamp)
         try:
             receipt = await asyncio.to_thread(
-                self._publisher_fn,
+                self._publish_serialized,
                 result,
-                settings=self._settings,
             )
         except publisher_module.PublisherError as exc:
             error = self._safe_publication_error(exc)
@@ -357,6 +425,11 @@ class LiveScheduler:
             result.timestamp.isoformat(),
             status,
         )
+
+    def _publish_serialized(self, result: ValuationResult):
+        """Serialize signer transactions across asset schedulers in this process."""
+        with _PUBLISHER_TRANSACTION_LOCK:
+            return self._publisher_fn(result, settings=self._settings, asset=self.asset)
 
     async def _publication_worker(self) -> None:
         """Serialize publication and coalesce pending results to the newest one."""

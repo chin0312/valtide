@@ -1,4 +1,4 @@
-"""Build a canonical NVDAx/NVDA/OKX X-Perp five-minute panel.
+"""Build an asset-bound canonical five-minute market panel.
 
 The output is generated data and is intentionally not committed. Every source
 is joined by its own vendor timestamp; token and reference observations are
@@ -19,21 +19,32 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "apps" / "api"))
 
 # The path bootstrap intentionally precedes these first-party imports.
 # isort: off
-from valtide_api.adapters import equity, okx, reference
+from valtide_api.assets import AssetConfig, resolve_asset_config
+from valtide_api import market_sources
 from valtide_api.clock import FIVE_MINUTES, require_canonical_5m
 from valtide_api.session import classify
+from valtide_api import token_market
 # isort: on
 
 
 PANEL_COLUMNS = [
     "timestamp_utc",
+    "asset",
+    "underlying_symbol",
+    "token_source",
+    "token_chain_index",
+    "token_address",
+    "reference_under_test_instrument",
+    "reference_profile",
     "session_state",
-    "nvdax_close",
-    "nvdax_volume",
-    "nvdax_volume_usd",
-    "nvdax_available",
-    "nvda_close",
-    "nvda_available",
+    "token_close",
+    "token_volume",
+    "token_volume_usd",
+    "token_available",
+    "token_observed_at",
+    "underlying_close",
+    "underlying_available",
+    "underlying_observed_at",
     "last_trusted_reference",
     "last_trusted_reference_ts",
     "reference_under_test",
@@ -61,7 +72,10 @@ def iter_grid(start: datetime, end: datetime) -> list[datetime]:
     return [start + index * FIVE_MINUTES for index in range(count)]
 
 
-def build_rows(start, end, token_candles, underlying_bars, reference_candles) -> list[dict[str, str]]:
+def build_rows(
+    start, end, token_candles, underlying_bars, reference_candles, *,
+    config: AssetConfig, deployment: tuple[str, str],
+) -> list[dict[str, str]]:
     """Join source observations onto the canonical grid without filling gaps."""
     token_by_ts = {c.ts: c for c in token_candles}
     underlying_by_ts = {b.ts: b for b in underlying_bars}
@@ -86,24 +100,42 @@ def build_rows(start, end, token_candles, underlying_bars, reference_candles) ->
         token = token_by_ts.get(timestamp)
         if token is not None and token.confirm != 1:
             token = None
-        ref = reference_by_ts.get(timestamp)
+        ref = (
+            token
+            if config.reference_profile == "xstock_vs_p1ac_challenger"
+            else reference_by_ts.get(timestamp)
+        )
         rows.append(
             {
                 "timestamp_utc": timestamp.isoformat().replace("+00:00", "Z"),
+                "asset": config.asset,
+                "underlying_symbol": config.underlying_symbol,
+                "token_source": config.token_source,
+                "token_chain_index": deployment[0],
+                "token_address": deployment[1],
+                "reference_under_test_instrument": config.reference_under_test_instrument,
+                "reference_profile": config.reference_profile,
                 "session_state": classify(timestamp).value,
-                "nvdax_close": str(token.close) if token is not None else "",
-                "nvdax_volume": str(token.volume) if token is not None else "",
-                "nvdax_volume_usd": str(token.volume_usd) if token is not None else "",
-                "nvdax_available": str(token is not None).upper(),
-                "nvda_close": str(underlying.close) if underlying is not None else "",
-                "nvda_available": str(underlying is not None).upper(),
+                "token_close": str(token.close) if token is not None else "",
+                "token_volume": str(token.volume) if token is not None else "",
+                "token_volume_usd": str(token.volume_usd) if token is not None else "",
+                "token_available": str(token is not None).upper(),
+                "token_observed_at": (
+                    token.ts.isoformat().replace("+00:00", "Z") if token is not None else ""
+                ),
+                "underlying_close": str(underlying.close) if underlying is not None else "",
+                "underlying_available": str(underlying is not None).upper(),
+                "underlying_observed_at": (
+                    underlying.ts.isoformat().replace("+00:00", "Z")
+                    if underlying is not None else ""
+                ),
                 "last_trusted_reference": str(previous_last_underlying.close),
                 "last_trusted_reference_ts": previous_last_underlying.ts.isoformat().replace(
                     "+00:00", "Z"
                 ),
                 "reference_under_test": str(ref.close) if ref is not None else "",
                 "reference_under_test_available": str(ref is not None).upper(),
-                "reference_under_test_source": "okx_xperp_index",
+                "reference_under_test_source": config.reference_under_test_source,
                 "reference_under_test_ts": (
                     ref.ts.isoformat().replace("+00:00", "Z") if ref is not None else ""
                 ),
@@ -128,6 +160,17 @@ def _write(path: Path, rows: list[dict[str, str]]) -> None:
             anchored += 1
     if anchored == 0:
         raise RuntimeError("panel contains no anchored rows")
+    identity = tuple(rows[0].get(key) for key in (
+        "asset", "underlying_symbol", "token_source", "token_chain_index",
+        "token_address", "reference_under_test_instrument", "reference_profile",
+    ))
+    if any(not value for value in identity) or any(
+        tuple(row.get(key) for key in (
+            "asset", "underlying_symbol", "token_source", "token_chain_index",
+            "token_address", "reference_under_test_instrument", "reference_profile",
+        )) != identity for row in rows
+    ):
+        raise RuntimeError("panel identity must be complete and constant")
     path.parent.mkdir(parents=True, exist_ok=True)
     temp_path: Path | None = None
     try:
@@ -147,24 +190,43 @@ def _write(path: Path, rows: list[dict[str, str]]) -> None:
             temp_path.unlink(missing_ok=True)
 
 
-def build_panel(start: datetime, end: datetime, output: Path) -> int:
-    chain_index, token_address = okx.resolve_nvdax_deployment()
-
-    token_candles = okx.get_historical_candles(chain_index, token_address, start, end)
+def build_panel(
+    start: datetime,
+    end: datetime,
+    output: Path,
+    *,
+    asset: str = "NVDAx",
+) -> int:
+    asset_config = resolve_asset_config(asset)
+    token_candles, deployment = token_market.get_historical_candles(
+        asset_config, start, end
+    )
+    expected_deployment = (asset_config.okx_chain_index, asset_config.token_address)
+    if not all(expected_deployment) or deployment != expected_deployment:
+        raise RuntimeError(
+            f"token adapter deployment does not match the registered identity for {asset}"
+        )
     # Fetch a causal pre-range lookback so the first requested row can use a
     # strictly prior trusted underlying bar as its causal anchor. The lookback
     # is only for initialization; emitted panel rows remain within [start, end].
-    underlying_bars = equity.get_stock_bars("NVDA", start - UNDERLYING_LOOKBACK, end)
-    reference_candles = reference.get_okx_xperp_index_candles(
-        start=start,
-        end=end,
+    underlying_bars = market_sources.underlying_historical(
+        asset_config, start - UNDERLYING_LOOKBACK, end
     )
-    rows = build_rows(start, end, token_candles, underlying_bars, reference_candles)
+    reference_candles = (
+        token_candles
+        if asset_config.reference_profile == "xstock_vs_p1ac_challenger"
+        else market_sources.reference_historical(asset_config, start, end)
+    )
+    rows = build_rows(
+        start, end, token_candles, underlying_bars, reference_candles,
+        config=asset_config, deployment=deployment,
+    )
     _write(output, rows)
     print(f"wrote {len(rows)} anchored canonical rows to {output}")
     print(
-        "sources: token=okx_onchainos, underlying=alpaca_5m, "
-        "reference_under_test=okx_xperp_index_historical"
+        f"sources: token={asset_config.token_source}, "
+        f"underlying={asset_config.underlying_source}_5m, "
+        f"reference_under_test={asset_config.reference_under_test_source}"
     )
     return len(rows)
 
@@ -176,9 +238,16 @@ def main() -> None:
     parser.add_argument("--output", required=True, type=Path)
     parser.add_argument("--asset", default="NVDAx")
     args = parser.parse_args()
-    if args.asset != "NVDAx":
-        raise SystemExit("P0.5 historical panel builder currently supports only NVDAx")
-    build_panel(_parse_datetime(args.start), _parse_datetime(args.end), args.output)
+    try:
+        resolve_asset_config(args.asset)
+    except ValueError as exc:
+        raise SystemExit(str(exc)) from exc
+    build_panel(
+        _parse_datetime(args.start),
+        _parse_datetime(args.end),
+        args.output,
+        asset=args.asset,
+    )
 
 
 if __name__ == "__main__":

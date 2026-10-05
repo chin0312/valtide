@@ -50,7 +50,7 @@ def test_publish_without_warmed_result_returns_409(monkeypatch):
     monkeypatch.setattr(
         publish_route,
         "get_runtime_store",
-        lambda: SimpleNamespace(load_runtime=lambda _asset: None),
+        lambda: SimpleNamespace(load_runtime=lambda _asset, **_kwargs: None),
     )
 
     response = client.post("/api/publish/NVDAx")
@@ -69,13 +69,14 @@ def test_publish_success_returns_structured_receipt(monkeypatch):
         publish_route,
         "get_runtime_store",
         lambda: SimpleNamespace(
-            load_runtime=lambda _asset: SimpleNamespace(latest_result=result)
+            load_runtime=lambda _asset, **_kwargs: SimpleNamespace(latest_result=result)
         ),
     )
 
-    def fake_publish(received_result, settings):
+    def fake_publish(received_result, settings, *, asset):
         assert received_result is result
         assert settings is not None
+        assert asset == "NVDAx"
         return _receipt("published", "0x" + "55" * 32, 777)
 
     monkeypatch.setattr(publish_route.publisher, "publish", fake_publish)
@@ -98,13 +99,13 @@ def test_publish_already_published_returns_null_transaction(monkeypatch):
         publish_route,
         "get_runtime_store",
         lambda: SimpleNamespace(
-            load_runtime=lambda _asset: SimpleNamespace(latest_result=object())
+            load_runtime=lambda _asset, **_kwargs: SimpleNamespace(latest_result=object())
         ),
     )
     monkeypatch.setattr(
         publish_route.publisher,
         "publish",
-        lambda _result, settings: _receipt("already_published", None, 888),
+        lambda _result, settings, *, asset: _receipt("already_published", None, 888),
     )
 
     response = client.post("/api/publish/NVDAx")
@@ -125,15 +126,26 @@ def test_onchain_status_returns_mocked_control_plane(monkeypatch):
         "evidence_state": "INCONCLUSIVE",
         "policy_action": "REQUIRE_REVIEW",
     }
-    monkeypatch.setattr(onchain_route.publisher, "read_control_plane", lambda: expected)
+    monkeypatch.setattr(
+        onchain_route.publisher,
+        "read_control_plane",
+        lambda *, asset: expected if asset == "NVDAx" else {},
+    )
 
     response = client.get("/api/onchain/NVDAx")
 
     assert response.status_code == 200
-    assert response.json() == expected
+    assert response.json() == {"asset": "NVDAx", **expected}
 
 
 def test_onchain_status_rejects_unsupported_asset():
     response = client.get("/api/onchain/FOOx")
 
     assert response.status_code == 404
+
+
+def test_onchain_status_reports_missing_deployment_for_registered_candidate():
+    response = client.get("/api/onchain/SPYx")
+
+    assert response.status_code == 503
+    assert response.json()["detail"] == "ONCHAIN_NOT_CONFIGURED"

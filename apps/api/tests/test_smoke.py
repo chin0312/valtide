@@ -9,7 +9,11 @@ from fastapi.testclient import TestClient
 from valtide_api import state_store
 from valtide_api.main import app
 from valtide_api.replay import replay, run_inference
-from valtide_api.runtime_store import RuntimeStateIntegrityError, RuntimeStore
+from valtide_api.runtime_store import (
+    RuntimeStateIntegrityError,
+    RuntimeStore,
+    runtime_identity_for_asset,
+)
 from valtide_api.scenario import load_scenario
 
 client = TestClient(app)
@@ -34,7 +38,9 @@ def _seed_scenario(store: RuntimeStore) -> None:
     for snapshot in snapshots:
         _, state = run_inference(snapshot, state)
     assert state is not None
-    store.save_runtime("NVDAx", state, results[-1])
+    store.save_runtime(
+        "NVDAx", state, results[-1], identity=runtime_identity_for_asset("NVDAx")
+    )
 
 
 def test_health():
@@ -97,7 +103,11 @@ def test_assets_list():
     assert resp.json()[0]["model_available"] is True
 
 
-def test_runtime_status_is_explicit_when_live_runtime_is_empty():
+def test_runtime_status_is_explicit_when_live_runtime_is_empty(monkeypatch, tmp_path):
+    import valtide_api.routes.runtime as runtime_route
+
+    empty_store = RuntimeStore(tmp_path / "empty-runtime.sqlite3")
+    monkeypatch.setattr(runtime_route, "get_runtime_store", lambda: empty_store)
     resp = client.get("/api/runtime/NVDAx")
 
     assert resp.status_code == 200
@@ -148,10 +158,11 @@ def test_runtime_status_reports_corrupt_publication_without_hiding_runtime(monke
     import valtide_api.routes.runtime as runtime_route
 
     class CorruptPublicationStore:
-        def load_runtime(self, asset):  # noqa: ARG002
+        def load_runtime(self, asset, **_kwargs):  # noqa: ARG002
             return SimpleNamespace(
                 state=None,
                 latest_result=None,
+                identity_verified=True,
                 last_tick_status="success",
                 last_tick_attempt_at=None,
                 last_tick_error=None,
@@ -201,7 +212,7 @@ def test_runtime_status_reports_publication_when_runtime_state_is_corrupt(monkey
     )
 
     class CorruptRuntimeStore:
-        def load_runtime(self, asset):  # noqa: ARG002
+        def load_runtime(self, asset, **_kwargs):  # noqa: ARG002
             raise RuntimeStateIntegrityError("secret-looking corruption detail")
 
         def load_publication(self, asset):  # noqa: ARG002

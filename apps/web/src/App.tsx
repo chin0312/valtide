@@ -2,7 +2,10 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import {
   ApiError,
+  assetQueryKeys,
+  DEFAULT_ASSET,
   fetchDemoReplay,
+  fetchAssets,
   fetchHealth,
   fetchHistoricalReplay,
   fetchOnchain,
@@ -10,8 +13,9 @@ import {
   fetchOperationalHistory,
   fetchOperationalValuation,
   fetchRuntime,
+  PRIMARY_ASSET_OPTIONS,
 } from "./api/client";
-import type { EvidenceState, OnchainControlPlane, OnchainPolicy, PolicyAction, ValuationResult } from "./api/types";
+import type { AssetInfo, EvidenceState, OnchainControlPlane, OnchainPolicy, PolicyAction, ValuationResult } from "./api/types";
 import { EXAMPLE_DEMO_POLICY } from "./components/PolicyActionPanel";
 import { ReasonCodes } from "./components/ReasonCodes";
 import { RegistryPanel } from "./components/RegistryPanel";
@@ -59,20 +63,24 @@ export default function App() {
 
 function ValidationConsole() {
   const [context, setContext] = useState<Context>("Operational");
+  const [selectedAsset, setSelectedAsset] = useState<string>(DEFAULT_ASSET);
   const [range, setRange] = useState<OperationalRange>("24H");
   const [historicalRange, setHistoricalRange] = useState<HistoricalRange>("ALL");
   const [demoRange, setDemoRange] = useState<DemoRange>("FULL");
   const isOperational = context === "Operational";
   const health = useQuery({ queryKey: ["health"], queryFn: fetchHealth, refetchInterval: 30_000 });
   const backendUp = health.data === true;
-  const operational = useQuery({ queryKey: ["valuation", "operational", "NVDAx"], queryFn: fetchOperationalValuation, refetchInterval: 20_000, retry: 0 });
+  const assets = useQuery({ queryKey: assetQueryKeys.assets, queryFn: fetchAssets, refetchInterval: 60_000, retry: 0 });
+  const selectedAssetInfo = assets.data?.find((item) => item.asset === selectedAsset);
+  const profile = selectedAssetInfo?.reference_profile ?? "profile-unresolved";
+  const operational = useQuery({ queryKey: assetQueryKeys.operational(selectedAsset, profile), queryFn: () => fetchOperationalValuation(selectedAsset), refetchInterval: 20_000, retry: 0, enabled: backendUp });
   const historyLimit = OPERATIONAL_HISTORY_LIMITS[range];
-  const history = useQuery({ queryKey: ["history", "NVDAx", historyLimit], queryFn: () => fetchOperationalHistory(historyLimit), refetchInterval: 30_000, retry: 0, enabled: isOperational && !!operational.data });
-  const historical = useQuery({ queryKey: ["replay", "historical-panel"], queryFn: fetchHistoricalReplay, staleTime: 60_000, retry: 0, enabled: context === "Historical" });
-  const demo = useQuery({ queryKey: ["demo-replay", "canonical"], queryFn: () => fetchDemoReplay(), staleTime: Infinity, enabled: context === "Demo" });
-  const runtime = useQuery({ queryKey: ["runtime", "NVDAx"], queryFn: fetchRuntime, refetchInterval: 30_000, retry: 0, enabled: backendUp });
-  const onchain = useQuery({ queryKey: ["onchain", "NVDAx"], queryFn: fetchOnchain, refetchInterval: 45_000, retry: 0, enabled: backendUp });
-  const enforcement = useQuery({ queryKey: ["onchain", "NVDAx", "enforcement"], queryFn: fetchOnchainEnforcement, refetchInterval: 45_000, retry: 0, enabled: backendUp });
+  const history = useQuery({ queryKey: assetQueryKeys.history(selectedAsset, historyLimit, profile), queryFn: () => fetchOperationalHistory(selectedAsset, historyLimit), refetchInterval: 30_000, retry: 0, enabled: isOperational && !!operational.data });
+  const historical = useQuery({ queryKey: assetQueryKeys.historical(selectedAsset, historicalRange, profile), queryFn: () => fetchHistoricalReplay(selectedAsset), staleTime: 60_000, retry: 0, enabled: context === "Historical" && backendUp });
+  const demo = useQuery({ queryKey: ["demo-replay", selectedAsset, "canonical"], queryFn: () => fetchDemoReplay(selectedAsset), staleTime: Infinity, enabled: context === "Demo" && selectedAsset === DEFAULT_ASSET });
+  const runtime = useQuery({ queryKey: assetQueryKeys.runtime(selectedAsset), queryFn: () => fetchRuntime(selectedAsset), refetchInterval: 30_000, retry: 0, enabled: backendUp });
+  const onchain = useQuery({ queryKey: assetQueryKeys.onchain(selectedAsset), queryFn: () => fetchOnchain(selectedAsset), refetchInterval: 45_000, retry: 0, enabled: backendUp && !!selectedAssetInfo?.onchain_binding_configured });
+  const enforcement = useQuery({ queryKey: assetQueryKeys.enforcement(selectedAsset), queryFn: () => fetchOnchainEnforcement(selectedAsset), refetchInterval: 45_000, retry: 0, enabled: backendUp && !!selectedAssetInfo?.onchain_binding_configured });
   const [position, setPosition] = useState(0);
   const [playing, setPlaying] = useState(false);
   const [followLatest, setFollowLatest] = useState(true);
@@ -85,12 +93,12 @@ function ValidationConsole() {
   const demoResults = useMemo(() => filterDemoResults(demo.data?.results ?? EMPTY_RESULTS, demoRange), [demo.data, demoRange]);
   const results = isOperational ? operationalResults : context === "Historical" ? historicalResults : demoResults;
   const activeRange = context === "Operational" ? range : context === "Historical" ? historicalRange : demoRange;
-  const previous = useRef({ results, context, activeRange });
+  const previous = useRef({ results, context, activeRange, selectedAsset });
 
   useEffect(() => {
     const before = previous.current;
-    previous.current = { results, context, activeRange };
-    if (before.context !== context || before.activeRange !== activeRange || (!before.results.length && results.length)) {
+    previous.current = { results, context, activeRange, selectedAsset };
+    if (before.selectedAsset !== selectedAsset || before.context !== context || before.activeRange !== activeRange || (!before.results.length && results.length)) {
       setPosition(context === "Demo" ? 0 : Math.max(0, results.length - 1));
       setFollowLatest(isOperational);
       setPlaying(false);
@@ -99,7 +107,7 @@ function ValidationConsole() {
     } else {
       setPosition((value) => rebasePosition(value, before.results, results));
     }
-  }, [context, activeRange, isOperational, results, followLatest]);
+  }, [context, activeRange, isOperational, results, followLatest, selectedAsset]);
 
   const safePosition = clampPosition(position, results.length);
   const currentIndex = Math.floor(safePosition);
@@ -108,7 +116,7 @@ function ValidationConsole() {
   const source = isOperational
     ? `Operational · ${results.length} in selected window`
     : context === "Historical" ? `Historical panel · ${results.length} in selected window`
-    : !demo.data ? "Demo · Loading" : demo.data.source === "backend-scenario"
+    : selectedAsset !== DEFAULT_ASSET ? "Demo · NVDAx synthetic fixture only" : !demo.data ? "Demo · Loading" : demo.data.source === "backend-scenario"
       ? `Demo scenario · ${demo.data.results.length} synthetic steps`
       : `Demo fixture · ${demo.data.results.length} synthetic steps`;
   const controlPlane = onchain.isError ? undefined : onchain.data;
@@ -119,23 +127,43 @@ function ValidationConsole() {
   const isDegraded = activeQuery.isError || (isOperational && (history.isError || runtime.data?.last_tick_status === "failure"));
   const statusMessage = activeQuery.error instanceof Error ? activeQuery.error.message : "Data unavailable";
   const runtimeNotWarmed = isOperational && (runtime.data?.has_live_result === false || (operational.error instanceof ApiError && operational.error.status === 503));
-  const chainError = backendUp
+  const chainError = !selectedAssetInfo?.onchain_binding_configured
+    ? `No X Layer deployment is configured for ${selectedAsset}.`
+    : backendUp
     ? onchain.error instanceof Error ? onchain.error.message : "The deployed contracts could not be read."
     : "Backend unavailable. Showing the last available data.";
 
   return (
     <div id="validation-console" className="mx-auto min-h-full max-w-[1480px] px-4 py-4 sm:px-6">
-      <AppHeader backendUp={backendUp} chainUp={!!controlPlane} source={source} context={context} onContextChange={setContext} />
+      <AppHeader
+        backendUp={backendUp}
+        chainUp={!!controlPlane}
+        source={source}
+        context={context}
+        onContextChange={setContext}
+        assets={assets.data ?? []}
+        selectedAsset={selectedAsset}
+        onAssetChange={(asset) => {
+          setSelectedAsset(asset);
+          setPosition(0);
+          setPlaying(false);
+          setFollowLatest(true);
+        }}
+      />
       <div role="note" className="mb-4 rounded px-3 py-2 text-[11px] font-medium uppercase tracking-[0.06em]" style={{ color: "var(--color-ink-dim)", background: "var(--color-panel)", border: "1px solid var(--color-line-subtle)" }}>Research prototype · X Layer testnet · not production infrastructure</div>
+      {selectedAssetInfo && selectedAssetInfo.readiness_error_codes.length > 0 && <div role="status" className="mb-4 rounded px-3 py-2 text-xs" style={{ color: "var(--color-ink-dim)", background: "var(--color-inconclusive-soft)", border: "1px solid var(--color-line-subtle)" }}>
+        {selectedAsset} readiness is partial: {selectedAssetInfo.readiness_error_codes.join(" · ")}. No other asset's prices, model, history, or X Layer binding are substituted.
+      </div>}
 
       <main className="space-y-4">
         {isDegraded && current && <div role="status" className="rounded px-4 py-3 text-xs text-ink-dim" style={{ background: "var(--color-inconclusive-soft)" }}>{context} degraded · showing last available observations. {history.isError && isOperational ? "History unavailable. " : ""}{activeQuery.isError ? statusMessage : runtime.data?.last_error}</div>}
-        {!current ? <Panel title={`${context} ${activeQuery.isLoading ? "loading" : "unavailable"}`}><p role="status" className="text-xs text-ink-dim">{activeQuery.isLoading ? `Loading ${context.toLowerCase()} observations…` : runtimeNotWarmed ? "Runtime not warmed yet." : statusMessage}</p></Panel> : <>
+        {!current ? <Panel title={`${context} ${activeQuery.isLoading ? "loading" : "unavailable"}`}><p role="status" className="text-xs text-ink-dim">{activeQuery.isLoading ? `Loading ${selectedAsset} ${context.toLowerCase()} observations…` : context === "Demo" && selectedAsset !== DEFAULT_ASSET ? "The deterministic Demo fixture is synthetic NVDAx-only. It is not relabeled as another asset." : runtimeNotWarmed ? "Runtime not warmed yet." : statusMessage}</p></Panel> : <>
         <DecisionSummary current={current} action={policyAction} context={context} />
         <MetricGrid current={current} isDemo={context === "Demo"} observationCount={results.length} />
 
         <div className="grid items-stretch gap-4 xl:grid-cols-[minmax(0,1.3fr)_minmax(0,1fr)]">
           <HistoricalReplay
+            asset={selectedAsset}
             results={results}
             position={position}
             setPosition={setPosition}
@@ -145,7 +173,7 @@ function ValidationConsole() {
             onReview={() => setFollowLatest(false)}
             followingLatest={isOperational && followLatest}
             onLatest={isOperational ? () => { setPlaying(false); setFollowLatest(true); setPosition(results.length - 1); } : undefined}
-            viewportKey={`${context}:${activeRange}`}
+            viewportKey={`${selectedAsset}:${profile}:${context}:${activeRange}`}
             periodMs={context === "Demo" ? 600 : 120}
             rangeControl={<RangeControls context={context} range={activeRange} onChange={(value) => { if (context === "Operational") setRange(value as OperationalRange); else if (context === "Historical") setHistoricalRange(value as HistoricalRange); else setDemoRange(value as DemoRange); }} />}
           />
@@ -182,7 +210,7 @@ function ValidationConsole() {
           <div className="border-t p-3" style={{ borderColor: "var(--color-line-subtle)" }}><InstrumentPassport /></div>
         </details>}
 
-        {context === "Historical" && <ModelEvidence />}
+        {context === "Historical" && <ModelEvidence asset={selectedAsset} profile={profile} />}
 
         <RegistryPanel
           controlPlane={controlPlane}
@@ -203,7 +231,19 @@ function ValidationConsole() {
   );
 }
 
-function AppHeader({ backendUp, chainUp, source, context, onContextChange }: { backendUp: boolean; chainUp: boolean; source: string; context: Context; onContextChange: (context: Context) => void }) {
+function AppHeader({ backendUp, chainUp, source, context, onContextChange, assets, selectedAsset, onAssetChange }: {
+  backendUp: boolean;
+  chainUp: boolean;
+  source: string;
+  context: Context;
+  onContextChange: (context: Context) => void;
+  assets: AssetInfo[];
+  selectedAsset: string;
+  onAssetChange: (asset: string) => void;
+}) {
+  const assetOptions = assets.filter((item) => item.api_exposed).length
+    ? assets.filter((item) => item.api_exposed).map((item) => item.asset)
+    : [...PRIMARY_ASSET_OPTIONS];
   return (
     <header className="mb-4 flex flex-wrap items-center justify-between gap-4 border-b pb-4" style={{ borderColor: "var(--color-line-subtle)" }}>
       <div className="flex flex-wrap items-center gap-3 sm:gap-6">
@@ -211,6 +251,12 @@ function AppHeader({ backendUp, chainUp, source, context, onContextChange }: { b
         <nav aria-label="Evidence context" className="flex gap-1 rounded p-1" style={{ border: "1px solid var(--color-line)" }}>{(["Operational", "Historical", "Demo"] as Context[]).map((option) => <button key={option} aria-pressed={context === option} onClick={() => onContextChange(option)} className="rounded px-2.5 py-1.5 text-xs font-medium" style={{ background: context === option ? "var(--color-panel-2)" : undefined, color: context === option ? "var(--color-ink)" : "var(--color-muted)" }}>{option}</button>)}</nav>
       </div>
       <div className="flex flex-wrap items-center gap-3 text-[11px]">
+        <label className="flex items-center gap-2" style={{ color: "var(--color-ink-dim)" }}>
+          <span>Asset</span>
+          <select aria-label="Selected asset" value={selectedAsset} onChange={(event) => onAssetChange(event.target.value)} className="rounded px-2 py-1 font-mono text-[11px] text-ink" style={{ background: "var(--color-panel)", border: "1px solid var(--color-line)" }}>
+            {assetOptions.map((asset) => <option key={asset} value={asset}>{asset}</option>)}
+          </select>
+        </label>
         <span className="rounded px-2 py-1 font-mono" style={{ color: "var(--color-accent)", background: "var(--color-accent-soft)" }}>{source}</span>
         <ConnectionLabel active={backendUp} activeText="API Connected" inactiveText="API Unavailable" />
         <ConnectionLabel active={chainUp} activeText="X Layer Read" inactiveText="On-Chain Unread" />
@@ -229,7 +275,11 @@ function ConnectionLabel({ active, activeText, inactiveText }: { active: boolean
 }
 
 function DecisionSummary({ current, action, context }: { current: ValuationResult; action: PolicyAction | null; context: Context }) {
-  const findings: Record<EvidenceState, { title: string; detail: string }> = {
+  const findings: Record<EvidenceState, { title: string; detail: string }> = current.reference_profile === "xstock_vs_p1ac_challenger" ? {
+    SUPPORTED: { title: "Model-based challenger evidence supports the observed xStock price", detail: "P1a has assimilated this same xStock observation before the comparison. This is model-based challenger evidence, not two fully independent observations; disagreement alone does not establish which price is correct." },
+    INCONCLUSIVE: { title: "Model-based challenger evidence needs review", detail: "P1a has assimilated this same xStock observation before the comparison. The model-based evidence is not strong or consistent enough for a confident conclusion." },
+    CHALLENGED: { title: "Model-based challenger evidence challenges the observed xStock price", detail: "P1a has assimilated this same xStock observation before the comparison. This is not an independent-source test and does not prove which price is correct." },
+  } : {
     SUPPORTED: { title: "Evidence supports the reference", detail: "Available independent evidence does not provide a material reason to challenge the price being tested." },
     INCONCLUSIVE: { title: "Evidence needs review", detail: "The available evidence is not strong or consistent enough to support or materially challenge the reference." },
     CHALLENGED: { title: "Evidence challenges the reference", detail: "The reference is materially inconsistent with sufficiently strong independent evidence." },
@@ -260,10 +310,21 @@ function Metric({ label, value, sub, accent }: { label: string; value: string; s
 
 function EvidenceCard({ result }: { result: ValuationResult }) {
   const state = EVIDENCE[result.evidence_state];
+  const detail = result.reference_profile === "xstock_vs_p1ac_challenger"
+    ? result.evidence_state === "SUPPORTED"
+      ? "Model-based challenger evidence does not materially challenge the observed xStock price. P1a has assimilated this same observation; these are not two fully independent observations."
+      : result.evidence_state === "CHALLENGED"
+        ? "Model-based challenger evidence is materially inconsistent with the observed xStock price. P1a has assimilated this same observation; disagreement does not prove which price is correct."
+        : "The model-based challenger evidence is too weak or mixed for a confident conclusion. P1a has assimilated this same xStock observation."
+    : result.evidence_state === "SUPPORTED"
+      ? "The reference is not materially challenged by the available independent evidence."
+      : result.evidence_state === "CHALLENGED"
+        ? "The reference is materially inconsistent with the available independent evidence."
+        : "The evidence is too weak or mixed for a confident conclusion.";
   return (
     <Panel title="Evidence" icon="evidence">
       <div className="text-2xl font-semibold tracking-[-0.03em]" style={{ color: state.fg }}>{state.label}</div>
-      <p className="mt-2 text-sm leading-6 text-ink-dim">{result.evidence_state === "SUPPORTED" ? "The reference is not materially challenged by the available independent evidence." : result.evidence_state === "INCONCLUSIVE" ? "The evidence is too weak or mixed for a confident conclusion." : "The reference is materially inconsistent with the available independent evidence."}</p>
+      <p className="mt-2 text-sm leading-6 text-ink-dim">{detail}</p>
       <div className="mt-4"><ReasonCodes codes={result.reason_codes} evidenceState={result.evidence_state} /></div>
     </Panel>
   );

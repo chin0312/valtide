@@ -152,6 +152,7 @@ def validate(
         residual_premium_discount_pct=(residual * 100 if residual is not None else None),
         reference_under_test=reference,
         reference_under_test_source=snapshot.reference_under_test_source,
+        reference_profile=snapshot.reference_profile,
         reference_under_test_ts=snapshot.reference_under_test_ts,
         reference_under_test_age_seconds=snapshot.reference_under_test_age_seconds,
         reference_deviation_pct=(

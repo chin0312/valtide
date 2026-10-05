@@ -8,7 +8,12 @@ validation remains in :mod:`valtide_api.validation`.
 from __future__ import annotations
 
 import math
+from collections.abc import Callable
+from dataclasses import dataclass
 from datetime import datetime
+from functools import lru_cache
+from importlib import resources
+from types import MappingProxyType
 
 from valtide_quant_service import (
     FilterState,
@@ -18,8 +23,101 @@ from valtide_quant_service import (
 from valtide_quant_service import (
     MarketSnapshot as QuantMarketSnapshot,
 )
+from valtide_quant_service.artifacts import load_p1a
 
+from valtide_api.assets import AssetConfig, AssetConfigurationError, resolve_asset_config
 from valtide_api.models import ChallengerEstimate, MarketSnapshot
+
+
+@dataclass(frozen=True)
+class QuantRuntimeSpec:
+    asset: str
+    model_id: str
+    model_version: str
+    factory: Callable[[FilterState | None], QuantService]
+
+
+@dataclass(frozen=True)
+class _RuntimeRegistration:
+    factory: Callable[[FilterState | None], QuantService]
+    artifact_identity: Callable[[], tuple[str, str, str]]
+
+
+def _default_artifact_identity() -> tuple[str, str, str]:
+    path = resources.files("valtide_quant_service").joinpath(
+        "model_artifacts/p1a_runtime.json"
+    )
+    artifact = load_p1a(path)
+    return artifact.asset, artifact.deployment_model_id, artifact.model_version
+
+
+_QUANT_RUNTIME_FACTORIES = MappingProxyType(
+    {
+        "nvdax_p1ac_default": _RuntimeRegistration(
+            QuantService.from_default_artifacts, _default_artifact_identity
+        )
+    }
+)
+
+
+@lru_cache(maxsize=8)
+def _artifact_identity(runtime_key: str) -> tuple[str, str, str]:
+    registration = _QUANT_RUNTIME_FACTORIES.get(runtime_key)
+    if registration is None:
+        raise AssetConfigurationError(f"unknown quant runtime '{runtime_key}'")
+    try:
+        return registration.artifact_identity()
+    except (OSError, KeyError, TypeError, ValueError) as exc:
+        raise AssetConfigurationError("quant artifact metadata is unavailable") from exc
+
+
+def resolve_quant_runtime(asset: str | AssetConfig) -> QuantRuntimeSpec:
+    config = asset if isinstance(asset, AssetConfig) else resolve_asset_config(asset)
+    if not config.capabilities.quant:
+        raise AssetConfigurationError(f"quant runtime is unavailable for '{config.asset}'")
+    registration = _QUANT_RUNTIME_FACTORIES.get(config.quant_runtime_key)
+    if registration is None:
+        raise AssetConfigurationError(f"unknown quant runtime '{config.quant_runtime_key}'")
+    artifact_asset, model_id, model_version = _artifact_identity(config.quant_runtime_key)
+    if artifact_asset != config.asset:
+        raise AssetConfigurationError("quant artifact asset does not match requested asset")
+    return QuantRuntimeSpec(config.asset, model_id, model_version, registration.factory)
+
+
+def quant_runtime_available(config: AssetConfig) -> bool:
+    try:
+        resolve_quant_runtime(config)
+    except AssetConfigurationError:
+        return False
+    return True
+
+
+def get_quant_service(
+    asset: str | AssetConfig,
+    *,
+    state: FilterState | None = None,
+) -> QuantService:
+    """Resolve the explicitly registered quant artifact for ``asset``.
+
+    The dispatch seam is intentionally narrow. NVDAx is the only asset with a
+    validated runtime bundle. Candidate assets fail closed until their own
+    artifact registration and capability are reviewed.
+    """
+
+    config = asset if isinstance(asset, AssetConfig) else resolve_asset_config(asset)
+    spec = resolve_quant_runtime(config)
+    try:
+        service = spec.factory(state=state)
+    except (OSError, KeyError, TypeError, ValueError) as exc:
+        raise AssetConfigurationError("registered quant artifact cannot be loaded") from exc
+    artifact = service.runtime.artifact
+    if (
+        artifact.asset != config.asset
+        or artifact.deployment_model_id != spec.model_id
+        or artifact.model_version != spec.model_version
+    ):
+        raise AssetConfigurationError("loaded quant artifact does not match registered runtime")
+    return service
 
 
 def estimate(
@@ -43,9 +141,10 @@ def estimate(
         if prior_m is not None and prior_P is not None
         else None
     )
-    service = QuantService.from_default_artifacts(state=state)
+    asset_config = resolve_asset_config(snapshot.asset)
+    service = get_quant_service(asset_config, state=state)
     quant_snapshot = QuantMarketSnapshot(
-        asset=snapshot.asset,
+        asset=asset_config.asset,
         timestamp=snapshot.observation_ts,
         quant_session=snapshot.market_state.value,
         token_price=snapshot.token_price,
@@ -75,4 +174,7 @@ def estimate(
     )
 
 
-__all__ = ["StateGapError", "estimate"]
+__all__ = [
+    "QuantRuntimeSpec", "StateGapError", "estimate", "get_quant_service",
+    "quant_runtime_available", "resolve_quant_runtime",
+]

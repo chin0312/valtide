@@ -9,8 +9,12 @@ from enum import Enum
 
 from pydantic import BaseModel, Field
 
-# Assets the backend supports today. One place so routes don't drift.
-SUPPORTED_ASSETS = {"NVDAx"}
+from valtide_api.assets import supported_asset_names
+
+# Compatibility export for existing route/import callers.  The registry in
+# assets.py is the source of truth; this derived immutable set prevents routes
+# from drifting into their own asset lists.
+SUPPORTED_ASSETS = frozenset(supported_asset_names())
 
 
 class MarketState(str, Enum):
@@ -71,6 +75,7 @@ class MarketSnapshot(BaseModel):
     # implicitly derived. See docs/BACKEND_ARCHITECTURE.md.
     reference_under_test: float | None
     reference_under_test_source: str = Field(examples=["nvda_live", "okx_xperp_index"])
+    reference_profile: str = "unspecified"
     reference_under_test_ts: datetime | None = None
     reference_under_test_age_seconds: int | None = None
 
@@ -140,6 +145,7 @@ class ValuationResult(BaseModel):
 
     reference_under_test: float | None
     reference_under_test_source: str
+    reference_profile: str = "unspecified"
     reference_under_test_ts: datetime | None = None
     reference_under_test_age_seconds: int | None = None
     reference_deviation_pct: float | None
