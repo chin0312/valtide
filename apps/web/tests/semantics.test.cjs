@@ -73,7 +73,7 @@ test("asset-aware request functions and query keys cannot reuse another asset", 
   try {
     global.fetch = async url => {
       requestedUrl = String(url);
-      return new Response(JSON.stringify({...fixture[0], asset:"SPYx"}));
+      return new Response(JSON.stringify({...fixture[0], asset:"SPYx", reference_profile:"xstock_vs_p1ac_challenger"}));
     };
     assert.equal((await client.fetchOperationalValuation("SPYx")).asset, "SPYx");
     assert.match(requestedUrl, /\/api\/valuation\/SPYx$/);
@@ -83,6 +83,34 @@ test("asset-aware request functions and query keys cannot reuse another asset", 
 
     global.fetch = async () => new Response(JSON.stringify({asset:"NVDAx"}));
     await assert.rejects(client.fetchRuntime("SPYx"), /returned NVDAx runtime for SPYx/);
+  } finally { global.fetch = original; }
+});
+
+test("legacy NVDAx responses are normalized only at the explicit migration boundary", async () => {
+  const original = global.fetch;
+  const legacyAsset = {
+    asset:"NVDAx",token_source:"okx_onchainos",underlying_source:"alpaca",model_available:true,
+  };
+  try {
+    global.fetch = async () => new Response(JSON.stringify([legacyAsset]));
+    const assets = await client.fetchAssets();
+    assert.equal(assets.length, 1);
+    assert.equal(assets[0].asset, "NVDAx");
+    assert.equal(assets[0].reference_profile, "legacy_xperp_vs_p1ac");
+    assert.equal(assets[0].onchain_binding_configured, true);
+    assert.deepEqual(assets[0].readiness_error_codes, []);
+
+    global.fetch = async () => new Response(JSON.stringify({...fixture[0], reference_profile:undefined}));
+    assert.equal((await client.fetchOperationalValuation()).reference_profile, "legacy_xperp_vs_p1ac");
+
+    global.fetch = async () => new Response(JSON.stringify({configured:true}));
+    assert.equal((await client.fetchOnchain()).asset, "NVDAx");
+    await assert.rejects(client.fetchOnchain("SPYx"), /returned no asset control plane for SPYx/);
+
+    global.fetch = async () => new Response(JSON.stringify([{
+      asset:"SPYx",token_source:"okx_onchainos",underlying_source:"alpaca",model_available:false,
+    }]));
+    await assert.rejects(client.fetchAssets(), /omitted readiness identity for asset SPYx/);
   } finally { global.fetch = original; }
 });
 

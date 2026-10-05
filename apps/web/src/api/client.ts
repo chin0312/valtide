@@ -28,6 +28,7 @@ export const BASE = import.meta.env.DEV ? "" : (import.meta.env.VITE_API_BASE_UR
 export const DEFAULT_ASSET = "NVDAx";
 export const PRIMARY_ASSET_OPTIONS = ["NVDAx", "SPYx", "QQQx", "AAPLx"] as const;
 export type PrimaryAsset = (typeof PRIMARY_ASSET_OPTIONS)[number];
+const LEGACY_REFERENCE_PROFILE = "legacy_xperp_vs_p1ac";
 
 const FIXTURE = weekendDivergence as unknown as ValuationResult[];
 
@@ -41,13 +42,78 @@ function assertAsset(result: ValuationResult, asset: string): ValuationResult {
   if (result.asset !== asset) {
     throw new Error(`Backend returned ${result.asset} for requested asset ${asset}`);
   }
-  return result;
+  if (result.reference_profile) return result;
+  if (asset === DEFAULT_ASSET) {
+    // Rollout compatibility for the pre-registry NVDAx API. Never infer a
+    // profile for another asset: the new backend must identify it explicitly.
+    return { ...result, reference_profile: LEGACY_REFERENCE_PROFILE };
+  }
+  throw new Error(`Backend omitted the reference profile for requested asset ${asset}`);
 }
 
 function assertAssetRows(results: ValuationResult[], asset: string): ValuationResult[] {
   if (!Array.isArray(results)) throw new Error("Backend returned an invalid observation list");
-  results.forEach((result) => assertAsset(result, asset));
-  return results;
+  return results.map((result) => assertAsset(result, asset));
+}
+
+function assertScopedResponse<T extends { asset?: string }>(
+  data: T,
+  asset: string,
+  label: string,
+): T & { asset: string } {
+  if (data.asset === asset) return data as T & { asset: string };
+  if (data.asset == null && asset === DEFAULT_ASSET) {
+    // Pre-registry NVDAx on-chain responses were scoped by the endpoint but did
+    // not repeat the asset in the body. Keep that one migration seam only.
+    return { ...data, asset };
+  }
+  throw new Error(`Backend returned ${data.asset ?? "no asset"} ${label} for ${asset}`);
+}
+
+function normalizeAssetInfo(value: unknown): AssetInfo {
+  if (!value || typeof value !== "object") {
+    throw new Error("Backend returned an invalid asset catalog entry");
+  }
+  const item = value as Partial<AssetInfo>;
+  if (
+    typeof item.asset !== "string"
+    || typeof item.token_source !== "string"
+    || typeof item.underlying_source !== "string"
+    || typeof item.model_available !== "boolean"
+  ) {
+    throw new Error("Backend returned an invalid asset catalog entry");
+  }
+
+  const legacyNvda = item.asset === DEFAULT_ASSET && item.reference_profile == null;
+  if (item.reference_profile == null && !legacyNvda) {
+    throw new Error(`Backend omitted readiness identity for asset ${item.asset}`);
+  }
+
+  return {
+    asset: item.asset,
+    token_source: item.token_source,
+    underlying_source: item.underlying_source,
+    reference_profile: item.reference_profile ?? LEGACY_REFERENCE_PROFILE,
+    registered: item.registered ?? true,
+    api_exposed: item.api_exposed ?? true,
+    model_available: item.model_available,
+    quant_artifact_ready: item.quant_artifact_ready ?? item.model_available,
+    historical_data_available: item.historical_data_available ?? false,
+    live_data_configured: item.live_data_configured ?? false,
+    live_market_data_available: item.live_market_data_available ?? false,
+    runtime_ready: item.runtime_ready ?? item.model_available,
+    operational_ready: item.operational_ready ?? false,
+    operational_scheduler_enabled: item.operational_scheduler_enabled ?? false,
+    latest_observation_timestamp: item.latest_observation_timestamp ?? null,
+    latest_observation_age_seconds: item.latest_observation_age_seconds ?? null,
+    latest_observation_freshness: item.latest_observation_freshness ?? "unavailable",
+    // Only the legacy NVDAx deployment is known to expose these routes without
+    // readiness metadata. Missing metadata never enables another asset.
+    onchain_binding_configured: item.onchain_binding_configured ?? legacyNvda,
+    readiness_error_codes: Array.isArray(item.readiness_error_codes)
+      ? item.readiness_error_codes
+      : legacyNvda ? [] : ["ASSET_READINESS_METADATA_UNAVAILABLE"],
+  };
 }
 
 export const assetQueryKeys = {
@@ -126,8 +192,10 @@ export async function fetchRuntime(asset = DEFAULT_ASSET): Promise<RuntimeStatus
   return data;
 }
 
-export function fetchAssets(): Promise<AssetInfo[]> {
-  return getJSON<AssetInfo[]>("/api/assets");
+export async function fetchAssets(): Promise<AssetInfo[]> {
+  const data = await getJSON<unknown>("/api/assets");
+  if (!Array.isArray(data)) throw new Error("Backend returned an invalid asset catalog");
+  return data.map(normalizeAssetInfo);
 }
 
 /** Successful warmed scheduler observations only; never replay/backtest data. */
@@ -157,20 +225,17 @@ export async function fetchHistoricalReplay(asset = DEFAULT_ASSET): Promise<Hist
 export async function fetchHistoricalBacktest(asset = DEFAULT_ASSET): Promise<BacktestMetrics> {
   const data = await getJSON<BacktestMetrics>(`/api/backtest/${asset}?source=historical`, 20000);
   if (data.source !== "historical") throw new Error("Historical backtest source could not be verified");
-  if (data.asset !== asset) throw new Error(`Backend returned ${data.asset} backtest for ${asset}`);
-  return data;
+  return assertScopedResponse(data, asset, "backtest");
 }
 
 export async function fetchOnchain(asset = DEFAULT_ASSET): Promise<OnchainControlPlane> {
   const data = await getJSON<OnchainControlPlane>(`/api/onchain/${asset}`, 12000);
-  if (data.asset !== asset) throw new Error(`Backend returned ${data.asset} control plane for ${asset}`);
-  return data;
+  return assertScopedResponse(data, asset, "control plane");
 }
 
 export async function fetchOnchainEnforcement(asset = DEFAULT_ASSET): Promise<OnchainEnforcement> {
   const data = await getJSON<OnchainEnforcement>(`/api/onchain/${asset}/enforcement`, 12000);
-  if (data.asset !== asset) throw new Error(`Backend returned ${data.asset} enforcement for ${asset}`);
-  return data;
+  return assertScopedResponse(data, asset, "enforcement");
 }
 
 export type ReplaySource = "backend-scenario" | "offline-fixture";
