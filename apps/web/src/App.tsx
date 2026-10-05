@@ -13,7 +13,6 @@ import {
   fetchOperationalHistory,
   fetchOperationalValuation,
   fetchRuntime,
-  PRIMARY_ASSET_OPTIONS,
 } from "./api/client";
 import type { AssetInfo, EvidenceState, OnchainControlPlane, OnchainPolicy, PolicyAction, ValuationResult } from "./api/types";
 import { EXAMPLE_DEMO_POLICY } from "./components/PolicyActionPanel";
@@ -243,7 +242,7 @@ function AppHeader({ backendUp, chainUp, source, context, onContextChange, asset
 }) {
   const assetOptions = assets.filter((item) => item.api_exposed).length
     ? assets.filter((item) => item.api_exposed).map((item) => item.asset)
-    : [...PRIMARY_ASSET_OPTIONS];
+    : [DEFAULT_ASSET];
   return (
     <header className="mb-4 flex flex-wrap items-center justify-between gap-4 border-b pb-4" style={{ borderColor: "var(--color-line-subtle)" }}>
       <div className="flex flex-wrap items-center gap-3 sm:gap-6">
