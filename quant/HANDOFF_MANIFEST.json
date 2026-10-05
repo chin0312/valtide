@@ -41,8 +41,8 @@
     },
     {
       "path": "runtime/p1ac/code/src/valtide_quant_service/artifacts.py",
-      "bytes": 964,
-      "sha256": "5f33b18c82436079c55d6a4729d7231fa5be21bc8800092b60fe6acf3d06f881"
+      "bytes": 1520,
+      "sha256": "b6e385ebdd4b8781abe5bbc64cdfa2cb63a98f2252d78bb5b1b197312fc6ec43"
     },
     {
       "path": "runtime/p1ac/code/src/valtide_quant_service/calibration.py",
@@ -71,8 +71,8 @@
     },
     {
       "path": "runtime/p1ac/code/src/valtide_quant_service/service.py",
-      "bytes": 1806,
-      "sha256": "b7dda16712865a41a8bbf86611fe8523ea12dfd92e74beb31c3a4e206209d8b0"
+      "bytes": 2390,
+      "sha256": "b2f72d80585c3aa704c606cc67e9d4805a3ada89c60d603f2bb12c5d74ceb9b0"
     },
     {
       "path": "runtime/p1ac/metadata/provenance.json",
@@ -88,6 +88,11 @@
       "path": "runtime/p1ac/params/p1a_runtime.json",
       "bytes": 719,
       "sha256": "4e64e3f394e222dfb01ca45adb2c12b8c3542a2f18cb9193ffe429baf116ff7e"
+    },
+    {
+      "path": "runtime/p1ac/parity/p1ac_r_expected.json",
+      "bytes": 14176,
+      "sha256": "6e091b67e09d238a0dfb11debfab71486ef257d7a8488bbaf2bc559369daf430"
     },
     {
       "path": "runtime/p1ac/run_deterministic_tests.py",
@@ -111,8 +116,8 @@
     },
     {
       "path": "runtime/p1ac/verify_runtime.py",
-      "bytes": 5950,
-      "sha256": "b512b07539f4315eb05ee460ced378467b9b74c199a7825a289d9692dfe9803b"
+      "bytes": 5955,
+      "sha256": "a38cab11e9af05caf344d73c42c3400105fb23c4926f2d2206c9221624f70040"
     }
   ],
   "research_artifacts": [
@@ -2084,6 +2089,11 @@
       "path": "data_manifest/excluded_raw_files.txt",
       "bytes": 1689,
       "sha256": "0ed8ceecf2b2a096993edd06c9dbe712b9b99daacf828db3d1cc176f34f92de1"
+    },
+    {
+      "path": "data_manifest/fresh_validation_20261005.json",
+      "bytes": 9378,
+      "sha256": "d34000e05881848e7a9bfffdfce42d0fda01c32b09707920ff666cf096087d92"
     }
   ],
   "model_verdicts": [
