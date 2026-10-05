@@ -1,0 +1,209 @@
+{
+  "dataset_id": "valtide_solana_xstock_fresh_validation_20260921_20261005_0625",
+  "purpose": "retrospective out-of-fit-period adapter and model diagnostic; not prospective or production-readiness evidence",
+  "collected_date_utc": "2026-10-05",
+  "period_start_utc": "2026-09-21T00:00:00Z",
+  "period_end_utc": "2026-10-05T06:25:00Z",
+  "interval_seconds": 300,
+  "row_count_per_asset": 4110,
+  "sources": {
+    "token": "OKX OnchainOS exact confirmed historical Solana token candles",
+    "underlying": "Alpaca IEX raw five-minute bars",
+    "reference": "OKX public X-Perp/index historical five-minute candles"
+  },
+  "collection_code": {
+    "base_commit": "63b5dfb928bb1ffec786e91ec940e5883426934a",
+    "status": "working tree derived from base commit; source file hashes identify the collector version",
+    "source_sha256": {
+      "apps/api/valtide_api/assets.py": "76d94ed31d819544f3e712819ef1043d36267c519a09736f2d5eba2ce0a6d990",
+      "apps/api/valtide_api/adapters/okx.py": "73b022452a76902cb1c4b0716d1d20143c5973524a82e49c2734496e75a5d6f0",
+      "apps/api/valtide_api/adapters/reference.py": "60cd8e0ee96441922889624e29c129e2b44134ad7177cd04d42e0c591c8e56b3",
+      "apps/api/valtide_api/adapters/equity.py": "8617e0a0165ebc83da4a7f8ef808af5968a2bc236bab1ce50a852efae9328126",
+      "scripts/build_historical_panel.py": "974bb31c773f19c5df6fed2fd225eca183d1dfc55536f910d5954db6509dfbfc"
+    }
+  },
+  "panel_storage": {
+    "status": "local temporary validation output; raw panels intentionally not committed",
+    "directory": null,
+    "warning": "A panel hash is verifiable only while the corresponding local CSV bytes remain available. No persistent production panel has been provisioned."
+  },
+  "assets": {
+    "NVDAx": {
+      "chain_index": "501",
+      "token_address": "Xsc9qvGR1efVDFGLrVsmkzv3qi45LTBjeUKSPmx9qEh",
+      "underlying_symbol": "NVDA",
+      "reference_instrument": "NVDA-USD",
+      "model_version": "0.2.0",
+      "source_training_dataset_sha256": "722929383e6ca1aa28382e828879efeccb60faabdf2bd5e05f14a721f7fc740d",
+      "source_fit_sha256": null,
+      "source_fit_identity_note": "The current NVDAx runtime is retained; a byte-verifiable James RDS source fit was not recovered.",
+      "calibration_type": "session_sym",
+      "calibration_score_count": 22441,
+      "calibrator_sha256": "e38a97cf0b8e9e5cc5222a1a2a79a6683e5bdc3aa882b800297fcdbe1bec2496",
+      "panel_file": "nvdax.csv",
+      "panel_sha256": "7785e47383943beedcdf893680820dbefb8b2370e32d363fbb5ea4074a05d3c3",
+      "token_observations": 4110,
+      "underlying_observations": 817,
+      "reference_observations": 4110,
+      "underlying_evaluable_rows": 817,
+      "metrics": {
+        "model_mae": 0.17649345994866583,
+        "model_rmse": 0.24826138449034477,
+        "raw_xstock_mae": 0.17674076609879297,
+        "raw_xstock_rmse": 0.3008699320276765,
+        "interval_coverage": 0.966952264381885,
+        "mean_interval_width": 1.0128268784536354,
+        "mean_interval_score_90": 1.1748860046078362
+      },
+      "evidence_state_counts": {
+        "SUPPORTED": 3777,
+        "INCONCLUSIVE": 310,
+        "CHALLENGED": 23
+      },
+      "mean_signed_deviation": {
+        "xstock_minus_challenger": 0.003546686428043969,
+        "xperp_minus_challenger": 0.012507155937906772,
+        "xstock_minus_xperp": -0.008960469509862803
+      },
+      "missing_counts": {
+        "token": 0,
+        "underlying": 3293,
+        "reference": 0
+      }
+    },
+    "SPYx": {
+      "chain_index": "501",
+      "token_address": "XsoCS1TfEyfFhfvj8EtZ528L3CaKBDBRqRapnBbDF2W",
+      "underlying_symbol": "SPY",
+      "reference_instrument": "SPY-USD",
+      "model_version": "0.3.0",
+      "source_training_dataset_sha256": "aa39adcd2205cd93232d4ee9cbd426a01069d0e70751f026205e88f8fa31d07b",
+      "source_fit_sha256": "35e4494d2ba683079657d0c15ff2b76d6fc80f555fbe01ef4f2cb1bb831166df",
+      "calibration_type": "session_asym",
+      "calibration_score_count": 21848,
+      "calibrator_sha256": "0645d14dfba9e47d5f7c683a3535f055089999690554e1c694f7c89102831b5c",
+      "panel_file": "spyx.csv",
+      "panel_sha256": "0ce51834e044d9f3a52682843898833ba3e88d7e25ced82f60def9f1a023a3a0",
+      "token_observations": 4110,
+      "underlying_observations": 833,
+      "reference_observations": 4110,
+      "underlying_evaluable_rows": 833,
+      "metrics": {
+        "model_mae": 0.3381625564439516,
+        "model_rmse": 0.4762577159996835,
+        "raw_xstock_mae": 0.6370839196248366,
+        "raw_xstock_rmse": 1.7684701762665092,
+        "interval_coverage": 0.9387755102040817,
+        "mean_interval_width": 2.023996385289007,
+        "mean_interval_score_90": 2.4482816252661896
+      },
+      "evidence_state_counts": {
+        "SUPPORTED": 2645,
+        "INCONCLUSIVE": 816,
+        "CHALLENGED": 649
+      },
+      "mean_signed_deviation": {
+        "xstock_minus_challenger": -0.08095269781659604,
+        "xperp_minus_challenger": 0.5282430588548477,
+        "xstock_minus_xperp": -0.6091957566714438
+      },
+      "missing_counts": {
+        "token": 0,
+        "underlying": 3277,
+        "reference": 0
+      }
+    },
+    "QQQx": {
+      "chain_index": "501",
+      "token_address": "Xs8S1uUs1zvS2p7iwtsG3b6fkhpvmwz4GYU3gWAmWHZ",
+      "underlying_symbol": "QQQ",
+      "reference_instrument": "QQQ-USD",
+      "model_version": "0.3.0",
+      "source_training_dataset_sha256": "758e97b56183a028949b323612510e0f993b6986d4dd57431756858f0fa20991",
+      "source_fit_sha256": "c1add9e0e11a857f91e4fb99afbeb19c406b9bb70855068b7077f69e6a591ba0",
+      "calibration_type": "session_asym",
+      "calibration_score_count": 20469,
+      "calibrator_sha256": "cda3c62e41b5f3d248a14ece67510fa82b7cd83d07abe65662f0d620b8864b94",
+      "panel_file": "qqqx.csv",
+      "panel_sha256": "ed17b78df2929c830c70b8023365ed7e8eef6de95e4839a2ea7f32e4f29eb0a6",
+      "token_observations": 4068,
+      "underlying_observations": 928,
+      "reference_observations": 4110,
+      "underlying_evaluable_rows": 928,
+      "metrics": {
+        "model_mae": 0.4717856296054207,
+        "model_rmse": 0.7431029006860862,
+        "raw_xstock_mae": 0.38466731561865736,
+        "raw_xstock_rmse": 0.6941470238620964,
+        "interval_coverage": 0.9601293103448276,
+        "mean_interval_width": 2.868187362643902,
+        "mean_interval_score_90": 3.252834516740529
+      },
+      "evidence_state_counts": {
+        "SUPPORTED": 3434,
+        "INCONCLUSIVE": 612,
+        "CHALLENGED": 64
+      },
+      "mean_signed_deviation": {
+        "xstock_minus_challenger": 0.2117516872160867,
+        "xperp_minus_challenger": 0.5263478093507487,
+        "xstock_minus_xperp": -0.30209665893029136
+      },
+      "missing_counts": {
+        "token": 42,
+        "underlying": 3182,
+        "reference": 0
+      },
+      "model_risk_note": "Frozen P1a fit converged but r_nvdax is at the upper optimization bound in all sessions; preserved unchanged."
+    },
+    "AAPLx": {
+      "chain_index": "501",
+      "token_address": "XsbEhLAtcf6HdfpFZ5xEMdqW8nfAvcsP5bdudRLJzJp",
+      "underlying_symbol": "AAPL",
+      "reference_instrument": "AAPL-USD",
+      "model_version": "0.3.0",
+      "source_training_dataset_sha256": "f58b97cdf83418f3dc74b77c298a20dc05b46bc3bdb497d9782a44a227c12240",
+      "source_fit_sha256": "ffc3230f0bfd72bbea498bda823c60675f46d865c2e315c126d9fc8f7b1733e3",
+      "calibration_type": "global_asym",
+      "calibration_score_count": 16916,
+      "calibrator_sha256": "badf0747e0b13d6087839bec6bdc976c921daa3eb99d7f9acac2556438255c9d",
+      "panel_file": "aaplx.csv",
+      "panel_sha256": "2556cc1ee492a06afcbf6ff0ae6c6a56eaf75f44431f18b94849182d253cbc09",
+      "token_observations": 4061,
+      "underlying_observations": 817,
+      "reference_observations": 4110,
+      "underlying_evaluable_rows": 817,
+      "metrics": {
+        "model_mae": 0.27651075516593443,
+        "model_rmse": 0.40584526240994667,
+        "raw_xstock_mae": 0.28999471986897774,
+        "raw_xstock_rmse": 0.4857406236466627,
+        "interval_coverage": 0.9277845777233782,
+        "mean_interval_width": 1.4408569767959347,
+        "mean_interval_score_90": 1.9198458503531255
+      },
+      "evidence_state_counts": {
+        "SUPPORTED": 3042,
+        "INCONCLUSIVE": 997,
+        "CHALLENGED": 71
+      },
+      "mean_signed_deviation": {
+        "xstock_minus_challenger": -0.014829067053643558,
+        "xperp_minus_challenger": 0.16239770711726667,
+        "xstock_minus_xperp": -0.172857967497303
+      },
+      "missing_counts": {
+        "token": 49,
+        "underlying": 3293,
+        "reference": 0
+      }
+    }
+  },
+  "interpretation_limits": [
+    "The panel includes a 24-hour five-minute grid; underlying observations are naturally concentrated in equity trading hours.",
+    "Metrics score only contemporaneous underlying-observable rows and are descriptive, retrospective diagnostics.",
+    "No tuning or recalibration was performed on this period; it is out of the frozen model training cutoff but is not a prospectively observed trial.",
+    "P1a assimilates the same xStock input being compared with its challenger; this is model-based challenger evidence, not an independent-observation test.",
+    "The original handoff training CSV bytes are unavailable; source_training_dataset_sha256 is the declared fit binding and was not independently recomputed."
+  ]
+}

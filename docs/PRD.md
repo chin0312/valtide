@@ -7,20 +7,26 @@
 
 Valtide is an **independent collateral-valuation control layer for tokenized equities on X Layer**.
 
-It gives DeFi curators and lending-protocol risk teams an independent view of whether a production collateral valuation remains supported when traditional, tokenized and constructed references diverge.
+It gives DeFi curators and lending-protocol risk teams a separate, auditable view of whether a production collateral valuation remains supported when traditional, tokenized and constructed references diverge.
 
 Valtide does this through four connected capabilities:
 
-1. an independent challenger fair-value estimate,
+1. a separately modeled challenger fair-value estimate,
 2. calibrated uncertainty around that estimate,
 3. validation logic that produces a standardized Evidence State, and
 4. an X Layer control interface through which a curator-configured policy can consume that evidence.
 
 Valtide is **not** a primary production oracle, lending protocol or automated LTV controller. It does not choose a universal policy action or automatically liquidate positions.
 
+In the current P1a implementation, the selected xStock observation is
+assimilated before the model-based challenger is emitted. The challenger is
+therefore not an independent market observation of that same xStock price.
+Asset-matched OKX X-Perp/index observations are separate market evidence where
+available; disagreement across inputs does not prove which price is correct.
+
 Its core product question is:
 
-> **“Is the collateral valuation this protocol is relying on supported by independent evidence?”**
+> **“Is the collateral valuation this protocol is relying on supported by the available, provenance-labelled evidence?”**
 
 The **reference under test** is the explicit reference Valtide validates. In
 the current deployed NVDAx path, it is the OKX X-Perp NVDA index. The
@@ -55,7 +61,7 @@ VALIDATE
 Is the reference I rely on still supported?
 
 DIAGNOSE
-Why are the reference, tokenized market and independent evidence disagreeing?
+Why are the reference, tokenized market and other available evidence disagreeing?
 
 TRIAGE
 Is the evidence strong enough to support the reference, challenge it, or is the result inconclusive?
@@ -112,12 +118,12 @@ It is:
 
 ## 4. Product Hypothesis
 
-A specialized independent challenger layer can add value even when strong primary oracle infrastructure already exists.
+A specialized challenger layer can add value even when strong primary oracle infrastructure already exists.
 
 Valtide tests whether:
 
-1. tokenized-market price discovery and related signals contain useful independent information;
-2. an independent challenger estimator can produce calibrated fair-value ranges;
+1. tokenized-market price discovery and separately sourced market signals contain useful complementary information;
+2. a separately modeled challenger can produce calibrated fair-value ranges;
 3. cross-reference disagreement can identify periods when a production reference deserves review;
 4. historical replay can make that validation auditable rather than purely judgmental.
 
@@ -135,11 +141,11 @@ A risk team may use Valtide to become either more aggressive or more conservativ
 
 The value proposition is:
 
-> **Independent evidence for collateral-valuation decisions.**
+> **Provenance-aware evidence for collateral-valuation decisions.**
 
 More specifically, Valtide should help a risk team answer:
 
-- Is the current production reference consistent with independent evidence?
+- Is the current production reference consistent with the available, separately sourced market evidence?
 - How far is it from the challenger estimate?
 - Is that deviation large relative to model uncertainty?
 - Do tokenized and external markets agree with each other?
@@ -193,8 +199,11 @@ NVDAx is the preferred first research asset because:
 Historical Pyth / venue availability remains an explicit limitation of the
 research methodology and is recorded in the historical diagnostics.
 
-The deployed path uses one supported NVDAx / NVDA asset and one selected
-reference under test.
+The existing X Layer deployment binds NVDAx / NVDA only. The backend catalog
+and Console select NVDAx, SPYx, QQQx, and AAPLx through one shared evidence
+structure; their asset-specific model and source readiness is reported
+separately, and local validation does not imply persistent production
+provisioning.
 
 ### Roadmap asset: SPYx
 
@@ -205,7 +214,10 @@ SPYx is strategically important because:
 - OKX supports a SPY X-Perp,
 - it provides a useful lower-idiosyncratic-risk comparison.
 
-SPYx is not currently onboarded and is not represented by fabricated live data.
+SPYx is registered with its Solana token identity, asset-specific P1a-C bundle,
+underlying/index mappings, and local source validation. This does not imply
+sustained production scheduling or a deployed X Layer binding; readiness remains
+explicitly per asset.
 
 ### Asset-selection rule
 
@@ -229,7 +241,8 @@ For replay mode, the user selects a historical observation.
 Valtide displays the major relevant references separately.
 
 The current supported path is centered on one reference under test and the
-minimum independent evidence required to make the challenger defensible.
+minimum separately sourced market evidence required to contextualize the
+challenger.
 Additional external comparators remain optional evidence when they are not
 available without compromising point-in-time correctness.
 
@@ -245,7 +258,7 @@ OKX / derivative reference     $186.00
 
 Not every source will always be available.
 
-### Step 3 — Run the independent challenger model
+### Step 3 — Run the P1a challenger model
 
 Example:
 
@@ -274,9 +287,9 @@ Evidence State                  CHALLENGED
 
 Valtide assigns one Evidence State:
 
-- `SUPPORTED` — available independent evidence does not provide a material reason to challenge the reference under test;
+- `SUPPORTED` — available evidence does not provide a material reason to challenge the reference under test;
 - `INCONCLUSIVE` — evidence is not sufficiently strong or consistent to support or materially challenge the reference; or
-- `CHALLENGED` — the reference under test is materially inconsistent with sufficiently strong independent evidence.
+- `CHALLENGED` — the reference under test is materially inconsistent with sufficiently strong evidence, including separately sourced market evidence where available.
 
 These are evidence semantics, not action recommendations. Valtide determines the Evidence State. The curator or protocol determines the Policy Action. The consumer enforces the resulting action.
 
@@ -376,7 +389,7 @@ The product should remain focused around model validation rather than becoming a
 Immediately answer:
 
 1. What is the reference under test, preferably the production collateral reference?
-2. What are the independent market references?
+2. What separately sourced market evidence is available?
 3. What does Valtide estimate?
 4. How uncertain is the estimate?
 5. What is the Evidence State?
@@ -386,7 +399,7 @@ Immediately answer:
 
 Show each reference separately rather than hiding disagreement in one composite score.
 
-A compact visual should make it obvious when one reference is outside the independent evidence range.
+A compact visual should make it obvious when one reference is outside the available evidence range.
 
 ### View 3 — Basis Analysis
 
@@ -429,7 +442,7 @@ The dashboard serves the human decision-maker. It should explain the Evidence St
 
 ### Implemented quantitative capabilities
 
-- implement simple baselines and an independent challenger estimator,
+- implement simple baselines and a separately modeled P1a challenger,
 - generate defensible calibrated uncertainty and explicit abstention,
 - compute reference deviation and Evidence State,
 - abstain with `INCONCLUSIVE` when evidence quality or uncertainty is insufficient,
@@ -712,15 +725,16 @@ The contract layer must not:
 
 ## 16. Current and Future Scope
 
-Valtide currently prioritizes a defensible NVDAx vertical slice over broad but
-partial asset coverage.
+Valtide's repository and Console support four primary asset selections with
+per-asset readiness; deployed X Layer control-plane support remains NVDAx-only.
 
 ### Current end-to-end path
 
-- one primary asset: NVDAx / NVDA;
+- primary asset selections: NVDAx, SPYx, QQQx, and AAPLx, with operational,
+  historical, model, and onchain readiness evaluated per asset;
 - one reference under test;
 - real or reproducible point-in-time market inputs;
-- a simple independent challenger estimator;
+- an asset-specific P1a challenger estimator;
 - defensible uncertainty and abstention logic;
 - Evidence State generation;
 - the backend/API path required by the demo;
@@ -800,7 +814,7 @@ Protocol exposure simulation is attractive but overlaps with mature incumbents.
 
 ### Technical thesis
 
-> **Use an independent challenger model and calibrated uncertainty to turn cross-market price disagreement into an auditable Evidence State and configurable X Layer control.**
+> **Use a separately modeled challenger and calibrated uncertainty to turn cross-market price disagreement into an auditable Evidence State and configurable X Layer control.**
 
 ### What Valtide is not
 

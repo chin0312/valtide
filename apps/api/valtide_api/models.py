@@ -62,7 +62,7 @@ class MarketSnapshot(BaseModel):
     # validation as a market-quality floor; None where a source omits it.
     token_liquidity_usd: float | None = None
 
-    # Current NVDA if the market is open, else None (weekend/overnight).
+    # Current underlying-equity observation for this asset when available.
     underlying_reference: float | None = None
     underlying_reference_ts: datetime | None = None
 
@@ -81,7 +81,7 @@ class MarketSnapshot(BaseModel):
 
     market_state: MarketState
 
-    # P0: kept at 1.0; validation flags only a gross NVDAx/NVDA unit mismatch
+    # P0: kept at 1.0; validation flags only a gross token/underlying unit mismatch
     # (TOKEN_UNIT_SUSPECT) instead of blindly rescaling (see James's pipeline
     # README). A moderate economic divergence is judged as normal evidence.
     corporate_action_multiplier: float = 1.0
@@ -91,7 +91,7 @@ class MarketSnapshot(BaseModel):
 
 
 class ChallengerEstimate(BaseModel):
-    """Output of the quant runtime — the independent (NVDAx-only) challenger.
+    """Output of the asset-specific quant runtime's model-based challenger.
 
     Carries the log-space state directly so validation never has to reverse-
     engineer sigma from asymmetric price bounds. See docs/BACKEND_ARCHITECTURE.md.
@@ -100,14 +100,15 @@ class ChallengerEstimate(BaseModel):
     fair_value: float  # exp(state_m)
     lower_bound: float  # price-space interval (may be asymmetric)
     upper_bound: float
-    state_m: float  # posterior mean in LOG space (NVDAx-only)
+    state_m: float  # posterior mean in LOG space
     state_sd_log: float  # sqrt(P_t) in LOG space — latent-state uncertainty
     reference_predictive_sd_log: float  # sqrt(P_t + R_nvda), used for validation
     coverage_target: float
     interval_calibration_type: str = "session_sym"
     interval_calibration_source: str = "global"
 
-    # State AFTER folding in NVDA (if present), carried into the next step.
+    # Legacy field name: state after folding in the current underlying, carried
+    # into the next step for every asset.
     state_m_after_nvda: float
     state_P_after_nvda: float
     model_id: str
@@ -116,7 +117,7 @@ class ChallengerEstimate(BaseModel):
 
 
 class ValuationResult(BaseModel):
-    """The public result served to the frontend and X Layer publisher.
+    """The public asset-scoped result served to clients and optional publisher.
 
     See docs/BACKEND_ARCHITECTURE.md.
     """

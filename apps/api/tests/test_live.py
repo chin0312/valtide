@@ -260,7 +260,11 @@ def test_live_snapshot_dispatches_pinned_token_and_configured_underlying(monkeyp
     monkeypatch.setattr(
         live.market_sources,
         "reference_live",
-        lambda *_args, **_kwargs: pytest.fail("xStock profile must not load an unrelated index"),
+        lambda config, **_kwargs: ReferenceObservation(
+            price=499.8,
+            source=config.reference_under_test_source,
+            ts=observation_ts,
+        ),
     )
 
     snapshot = build_live_snapshot(observation_ts=observation_ts, asset="SPYx")
@@ -272,11 +276,12 @@ def test_live_snapshot_dispatches_pinned_token_and_configured_underlying(monkeyp
     assert snapshot.asset == "SPYx"
     assert snapshot.token_price == 500.5
     assert snapshot.underlying_reference == 501.0
-    assert snapshot.reference_profile == "xstock_vs_p1ac_challenger"
-    assert snapshot.reference_under_test == snapshot.token_price
-    assert snapshot.reference_under_test_source == "xstock_token_market"
-    assert snapshot.source_provenance["reference_independence"] == (
-        "same_xstock_input_assimilated_by_p1a"
+    assert snapshot.reference_profile == "unified_xstock_p1ac_xperp_evidence_v1"
+    assert snapshot.reference_under_test == 499.8
+    assert snapshot.reference_under_test != snapshot.token_price
+    assert snapshot.reference_under_test_source == "okx_xperp_index"
+    assert snapshot.source_provenance["reference_relationship"] == (
+        "xstock_is_model_input;_xperp_is_separate_market_evidence"
     )
 
 

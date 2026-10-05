@@ -100,11 +100,10 @@ def build_rows(
         token = token_by_ts.get(timestamp)
         if token is not None and token.confirm != 1:
             token = None
-        ref = (
-            token
-            if config.reference_profile == "xstock_vs_p1ac_challenger"
-            else reference_by_ts.get(timestamp)
-        )
+        # xStock remains the model input; X-Perp is separately fetched evidence.
+        # A missing index candle is retained as missing and never replaced by
+        # the token candle.
+        ref = reference_by_ts.get(timestamp)
         rows.append(
             {
                 "timestamp_utc": timestamp.isoformat().replace("+00:00", "Z"),
@@ -212,11 +211,7 @@ def build_panel(
     underlying_bars = market_sources.underlying_historical(
         asset_config, start - UNDERLYING_LOOKBACK, end
     )
-    reference_candles = (
-        token_candles
-        if asset_config.reference_profile == "xstock_vs_p1ac_challenger"
-        else market_sources.reference_historical(asset_config, start, end)
-    )
+    reference_candles = market_sources.reference_historical(asset_config, start, end)
     rows = build_rows(
         start, end, token_candles, underlying_bars, reference_candles,
         config=asset_config, deployment=deployment,

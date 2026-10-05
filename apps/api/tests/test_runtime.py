@@ -11,6 +11,7 @@ from valtide_api.config import Settings
 from valtide_api.live import ExactNvdaxCandleUnavailable, LiveDataUnavailable
 from valtide_api.models import MarketSnapshot, MarketState
 from valtide_api.publisher import PublicationError
+from valtide_api.replay import run_inference
 from valtide_api.runtime_store import (
     RuntimeStateIntegrityError,
     RuntimeStore,
@@ -39,13 +40,13 @@ def _snapshot(timestamp: datetime) -> MarketSnapshot:
         reference_age_seconds=int((timestamp - _ANCHOR).total_seconds()),
         reference_under_test=185.7,
         reference_under_test_source="okx_xperp_index",
-        reference_profile="legacy_xperp_vs_p1ac",
+        reference_profile="unified_xstock_p1ac_xperp_evidence_v1",
         reference_under_test_ts=timestamp,
         reference_under_test_age_seconds=0,
         market_state=MarketState.CLOSED,
         source_provenance={
             "test": "warmed_runtime",
-            "reference_profile": "legacy_xperp_vs_p1ac",
+            "reference_profile": "unified_xstock_p1ac_xperp_evidence_v1",
         },
     )
 
@@ -74,6 +75,23 @@ def test_scheduler_worker_selection_is_explicit_and_single_asset(tmp_path, monke
     assert build_enabled_schedulers(settings, store, assets=()) == ()
 
 
+def test_four_ready_workers_require_explicit_asset_selection(tmp_path, monkeypatch):
+    store = RuntimeStore(tmp_path / "four-runtime.sqlite3")
+    settings = Settings(
+        _env_file=None,
+        live_scheduler_enabled=True,
+        live_scheduler_asset="NVDAx",
+        live_scheduler_assets="NVDAx,SPYx,QQQx,AAPLx",
+        auto_publish_enabled=False,
+    )
+    monkeypatch.setattr(scheduler_module, "get_settings", lambda: settings)
+
+    workers = build_enabled_schedulers(settings, store)
+
+    assert [worker.asset for worker in workers] == ["NVDAx", "SPYx", "QQQx", "AAPLx"]
+    assert build_enabled_schedulers(settings, store, assets=()) == ()
+
+
 def test_multi_worker_selection_skips_known_unready_asset_without_stopping_ready_one(
     tmp_path, monkeypatch
 ):
@@ -86,11 +104,50 @@ def test_multi_worker_selection_skips_known_unready_asset_without_stopping_ready
         auto_publish_enabled=False,
     )
     monkeypatch.setattr(scheduler_module, "get_settings", lambda: settings)
+    monkeypatch.setattr(
+        scheduler_module,
+        "quant_runtime_available",
+        lambda config: config.asset == "NVDAx",
+    )
 
     workers = build_enabled_schedulers(settings, store)
 
     assert [worker.asset for worker in workers] == ["NVDAx"]
     assert build_enabled_schedulers(settings, store, assets=("SPYx",)) == ()
+
+
+def test_auto_publish_does_not_require_onchain_binding_for_offchain_scheduler(
+    tmp_path, monkeypatch
+):
+    calls = []
+    timestamp = _ANCHOR + timedelta(minutes=5)
+    snapshot = _snapshot(timestamp).model_copy(update={"asset": "SPYx"})
+    result, _state = run_inference(snapshot, None)
+    settings = SimpleNamespace(
+        auto_publish_enabled=True,
+        publish_enabled=False,
+        live_scheduler_asset="SPYx",
+    )
+    monkeypatch.setattr(scheduler_module, "get_settings", lambda: settings)
+    scheduler = LiveScheduler(
+        asset="SPYx",
+        store=RuntimeStore(tmp_path / "spy-runtime.sqlite3"),
+        publisher_fn=lambda *args, **kwargs: calls.append((args, kwargs)),
+    )
+
+    scheduler._publish_if_enabled(
+        TickResult(
+            asset="SPYx",
+            canonical_ts=timestamp,
+            status="success",
+            result=result,
+            gap_steps=0,
+            state_restored=False,
+        )
+    )
+
+    assert calls == []
+    assert scheduler._pending_publication is None
 
 
 def test_wrong_asset_snapshot_is_not_persisted_or_published(tmp_path):
@@ -182,7 +239,8 @@ def test_legacy_sqlite_state_is_preserved_but_not_resumed_without_identity(tmp_p
     assert legacy.latest_result is None
     assert migrated.load_history("NVDAx") == [first.result]
     assert migrated.load_history(
-        "NVDAx", expected_identity=identity, reference_profile="legacy_xperp_vs_p1ac"
+        "NVDAx", expected_identity=identity,
+        reference_profile="unified_xstock_p1ac_xperp_evidence_v1"
     ) == []
 
     second = run_live_tick("NVDAx", second_ts, store=migrated, snapshot_builder=builder)
@@ -197,7 +255,8 @@ def test_legacy_sqlite_state_is_preserved_but_not_resumed_without_identity(tmp_p
     assert archived["latest_result_json"] == first.result.model_dump_json()
     assert migrated.load_history("NVDAx") == [first.result, second.result]
     assert migrated.load_history(
-        "NVDAx", expected_identity=identity, reference_profile="legacy_xperp_vs_p1ac"
+        "NVDAx", expected_identity=identity,
+        reference_profile="unified_xstock_p1ac_xperp_evidence_v1"
     ) == [second.result]
     mismatched = migrated.load_runtime(
         "NVDAx", expected_identity="old-chain1-discovery"
@@ -211,7 +270,8 @@ def test_legacy_sqlite_state_is_preserved_but_not_resumed_without_identity(tmp_p
     assert third.status == "success"
     assert third.state_restored is True
     assert restarted.load_history(
-        "NVDAx", expected_identity=identity, reference_profile="legacy_xperp_vs_p1ac"
+        "NVDAx", expected_identity=identity,
+        reference_profile="unified_xstock_p1ac_xperp_evidence_v1"
     ) == [second.result, third.result]
 
 
@@ -247,7 +307,7 @@ def test_old_chain_or_reference_profile_generation_is_archived_not_resumed(tmp_p
     assert store.load_history(
         "NVDAx",
         expected_identity=current_identity,
-        reference_profile="legacy_xperp_vs_p1ac",
+        reference_profile="unified_xstock_p1ac_xperp_evidence_v1",
     ) == []
     # Unfiltered local/audit history remains intact and is not deleted.
     assert store.load_history("NVDAx") == [first.result]
@@ -282,7 +342,7 @@ def test_old_chain_or_reference_profile_generation_is_archived_not_resumed(tmp_p
     assert store.load_history(
         "NVDAx",
         expected_identity=current_identity,
-        reference_profile="legacy_xperp_vs_p1ac",
+        reference_profile="unified_xstock_p1ac_xperp_evidence_v1",
     ) == [second.result]
     store.close()
 
@@ -295,7 +355,7 @@ def test_old_chain_or_reference_profile_generation_is_archived_not_resumed(tmp_p
     assert restarted.load_history(
         "NVDAx",
         expected_identity=current_identity,
-        reference_profile="legacy_xperp_vs_p1ac",
+        reference_profile="unified_xstock_p1ac_xperp_evidence_v1",
     ) == [second.result]
 
 

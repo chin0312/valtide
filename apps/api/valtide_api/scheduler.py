@@ -358,6 +358,13 @@ class LiveScheduler:
         """Queue a newly persisted result without waiting for blockchain delivery."""
         if not self._auto_publish_enabled or tick.status != "success" or tick.result is None:
             return
+        if not self.asset_config.capabilities.onchain:
+            logger.info(
+                "auto-publish asset=%s observed_at=%s status=not_configured",
+                self.asset,
+                tick.result.timestamp.isoformat(),
+            )
+            return
 
         result = tick.result
         if tick.asset != self.asset or result.asset != self.asset:

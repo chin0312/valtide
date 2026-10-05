@@ -3,10 +3,12 @@
 The selected AssetConfig supplies:
   - an exact confirmed token candle via the configured token-market adapter;
   - the configured underlying symbol and provider; and
-  - the reference profile/instrument to validate.
+  - the separate OKX X-Perp/index evidence instrument.
 
-The current NVDAx profile uses the public OKX X-Perp index. The xStock profile
-uses the same token candle as its observed reference and labels that dependence.
+All current product assets use the same evidence structure. P1a assimilates the
+xStock observation before emitting the model-based challenger, so that comparison
+is not between independent market observations; the X-Perp/index is separately
+sourced market evidence.
 
 then runs a single cold-start inference.
 
@@ -142,28 +144,20 @@ def build_live_snapshot(
     anchor = prior[-1]
     anchor_age = int((now - anchor.ts).total_seconds())
 
-    # The cross-asset research profile compares the current observed xStock
-    # against its P1a challenger. It is not an independent data source: this
-    # token observation has already been assimilated by P1a before emission.
-    # NVDAx retains its separately identified OKX X-Perp comparator.
-    if asset_config.reference_profile == "xstock_vs_p1ac_challenger":
-        ref = token_candle
-        pt_source = asset_config.reference_under_test_source
-        pt = ref.close if ref is not None else None
-        pt_ts = ref.ts if ref is not None else None
-        reference_age = 0 if ref is not None else None
+    # xStock is always the observed token/model input. The separately sourced
+    # X-Perp index is a corroborating market-evidence component for every asset;
+    # it is not a user-selectable profile and is never substituted with xStock.
+    try:
+        ref = market_sources.reference_live(asset_config, client=client, now=now)
+    except AssetConfigurationError as exc:
+        raise LiveDataUnavailable(str(exc)) from exc
+    if ref is not None:
+        pt, pt_source, pt_ts = ref.price, ref.source, ref.ts
+        reference_age = int((now - ref.ts).total_seconds())
     else:
-        try:
-            ref = market_sources.reference_live(asset_config, client=client, now=now)
-        except AssetConfigurationError as exc:
-            raise LiveDataUnavailable(str(exc)) from exc
-        if ref is not None:
-            pt, pt_source, pt_ts = ref.price, ref.source, ref.ts
-            reference_age = int((now - ref.ts).total_seconds())
-        else:
-            pt, pt_source, pt_ts, reference_age = (
-                None, asset_config.reference_under_test_source, None, None
-            )
+        pt, pt_source, pt_ts, reference_age = (
+            None, asset_config.reference_under_test_source, None, None
+        )
 
     # A gross token/underlying unit mismatch is judged by validation
     # (TOKEN_UNIT_SUSPECT), not fatally here; an economic depeg must reach the
@@ -196,10 +190,8 @@ def build_live_snapshot(
                 f"{pt_source}@{pt_ts.isoformat()}" if pt_ts is not None else pt_source
             ),
             "reference_profile": asset_config.reference_profile,
-            **(
-                {"reference_independence": "same_xstock_input_assimilated_by_p1a"}
-                if asset_config.reference_profile == "xstock_vs_p1ac_challenger"
-                else {}
+            "reference_relationship": (
+                "xstock_is_model_input;_xperp_is_separate_market_evidence"
             ),
         },
     )

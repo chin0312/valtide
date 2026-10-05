@@ -114,7 +114,9 @@ def test_unknown_asset_fails_closed_before_source_or_artifact_selection():
         ("AAPLx", "AAPL", "XsbEhLAtcf6HdfpFZ5xEMdqW8nfAvcsP5bdudRLJzJp"),
     ],
 )
-def test_primary_token_bindings_are_asset_specific_and_unfitted(asset, underlying, address):
+def test_primary_token_bindings_and_frozen_quant_bundles_are_asset_specific(
+    asset, underlying, address
+):
     config = resolve_asset_config(asset, Settings(_env_file=None))
 
     assert (config.underlying_symbol, config.okx_chain_index, config.token_address) == (
@@ -122,13 +124,17 @@ def test_primary_token_bindings_are_asset_specific_and_unfitted(asset, underlyin
         "501",
         address,
     )
-    assert config.reference_profile == "xstock_vs_p1ac_challenger"
-    assert config.reference_under_test_instrument == asset
+    assert config.reference_profile == "unified_xstock_p1ac_xperp_evidence_v1"
+    assert config.reference_under_test_source == "okx_xperp_index"
+    assert config.reference_under_test_instrument == f"{underlying}-USD"
     assert config.allow_token_discovery is False
-    assert config.capabilities.quant is False
-    assert config.capabilities.runtime is False
-    with pytest.raises(AssetConfigurationError, match="quant runtime is unavailable"):
-        get_quant_service(asset)
+    assert config.capabilities.quant is True
+    assert config.capabilities.runtime is True
+    service = get_quant_service(asset)
+    assert service.runtime.artifact.asset == asset
+    assert service.runtime.artifact.model_version == "0.3.0"
+    assert service.runtime.artifact.source_fit_sha256
+    assert service.runtime.artifact.source_dataset_sha256
 
 
 def test_registered_token_identity_matches_research_data_manifest():
@@ -167,10 +173,15 @@ def test_quant_runtime_metadata_is_artifact_owned_and_registry_drives_api(monkey
     config = resolve_asset_config("NVDAx", Settings(_env_file=None))
     spec = resolve_quant_runtime(config)
     assert (spec.asset, spec.model_id, spec.model_version) == ("NVDAx", "P1a-C", "0.2.0")
+    import valtide_api.routes.assets as assets_route
+
+    monkeypatch.setattr(assets_route, "get_settings", lambda: Settings(_env_file=None))
+    monkeypatch.setattr(assets_route, "get_runtime_store", lambda: RuntimeStore(":memory:"))
     listed = list_assets()
     assert [item.asset for item in listed] == ["NVDAx", "SPYx", "QQQx", "AAPLx"]
     assert listed[0].model_available is True
-    assert all(not item.model_available for item in listed[1:])
+    assert all(item.model_available for item in listed)
+    assert all(item.reference_profile == "unified_xstock_p1ac_xperp_evidence_v1" for item in listed)
     assert all(not item.live_market_data_available for item in listed[1:])
     monkeypatch.setattr(quant_runtime, "_QUANT_RUNTIME_FACTORIES", MappingProxyType({}))
     assert list_assets()[0].model_available is False

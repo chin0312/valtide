@@ -188,7 +188,7 @@ def test_builder_uses_synthetic_asset_sources_without_nvda_dispatch(monkeypatch,
     assert snapshots[0].last_trusted_reference_ts == anchor.ts
 
 
-def test_primary_xstock_panel_uses_asset_bound_token_as_labelled_reference(
+def test_primary_asset_panel_keeps_xstock_input_and_xperp_as_separate_evidence(
     monkeypatch, tmp_path
 ):
     start = datetime(2026, 10, 2, 14, 0, tzinfo=UTC)
@@ -214,7 +214,9 @@ def test_primary_xstock_panel_uses_asset_bound_token_as_labelled_reference(
     monkeypatch.setattr(
         historical_panel.market_sources,
         "reference_historical",
-        lambda *_args, **_kwargs: pytest.fail("xStock profile must use its configured token input"),
+        lambda *_args, **_kwargs: [
+            RawReferenceCandle(start, 499.8, 500.0, 499.0, 499.8, 1)
+        ],
     )
 
     output = tmp_path / "spyx-panel.csv"
@@ -227,9 +229,10 @@ def test_primary_xstock_panel_uses_asset_bound_token_as_labelled_reference(
     ]
     assert snapshots[0].asset == "SPYx"
     assert snapshots[0].token_price == 500.5
-    assert snapshots[0].reference_under_test == snapshots[0].token_price
-    assert snapshots[0].reference_under_test_source == "xstock_token_market"
-    assert snapshots[0].reference_profile == "xstock_vs_p1ac_challenger"
-    assert snapshots[0].source_provenance["reference_independence"] == (
-        "same_xstock_input_assimilated_by_p1a"
+    assert snapshots[0].reference_under_test == 499.8
+    assert snapshots[0].reference_under_test != snapshots[0].token_price
+    assert snapshots[0].reference_under_test_source == "okx_xperp_index"
+    assert snapshots[0].reference_profile == "unified_xstock_p1ac_xperp_evidence_v1"
+    assert snapshots[0].source_provenance["reference_relationship"] == (
+        "xstock_is_model_input;_xperp_is_separate_market_evidence"
     )

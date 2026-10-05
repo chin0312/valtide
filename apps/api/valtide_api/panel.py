@@ -490,10 +490,8 @@ def load_panel_snapshots(
                         "reference_profile": (
                             row.get("reference_profile") or asset_config.reference_profile
                         ),
-                        **(
-                            {"reference_independence": "same_xstock_input_assimilated_by_p1a"}
-                            if asset_config.reference_profile == "xstock_vs_p1ac_challenger"
-                            else {}
+                        "reference_relationship": (
+                            "xstock_is_model_input;_xperp_is_separate_market_evidence"
                         ),
                         "panel_schema": schema,
                         "token_deployment_verified": str(not legacy).lower(),

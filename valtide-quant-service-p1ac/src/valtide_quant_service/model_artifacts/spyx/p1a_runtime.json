@@ -1,0 +1,20 @@
+{
+  "model_family": "P1a",
+  "deployment_model_id": "P1a-C",
+  "model_version": "0.3.0",
+  "asset": "SPYx",
+  "interval_level": 0.90000000000000002,
+  "q_by_session": {
+    "regular": 4.7994550671890657e-07,
+    "premarket": 2.6034063204069144e-07,
+    "afterhours": 8.951231446506008e-08,
+    "overnight": 2.2851907034306602e-07,
+    "closed": 7.1803853375226922e-08
+  },
+  "r_nvda": 1.8632612743235896e-08,
+  "r_nvdax": 5.7771204935730862e-06,
+  "trained_through_utc": "2026-06-23T14:15:00+00:00",
+  "source_model_version": null,
+  "source_fit_sha256": "35e4494d2ba683079657d0c15ff2b76d6fc80f555fbe01ef4f2cb1bb831166df",
+  "source_dataset_sha256": "aa39adcd2205cd93232d4ee9cbd426a01069d0e70751f026205e88f8fa31d07b"
+}

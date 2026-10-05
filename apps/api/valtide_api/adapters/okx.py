@@ -18,6 +18,7 @@ import hmac
 from dataclasses import dataclass
 from datetime import UTC, datetime
 from threading import Lock
+from time import sleep
 from urllib.parse import quote
 
 import httpx
@@ -29,6 +30,9 @@ _BASE_URL = "https://web3.okx.com"
 
 _deployment_lock = Lock()
 _deployment_cache: dict[str, tuple[str, str]] = {}
+_MAX_429_RETRIES = 2
+_MAX_429_WAIT_SECONDS = 60.0
+_HISTORY_PAGE_DELAY_SECONDS = 0.15
 
 
 @dataclass
@@ -68,23 +72,43 @@ def _get(path: str, params: dict[str, str | None], client: httpx.Client) -> dict
     settings = get_settings()
     query = _query_string(params)
     path_with_query = path + query
-    ts = _timestamp()
-    signature = _sign(ts + "GET" + path_with_query, settings.okx_api_secret)
-
-    resp = client.get(
-        _BASE_URL + path_with_query,
-        headers={
-            "OK-ACCESS-KEY": settings.okx_api_key,
-            "OK-ACCESS-SIGN": signature,
-            "OK-ACCESS-TIMESTAMP": ts,
-            "OK-ACCESS-PASSPHRASE": settings.okx_api_passphrase,
-        },
-    )
+    for attempt in range(_MAX_429_RETRIES + 1):
+        ts = _timestamp()
+        signature = _sign(ts + "GET" + path_with_query, settings.okx_api_secret)
+        resp = client.get(
+            _BASE_URL + path_with_query,
+            headers={
+                "OK-ACCESS-KEY": settings.okx_api_key,
+                "OK-ACCESS-SIGN": signature,
+                "OK-ACCESS-TIMESTAMP": ts,
+                "OK-ACCESS-PASSPHRASE": settings.okx_api_passphrase,
+            },
+        )
+        if resp.status_code != 429 or attempt == _MAX_429_RETRIES:
+            break
+        wait = _rate_limit_wait_seconds(resp)
+        if wait > 0:
+            sleep(wait)
     resp.raise_for_status()
     body = resp.json()
     if str(body.get("code")) != "0":
         raise RuntimeError(f"OKX API error: code={body.get('code')} msg={body.get('msg')}")
     return body["data"]
+
+
+def _rate_limit_wait_seconds(response: httpx.Response) -> float:
+    """Respect vendor retry/reset metadata, bounded to one minute per retry."""
+    for name in ("retry-after", "ratelimit-reset", "x-ratelimit-reset"):
+        value = response.headers.get(name)
+        if value is None:
+            continue
+        try:
+            seconds = float(value)
+        except (TypeError, ValueError):
+            continue
+        if seconds >= 0:
+            return min(seconds, _MAX_429_WAIT_SECONDS)
+    return 1.0
 
 
 def discover_rwa_token(config: AssetConfig, client: httpx.Client | None = None) -> list[dict]:
@@ -210,6 +234,9 @@ def get_historical_candles(
                 break
             seen_oldest = oldest
             after = str(oldest)
+            # Historical OnchainOS calls are signed and quota-backed. Pace
+            # sequential pages rather than creating a burst during backfill.
+            sleep(_HISTORY_PAGE_DELAY_SECONDS)
         return [out[k] for k in sorted(out)]
     finally:
         if owns_client:

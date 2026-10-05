@@ -13,6 +13,7 @@ from dataclasses import dataclass
 from datetime import datetime
 from functools import lru_cache
 from importlib import resources
+from pathlib import Path
 from types import MappingProxyType
 
 from valtide_quant_service import (
@@ -51,11 +52,29 @@ def _default_artifact_identity() -> tuple[str, str, str]:
     return artifact.asset, artifact.deployment_model_id, artifact.model_version
 
 
+def _bundle_registration(bundle: str) -> _RuntimeRegistration:
+    root = Path(str(resources.files("valtide_quant_service").joinpath("model_artifacts", bundle)))
+    model_path = root / "p1a_runtime.json"
+    calibrator_path = root / "p1a_c_calibrator.json"
+
+    def identity() -> tuple[str, str, str]:
+        artifact = load_p1a(model_path)
+        return artifact.asset, artifact.deployment_model_id, artifact.model_version
+
+    def factory(state: FilterState | None = None) -> QuantService:
+        return QuantService.from_artifacts(model_path, calibrator_path, state=state)
+
+    return _RuntimeRegistration(factory, identity)
+
+
 _QUANT_RUNTIME_FACTORIES = MappingProxyType(
     {
         "nvdax_p1ac_default": _RuntimeRegistration(
             QuantService.from_default_artifacts, _default_artifact_identity
-        )
+        ),
+        "spyx_p1ac_v030": _bundle_registration("spyx"),
+        "qqqx_p1ac_v030": _bundle_registration("qqqx"),
+        "aaplx_p1ac_v030": _bundle_registration("aaplx"),
     }
 )
 
@@ -99,9 +118,8 @@ def get_quant_service(
 ) -> QuantService:
     """Resolve the explicitly registered quant artifact for ``asset``.
 
-    The dispatch seam is intentionally narrow. NVDAx is the only asset with a
-    validated runtime bundle. Candidate assets fail closed until their own
-    artifact registration and capability are reviewed.
+    Each asset resolves only its explicitly registered, identity-checked
+    artifact bundle; there is no cross-asset fallback.
     """
 
     config = asset if isinstance(asset, AssetConfig) else resolve_asset_config(asset)
@@ -130,8 +148,9 @@ def estimate(
 
     ``prior_m``/``prior_P``/``prior_ts`` are the backend's serialized carried
     state. The packaged service then preserves its causal order: predict,
-    assimilate NVDAx, read the challenger estimate, and only then assimilate
-    current NVDA for the next timestamp.
+    assimilate the selected asset's xStock observation, emit the challenger
+    estimate, and only then assimilate its current underlying for the next
+    timestamp.
     """
     if (prior_m is None) != (prior_P is None):
         raise ValueError("prior_m and prior_P must be provided together")

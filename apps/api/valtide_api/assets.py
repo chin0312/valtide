@@ -74,7 +74,10 @@ _NVDA_CONFIG = AssetConfig(
     allow_token_discovery=False,
     reference_under_test_source="okx_xperp_index",
     reference_under_test_instrument="NVDA-USD",
-    reference_profile="legacy_xperp_vs_p1ac",
+    # This single product pipeline consumes Solana xStock as the model input,
+    # its corresponding underlying, and the separate OKX X-Perp index evidence.
+    # The prior profile remains only on already-persisted legacy rows.
+    reference_profile="unified_xstock_p1ac_xperp_evidence_v1",
     xlayer_reference_name="OKX_NVDA_USD_INDEX",
     quant_runtime_key="nvdax_p1ac_default",
     historical_panel_key="nvdax_panel",
@@ -82,13 +85,15 @@ _NVDA_CONFIG = AssetConfig(
 )
 
 _PRIMARY_TOKEN_DEPLOYMENTS = {
-    "SPYx": ("SPY", "XsoCS1TfEyfFhfvj8EtZ528L3CaKBDBRqRapnBbDF2W"),
-    "QQQx": ("QQQ", "Xs8S1uUs1zvS2p7iwtsG3b6fkhpvmwz4GYU3gWAmWHZ"),
-    "AAPLx": ("AAPL", "XsbEhLAtcf6HdfpFZ5xEMdqW8nfAvcsP5bdudRLJzJp"),
+    "SPYx": ("SPY", "XsoCS1TfEyfFhfvj8EtZ528L3CaKBDBRqRapnBbDF2W", "SPY-USD"),
+    "QQQx": ("QQQ", "Xs8S1uUs1zvS2p7iwtsG3b6fkhpvmwz4GYU3gWAmWHZ", "QQQ-USD"),
+    "AAPLx": ("AAPL", "XsbEhLAtcf6HdfpFZ5xEMdqW8nfAvcsP5bdudRLJzJp", "AAPL-USD"),
 }
 
 
-def _xstock_asset_config(asset: str, underlying: str, token_address: str) -> AssetConfig:
+def _xstock_asset_config(
+    asset: str, underlying: str, token_address: str, index_instrument: str
+) -> AssetConfig:
     key = asset.lower()
     return AssetConfig(
         asset=asset,
@@ -99,19 +104,17 @@ def _xstock_asset_config(asset: str, underlying: str, token_address: str) -> Ass
         okx_chain_index="501",
         token_address=token_address,
         allow_token_discovery=False,
-        reference_under_test_source="xstock_token_market",
-        reference_under_test_instrument=asset,
-        reference_profile="xstock_vs_p1ac_challenger",
-        xlayer_reference_name=f"XSTOCK_{underlying}_USD_REFERENCE",
-        quant_runtime_key=f"{key}_p1ac_unfitted",
+        reference_under_test_source="okx_xperp_index",
+        reference_under_test_instrument=index_instrument,
+        reference_profile="unified_xstock_p1ac_xperp_evidence_v1",
+        xlayer_reference_name=f"OKX_{underlying}_USD_INDEX",
+        quant_runtime_key=f"{key}_p1ac_v030",
         historical_panel_key=f"{key}_panel",
-        # Adapters and panel orchestration exist, but model and data artifacts
-        # are independently required before runtime or replay can be used.
         capabilities=AssetCapabilities(
             live_data=True,
             historical_data=True,
-            quant=False,
-            runtime=False,
+            quant=True,
+            runtime=True,
             onchain=False,
             api_exposed=True,
         ),
@@ -119,8 +122,8 @@ def _xstock_asset_config(asset: str, underlying: str, token_address: str) -> Ass
 
 
 _PRIMARY_CONFIGS = tuple(
-    _xstock_asset_config(asset, underlying, token_address)
-    for asset, (underlying, token_address) in _PRIMARY_TOKEN_DEPLOYMENTS.items()
+    _xstock_asset_config(asset, underlying, token_address, index_instrument)
+    for asset, (underlying, token_address, index_instrument) in _PRIMARY_TOKEN_DEPLOYMENTS.items()
 )
 
 _TSLA_CANDIDATE = AssetConfig(
