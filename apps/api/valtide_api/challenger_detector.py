@@ -13,8 +13,8 @@ from typing import Any
 from valtide_api.models import ChallengerDetectorEvidence, ChallengerEstimate
 
 _ARTIFACT_NAME = "challenger_tail_v1.json"
-_CAPABILITY_ARTIFACT_NAME = "tri_source_capabilities_v1.json"
-_UNIFIED_EVIDENCE_SEMANTICS = "p1a_xstock_challenger_xperp_second_market_v1"
+_CAPABILITY_ARTIFACT_NAME = "tri_source_capabilities_v2.json"
+_UNIFIED_EVIDENCE_SEMANTICS = "p1a_xstock_band_with_xperp_review_corroboration_v2"
 
 
 @dataclass(frozen=True)
@@ -53,7 +53,7 @@ def _artifact() -> dict[str, Any]:
 def _capability_artifact() -> dict[str, Any]:
     path = resources.files("valtide_api.detectors").joinpath(_CAPABILITY_ARTIFACT_NAME)
     payload = json.loads(path.read_text(encoding="utf-8"))
-    if payload.get("schema") != "valtide-tri-source-state-capabilities-v1":
+    if payload.get("schema") != "valtide-tri-source-state-capabilities-v2":
         raise ValueError("unsupported tri-source state capability schema")
     if (
         payload.get("evidence_semantics") != _UNIFIED_EVIDENCE_SEMANTICS

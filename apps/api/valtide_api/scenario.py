@@ -23,11 +23,14 @@ def load_scenario(name: str = "weekend_divergence") -> list[MarketSnapshot]:
     r0 = float(data["last_trusted_reference"])
     r0_ts = _parse_ts(data["last_trusted_reference_ts"])
     ref_source = data["reference_under_test_source"]
+    reference_profile = data.get("reference_profile", "unspecified")
 
     snapshots: list[MarketSnapshot] = []
     for step in data["steps"]:
         obs_ts = _parse_ts(step["observation_ts"])
         nvda = step.get("underlying_reference")
+        xperp_price = step.get("xperp_index_price")
+        xperp_ts = step.get("xperp_index_ts")
         snapshots.append(
             MarketSnapshot(
                 asset=asset,
@@ -59,6 +62,10 @@ def load_scenario(name: str = "weekend_divergence") -> list[MarketSnapshot]:
                 reference_under_test_age_seconds=(
                     0 if step.get("reference_under_test") is not None else None
                 ),
+                reference_profile=reference_profile,
+                xperp_index_price=(float(xperp_price) if xperp_price is not None else None),
+                xperp_index_source=step.get("xperp_index_source"),
+                xperp_index_ts=_parse_ts(xperp_ts) if xperp_ts is not None else None,
                 market_state=classify(obs_ts),
                 source_provenance={"scenario": name},
             )

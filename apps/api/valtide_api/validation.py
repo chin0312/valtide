@@ -20,7 +20,7 @@ from valtide_api.models import (
 from valtide_api.normalizer import is_unit_scale_suspect
 
 _UNIFIED_EVIDENCE_PROFILE = "unified_xstock_p1ac_xperp_evidence_v1"
-_UNIFIED_EVIDENCE_SEMANTICS = "p1a_xstock_challenger_xperp_second_market_v1"
+_UNIFIED_EVIDENCE_SEMANTICS = "p1a_xstock_band_with_xperp_review_corroboration_v2"
 
 
 @dataclass(frozen=True)
@@ -104,12 +104,20 @@ def validate(
 
     xperp_vs_p1ac = (
         (xperp_price / fair - 1) * 100
-        if xperp_price is not None and fair > 0
+        if xperp_price is not None
+        and math.isfinite(xperp_price)
+        and xperp_price > 0
+        and fair > 0
         else None
     )
     xstock_vs_xperp = (
         (token / xperp_price - 1) * 100
-        if token is not None and xperp_price is not None and xperp_price > 0
+        if token is not None
+        and math.isfinite(token)
+        and token > 0
+        and xperp_price is not None
+        and math.isfinite(xperp_price)
+        and xperp_price > 0
         else None
     )
 
@@ -236,6 +244,7 @@ def validate(
                 and snapshot.reference_under_test_source == "okx_xperp_index"
             )
             xperp_relation: str | None = None
+            xperp_valid = False
             if xperp_price is None or not source_is_xperp:
                 reason_codes.append("XPERP_EVIDENCE_UNAVAILABLE")
             elif (
@@ -248,7 +257,8 @@ def validate(
                 )
             ):
                 reason_codes.append("XPERP_EVIDENCE_STALE")
-            elif token is not None:
+            elif token is not None and math.isfinite(token) and token > 0:
+                xperp_valid = True
                 xperp_log = math.log(xperp_price)
                 distance_to_p1a = abs(xperp_log - estimate.state_m)
                 distance_to_xstock = abs(xperp_log - math.log(token))
@@ -268,17 +278,21 @@ def validate(
             if band == "support":
                 if capability is None or not capability.support_enabled:
                     reason_codes.append("P1A_XSTOCK_SUPPORT_NOT_PROMOTED")
+                elif xperp_valid and not quality_abstentions.intersection(reason_codes):
+                    # The frozen SUPPORT band already defines the low-
+                    # disagreement regime. Within that band, X-Perp direction
+                    # is descriptive only; there is no research-grounded
+                    # threshold for a slight preference between nearby prices.
+                    state = EvidenceState.SUPPORTED
+                    evidence_state_basis = (
+                        "frozen_p1a_xstock_support_band_with_exact_xperp_available"
+                    )
+                    if xperp_relation == "xstock":
+                        reason_codes.append("XPERP_CORROBORATES_XSTOCK")
+                    elif xperp_relation == "p1a":
+                        reason_codes.append("XPERP_CORROBORATES_P1A")
                 elif xperp_relation == "p1a":
                     reason_codes.append("XPERP_CORROBORATES_P1A")
-                elif (
-                    xperp_relation == "xstock"
-                    and not quality_abstentions.intersection(reason_codes)
-                ):
-                    state = EvidenceState.SUPPORTED
-                    reason_codes.append("XPERP_CORROBORATES_XSTOCK")
-                    evidence_state_basis = (
-                        "frozen_p1a_xstock_support_band_with_xperp_directional_corroboration"
-                    )
             elif band == "review":
                 if capability is None or not capability.challenge_enabled:
                     reason_codes.append("P1A_XSTOCK_CHALLENGE_NOT_PROMOTED")

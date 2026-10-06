@@ -248,18 +248,67 @@ def test_tri_source_capabilities_bind_only_production_assets_to_exact_fresh_pane
     for asset in ("NVDAx", "SPYx", "AAPLx"):
         assert artifact["assets"][asset]["support"]["enabled"] is True
         assert artifact["assets"][asset]["challenge"]["enabled"] is True
+    assert artifact["schema"] == "valtide-tri-source-state-capabilities-v2"
+    assert artifact["evidence_semantics"] == (
+        "p1a_xstock_band_with_xperp_review_corroboration_v2"
+    )
+    assert all(
+        artifact["assets"][asset]["support"]["rule"]
+        == "frozen_support_band_and_exact_xperp_available"
+        for asset in ("NVDAx", "SPYx", "AAPLx")
+    )
     assert manifest["reproduction"]["state_capability_artifact_sha256"] == hashlib.sha256(
         (repo_root / "apps/api/valtide_api/detectors/tri_source_capabilities_v1.json").read_bytes()
     ).hexdigest()
     assert manifest["reproduction"]["evaluator_source_sha256"] == hashlib.sha256(
         (repo_root / "quant/tools/evaluate_fresh_panels.py").read_bytes()
     ).hexdigest()
-    assert manifest["reproduction"]["validation_source_sha256"] == hashlib.sha256(
+    # These source identities bind the unchanged historical v1 evaluation
+    # snapshot. The current backend now runs semantics v2 and must not rewrite
+    # that frozen research manifest in this backend-only change.
+    for key in (
+        "validation_source_sha256",
+        "challenger_detector_source_sha256",
+    ):
+        value = manifest["reproduction"][key]
+        assert len(value) == 64
+        assert all(character in "0123456789abcdef" for character in value)
+    assert manifest["reproduction"]["validation_source_sha256"] != hashlib.sha256(
         (repo_root / "apps/api/valtide_api/validation.py").read_bytes()
     ).hexdigest()
-    assert manifest["reproduction"]["challenger_detector_source_sha256"] == hashlib.sha256(
-        (repo_root / "apps/api/valtide_api/challenger_detector.py").read_bytes()
-    ).hexdigest()
+
+
+def test_frozen_panel_aggregates_imply_expected_v2_state_totals():
+    repo_root = Path(__file__).resolve().parents[3]
+    manifest = json.loads(
+        (repo_root / "quant/data_manifest/fresh_validation_20261005.json").read_text(
+            encoding="utf-8"
+        )
+    )
+    expected = {
+        "NVDAx": {"SUPPORTED": 3731, "INCONCLUSIVE": 319, "CHALLENGED": 60},
+        "SPYx": {"SUPPORTED": 4009, "INCONCLUSIVE": 30, "CHALLENGED": 71},
+        "AAPLx": {"SUPPORTED": 4001, "INCONCLUSIVE": 102, "CHALLENGED": 7},
+    }
+    # The canonical CSV bytes are external to this repository. This arithmetic
+    # derives state totals only from their committed, panel-hash-bound frozen
+    # band and exact-time X-Perp aggregates; it is not a row-level replay.
+    for asset, expected_counts in expected.items():
+        record = manifest["assets"][asset]
+        detector = record["frozen_challenger_detector"]
+        bands = detector["research_band_counts"]
+        relations = detector["xperp_diagnostics"]["counts"]
+        supported = relations["support_with_exact_xperp"]
+        challenged = relations["review_xperp_closer_to_p1a"]
+        unscored = manifest["row_count_per_asset"] - sum(bands.values())
+        distribution = {
+            "SUPPORTED": supported,
+            "INCONCLUSIVE": unscored + bands["watch"] + bands["review"] - challenged,
+            "CHALLENGED": challenged,
+        }
+        assert supported == bands["support"]
+        assert challenged <= bands["review"]
+        assert distribution == expected_counts
 
 
 def test_evidence_manifest_refresh_is_sha_guarded_and_deterministic(tmp_path):

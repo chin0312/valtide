@@ -232,6 +232,24 @@ def test_quant_runtime_metadata_is_artifact_owned_and_registry_drives_api(monkey
     assert TestClient(app).get("/api/valuation/NVDAx/live").status_code == 503
 
 
+def test_intentionally_offchain_assets_have_no_onchain_readiness_error(monkeypatch):
+    from valtide_api.routes.assets import list_assets
+
+    monkeypatch.setattr(
+        "valtide_api.routes.assets.get_settings", lambda: Settings(_env_file=None)
+    )
+    monkeypatch.setattr(
+        "valtide_api.routes.assets.get_runtime_store", lambda: RuntimeStore(":memory:")
+    )
+
+    assets = {item.asset: item for item in list_assets()}
+    assert set(assets) == {"NVDAx", "SPYx", "AAPLx"}
+    for asset in ("SPYx", "AAPLx"):
+        assert assets[asset].onchain_binding_configured is False
+        assert "ONCHAIN_NOT_CONFIGURED" not in assets[asset].readiness_error_codes
+        assert "ONCHAIN_BINDING_UNAVAILABLE" not in assets[asset].readiness_error_codes
+
+
 def test_qqqx_production_http_routes_are_not_exposed(monkeypatch):
     monkeypatch.setattr(
         "valtide_api.routes.assets.get_settings", lambda: Settings(_env_file=None)

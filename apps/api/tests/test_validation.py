@@ -224,7 +224,7 @@ def test_production_tail_detector_works_without_same_time_underlying(asset):
     assert "XPERP_CORROBORATES_P1A" in result.reason_codes
     assert result.standardized_deviation is None
     assert result.validation_target == "xstock_observed_price"
-    assert result.evidence_semantics == "p1a_xstock_challenger_xperp_second_market_v1"
+    assert result.evidence_semantics == "p1a_xstock_band_with_xperp_review_corroboration_v2"
     assert result.xperp_role == "second_market_challenger"
     assert "UNDERLYING_REFERENCE_NOT_CONTEMPORANEOUS" not in result.reason_codes
 
@@ -380,6 +380,52 @@ def test_missing_xperp_also_blocks_support_state(asset):
 
 
 @pytest.mark.parametrize("asset", ["NVDAx", "SPYx", "AAPLx"])
+def test_support_band_rejects_wrong_source_or_nonexact_xperp(asset):
+    spec = resolve_challenger_detector(asset)
+    assert spec is not None
+    base = _detector_snapshot_at_score(asset, spec.threshold_review / 2)
+    estimate = _production_estimate(asset)
+
+    wrong_source = validate(
+        base.model_copy(
+            update={
+                "xperp_index_source": "other_market",
+                "reference_under_test_source": "other_market",
+            }
+        ),
+        estimate,
+    )
+    stale = validate(
+        base.model_copy(
+            update={
+                "xperp_index_ts": base.observation_ts - timedelta(minutes=5),
+                "reference_under_test_ts": base.observation_ts - timedelta(minutes=5),
+                "reference_under_test_age_seconds": 300,
+            }
+        ),
+        estimate,
+    )
+    invalid = validate(
+        base.model_copy(
+            update={
+                "xperp_index_price": math.nan,
+                "reference_under_test": math.nan,
+            }
+        ),
+        estimate,
+    )
+
+    assert wrong_source.evidence_state == EvidenceState.INCONCLUSIVE
+    assert "XPERP_EVIDENCE_UNAVAILABLE" in wrong_source.reason_codes
+    assert stale.evidence_state == EvidenceState.INCONCLUSIVE
+    assert "XPERP_EVIDENCE_STALE" in stale.reason_codes
+    assert invalid.evidence_state == EvidenceState.INCONCLUSIVE
+    assert "XPERP_EVIDENCE_STALE" in invalid.reason_codes
+    assert invalid.xperp_vs_p1ac_deviation_pct is None
+    assert invalid.xstock_vs_xperp_deviation_pct is None
+
+
+@pytest.mark.parametrize("asset", ["NVDAx", "SPYx", "AAPLx"])
 def test_invalid_model_uncertainty_blocks_tri_source_state(asset):
     spec = resolve_challenger_detector(asset)
     assert spec is not None
@@ -497,23 +543,40 @@ def test_support_band_and_xperp_closer_to_xstock_can_emit_supported_without_trut
 
 
 @pytest.mark.parametrize("asset", ["NVDAx", "SPYx", "AAPLx"])
-def test_support_band_alone_or_xperp_siding_with_p1a_never_emits_supported(asset):
+def test_support_band_emits_supported_for_any_valid_xperp_direction(asset):
     spec = resolve_challenger_detector(asset)
     assert spec is not None
     estimate = _production_estimate(asset)
-    sided_with_p1a = validate(
-        _detector_snapshot_at_score(asset, spec.threshold_review / 2),
-        estimate,
-    )
+    p1a_side_snapshot = _detector_snapshot_at_score(asset, spec.threshold_review / 2)
+    sided_with_p1a = validate(p1a_side_snapshot, estimate)
     token_and_model_equal = validate(
         _detector_snapshot(asset, 0),
         estimate,
     )
 
-    assert sided_with_p1a.evidence_state == EvidenceState.INCONCLUSIVE
+    assert sided_with_p1a.evidence_state == EvidenceState.SUPPORTED
     assert "XPERP_CORROBORATES_P1A" in sided_with_p1a.reason_codes
-    assert token_and_model_equal.evidence_state == EvidenceState.INCONCLUSIVE
+    assert token_and_model_equal.evidence_state == EvidenceState.SUPPORTED
+    assert "XPERP_EVIDENCE_AMBIGUOUS" in token_and_model_equal.reason_codes
     assert "TOKEN_AND_CHALLENGER_AGREE" in token_and_model_equal.reason_codes
+
+    # xStock/P1a agreement is descriptive only. Exact-time X-Perp availability
+    # is still required before the tri-source classifier can emit SUPPORTED.
+    without_xperp = validate(
+        p1a_side_snapshot.model_copy(
+            update={
+                "reference_under_test": None,
+                "reference_under_test_ts": None,
+                "reference_under_test_age_seconds": None,
+                "xperp_index_price": None,
+                "xperp_index_source": None,
+                "xperp_index_ts": None,
+            }
+        ),
+        estimate,
+    )
+    assert without_xperp.evidence_state == EvidenceState.INCONCLUSIVE
+    assert "XPERP_EVIDENCE_UNAVAILABLE" in without_xperp.reason_codes
 
 
 @pytest.mark.parametrize("asset", ["NVDAx", "SPYx", "AAPLx"])
@@ -573,13 +636,24 @@ def test_operational_inference_and_historical_replay_share_the_same_classifier(
     assert operational.evidence_state == EvidenceState.CHALLENGED
 
 
-@pytest.mark.parametrize("asset", ["NVDAx", "SPYx", "QQQx", "AAPLx"])
-def test_unified_low_score_without_xperp_corroboration_is_not_supported(asset):
+@pytest.mark.parametrize("asset", ["NVDAx", "SPYx", "AAPLx"])
+def test_unified_support_band_needs_healthy_exact_xperp_but_not_direction(asset):
     estimate = _estimate().model_copy(update={"model_version": "0.3.0"})
     result = validate(_detector_snapshot(asset, 0), estimate)
 
+    assert result.evidence_state == EvidenceState.SUPPORTED
+    assert result.evidence_semantics == "p1a_xstock_band_with_xperp_review_corroboration_v2"
+    assert result.evidence_state_basis == (
+        "frozen_p1a_xstock_support_band_with_exact_xperp_available"
+    )
+
+
+def test_research_only_qqq_does_not_gain_v2_state_authority():
+    estimate = _estimate().model_copy(update={"model_version": "0.3.0"})
+    result = validate(_detector_snapshot("QQQx", 0), estimate)
+
     assert result.evidence_state == EvidenceState.INCONCLUSIVE
-    assert result.evidence_semantics == "p1a_xstock_challenger_xperp_second_market_v1"
+    assert "P1A_XSTOCK_SUPPORT_NOT_PROMOTED" in result.reason_codes
 
 
 def test_unified_xperp_source_mismatch_is_unavailable_not_a_reference_vote():

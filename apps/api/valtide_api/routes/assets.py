@@ -188,9 +188,7 @@ def list_assets() -> list[AssetInfo]:
             readiness_errors.append("SCHEDULER_NOT_ENABLED")
         elif not scheduler_enabled:
             readiness_errors.append("SCHEDULER_ASSET_NOT_READY")
-        if not config.capabilities.onchain:
-            readiness_errors.append("ONCHAIN_NOT_CONFIGURED")
-        elif not onchain_configured:
+        if config.capabilities.onchain and not onchain_configured:
             readiness_errors.append("ONCHAIN_BINDING_UNAVAILABLE")
 
         runtime_ready = config.capabilities.runtime and quant_ready

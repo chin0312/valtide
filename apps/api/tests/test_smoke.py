@@ -55,6 +55,40 @@ def test_health():
     assert resp.json()["status"] == "ok"
 
 
+def test_weekend_demo_uses_v2_classifier_and_naturally_exercises_all_states():
+    snapshots = load_scenario("weekend_divergence")
+    results = replay(snapshots)
+
+    assert len(snapshots) == len(results) == 6
+    assert all(
+        snapshot.reference_profile == "unified_xstock_p1ac_xperp_evidence_v1"
+        and snapshot.xperp_index_price is not None
+        and snapshot.xperp_index_source == "okx_xperp_index"
+        and snapshot.xperp_index_ts == snapshot.observation_ts
+        for snapshot in snapshots
+    )
+    assert [result.evidence_state.value for result in results] == [
+        "SUPPORTED",
+        "SUPPORTED",
+        "SUPPORTED",
+        "INCONCLUSIVE",
+        "CHALLENGED",
+        "CHALLENGED",
+    ]
+    assert all(
+        result.reference_profile == "unified_xstock_p1ac_xperp_evidence_v1"
+        and result.evidence_semantics
+        == "p1a_xstock_band_with_xperp_review_corroboration_v2"
+        and result.validation_target == "xstock_observed_price"
+        and result.xperp_role == "second_market_challenger"
+        for result in results
+    )
+    assert "P1A_XSTOCK_SUPPORT_BAND" in results[0].reason_codes
+    assert "P1A_XSTOCK_WATCH_BAND" in results[3].reason_codes
+    assert "P1A_XSTOCK_REVIEW_BAND" in results[4].reason_codes
+    assert "XPERP_CORROBORATES_P1A" in results[4].reason_codes
+
+
 def test_manual_publish_route_rejects_unverified_legacy_semantics_before_rpc(
     runtime_store, monkeypatch
 ):
