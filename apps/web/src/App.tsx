@@ -21,7 +21,7 @@ import { RegistryPanel } from "./components/RegistryPanel";
 import { Panel } from "./components/ui";
 import { Icon } from "./components/Icon";
 import { EVIDENCE } from "./lib/evidence";
-import { ageLabel, compactUsd, money, pct, sigma, sourceLabel } from "./lib/format";
+import { ageLabel, compactUsd, lastUpdatedLabel, money, pct, sigma, sourceLabel } from "./lib/format";
 import { deriveOnchainSync } from "./lib/onchain";
 import { clampPosition, mergeObservations, rebasePosition } from "./lib/playback";
 import { HistoricalReplay } from "./views/HistoricalReplay";
@@ -169,7 +169,7 @@ function ValidationConsole() {
       <main className="space-y-4">
         {isDegraded && current && <div role="status" className="rounded px-4 py-3 text-xs text-ink-dim" style={{ background: "var(--color-inconclusive-soft)" }}>{context} degraded · showing last available observations. {history.isError && isOperational ? "History unavailable. " : ""}{activeQuery.isError ? statusMessage : runtime.data?.last_error}</div>}
         {!current ? <Panel title={`${context} ${activeQuery.isLoading ? "loading" : "unavailable"}`}><p role="status" className="text-xs text-ink-dim">{activeQuery.isLoading ? `Loading ${selectedAsset} ${context.toLowerCase()} observations…` : context === "Demo" && selectedAsset !== DEFAULT_ASSET ? "The deterministic Demo fixture is synthetic NVDAx-only. It is not relabeled as another asset." : runtimeNotWarmed ? "Runtime not warmed yet." : statusMessage}</p></Panel> : <>
-        <DecisionSummary current={current} action={policyAction} context={context} />
+        <DecisionSummary current={current} action={policyAction} />
         <MetricGrid current={current} isDemo={context === "Demo"} observationCount={results.length} />
 
         <div className="grid items-stretch gap-4 xl:grid-cols-[minmax(0,1.3fr)_minmax(0,1fr)]">
@@ -290,7 +290,7 @@ function ConnectionLabel({ active, activeText, inactiveText }: { active: boolean
   return <span className="inline-flex items-center gap-1.5" style={{ color: active ? "var(--color-supported)" : "var(--color-muted)" }}><i className="h-1.5 w-1.5 rounded-full" style={{ background: "currentColor" }} />{active ? activeText : inactiveText}</span>;
 }
 
-function DecisionSummary({ current, action, context }: { current: ValuationResult; action: PolicyAction | null; context: Context }) {
+function DecisionSummary({ current, action }: { current: ValuationResult; action: PolicyAction | null }) {
   const findings: Record<EvidenceState, { title: string; detail: string }> = current.reference_profile === "xstock_vs_p1ac_challenger" ? {
     SUPPORTED: { title: "Model-based challenger evidence supports the observed xStock price", detail: "P1a has assimilated this same xStock observation before the comparison. This is model-based challenger evidence, not two fully independent observations; disagreement alone does not establish which price is correct." },
     INCONCLUSIVE: { title: "Model-based challenger evidence needs review", detail: "P1a has assimilated this same xStock observation before the comparison. The model-based evidence is not strong or consistent enough for a confident conclusion." },
@@ -302,8 +302,8 @@ function DecisionSummary({ current, action, context }: { current: ValuationResul
   };
   const finding = findings[current.evidence_state];
   return <section className="grid gap-4 rounded-[10px] p-5 md:grid-cols-[minmax(0,1fr)_minmax(220px,.45fr)]" style={{ background: "var(--color-panel)", border: "1px solid var(--color-line-subtle)", borderLeft: `3px solid ${EVIDENCE[current.evidence_state].fg}` }}>
-    <div><div className="eyebrow" style={{ color: "var(--color-muted)" }}>Current finding · {context}</div><h2 className="mt-2 text-2xl font-semibold tracking-[-0.03em] text-ink">{finding.title}</h2><p className="mt-2 max-w-3xl text-sm leading-6 text-ink-dim">{finding.detail}</p></div>
-    <div className="md:border-l md:pl-4" style={{ borderColor: "var(--color-line-subtle)" }}><div className="eyebrow" style={{ color: "var(--color-muted)" }}>Policy action</div><div className="mt-2 text-lg font-semibold text-ink">{plainAction(action)}</div><div className="technical-mono mt-1 text-xs text-muted">{action ?? "POLICY UNAVAILABLE"}</div></div>
+    <div><div className="eyebrow" style={{ color: "var(--color-muted)" }}>Current finding</div><h2 className="mt-2 text-2xl font-semibold tracking-[-0.03em] text-ink">{finding.title}</h2><p className="mt-2 max-w-3xl text-sm leading-6 text-ink-dim">{finding.detail}</p></div>
+    <div className="md:border-l md:pl-4" style={{ borderColor: "var(--color-line-subtle)" }}><div className="eyebrow" style={{ color: "var(--color-muted)" }}>Policy action</div><div className="mt-2 text-lg font-semibold text-ink">{plainAction(action)}</div></div>
   </section>;
 }
 
@@ -347,14 +347,42 @@ function EvidenceCard({ result }: { result: ValuationResult }) {
 }
 
 function PolicyCard({ state, action, source, label, enforced }: { state?: EvidenceState; action: PolicyAction | null; source: string; label: string; enforced?: OnchainControlPlane }) {
+  const riskGuardState = enforced ? enforced.fresh ? "FRESH" : "STALE" : "UNAVAILABLE";
+  const riskGuardUpdated = lastUpdatedLabel(enforced?.attestation?.publishedAt);
   return (
     <Panel title="Policy action" icon="shield" right={<span title={source} className="inline-flex items-center gap-1.5 text-[10px] text-muted"><Icon name="chain" size={14} />{label}</span>}>
       <div className="break-words text-xl font-semibold tracking-[-0.03em] text-ink">{plainAction(action)}</div>
-      <div className="technical-mono mt-1 text-xs text-muted">Raw policy value · {action ?? "UNAVAILABLE"}</div>
-      <div className="tnum mt-3 flex items-center gap-2 rounded px-2.5 py-2 text-[10px]" style={{ background: "var(--color-panel-2)", color: "var(--color-ink-dim)", border: "1px solid var(--color-line)" }}>{state ?? "UNREAD"}<Icon name="arrow" size={12} />{action ?? "UNAVAILABLE"}</div>
-      {enforced && <div className="mt-2 flex flex-wrap justify-between gap-2 text-[10px] text-ink-dim"><span>Current RiskGuard status · {enforced.fresh ? "FRESH" : "STALE"}</span><strong className="text-ink">{enforced.policy_action}</strong></div>}
+      <div className="mt-3">
+        <div className="eyebrow text-muted">Reason</div>
+        <div className="mt-1 text-sm text-ink-dim">{plainEvidenceReason(state)}</div>
+      </div>
+      {enforced && <div className="mt-3 text-xs text-ink-dim">RiskGuard data · {plainFreshness(enforced.fresh)}{riskGuardUpdated ? ` · ${riskGuardUpdated}` : ""}</div>}
+      <details className="mt-3 overflow-hidden rounded" style={{ border: "1px solid var(--color-line)" }}>
+        <summary className="eyebrow flex items-center justify-between px-3 py-2.5" style={{ background: "var(--color-panel-2)", color: "var(--color-muted)" }}><span>Technical details</span><span aria-hidden style={{ color: "var(--color-accent)" }}>＋</span></summary>
+        <dl className="grid gap-2 px-3 py-3 text-xs">
+          <TechnicalPolicyValue label="Evidence state" value={state ?? "UNAVAILABLE"} />
+          <TechnicalPolicyValue label="Mapped policy action" value={action ?? "UNAVAILABLE"} />
+          <TechnicalPolicyValue label="RiskGuard state" value={riskGuardState} />
+          {enforced && <TechnicalPolicyValue label="Current RiskGuard action" value={enforced.policy_action} />}
+        </dl>
+      </details>
     </Panel>
   );
+}
+
+function TechnicalPolicyValue({ label, value }: { label: string; value: string }) {
+  return <div className="flex flex-wrap items-baseline justify-between gap-2"><dt className="text-muted">{label}</dt><dd className="technical-mono text-right text-ink">{value}</dd></div>;
+}
+
+function plainEvidenceReason(state?: EvidenceState): string {
+  if (state === "SUPPORTED") return "Evidence supports the reference";
+  if (state === "INCONCLUSIVE") return "Evidence is inconclusive";
+  if (state === "CHALLENGED") return "Evidence challenges the reference";
+  return "Evidence is unavailable";
+}
+
+function plainFreshness(fresh: boolean): string {
+  return fresh ? "Fresh" : "Stale";
 }
 
 function BasisCard({ result }: { result: ValuationResult }) {

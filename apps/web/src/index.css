@@ -176,10 +176,25 @@ details > summary::-webkit-details-marker {
 }
 
 .asset-picker__chevron {
+  display: inline-grid;
+  width: 16px;
+  height: 16px;
+  flex: 0 0 16px;
+  place-items: center;
   color: var(--color-muted);
-  font-size: 15px;
-  line-height: 1;
   transition: transform 160ms ease;
+}
+
+.asset-picker__chevron svg {
+  display: block;
+  width: 16px;
+  height: 16px;
+  overflow: visible;
+  fill: none;
+  stroke: currentColor;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  stroke-width: 1.75;
 }
 
 .asset-picker__trigger[aria-expanded="true"] .asset-picker__chevron {
