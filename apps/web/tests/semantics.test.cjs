@@ -700,10 +700,11 @@ test("Equal-height Timeline card alignment keeps the chart fixed and Policy Prop
   assert.match(appSource,/grid items-stretch gap-4 xl:grid-cols-\[minmax\(0,1\.3fr\)_minmax\(0,1fr\)\]/);
   assert.match(replaySource,/className="flex min-w-0 flex-col"/);
   assert.doesNotMatch(replaySource,/className="flex h-full min-w-0 flex-col"/);
+  assert.match(replaySource,/<div className="flex w-full flex-1 items-center">\s*<EscalationChart[\s\S]*?<\/div>/);
   assert.match(replaySource,/className="mt-auto flex flex-wrap items-center gap-3 border-t pt-3"/);
   const chartRoot = chartSource.match(/className="([^"]*h-\[320px\][^"]*)"/)?.[1];
   assert.ok(chartRoot,"EscalationChart root retains an explicit fixed height");
-  assert.match(chartRoot,/^h-\[320px\] min-h-\[280px\] w-full$/);
+  assert.match(chartRoot,/^h-\[320px\] min-h-\[280px\] w-full xl:h-\[360px\]$/);
   assert.doesNotMatch(chartRoot,/(?:^|\s)(?:flex-1|h-full|grow)(?:\s|$)/);
   assert.doesNotMatch(chartSource,/(?:^|\s)(?:flex-1|h-full|grow)(?:\s|$)/);
   assert.match(appSource,/\{context === "Demo" && <details[\s\S]*?Advanced: Policy Proposal[\s\S]*?<PolicyFoundry \/>[\s\S]*?<\/details>\}/);

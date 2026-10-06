@@ -99,7 +99,9 @@ export function HistoricalReplay({
           {gaps > 0 && <span tabIndex={0} title="No recorded observations in these intervals. Missing prices are not filled in." aria-label={`${gaps} data gaps: no recorded observations; missing prices are not filled in.`}>{gaps} data gaps</span>}
       </div>
 
-      <EscalationChart results={results} index={index} playhead={position} resetKey={`${viewportKey ?? "default"}:${resetVersion}`} onSelect={(next) => { onReview?.(); setPlaying(false); setPosition(clampPosition(next, results.length)); }} />
+      <div className="flex w-full flex-1 items-center">
+        <EscalationChart results={results} index={index} playhead={position} resetKey={`${viewportKey ?? "default"}:${resetVersion}`} onSelect={(next) => { onReview?.(); setPlaying(false); setPosition(clampPosition(next, results.length)); }} />
+      </div>
 
       <div className="mt-auto flex flex-wrap items-center gap-3 border-t pt-3" style={{ borderColor: "var(--color-line-subtle)" }}>
         {showPlayback && (
