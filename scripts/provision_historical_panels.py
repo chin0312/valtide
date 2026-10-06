@@ -1,4 +1,3 @@
-#!/usr/bin/env python3
 """Verify and atomically provision an approved canonical panel without overwrite.
 
 This utility does not fetch data. Run it in the target environment after the
@@ -12,6 +11,7 @@ from __future__ import annotations
 import argparse
 import csv
 import hashlib
+from importlib import import_module
 import json
 import os
 import shutil
@@ -24,9 +24,9 @@ from typing import Any
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "apps" / "api"))
 
-from valtide_api.assets import resolve_asset_config  # noqa: E402
-from valtide_api.config import Settings  # noqa: E402
-from valtide_api.panel import inspect_panel_readiness  # noqa: E402
+resolve_asset_config = import_module("valtide_api.assets").resolve_asset_config
+Settings = import_module("valtide_api.config").Settings
+inspect_panel_readiness = import_module("valtide_api.panel").inspect_panel_readiness
 
 DEFAULT_MANIFEST = ROOT / "data" / "manifests" / "production_historical_panels.json"
 _ASSETS = ("NVDAx", "SPYx", "QQQx", "AAPLx")
