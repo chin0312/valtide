@@ -199,6 +199,14 @@ def test_quant_runtime_metadata_is_artifact_owned_and_registry_drives_api(monkey
     assert [item.asset for item in listed] == ["NVDAx", "SPYx", "AAPLx"]
     assert listed[0].model_available is True
     assert all(item.model_available for item in listed)
+    assert all(
+        config.capabilities.api_exposed
+        and config.capabilities.live_data
+        and config.capabilities.historical_data
+        and config.capabilities.quant
+        and config.capabilities.runtime
+        for config in assets_module.api_asset_configs()
+    )
     assert all(item.reference_profile == "unified_xstock_p1ac_xperp_evidence_v1" for item in listed)
     assert all(not item.live_market_data_available for item in listed[1:])
     capability_by_asset = {
@@ -208,7 +216,7 @@ def test_quant_runtime_metadata_is_artifact_owned_and_registry_drives_api(monkey
     assert capability_by_asset == {
         "NVDAx": (
             "CHALLENGER_DETECTOR_NOT_PROMOTABLE",
-            "TRI_SOURCE_SUPPORTED_ONLY",
+            "TRI_SOURCE_SUPPORTED_AND_CHALLENGED",
         ),
         "SPYx": (
             "CHALLENGER_DETECTOR_PROMOTABLE",

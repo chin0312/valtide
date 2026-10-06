@@ -192,6 +192,41 @@ def test_committed_fresh_detector_evidence_is_machine_readable_and_asset_bound()
         "review_xperp_closer_to_p1a"
     ] == 71
 
+    nvda = manifest["assets"]["NVDAx"]
+    assert nvda["evidence_state_counts"] == {
+        "CHALLENGED": 60,
+        "INCONCLUSIVE": 2228,
+        "SUPPORTED": 1822,
+    }
+    nvda_challenge = nvda["frozen_challenger_detector"][
+        "tri_source_state_candidates"
+    ]["tri_source_challenged"]
+    assert (nvda_challenge["count"], nvda_challenge["candidate_truth_evaluable_count"]) == (
+        60,
+        6,
+    )
+    assert (nvda_challenge["tp"], nvda_challenge["fp"]) == (5, 1)
+    assert nvda_challenge["precision"] == pytest.approx(5 / 6)
+    assert nvda_challenge["recall"] == pytest.approx(5 / 29)
+
+    aapl = manifest["assets"]["AAPLx"]
+    assert aapl["evidence_state_counts"] == {
+        "CHALLENGED": 7,
+        "INCONCLUSIVE": 1915,
+        "SUPPORTED": 2188,
+    }
+    aapl_challenge = aapl["frozen_challenger_detector"][
+        "tri_source_state_candidates"
+    ]["tri_source_challenged"]
+    assert (aapl_challenge["count"], aapl_challenge["candidate_truth_evaluable_count"]) == (
+        7,
+        4,
+    )
+    assert (aapl_challenge["tp"], aapl_challenge["fp"]) == (4, 0)
+    assert "three remaining candidates have no ex-post truth label" in (
+        tri_source_capability_artifact()["assets"]["AAPLx"]["challenge"]["rationale"]
+    )
+
 
 def test_tri_source_capabilities_bind_only_production_assets_to_exact_fresh_panels():
     repo_root = Path(__file__).resolve().parents[3]
@@ -207,9 +242,12 @@ def test_tri_source_capabilities_bind_only_production_assets_to_exact_fresh_pane
         assert capability["panel_sha256"] == manifest["assets"][asset]["panel_sha256"]
 
     assert artifact["assets"]["NVDAx"]["support"]["enabled"] is True
-    assert artifact["assets"]["NVDAx"]["challenge"]["enabled"] is False
+    assert artifact["assets"]["NVDAx"]["challenge"]["enabled"] is True
     assert artifact["assets"]["SPYx"]["challenge"]["enabled"] is True
     assert artifact["assets"]["AAPLx"]["challenge"]["enabled"] is True
+    for asset in ("NVDAx", "SPYx", "AAPLx"):
+        assert artifact["assets"][asset]["support"]["enabled"] is True
+        assert artifact["assets"][asset]["challenge"]["enabled"] is True
     assert manifest["reproduction"]["state_capability_artifact_sha256"] == hashlib.sha256(
         (repo_root / "apps/api/valtide_api/detectors/tri_source_capabilities_v1.json").read_bytes()
     ).hexdigest()

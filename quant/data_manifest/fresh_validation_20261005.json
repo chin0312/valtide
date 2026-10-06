@@ -36,7 +36,7 @@
     "evaluator_source_sha256": "e8a2ba368330420a20c92971f1510c4afe206680b354e7ae5260e775bc7c0e43",
     "validation_source_sha256": "d96d93523b753d08ae3f17353b3add553fd57ec3bfaabc80bb15924193c9da92",
     "frozen_detector_policy": "Frozen James thresholds are applied unchanged. Fresh-panel results are retrospective diagnostics, not threshold fitting or prospective validation.",
-    "state_capability_artifact_sha256": "2fe8fee2f2b0c3df616407483eb9a28aa6afaa3d96178b9bd4cace2a4378bcfa",
+    "state_capability_artifact_sha256": "260b0f06191e5f79dc17a3d3a1e1a85e77e8218f4aace9b1b153a099f0ba3b9a",
     "challenger_detector_source_sha256": "d7bd787cee5a365913708eace34e86f08f0eac7bee004b9334498a579d20e455"
   },
   "assets": {
@@ -68,18 +68,18 @@
         "mean_interval_score_90": 1.1748860046078362
       },
       "evidence_state_counts": {
-        "INCONCLUSIVE": 2288,
+        "CHALLENGED": 60,
+        "INCONCLUSIVE": 2228,
         "SUPPORTED": 1822
       },
       "reason_code_counts": {
         "CALIBRATION_GLOBAL_FALLBACK": 2190,
-        "P1A_XSTOCK_CHALLENGE_NOT_PROMOTED": 75,
         "P1A_XSTOCK_REVIEW_BAND": 75,
         "P1A_XSTOCK_SUPPORT_BAND": 3731,
         "P1A_XSTOCK_WATCH_BAND": 304,
         "TOKEN_AND_CHALLENGER_AGREE": 4109,
-        "XPERP_CORROBORATES_P1A": 1909,
-        "XPERP_CORROBORATES_XSTOCK": 1822
+        "XPERP_CORROBORATES_P1A": 1969,
+        "XPERP_CORROBORATES_XSTOCK": 1837
       },
       "mean_signed_deviation": {
         "xstock_minus_challenger": 0.003546686428043969,
@@ -151,7 +151,7 @@
           "definition": "Frozen SUPPORT band plus exact-time X-Perp closer to xStock is a supported candidate; frozen REVIEW band plus exact-time X-Perp closer to P1a is a challenged candidate. Underlying is used only for ex-post truth labels.",
           "production_capability": {
             "support_enabled": true,
-            "challenge_enabled": false,
+            "challenge_enabled": true,
             "panel_sha256": "7785e47383943beedcdf893680820dbefb8b2370e32d363fbb5ea4074a05d3c3"
           },
           "tri_source_supported": {
@@ -418,83 +418,83 @@
       "tri_source_state_distribution": {
         "counts": {
           "SUPPORTED": 1822,
-          "INCONCLUSIVE": 2288,
-          "CHALLENGED": 0
+          "INCONCLUSIVE": 2228,
+          "CHALLENGED": 60
         },
         "rates": {
           "SUPPORTED": 0.44330900243309,
-          "INCONCLUSIVE": 0.55669099756691,
-          "CHALLENGED": 0.0
+          "INCONCLUSIVE": 0.5420924574209246,
+          "CHALLENGED": 0.014598540145985401
         },
         "total": 4110,
         "tri_source_inconclusive": {
-          "count": 2288,
-          "rate": 0.55669099756691
+          "count": 2228,
+          "rate": 0.5420924574209246
         },
         "session_breakdown": {
           "afterhours": {
             "count": 480,
             "counts": {
               "SUPPORTED": 192,
-              "INCONCLUSIVE": 288,
-              "CHALLENGED": 0
+              "INCONCLUSIVE": 281,
+              "CHALLENGED": 7
             },
             "rates": {
               "SUPPORTED": 0.4,
-              "INCONCLUSIVE": 0.6,
-              "CHALLENGED": 0.0
+              "INCONCLUSIVE": 0.5854166666666667,
+              "CHALLENGED": 0.014583333333333334
             }
           },
           "closed": {
             "count": 1200,
             "counts": {
               "SUPPORTED": 492,
-              "INCONCLUSIVE": 708,
-              "CHALLENGED": 0
+              "INCONCLUSIVE": 681,
+              "CHALLENGED": 27
             },
             "rates": {
               "SUPPORTED": 0.41,
-              "INCONCLUSIVE": 0.59,
-              "CHALLENGED": 0.0
+              "INCONCLUSIVE": 0.5675,
+              "CHALLENGED": 0.0225
             }
           },
           "overnight": {
             "count": 990,
             "counts": {
               "SUPPORTED": 438,
-              "INCONCLUSIVE": 552,
-              "CHALLENGED": 0
+              "INCONCLUSIVE": 536,
+              "CHALLENGED": 16
             },
             "rates": {
               "SUPPORTED": 0.44242424242424244,
-              "INCONCLUSIVE": 0.5575757575757576,
-              "CHALLENGED": 0.0
+              "INCONCLUSIVE": 0.5414141414141415,
+              "CHALLENGED": 0.01616161616161616
             }
           },
           "premarket": {
             "count": 660,
             "counts": {
               "SUPPORTED": 329,
-              "INCONCLUSIVE": 331,
-              "CHALLENGED": 0
+              "INCONCLUSIVE": 326,
+              "CHALLENGED": 5
             },
             "rates": {
               "SUPPORTED": 0.4984848484848485,
-              "INCONCLUSIVE": 0.5015151515151515,
-              "CHALLENGED": 0.0
+              "INCONCLUSIVE": 0.49393939393939396,
+              "CHALLENGED": 0.007575757575757576
             }
           },
           "regular": {
             "count": 780,
             "counts": {
               "SUPPORTED": 371,
-              "INCONCLUSIVE": 409,
-              "CHALLENGED": 0
+              "INCONCLUSIVE": 404,
+              "CHALLENGED": 5
             },
             "rates": {
               "SUPPORTED": 0.4756410256410256,
-              "INCONCLUSIVE": 0.5243589743589744,
-              "CHALLENGED": 0.0
+              "INCONCLUSIVE": 0.517948717948718,
+              "CHALLENGED": 0.00641025641025641
             }
           }
         }

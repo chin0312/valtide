@@ -170,7 +170,9 @@ def test_assets_list():
     assert resp.json()[0]["challenger_detector_status"] == (
         "CHALLENGER_DETECTOR_NOT_PROMOTABLE"
     )
-    assert resp.json()[0]["evidence_state_capability"] == "TRI_SOURCE_SUPPORTED_ONLY"
+    assert resp.json()[0]["evidence_state_capability"] == (
+        "TRI_SOURCE_SUPPORTED_AND_CHALLENGED"
+    )
     assert [item["asset"] for item in resp.json()] == ["NVDAx", "SPYx", "AAPLx"]
 
 

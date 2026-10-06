@@ -25,11 +25,11 @@
         "rationale": "The retrospective fresh panel had zero raw-xStock tail events in 392 contemporaneously evaluable support-band rows (versus 29/817 overall); the support-subset raw-xStock p95 absolute log error was 12.61 bps."
       },
       "challenge": {
-        "enabled": false,
-        "capability": "DISABLED",
+        "enabled": true,
+        "capability": "TRI_SOURCE_CHALLENGED",
         "rule": "frozen_review_band_and_exact_xperp_closer_to_p1a",
         "evidence_ref": "assets.NVDAx.frozen_challenger_detector.tri_source_state_candidates.tri_source_challenged",
-        "rationale": "X-Perp filtering improves fresh q95 precision to 5/6, but captures only 5/29 underlying tail events (17.2% recall); the existing detector remains not promotable for canonical CHALLENGED."
+        "rationale": "The fresh tri-source rule is a conservative escalation: 60 candidates, 6 with contemporaneous truth, yielded 5 TP and 1 FP (83.3% precision), while recovering 5/29 tail events (17.2% recall). Enable CHALLENGED as a high-selectivity, low-recall risk signal; do not interpret it as exhaustive tail detection."
       }
     },
     "SPYx": {
