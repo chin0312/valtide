@@ -21,6 +21,8 @@ export function HistoricalReplay({
   viewportKey,
   followingLatest = false,
   rangeControl,
+  coverageNotice,
+  onReset,
   periodMs = 120,
 }: {
   asset: string;
@@ -36,6 +38,8 @@ export function HistoricalReplay({
   viewportKey?: string;
   followingLatest?: boolean;
   rangeControl?: ReactNode;
+  coverageNotice?: string;
+  onReset?: () => void;
   periodMs?: number;
 }) {
   const [resetVersion, setResetVersion] = useState(0);
@@ -80,10 +84,11 @@ export function HistoricalReplay({
           <div className="mt-1 flex items-center gap-3"><span className="tnum text-xl font-medium text-ink">{money(current.valtide_fair_value)}</span><EvidenceChip state={current.evidence_state} /></div>
         </div>
         {rangeControl && <div className="flex flex-col items-end gap-1">
-          <div className="flex flex-wrap items-center justify-end gap-2">{rangeControl}<button type="button" onClick={() => { setPlaying(false); setResetVersion((value) => value + 1); }} className="rounded px-2.5 py-1 font-mono text-[10px] font-medium" style={{ color: "var(--color-muted)", border: "1px solid var(--color-line)" }}>Reset</button></div>
+          <div className="flex flex-wrap items-center justify-end gap-2">{rangeControl}<button type="button" title="Reset period, selection, playback, pan and zoom" onClick={() => { setPlaying(false); onReset?.(); setResetVersion((value) => value + 1); }} className="rounded px-2.5 py-1 font-mono text-[10px] font-medium" style={{ color: "var(--color-muted)", border: "1px solid var(--color-line)" }}>Reset</button></div>
           <span className="hidden text-[10px] sm:inline" style={{ color: "var(--color-muted)" }}>Scroll To Zoom · Drag To Pan</span>
         </div>}
       </div>
+      {coverageNotice && <p role="status" className="mb-2 rounded px-2.5 py-2 text-[11px]" style={{ color: "var(--color-ink-dim)", background: "var(--color-panel-2)", border: "1px solid var(--color-line-subtle)" }}>{coverageNotice}</p>}
       <div className="mb-2 flex flex-wrap items-center gap-4 text-[10px]" style={{ color: "var(--color-muted)" }}>
           <LegendItem color="var(--color-series-valtide)" label="Fair Value" />
           <LegendItem color="var(--color-series-reference)" label="Reference" dashed />

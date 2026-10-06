@@ -28,7 +28,7 @@ import { HistoricalReplay } from "./views/HistoricalReplay";
 import { ObservationRecord } from "./views/ObservationRecord";
 import { ReferenceComparison } from "./views/ReferenceComparison";
 import { ModelEvidence } from "./views/ModelEvidence";
-import { filterDemoResults, filterHistoricalResults, filterOperationalResults, OPERATIONAL_HISTORY_LIMITS, type DemoRange, type HistoricalRange, type OperationalRange } from "./views/OperationalTimeline";
+import { filterDemoResults, filterHistoricalResults, filterOperationalResults, operationalCoverageNotice, OPERATIONAL_HISTORY_LIMITS, OPERATIONAL_HISTORY_MAX, type DemoRange, type HistoricalRange, type OperationalRange } from "./views/OperationalTimeline";
 import { ObservationAudit } from "./components/ObservationAudit";
 import { LandingPage } from "./components/LandingPage";
 import { DocsPage } from "./components/DocsPage";
@@ -73,9 +73,8 @@ function ValidationConsole() {
   const selectedAssetInfo = assets.data?.find((item) => item.asset === selectedAsset);
   const profile = selectedAssetInfo?.reference_profile ?? "profile-unresolved";
   const operational = useQuery({ queryKey: assetQueryKeys.operational(selectedAsset, profile), queryFn: () => fetchOperationalValuation(selectedAsset), refetchInterval: 20_000, retry: 0, enabled: backendUp });
-  const historyLimit = OPERATIONAL_HISTORY_LIMITS[range];
-  const history = useQuery({ queryKey: assetQueryKeys.history(selectedAsset, historyLimit, profile), queryFn: () => fetchOperationalHistory(selectedAsset, historyLimit), refetchInterval: 30_000, retry: 0, enabled: isOperational && !!operational.data });
-  const historical = useQuery({ queryKey: assetQueryKeys.historical(selectedAsset, historicalRange, profile), queryFn: () => fetchHistoricalReplay(selectedAsset), staleTime: 60_000, retry: 0, enabled: context === "Historical" && backendUp });
+  const history = useQuery({ queryKey: assetQueryKeys.history(selectedAsset, OPERATIONAL_HISTORY_MAX, profile), queryFn: () => fetchOperationalHistory(selectedAsset, OPERATIONAL_HISTORY_MAX), refetchInterval: 5 * 60_000, retry: 0, enabled: isOperational && !!operational.data });
+  const historical = useQuery({ queryKey: assetQueryKeys.historical(selectedAsset, profile), queryFn: () => fetchHistoricalReplay(selectedAsset), staleTime: Infinity, retry: 0, enabled: context === "Historical" && backendUp });
   const demo = useQuery({ queryKey: ["demo-replay", selectedAsset, "canonical"], queryFn: () => fetchDemoReplay(selectedAsset), staleTime: Infinity, enabled: context === "Demo" && selectedAsset === DEFAULT_ASSET });
   const runtime = useQuery({ queryKey: assetQueryKeys.runtime(selectedAsset), queryFn: () => fetchRuntime(selectedAsset), refetchInterval: 30_000, retry: 0, enabled: backendUp });
   const onchain = useQuery({ queryKey: assetQueryKeys.onchain(selectedAsset), queryFn: () => fetchOnchain(selectedAsset), refetchInterval: 45_000, retry: 0, enabled: backendUp && !!selectedAssetInfo?.onchain_binding_configured });
@@ -84,10 +83,11 @@ function ValidationConsole() {
   const [playing, setPlaying] = useState(false);
   const [followLatest, setFollowLatest] = useState(true);
 
-  const operationalResults = useMemo(() => {
+  const allOperationalResults = useMemo(() => {
     if (!operational.data) return [];
-    return filterOperationalResults(mergeObservations(history.data ?? [], operational.data), range);
-  }, [history.data, operational.data, range]);
+    return mergeObservations(history.data ?? [], operational.data);
+  }, [history.data, operational.data]);
+  const operationalResults = useMemo(() => filterOperationalResults(allOperationalResults, range), [allOperationalResults, range]);
   const historicalResults = useMemo(() => filterHistoricalResults(historical.data?.results ?? EMPTY_RESULTS, historicalRange), [historical.data, historicalRange]);
   const demoResults = useMemo(() => filterDemoResults(demo.data?.results ?? EMPTY_RESULTS, demoRange), [demo.data, demoRange]);
   const results = isOperational ? operationalResults : context === "Historical" ? historicalResults : demoResults;
@@ -174,6 +174,21 @@ function ValidationConsole() {
             onLatest={isOperational ? () => { setPlaying(false); setFollowLatest(true); setPosition(results.length - 1); } : undefined}
             viewportKey={`${selectedAsset}:${profile}:${context}:${activeRange}`}
             periodMs={context === "Demo" ? 600 : 120}
+            coverageNotice={isOperational ? operationalCoverageNotice(allOperationalResults, range) : undefined}
+            onReset={() => {
+              setPlaying(false);
+              if (context === "Operational") {
+                setRange("24H");
+                setFollowLatest(true);
+                setPosition(Math.max(0, allOperationalResults.length - 1));
+              } else if (context === "Historical") {
+                setHistoricalRange("ALL");
+                setPosition(Math.max(0, (historical.data?.results.length ?? 1) - 1));
+              } else {
+                setDemoRange("FULL");
+                setPosition(0);
+              }
+            }}
             rangeControl={<RangeControls context={context} range={activeRange} onChange={(value) => { if (context === "Operational") setRange(value as OperationalRange); else if (context === "Historical") setHistoricalRange(value as HistoricalRange); else setDemoRange(value as DemoRange); }} />}
           />
           <div className="flex min-w-0 flex-col gap-4">

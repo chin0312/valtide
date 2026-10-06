@@ -8,7 +8,7 @@ const { QueryClient, QueryClientProvider } = require("@tanstack/react-query");
 const { load } = require("./load-source.cjs");
 const client = load("../src/api/client.ts");
 const fixture = require("../src/fixtures/weekend_divergence.json");
-const { filterOperationalResults, filterHistoricalResults, filterDemoResults } = load("../src/views/OperationalTimeline.tsx");
+const { filterOperationalResults, filterHistoricalResults, filterDemoResults, operationalCoverageNotice, OPERATIONAL_HISTORY_MAX } = load("../src/views/OperationalTimeline.tsx");
 const { mergeObservations, rebasePosition } = load("../src/lib/playback.ts");
 const { ReasonCodes } = load("../src/components/ReasonCodes.tsx");
 const { RegistryPanel } = load("../src/components/RegistryPanel.tsx");
@@ -67,6 +67,9 @@ test("asset-aware request functions and query keys cannot reuse another asset", 
     client.assetQueryKeys.history("NVDAx", 72, "legacy_xperp_vs_p1ac"),
     client.assetQueryKeys.history("SPYx", 72, "xstock_vs_p1ac_challenger"),
   );
+  assert.deepEqual(client.assetQueryKeys.historical("NVDAx", "legacy_xperp_vs_p1ac"), [
+    "replay", "NVDAx", "historical-panel", "legacy_xperp_vs_p1ac",
+  ]);
 
   const original = global.fetch;
   let requestedUrl;
@@ -125,6 +128,14 @@ test("Operational windows use timestamps, exclude the boundary and preserve gaps
   }
 });
 
+test("Operational coverage explains when longer periods have no older records", () => {
+  const latest = Date.parse("2026-10-06T09:00:00Z");
+  const rows = Array.from({length: 12}, (_, index) => ({...fixture[0], timestamp:new Date(latest-(11-index)*300000).toISOString()}));
+  assert.equal(operationalCoverageNotice(rows,"1H"), undefined);
+  assert.match(operationalCoverageNotice(rows,"6H"), /no earlier observations are available/i);
+  assert.equal(OPERATIONAL_HISTORY_MAX, 2016);
+});
+
 test("Asynchronous polling retains newest results and anchors replay by timestamp", () => {
   const rows = fixture.slice(0,3);
   assert.equal(mergeObservations(rows, fixture[3]).length,4);
@@ -148,7 +159,7 @@ function appWith({result, rows, chain, error, assetList, profile = "legacy_xperp
   query.setQueryData(["demo-replay","NVDAx","canonical"],{results:fixture,source:"offline-fixture"});
   const operationalKey = client.assetQueryKeys.operational("NVDAx",profile);
   if (result) query.setQueryData(operationalKey,result);
-  if (rows) query.setQueryData(client.assetQueryKeys.history("NVDAx",288,profile),rows);
+  if (rows) query.setQueryData(client.assetQueryKeys.history("NVDAx",OPERATIONAL_HISTORY_MAX,profile),rows);
   if (chain) query.setQueryData(client.assetQueryKeys.onchain("NVDAx"),{asset:"NVDAx",...chain});
   if (error) query.getQueryCache().build(query,{queryKey:operationalKey}).setState({status:"error",error:new Error(error),fetchStatus:"idle"});
   const html = renderToStaticMarkup(h(QueryClientProvider,{client:query},h(App)));
