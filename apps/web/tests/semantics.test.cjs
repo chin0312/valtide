@@ -14,6 +14,7 @@ const { ReasonCodes } = load("../src/components/ReasonCodes.tsx");
 const { RegistryPanel } = load("../src/components/RegistryPanel.tsx");
 const { ReferenceComparison } = load("../src/views/ReferenceComparison.tsx");
 const { ObservationAudit } = load("../src/components/ObservationAudit.tsx");
+const { assetAvailabilityLabel, assetDisplayName } = load("../src/components/AssetPicker.tsx");
 const { Hero } = load("../src/components/Hero.tsx");
 const { LandingPage } = load("../src/components/LandingPage.tsx");
 const { DocsPage } = load("../src/components/DocsPage.tsx");
@@ -296,12 +297,24 @@ test("Validation Console exposes the four catalog identities without implying re
     ["AAPLx","xstock_vs_p1ac_challenger"],
   ].map(([asset,reference_profile]) => ({...base,asset,reference_profile}));
   const html = appWith({assetList:catalog});
-  assert.match(html,/aria-label="Selected asset"/);
+  assert.match(html,/aria-haspopup="listbox"/);
+  assert.match(html,/aria-label="Search assets"/);
   for (const asset of ["NVDAx","SPYx","QQQx","AAPLx"]) {
-    assert.match(html,new RegExp(`<option[^>]*>${asset}<\\/option>`));
+    assert.match(html,new RegExp(`>${asset}<`));
   }
+  assert.match(html,/NVIDIA Tokenized Equity/);
+  assert.match(html,/S&amp;P 500 Tokenized ETF/);
+  assert.match(html,/Coming soon/);
   assert.match(html,/MODEL_FIT_BLOCKED/);
   assert.match(html,/No other asset/);
+});
+
+test("Asset picker derives readable names and honest availability labels", () => {
+  assert.equal(assetDisplayName("NVDAx"), "NVIDIA Tokenized Equity");
+  assert.equal(assetDisplayName("UNKNOWNx"), "Tokenized equity");
+  assert.equal(assetAvailabilityLabel(true), "Available");
+  assert.equal(assetAvailabilityLabel(false), "Coming soon");
+  assert.equal(assetAvailabilityLabel(undefined), "Checking");
 });
 
 test("Operational failure preserves cached evidence with a degraded label", () => {
