@@ -3,13 +3,14 @@ import { Area, ComposedChart, Line, ReferenceLine, ResponsiveContainer, Tooltip,
 import type { EvidenceState, ValuationResult } from "../api/types";
 import { EVIDENCE } from "../lib/evidence";
 import { coverageLabel, dateTimeUTC, timeAxisUTC } from "../lib/format";
+import { isEvidenceStateV2 } from "../lib/semantics";
 
 interface ChartPoint {
   sourceIndex: number | null;
   ts: number;
   band: [number, number] | null;
   fair: number | null;
-  rut: number | null;
+  xperp: number | null;
   token: number | null;
   state: EvidenceState | null;
 }
@@ -29,6 +30,12 @@ const WHEEL_DELTA_CLAMP = 4;
 const DOMINANT_AXIS_THRESHOLD = 1.2;
 const CHART_MARGIN = { top: 10, right: 18, bottom: 4, left: 2 } as const;
 const Y_AXIS_WIDTH = 50;
+
+export const VALUATION_CHART_LABELS = {
+  fair: "Valtide Fair Value",
+  token: "Observed xStock",
+  xperp: "X-Perp",
+} as const;
 
 export type ChartDomain = [number, number];
 
@@ -75,6 +82,11 @@ export function chartDomain(timestamps: number[]): ChartDomain {
   if (valid.length === 0) return [0, CANONICAL_STEP_MS];
   if (valid.length === 1) return [valid[0] - CANONICAL_STEP_MS / 2, valid[0] + CANONICAL_STEP_MS / 2];
   return [valid[0], valid[valid.length - 1]];
+}
+
+export function chartIntervalLabel(results: ValuationResult[]): string {
+  const targets = [...new Set(results.map((result) => result.interval_coverage_target))];
+  return targets.length === 1 ? coverageLabel(targets[0]) : "Valuation Range";
 }
 
 export function minimumViewportWidth(timestamps: number[]): number {
@@ -147,7 +159,6 @@ export function wheelGestureIntent(deltaX: number, deltaY: number): "pan" | "zoo
 
 export function EscalationChart({ results, index, playhead = index, onSelect, resetKey }: { results: ValuationResult[]; index: number; playhead?: number; onSelect: (i: number) => void; resetKey?: string | number }) {
   const data = useMemo(() => buildChartData(results), [results]);
-  const unified = results[index]?.validation_target === "xstock_observed_price" || results[index]?.reference_profile === "unified_xstock_p1ac_xperp_evidence_v1";
   const realPoints = useMemo(() => data.filter((point) => point.sourceIndex != null), [data]);
   const timestamps = useMemo(() => realPoints.map((point) => point.ts), [realPoints]);
   const fullDomain = useMemo(() => chartDomain(timestamps), [timestamps]);
@@ -195,14 +206,13 @@ export function EscalationChart({ results, index, playhead = index, onSelect, re
     [renderData, viewportDomain[0], viewportDomain[1]],
   );
   const visibleRealPoints = useMemo(() => visibleData.filter((point) => point.sourceIndex != null), [visibleData]);
-  const allPrices = useMemo(() => data.flatMap((point) => [point.band?.[0], point.band?.[1], point.rut, point.token].filter((value): value is number => value != null)), [data]);
-  const visiblePrices = useMemo(() => visibleData.flatMap((point) => [point.band?.[0], point.band?.[1], point.rut, point.token].filter((value): value is number => value != null)), [visibleData]);
+  const allPrices = useMemo(() => data.flatMap((point) => [point.band?.[0], point.band?.[1], point.xperp, point.token].filter((value): value is number => value != null)), [data]);
+  const visiblePrices = useMemo(() => visibleData.flatMap((point) => [point.band?.[0], point.band?.[1], point.xperp, point.token].filter((value): value is number => value != null)), [visibleData]);
   const prices = visiblePrices.length ? visiblePrices : allPrices;
   const minTimestamp = viewportDomain[0];
   const maxTimestamp = viewportDomain[1];
   const multiDay = new Date(minTimestamp).toISOString().slice(0, 10) !== new Date(maxTimestamp).toISOString().slice(0, 10);
-  const coverageTargets = useMemo(() => [...new Set(results.map((result) => result.interval_coverage_target))], [results]);
-  const intervalName = coverageTargets.length === 1 ? coverageLabel(coverageTargets[0]) : "Calibrated interval";
+  const intervalName = useMemo(() => chartIntervalLabel(results), [results]);
   const min = prices.length ? Math.min(...prices) : 0;
   const max = prices.length ? Math.max(...prices) : 1;
   const span = max - min;
@@ -334,7 +344,7 @@ export function EscalationChart({ results, index, playhead = index, onSelect, re
   return (
     <div
       ref={chartRef}
-      className="h-[320px] min-h-[280px] w-full flex-1"
+      className="h-[320px] min-h-[280px] w-full xl:h-[360px]"
       onPointerDown={handlePointerDown}
       onPointerMove={handlePointerMove}
       onPointerUp={finishPointer}
@@ -359,9 +369,9 @@ export function EscalationChart({ results, index, playhead = index, onSelect, re
             }}
           />
           <Area dataKey="band" stroke="var(--color-series-valtide)" strokeWidth={1} fill="var(--color-band-fill)" connectNulls={false} isAnimationActive={false} name={intervalName} />
-          <Line dataKey="fair" stroke="var(--color-series-valtide)" strokeWidth={1.75} dot={false} connectNulls={false} isAnimationActive={false} name="Fair value" />
+          <Line dataKey="fair" stroke="var(--color-series-valtide)" strokeWidth={1.75} dot={false} connectNulls={false} isAnimationActive={false} name={VALUATION_CHART_LABELS.fair} />
           <Line
-            dataKey="rut"
+            dataKey="xperp"
             stroke="var(--color-series-reference)"
             strokeWidth={1.5}
             strokeDasharray="5 4"
@@ -372,9 +382,9 @@ export function EscalationChart({ results, index, playhead = index, onSelect, re
             activeDot={false}
             connectNulls={false}
             isAnimationActive={false}
-            name={unified ? "X-Perp evidence" : "Reference under test"}
+            name={realPoints.some((point) => point.sourceIndex != null && isEvidenceStateV2(results[point.sourceIndex])) ? VALUATION_CHART_LABELS.xperp : "Reference under test"}
           />
-          <Line dataKey="token" stroke="var(--color-series-token)" strokeWidth={1.25} strokeOpacity={0.72} dot={false} connectNulls={false} isAnimationActive={false} name={unified ? "xStock validation target" : "Tokenized Market"} />
+          <Line dataKey="token" stroke="var(--color-series-token)" strokeWidth={1.25} strokeOpacity={0.72} dot={false} connectNulls={false} isAnimationActive={false} name={VALUATION_CHART_LABELS.token} />
           <ReferenceLine x={cursorTimestamp} stroke="var(--color-accent)" strokeOpacity={0.65} strokeDasharray="2 3" />
         </ComposedChart>
       </ResponsiveContainer>
@@ -408,7 +418,7 @@ function StateDot({ cx, cy, payload, selectedIndex }: DotProps & { selectedIndex
   );
 }
 
-function buildChartData(results: ValuationResult[]): ChartPoint[] {
+export function buildChartData(results: ValuationResult[]): ChartPoint[] {
   const points: ChartPoint[] = [];
   let previousTimestamp: number | null = null;
 
@@ -416,9 +426,9 @@ function buildChartData(results: ValuationResult[]): ChartPoint[] {
     const timestamp = Date.parse(result.timestamp);
     if (!Number.isFinite(timestamp)) return;
     if (previousTimestamp != null && timestamp - previousTimestamp > CANONICAL_STEP_MS) {
-      points.push({ sourceIndex: null, ts: previousTimestamp + Math.floor((timestamp - previousTimestamp) / 2), band: null, fair: null, rut: null, token: null, state: null });
+      points.push({ sourceIndex: null, ts: previousTimestamp + Math.floor((timestamp - previousTimestamp) / 2), band: null, fair: null, xperp: null, token: null, state: null });
     }
-    points.push({ sourceIndex, ts: timestamp, band: [result.fair_value_lower, result.fair_value_upper], fair: result.valtide_fair_value, rut: result.reference_under_test, token: result.token_price, state: result.evidence_state });
+    points.push({ sourceIndex, ts: timestamp, band: [result.fair_value_lower, result.fair_value_upper], fair: result.valtide_fair_value, xperp: isEvidenceStateV2(result) ? result.xperp_index_price ?? null : result.reference_under_test, token: result.token_price, state: result.evidence_state });
     previousTimestamp = timestamp;
   });
   return points;

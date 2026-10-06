@@ -1,8 +1,8 @@
 import type { EvidenceState } from "../api/types";
 import { reasonLabel } from "../lib/format";
 
-const POSITIVE = new Set(["TOKEN_AND_CHALLENGER_AGREE", "P1A_XSTOCK_SUPPORT_BAND"]);
-const CHALLENGE = new Set(["REFERENCE_UNDER_TEST_OUTSIDE_INTERVAL", "P1A_XSTOCK_REVIEW_BAND", "XPERP_CORROBORATES_P1A"]);
+const POSITIVE = new Set(["P1A_XSTOCK_SUPPORT_BAND"]);
+const CHALLENGE = new Set(["XPERP_CORROBORATES_P1A"]);
 const WARNING = new Set([
   "TOKEN_DATA_UNAVAILABLE",
   "COMPARATOR_UNAVAILABLE",
@@ -20,6 +20,8 @@ const WARNING = new Set([
   "XPERP_EVIDENCE_STALE",
   "XPERP_EVIDENCE_AMBIGUOUS",
   "XPERP_CORROBORATES_XSTOCK",
+  "P1A_XSTOCK_REVIEW_BAND",
+  "XPERP_EVIDENCE_WRONG_SOURCE",
 ]);
 
 export function ReasonCodes({ codes, evidenceState }: { codes: string[]; evidenceState: EvidenceState }) {
@@ -32,7 +34,8 @@ export function ReasonCodes({ codes, evidenceState }: { codes: string[]; evidenc
   return (
     <ul className="flex flex-wrap gap-2">
       {codes.map((c) => {
-        const tone = POSITIVE.has(c) ? "positive" : CHALLENGE.has(c) && evidenceState === "CHALLENGED" ? "challenge" : WARNING.has(c) || CHALLENGE.has(c) ? "warning" : "neutral";
+        const challengeSignal = evidenceState === "CHALLENGED" && (CHALLENGE.has(c) || c === "P1A_XSTOCK_REVIEW_BAND");
+        const tone = POSITIVE.has(c) ? "positive" : challengeSignal ? "challenge" : WARNING.has(c) || CHALLENGE.has(c) ? "warning" : "neutral";
         const colors = tone === "positive"
           ? { background: "var(--color-supported-soft)", color: "var(--color-supported)", border: "var(--color-supported-line)" }
           : tone === "challenge"

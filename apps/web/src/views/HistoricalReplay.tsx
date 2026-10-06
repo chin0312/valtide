@@ -4,8 +4,9 @@ import { EscalationChart } from "../components/EscalationChart";
 import { EvidenceChip } from "../components/EvidenceChip";
 import { Panel } from "../components/ui";
 import { Icon } from "../components/Icon";
-import { coverageLabel, money, dateTimeUTC } from "../lib/format";
+import { money, dateTimeUTC } from "../lib/format";
 import { advancePosition, clampPosition } from "../lib/playback";
+import { isEvidenceStateV2 } from "../lib/semantics";
 
 export function HistoricalReplay({
   asset,
@@ -66,38 +67,41 @@ export function HistoricalReplay({
 
   const index = Math.floor(clampPosition(position, results.length));
   const current = results[index];
+  const v2 = results.some(isEvidenceStateV2);
   const atEnd = position >= results.length - 1;
   const targets = [...new Set(results.map((result) => result.interval_coverage_target))];
-  const intervalLabel = targets.length === 1 ? coverageLabel(targets[0]) : "Calibrated interval";
+  const intervalLabel = targets.length === 1 ? `${Math.round(targets[0] * 100)}% Valuation Range` : "Valuation Range";
   const gaps = results.slice(1).filter((result, i) => Date.parse(result.timestamp) - Date.parse(results[i].timestamp) > 5 * 60_000).length;
 
   return (
     <Panel
-      title={`${asset} valuation signal`}
+      title={`${asset} Validation Timeline`}
       icon="signal"
-      className="flex h-full min-w-0 flex-col"
+      className="flex min-w-0 flex-col"
       right={<span className="rounded px-2 py-1 font-mono text-[10px] uppercase tracking-[0.04em]" style={{ color: "var(--color-accent)", background: "var(--color-accent-soft)", border: "1px solid var(--color-line)" }}>{sourceLabel}</span>}
     >
       <div className="mb-2 flex flex-wrap items-start justify-between gap-3">
         <div>
-          <div className="eyebrow" style={{ color: "var(--color-muted)" }}>{followingLatest ? "Latest observation" : "Selected period"}</div>
+          <div className="eyebrow" style={{ color: "var(--color-muted)" }}>{followingLatest ? "Latest Observation" : "Selected Period"}</div>
           <div className="mt-1 flex items-center gap-3"><span className="tnum text-xl font-medium text-ink">{money(current.valtide_fair_value)}</span><EvidenceChip state={current.evidence_state} /></div>
         </div>
         {rangeControl && <div className="flex flex-col items-end gap-1">
           <div className="flex flex-wrap items-center justify-end gap-2">{rangeControl}<button type="button" title="Reset period, selection, playback, pan and zoom" onClick={() => { setPlaying(false); onReset?.(); setResetVersion((value) => value + 1); }} className="rounded px-2.5 py-1 font-mono text-[10px] font-medium" style={{ color: "var(--color-muted)", border: "1px solid var(--color-line)" }}>Reset</button></div>
-          <span className="hidden text-[10px] sm:inline" style={{ color: "var(--color-muted)" }}>Scroll to zoom · Drag to pan</span>
+          <span className="hidden text-[10px] sm:inline" style={{ color: "var(--color-muted)" }}>Scroll To Zoom · Drag To Pan</span>
         </div>}
       </div>
       {coverageNotice && <p role="status" className="mb-2 rounded px-2.5 py-2 text-[11px]" style={{ color: "var(--color-ink-dim)", background: "var(--color-panel-2)", border: "1px solid var(--color-line-subtle)" }}>{coverageNotice}</p>}
       <div className="mb-2 flex flex-wrap items-center gap-4 text-[10px]" style={{ color: "var(--color-muted)" }}>
-          <LegendItem color="var(--color-series-valtide)" label="Fair value" />
-          <LegendItem color="var(--color-series-reference)" label="Reference" dashed />
-          <LegendItem color="var(--color-series-token)" label="Token market" />
+          <LegendItem color="var(--color-series-valtide)" label="Valtide Fair Value" />
+          <LegendItem color="var(--color-series-reference)" label={v2 ? "X-Perp" : "Reference Under Test"} dashed />
+          <LegendItem color="var(--color-series-token)" label={v2 ? "Observed xStock" : "Token Market"} />
           <span title="The translucent area around fair value"><i className="mr-1.5 inline-block h-2.5 w-4 rounded-sm" style={{ background: "var(--color-band-fill)", border: "1px solid var(--color-series-valtide)" }} />{intervalLabel}</span>
           {gaps > 0 && <span tabIndex={0} title="No recorded observations in these intervals. Missing prices are not filled in." aria-label={`${gaps} data gaps: no recorded observations; missing prices are not filled in.`}>{gaps} data gaps</span>}
       </div>
 
-      <EscalationChart results={results} index={index} playhead={position} resetKey={`${viewportKey ?? "default"}:${resetVersion}`} onSelect={(next) => { onReview?.(); setPlaying(false); setPosition(clampPosition(next, results.length)); }} />
+      <div className="flex w-full flex-1 items-center">
+        <EscalationChart results={results} index={index} playhead={position} resetKey={`${viewportKey ?? "default"}:${resetVersion}`} onSelect={(next) => { onReview?.(); setPlaying(false); setPosition(clampPosition(next, results.length)); }} />
+      </div>
 
       <div className="mt-auto flex flex-wrap items-center gap-3 border-t pt-3" style={{ borderColor: "var(--color-line-subtle)" }}>
         {showPlayback && (

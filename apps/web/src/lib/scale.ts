@@ -1,30 +1,25 @@
-// Band-relative scaling — the chart display rule from PRODUCT_SEMANTICS.md.
-//
-// The whole demo happens inside a ~$0.90 window, so a raw-price axis makes
-// SUPPORTED and CHALLENGED look identical. We instead plot everything in
-// band-relative units: the challenger fair value is 0, the lower interval edge
-// is -1, the upper edge is +1 (handling asymmetric bands). A reference at +1
-// sits exactly on the interval boundary; beyond ±1 it is outside the interval.
+// Range View uses an interval-relative scale for the selected observation.
 
 import type { ValuationResult } from "../api/types";
+import { validationTargetPrice } from "./semantics";
 
-/** Fixed viewport so the reference visibly travels outward across steps. */
+/** Fixed normalized viewport; prices outside the interval can extend to its edges. */
 export const AXIS_MIN = -3.5;
 export const AXIS_MAX = 3.5;
 
-/** Convert a price into band-relative units for a given result. */
+/** Map a price linearly across the selected result's valuation interval. */
 export function toBandUnits(price: number, r: ValuationResult): number {
-  const fair = r.valtide_fair_value;
-  if (price <= fair) {
-    const half = fair - r.fair_value_lower;
-    return half > 0 ? (price - fair) / half : 0;
-  }
-  const half = r.fair_value_upper - fair;
-  return half > 0 ? (price - fair) / half : 0;
+  const lower = r.fair_value_lower;
+  const upper = r.fair_value_upper;
+  const interval = upper - lower;
+  if (!Number.isFinite(price) || !Number.isFinite(lower) || !Number.isFinite(upper) || !Number.isFinite(interval) || !(interval > 0)) return 0;
+  const units = -1 + (2 * (price - lower)) / interval;
+  return Number.isFinite(units) ? units : 0;
 }
 
 /** Map band-units to a 0..1 fraction across the fixed axis (for CSS %). */
 export function unitsToFraction(units: number): number {
+  if (!Number.isFinite(units)) return 0.5;
   const clamped = Math.max(AXIS_MIN, Math.min(AXIS_MAX, units));
   return (clamped - AXIS_MIN) / (AXIS_MAX - AXIS_MIN);
 }
@@ -36,8 +31,7 @@ export function priceToFraction(price: number, r: ValuationResult): number {
 
 /** Is the active validation target outside the actual calibrated interval bounds? */
 export function referenceOutsideBand(r: ValuationResult): boolean {
-  const unified = r.validation_target === "xstock_observed_price" || r.reference_profile === "unified_xstock_p1ac_xperp_evidence_v1";
-  const target = unified ? r.token_price : r.reference_under_test;
+  const target = validationTargetPrice(r);
   if (target == null) return false;
   return target < r.fair_value_lower || target > r.fair_value_upper;
 }

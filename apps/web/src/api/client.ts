@@ -22,15 +22,15 @@ import type {
   RuntimeStatus,
   ValuationResult,
 } from "./types";
-import weekendDivergence from "../fixtures/weekend_divergence.json";
+import consoleWeekendDivergenceV2 from "../fixtures/console_weekend_divergence_v2.json";
 
 export const BASE = import.meta.env.DEV ? "" : (import.meta.env.VITE_API_BASE_URL ?? "http://localhost:8000");
 export const DEFAULT_ASSET = "NVDAx";
-export const PRIMARY_ASSET_OPTIONS = ["NVDAx", "SPYx", "QQQx", "AAPLx"] as const;
-export type PrimaryAsset = (typeof PRIMARY_ASSET_OPTIONS)[number];
 const LEGACY_REFERENCE_PROFILE = "legacy_xperp_vs_p1ac";
+const EVIDENCE_SEMANTICS_V2 = "p1a_xstock_band_with_xperp_review_corroboration_v2";
 
-const FIXTURE = weekendDivergence as unknown as ValuationResult[];
+const CONSOLE_BACKUP = consoleWeekendDivergenceV2 as unknown as ValuationResult[];
+export const DEMO_REPLAY_QUERY_KEY = ["demo-replay", DEFAULT_ASSET, "weekend_divergence", EVIDENCE_SEMANTICS_V2] as const;
 
 export class ApiError extends Error {
   constructor(public status: number, public detail: string) {
@@ -101,7 +101,7 @@ function normalizeAssetInfo(value: unknown): AssetInfo {
     historical_data_available: item.historical_data_available ?? false,
     historical_panel_file_available: item.historical_panel_file_available ?? false,
     canonical_panel_verified: item.canonical_panel_verified ?? false,
-    historical_replay_ready: item.historical_replay_ready ?? item.historical_data_available ?? false,
+    historical_replay_ready: item.historical_replay_ready ?? false,
     historical_replay_mode: item.historical_replay_mode ?? null,
     historical_panel_error_code: item.historical_panel_error_code ?? null,
     challenger_detector_status: item.challenger_detector_status ?? "DETECTOR_STATUS_UNAVAILABLE",
@@ -114,8 +114,8 @@ function normalizeAssetInfo(value: unknown): AssetInfo {
     latest_observation_timestamp: item.latest_observation_timestamp ?? null,
     latest_observation_age_seconds: item.latest_observation_age_seconds ?? null,
     latest_observation_freshness: item.latest_observation_freshness ?? "unavailable",
-    // Only the legacy NVDAx deployment is known to expose these routes without
-    // readiness metadata. Missing metadata never enables another asset.
+    // Preserve the pre-registry NVDAx migration seam only. Explicit metadata
+    // enables any bound asset; missing metadata fails closed for SPYx/AAPLx.
     onchain_binding_configured: item.onchain_binding_configured ?? legacyNvda,
     readiness_error_codes: Array.isArray(item.readiness_error_codes)
       ? item.readiness_error_codes
@@ -247,15 +247,15 @@ export async function fetchOnchainEnforcement(asset = DEFAULT_ASSET): Promise<On
   return assertScopedResponse(data, asset, "enforcement");
 }
 
-export type ReplaySource = "backend-scenario" | "offline-fixture";
+export type ReplaySource = "backend-scenario" | "console-backup";
 export interface ReplayResponse {
   results: ValuationResult[];
   source: ReplaySource;
 }
 
 /**
- * Demo replay sequence. Tries the live backend first; on any failure falls back
- * to the bundled fixture and reports which source was used.
+ * Demo replay sequence. Tries the production classifier first; on failure uses
+ * a separate Console-only snapshot of that same v2 scenario response.
  */
 export async function fetchDemoReplay(
   asset = DEFAULT_ASSET,
@@ -268,9 +268,20 @@ export async function fetchDemoReplay(
     const results = await getJSON<ValuationResult[]>(
       `/api/replay/${asset}?source=scenario&scenario=${encodeURIComponent(scenario)}`,
     );
-    if (!Array.isArray(results) || results.length === 0) throw new Error("empty replay");
+    if (!isV2Demo(results)) throw new Error("backend scenario does not satisfy the v2 Demo contract");
     return { results: assertAssetRows(results, asset), source: "backend-scenario" };
   } catch {
-    return { results: assertAssetRows(FIXTURE, asset), source: "offline-fixture" };
+    return { results: assertAssetRows(CONSOLE_BACKUP, asset), source: "console-backup" };
   }
+}
+
+function isV2Demo(results: unknown): results is ValuationResult[] {
+  return Array.isArray(results)
+    && results.length === 6
+    && results.every((row) => row && typeof row === "object"
+      && (row as ValuationResult).asset === DEFAULT_ASSET
+      && (row as ValuationResult).evidence_semantics === EVIDENCE_SEMANTICS_V2
+      && (row as ValuationResult).validation_target === "xstock_observed_price"
+      && (row as ValuationResult).xperp_role === "second_market_challenger"
+      && (row as ValuationResult).xperp_index_price != null);
 }

@@ -9,7 +9,7 @@ export interface ChallengerDetectorEvidence {
   score: number | null;
   review_threshold: number;
   challenge_threshold: number;
-  research_band: "support" | "watch" | "review" | "unavailable";
+  research_band: string;
   promotion_status: string;
 }
 
@@ -183,6 +183,8 @@ export interface OnchainControlPlane extends OnchainEvaluation {
   policy: OnchainPolicy;
   attestation: OnchainAttestation | null;
   registry_fresh: boolean;
+  publication_compatible?: boolean;
+  publication_compatibility_status?: string | null;
 }
 
 export interface OnchainEnforcement extends OnchainEvaluation {
