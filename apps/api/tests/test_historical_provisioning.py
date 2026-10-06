@@ -111,7 +111,7 @@ def _expected(asset: str, panel: Path) -> dict:
     return expected
 
 
-def test_production_manifest_binds_four_panels_to_registered_identities() -> None:
+def test_production_manifest_binds_three_panels_to_registered_identities() -> None:
     manifest = load_manifest(DEFAULT_MANIFEST)
     fresh_manifest = json.loads(
         (_ROOT / "quant/data_manifest/fresh_validation_20261005.json").read_text(
