@@ -45,7 +45,7 @@ _POLICY_ACTION_BY_CODE = {
 }
 _POLICY_ACTION_CODE = {value: key for key, value in _POLICY_ACTION_BY_CODE.items()}
 _EVIDENCE_SCHEMA = "valtide-evidence-v1"
-_CURRENT_EVIDENCE_SEMANTICS = "p1a_xstock_challenger_xperp_second_market_v1"
+_CURRENT_EVIDENCE_SEMANTICS = "p1a_xstock_band_with_xperp_review_corroboration_v2"
 _READBACK_ATTEMPTS = 5
 _READBACK_RETRY_DELAY_SECONDS = 1.0
 
@@ -436,6 +436,7 @@ def _publication_semantics_compatible(
     return (
         result.asset == asset_config.asset
         and result.reference_profile == asset_config.reference_profile
+        and result.evidence_semantics == _CURRENT_EVIDENCE_SEMANTICS
         and result.model_id == runtime_spec.model_id
         and result.model_version == runtime_spec.model_version
         and result.reference_under_test_source == asset_config.reference_under_test_source

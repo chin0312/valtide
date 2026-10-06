@@ -1,0 +1,71 @@
+{
+  "schema": "valtide-tri-source-state-capabilities-v2",
+  "evidence_semantics": "p1a_xstock_band_with_xperp_review_corroboration_v2",
+  "validation_dataset_id": "valtide_solana_xstock_fresh_validation_20260921_20261005_0625",
+  "validation_period_start_utc": "2026-09-21T00:00:00Z",
+  "validation_period_end_utc": "2026-10-05T06:25:00Z",
+  "evaluation_kind": "retrospective_frozen_threshold_diagnostic",
+  "frozen_detector_artifact": "challenger_tail_v1.json",
+  "frozen_detector_artifact_sha256": "695dde83eb927f0010faabe694cb5d2f51003cda3834019dce25ba6b33f8a541",
+  "evidence_manifest": "quant/data_manifest/fresh_validation_20261005.json",
+  "limitations": [
+    "Fresh-panel results are retrospective and do not establish prospective guarantees.",
+    "The underlying is an ex-post truth proxy, not a current Evidence State voter.",
+    "P1a assimilates xStock; xStock-versus-P1a is model-based challenger evidence, not independent-market proof.",
+    "X-Perp corroboration is directional only and has no fitted Gaussian residual threshold.",
+    "Within the SUPPORT band X-Perp direction is descriptive; exact-time source availability and data quality are required."
+  ],
+  "assets": {
+    "NVDAx": {
+      "panel_sha256": "7785e47383943beedcdf893680820dbefb8b2370e32d363fbb5ea4074a05d3c3",
+      "support": {
+        "enabled": true,
+        "capability": "TRI_SOURCE_SUPPORTED",
+        "rule": "frozen_support_band_and_exact_xperp_available",
+        "evidence_ref": "assets.NVDAx.frozen_challenger_detector.research_band_counts.support",
+        "rationale": "James's original frozen exposed-test status_error_profile.csv (quant/research/challenger/results/nvdax/status_error_profile.csv, SUPPORT row; not the fresh retrospective panel) reports n=10,369, raw-xStock MAE 4.28 bps, p95 absolute error 13.64 bps, and relative-q95 tail rate 0.395%; REVIEW raw-xStock MAE is 18.91 bps (about 4.4x SUPPORT). This frozen SUPPORT regime has materially lower raw-xStock error and tail incidence than REVIEW. Evidence State v2 maps SUPPORT to SUPPORTED when exact-time X-Perp is available and source/model quality gates pass, without requiring an unvalidated directional preference between nearby prices."
+      },
+      "challenge": {
+        "enabled": true,
+        "capability": "TRI_SOURCE_CHALLENGED",
+        "rule": "frozen_review_band_and_exact_xperp_closer_to_p1a",
+        "evidence_ref": "assets.NVDAx.frozen_challenger_detector.tri_source_state_candidates.tri_source_challenged",
+        "rationale": "The retrospective fresh tri-source rule is a conservative escalation: 60 candidates, 6 with contemporaneous truth, yielded 5 TP and 1 FP (83.3% precision), while recovering 5/29 tail events (17.2% recall). Enable CHALLENGED as a high-selectivity, low-recall risk signal; do not interpret it as exhaustive tail detection."
+      }
+    },
+    "SPYx": {
+      "panel_sha256": "0ce51834e044d9f3a52682843898833ba3e88d7e25ced82f60def9f1a023a3a0",
+      "support": {
+        "enabled": true,
+        "capability": "TRI_SOURCE_SUPPORTED",
+        "rule": "frozen_support_band_and_exact_xperp_available",
+        "evidence_ref": "assets.SPYx.frozen_challenger_detector.research_band_counts.support",
+        "rationale": "James's original frozen exposed-test status_error_profile.csv (quant/research/challenger/results/spyx/status_error_profile.csv, SUPPORT row; not the fresh retrospective panel) reports n=11,551, raw-xStock MAE 3.38 bps, p95 absolute error 12.69 bps, and relative-q95 tail rate 0%; REVIEW raw-xStock MAE is 125.74 bps (about 37.3x SUPPORT). This frozen SUPPORT regime has materially lower raw-xStock error and tail incidence than REVIEW. Evidence State v2 maps SUPPORT to SUPPORTED when exact-time X-Perp is available and source/model quality gates pass, without requiring an unvalidated directional preference between nearby prices."
+      },
+      "challenge": {
+        "enabled": true,
+        "capability": "TRI_SOURCE_CHALLENGED",
+        "rule": "frozen_review_band_and_exact_xperp_closer_to_p1a",
+        "evidence_ref": "assets.SPYx.frozen_challenger_detector.tri_source_state_candidates.tri_source_challenged",
+        "rationale": "The fresh panel produced 20 true and 0 false challenges among 20 contemporaneously truth-evaluable tri-source candidates, recovering 20/21 underlying tail events (95.2% recall), consistent with the retained detector promotion."
+      }
+    },
+    "AAPLx": {
+      "panel_sha256": "2556cc1ee492a06afcbf6ff0ae6c6a56eaf75f44431f18b94849182d253cbc09",
+      "support": {
+        "enabled": true,
+        "capability": "TRI_SOURCE_SUPPORTED",
+        "rule": "frozen_support_band_and_exact_xperp_available",
+        "evidence_ref": "assets.AAPLx.frozen_challenger_detector.research_band_counts.support",
+        "rationale": "James's original frozen exposed-test status_error_profile.csv (quant/research/challenger/results/aaplx/status_error_profile.csv, SUPPORT row; not the fresh retrospective panel) reports n=11,195, raw-xStock MAE 5.41 bps, p95 absolute error 27.04 bps, and relative-q95 tail rate 0.027%; REVIEW raw-xStock MAE is 61.82 bps (about 11.4x SUPPORT). This frozen SUPPORT regime has materially lower raw-xStock error and tail incidence than REVIEW. Evidence State v2 maps SUPPORT to SUPPORTED when exact-time X-Perp is available and source/model quality gates pass, without requiring an unvalidated directional preference between nearby prices."
+      },
+      "challenge": {
+        "enabled": true,
+        "capability": "TRI_SOURCE_CHALLENGED",
+        "rule": "frozen_review_band_and_exact_xperp_closer_to_p1a",
+        "evidence_ref": "assets.AAPLx.frozen_challenger_detector.tri_source_state_candidates.tri_source_challenged",
+        "rationale": "Among seven exact-time X-Perp-to-P1a REVIEW candidates, the four with contemporaneous underlying truth were all tail events; the three remaining candidates have no ex-post truth label. Across all truth-evaluable REVIEW rows the frozen detector identified 4/7 tails. This enables a narrow tri-source challenge with a very small retrospective sample; confidence remains limited."
+      }
+    }
+  }
+}
