@@ -179,7 +179,7 @@ function ValidationConsole() {
         <DecisionSummary current={current} action={policyAction} />
         <MetricGrid current={current} isDemo={context === "Demo"} observationCount={results.length} />
 
-        <div className="grid items-start gap-4 xl:grid-cols-[minmax(0,1.3fr)_minmax(0,1fr)]">
+        <div className="grid items-stretch gap-4 xl:grid-cols-[minmax(0,1.3fr)_minmax(0,1fr)]">
           <HistoricalReplay
             asset={contextAsset}
             results={results}

@@ -430,7 +430,7 @@ test("Demo uses canonical NVDAx data, hides selection, and preserves each operat
 test("Advanced Policy Proposal is one Demo-only full-width row after the primary grid", () => {
   const appSource = fs.readFileSync(path.join(__dirname,"../src/App.tsx"),"utf8");
   assert.equal((appSource.match(/Advanced: Policy Proposal/g) ?? []).length,1);
-  assert.match(appSource,/<div className="grid items-start gap-4 xl:grid-cols-\[minmax\(0,1\.3fr\)_minmax\(0,1fr\)\]">[\s\S]*?<ReferenceComparison r=\{current\} \/>[\s\S]*?<PolicyCard[\s\S]*?<\/div>\s*<\/div>\s*\{context === "Demo" && <details[\s\S]*?Advanced: Policy Proposal[\s\S]*?<PolicyFoundry \/>[\s\S]*?<\/details>\}\s*<div className="grid gap-4 md:grid-cols-2">/);
+  assert.match(appSource,/<div className="grid items-stretch gap-4 xl:grid-cols-\[minmax\(0,1\.3fr\)_minmax\(0,1fr\)\]">[\s\S]*?<ReferenceComparison r=\{current\} \/>[\s\S]*?<PolicyCard[\s\S]*?<\/div>\s*<\/div>\s*\{context === "Demo" && <details[\s\S]*?Advanced: Policy Proposal[\s\S]*?<PolicyFoundry \/>[\s\S]*?<\/details>\}\s*<div className="grid gap-4 md:grid-cols-2">/);
   assert.doesNotMatch(appSource,/asset\s*===\s*["'](?:NVDAx|SPYx|AAPLx)["']/);
   assert.match(appSource,/assetQueryKeys\.onchain\(contextAsset\), queryFn: \(\) => fetchOnchain\(contextAsset\)[\s\S]*?enabled: backendUp && !!selectedAssetInfo\?\.onchain_binding_configured/);
   assert.match(appSource,/assetQueryKeys\.enforcement\(contextAsset\), queryFn: \(\) => fetchOnchainEnforcement\(contextAsset\)[\s\S]*?enabled: backendUp && !!selectedAssetInfo\?\.onchain_binding_configured/);
@@ -693,17 +693,21 @@ test("Range View uses fixed interval-relative geometry independent of absolute p
   assert.doesNotMatch(appSource,/domainResults=/);
 });
 
-test("Demo Policy Proposal disclosure cannot stretch or resize the Timeline", () => {
+test("Equal-height Timeline card alignment keeps the chart fixed and Policy Proposal independent", () => {
   const appSource = fs.readFileSync(path.join(__dirname,"../src/App.tsx"),"utf8");
   const replaySource = fs.readFileSync(path.join(__dirname,"../src/views/HistoricalReplay.tsx"),"utf8");
   const chartSource = fs.readFileSync(path.join(__dirname,"../src/components/EscalationChart.tsx"),"utf8");
-  assert.match(appSource,/grid items-start gap-4 xl:grid-cols-\[minmax\(0,1\.3fr\)_minmax\(0,1fr\)\]/);
-  assert.doesNotMatch(appSource,/items-stretch/);
+  assert.match(appSource,/grid items-stretch gap-4 xl:grid-cols-\[minmax\(0,1\.3fr\)_minmax\(0,1fr\)\]/);
   assert.match(replaySource,/className="flex min-w-0 flex-col"/);
   assert.doesNotMatch(replaySource,/className="flex h-full min-w-0 flex-col"/);
-  assert.match(chartSource,/className="h-\[320px\] min-h-\[280px\] w-full"/);
-  assert.doesNotMatch(chartSource,/className="h-\[320px\] min-h-\[280px\] w-full flex-1"/);
+  assert.match(replaySource,/className="mt-auto flex flex-wrap items-center gap-3 border-t pt-3"/);
+  const chartRoot = chartSource.match(/className="([^"]*h-\[320px\][^"]*)"/)?.[1];
+  assert.ok(chartRoot,"EscalationChart root retains an explicit fixed height");
+  assert.match(chartRoot,/^h-\[320px\] min-h-\[280px\] w-full$/);
+  assert.doesNotMatch(chartRoot,/(?:^|\s)(?:flex-1|h-full|grow)(?:\s|$)/);
+  assert.doesNotMatch(chartSource,/(?:^|\s)(?:flex-1|h-full|grow)(?:\s|$)/);
   assert.match(appSource,/\{context === "Demo" && <details[\s\S]*?Advanced: Policy Proposal[\s\S]*?<PolicyFoundry \/>[\s\S]*?<\/details>\}/);
+  assert.match(appSource,/<\/div>\s*\{context === "Demo" && <details[\s\S]*?Advanced: Policy Proposal[\s\S]*?<\/details>\}\s*<div className="grid gap-4 md:grid-cols-2">/);
 });
 
 test("Current semantic copy is shared and old explicit rule generations stay recorded", () => {
