@@ -410,6 +410,8 @@ test("Decision summary explains xStock dependence while retaining the legacy pro
   });
   assert.match(xstock, /Model-based challenger evidence supports the observed xStock price/);
   assert.match(xstock, /not two fully independent observations/);
+  assert.match(xstock, /Current finding/);
+  assert.doesNotMatch(xstock, /Current finding · Operational/);
 
   const legacy = appWith({result: {...fixture[0], reference_profile:"legacy_xperp_vs_p1ac"}});
   assert.match(legacy, /Available independent evidence/);

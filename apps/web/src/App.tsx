@@ -169,7 +169,7 @@ function ValidationConsole() {
       <main className="space-y-4">
         {isDegraded && current && <div role="status" className="rounded px-4 py-3 text-xs text-ink-dim" style={{ background: "var(--color-inconclusive-soft)" }}>{context} degraded · showing last available observations. {history.isError && isOperational ? "History unavailable. " : ""}{activeQuery.isError ? statusMessage : runtime.data?.last_error}</div>}
         {!current ? <Panel title={`${context} ${activeQuery.isLoading ? "loading" : "unavailable"}`}><p role="status" className="text-xs text-ink-dim">{activeQuery.isLoading ? `Loading ${selectedAsset} ${context.toLowerCase()} observations…` : context === "Demo" && selectedAsset !== DEFAULT_ASSET ? "The deterministic Demo fixture is synthetic NVDAx-only. It is not relabeled as another asset." : runtimeNotWarmed ? "Runtime not warmed yet." : statusMessage}</p></Panel> : <>
-        <DecisionSummary current={current} action={policyAction} context={context} />
+        <DecisionSummary current={current} action={policyAction} />
         <MetricGrid current={current} isDemo={context === "Demo"} observationCount={results.length} />
 
         <div className="grid items-stretch gap-4 xl:grid-cols-[minmax(0,1.3fr)_minmax(0,1fr)]">
@@ -290,7 +290,7 @@ function ConnectionLabel({ active, activeText, inactiveText }: { active: boolean
   return <span className="inline-flex items-center gap-1.5" style={{ color: active ? "var(--color-supported)" : "var(--color-muted)" }}><i className="h-1.5 w-1.5 rounded-full" style={{ background: "currentColor" }} />{active ? activeText : inactiveText}</span>;
 }
 
-function DecisionSummary({ current, action, context }: { current: ValuationResult; action: PolicyAction | null; context: Context }) {
+function DecisionSummary({ current, action }: { current: ValuationResult; action: PolicyAction | null }) {
   const findings: Record<EvidenceState, { title: string; detail: string }> = current.reference_profile === "xstock_vs_p1ac_challenger" ? {
     SUPPORTED: { title: "Model-based challenger evidence supports the observed xStock price", detail: "P1a has assimilated this same xStock observation before the comparison. This is model-based challenger evidence, not two fully independent observations; disagreement alone does not establish which price is correct." },
     INCONCLUSIVE: { title: "Model-based challenger evidence needs review", detail: "P1a has assimilated this same xStock observation before the comparison. The model-based evidence is not strong or consistent enough for a confident conclusion." },
@@ -302,8 +302,8 @@ function DecisionSummary({ current, action, context }: { current: ValuationResul
   };
   const finding = findings[current.evidence_state];
   return <section className="grid gap-4 rounded-[10px] p-5 md:grid-cols-[minmax(0,1fr)_minmax(220px,.45fr)]" style={{ background: "var(--color-panel)", border: "1px solid var(--color-line-subtle)", borderLeft: `3px solid ${EVIDENCE[current.evidence_state].fg}` }}>
-    <div><div className="eyebrow" style={{ color: "var(--color-muted)" }}>Current finding · {context}</div><h2 className="mt-2 text-2xl font-semibold tracking-[-0.03em] text-ink">{finding.title}</h2><p className="mt-2 max-w-3xl text-sm leading-6 text-ink-dim">{finding.detail}</p></div>
-    <div className="md:border-l md:pl-4" style={{ borderColor: "var(--color-line-subtle)" }}><div className="eyebrow" style={{ color: "var(--color-muted)" }}>Policy action</div><div className="mt-2 text-lg font-semibold text-ink">{plainAction(action)}</div><div className="technical-mono mt-1 text-xs text-muted">{action ?? "POLICY UNAVAILABLE"}</div></div>
+    <div><div className="eyebrow" style={{ color: "var(--color-muted)" }}>Current finding</div><h2 className="mt-2 text-2xl font-semibold tracking-[-0.03em] text-ink">{finding.title}</h2><p className="mt-2 max-w-3xl text-sm leading-6 text-ink-dim">{finding.detail}</p></div>
+    <div className="md:border-l md:pl-4" style={{ borderColor: "var(--color-line-subtle)" }}><div className="eyebrow" style={{ color: "var(--color-muted)" }}>Policy action</div><div className="mt-2 text-lg font-semibold text-ink">{plainAction(action)}</div></div>
   </section>;
 }
 
