@@ -20,7 +20,7 @@ const { DocsPage } = load("../src/components/DocsPage.tsx");
 const { InstrumentPassport, passportStatusFor } = load("../src/components/InstrumentPassport.tsx");
 const { PolicyFoundry } = load("../src/components/PolicyFoundry.tsx");
 const { DEMO_PASSPORT_ADDRESS, MODEL_EVIDENCE_SUMMARY, POLICY_PROPOSAL } = load("../src/fixtures/prototypeData.ts");
-const { default: App } = load("../src/App.tsx");
+const { default: App, consoleContextFromSearch } = load("../src/App.tsx");
 const { deliveryStatusLabel, pipelineStatusLabel } = load("../src/lib/format.ts");
 const { chartDomain, clampViewport, lowerBoundTimestamp, minimumViewportWidth, panViewport, shouldRenderStateDots, sliceChartDataForViewport, upperBoundTimestamp, wheelGestureIntent, wheelZoomScale, zoomSensitivity, zoomViewport } = load("../src/components/EscalationChart.tsx");
 const h = React.createElement;
@@ -253,6 +253,7 @@ test("Documentation adapts by role and keeps evidence, policy and scope separate
   assert.match(html, /aria-selected="true"/);
   assert.match(html, /role="tabpanel"/);
   assert.match(html, /Open the demo result/);
+  assert.match(html, /href="\/\?view=console&amp;context=demo"/);
   assert.match(html, /NVDAx uses the OKX X-Perp NVDA index/);
   assert.match(html, /Whether an attestation remains valid under both its valid-until time and the policy owner’s maximum age/);
   assert.match(html, /Structured backend explanations for an Evidence State, preserved by the frontend without recomputation/);
@@ -261,6 +262,14 @@ test("Documentation adapts by role and keeps evidence, policy and scope separate
   assert.match(html, /Also useful for/);
   const profileSource = fs.readFileSync(path.join(__dirname, "../src/components/documentationProfiles.ts"), "utf8");
   for (const profile of ["everyone", "curators", "developers", "researchers"]) assert.match(profileSource, new RegExp(`${profile}:`));
+});
+
+test("Console deep links select a known evidence context and fail closed to Operational", () => {
+  assert.equal(consoleContextFromSearch("?view=console&context=demo"), "Demo");
+  assert.equal(consoleContextFromSearch("?view=console&context=historical"), "Historical");
+  assert.equal(consoleContextFromSearch("?view=console&context=DEMO"), "Demo");
+  assert.equal(consoleContextFromSearch("?view=console"), "Operational");
+  assert.equal(consoleContextFromSearch("?view=console&context=unknown"), "Operational");
 });
 
 test("Cold Operational stays unavailable even when Demo is cached", () => {

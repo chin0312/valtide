@@ -24,7 +24,7 @@ const guides: readonly Guide[] = [
     id: "everyone", label: documentationProfiles.everyone.label, eyebrow: "A two-minute orientation", title: "Read the result without guessing what it means.",
     summary: "Start with the product language, then follow one result from its evidence context to the response configured by the curator.",
     outcome: "You will know what Valtide validates, what the three Evidence States mean, and where evidence stops and policy begins.",
-    cta: "Open the demo result", href: "/?view=console",
+    cta: "Open the demo result", href: "/?view=console&context=demo",
     walkthrough: [
       { eyebrow: "Begin with context", title: "Know what kind of evidence you are looking at.", body: "Operational, Historical, and Demo are different evidence lanes. The selected lane appears in the console header and is never silently substituted.", tip: "For your first visit, choose Demo. It contains six synthetic observations designed to explain the workflow.", visual: "context" },
       { eyebrow: "Read the finding", title: "Read the range and state together.", body: "Compare the reference under test with Valtide fair value and its calibrated range. Then use the Evidence State as the plain-language interpretation—not as proof of a true price.", tip: "A point estimate without its uncertainty range is incomplete.", visual: "finding" },

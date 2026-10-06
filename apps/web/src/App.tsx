@@ -40,6 +40,13 @@ import { PolicyFoundry } from "./components/PolicyFoundry";
 type Context = "Operational" | "Historical" | "Demo";
 const EMPTY_RESULTS: ValuationResult[] = [];
 
+export function consoleContextFromSearch(search: string): Context {
+  const requested = new URLSearchParams(search).get("context")?.toLowerCase();
+  if (requested === "historical") return "Historical";
+  if (requested === "demo") return "Demo";
+  return "Operational";
+}
+
 export default function App() {
   const view = typeof window === "undefined" ? "console" : new URLSearchParams(window.location.search).get("view");
   const showConsole = view === "console";
@@ -61,7 +68,7 @@ export default function App() {
 }
 
 function ValidationConsole() {
-  const [context, setContext] = useState<Context>("Operational");
+  const [context, setContext] = useState<Context>(() => consoleContextFromSearch(typeof window === "undefined" ? "" : window.location.search));
   const [selectedAsset, setSelectedAsset] = useState<string>(DEFAULT_ASSET);
   const [range, setRange] = useState<OperationalRange>("24H");
   const [historicalRange, setHistoricalRange] = useState<HistoricalRange>("ALL");
