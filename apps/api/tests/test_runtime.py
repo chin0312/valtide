@@ -3,6 +3,7 @@
 import asyncio
 import json
 import threading
+from dataclasses import replace
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
 from types import SimpleNamespace
@@ -91,6 +92,86 @@ def test_three_production_workers_require_explicit_asset_selection(tmp_path, mon
 
     assert [worker.asset for worker in workers] == ["NVDAx", "SPYx", "AAPLx"]
     assert build_enabled_schedulers(settings, store, assets=()) == ()
+
+
+def test_three_asset_publish_routing_is_serial_and_failure_is_asset_local(tmp_path, monkeypatch):
+    timestamp = _ANCHOR + timedelta(minutes=5)
+    store = RuntimeStore(tmp_path / "three-asset-publishing.sqlite3")
+    settings = Settings(
+        _env_file=None,
+        live_scheduler_enabled=True,
+        live_scheduler_asset="NVDAx",
+        live_scheduler_assets="NVDAx,SPYx,AAPLx",
+        auto_publish_enabled=True,
+        publish_enabled=False,
+    )
+    monkeypatch.setattr(scheduler_module, "get_settings", lambda: settings)
+    monkeypatch.setattr(
+        scheduler_module.publisher_module,
+        "assert_publication_compatible",
+        lambda result, _settings, *, asset: result,
+    )
+    calls = []
+    active = 0
+    max_active = 0
+    call_lock = threading.Lock()
+
+    def fake_publish(result, *, settings, asset):
+        nonlocal active, max_active
+        assert settings.publish_enabled is False
+        assert result.asset == asset
+        with call_lock:
+            active += 1
+            max_active = max(max_active, active)
+            calls.append((asset, result.asset))
+        try:
+            threading.Event().wait(0.01)
+            if asset == "SPYx":
+                raise PublicationError("synthetic isolated SPY failure")
+            return SimpleNamespace(status="published", published_at=1_800_000_000, tx_hash=None)
+        finally:
+            with call_lock:
+                active -= 1
+
+    workers = build_enabled_schedulers(settings, store)
+    assert [worker.asset for worker in workers] == ["NVDAx", "SPYx", "AAPLx"]
+    ticks = []
+    for worker in workers:
+        worker.asset_config = replace(
+            worker.asset_config,
+            capabilities=replace(worker.asset_config.capabilities, onchain=True),
+        )
+        worker._publisher_fn = fake_publish
+        snapshot = _snapshot(timestamp).model_copy(update={"asset": worker.asset})
+        result, state = run_inference(snapshot, None)
+        store.save_runtime_and_history(
+            worker.asset,
+            state,
+            result,
+            tick_status="success",
+            tick_attempt_at=timestamp,
+            gap_steps=0,
+            identity=runtime_identity_for_asset(worker.asset),
+        )
+        tick = TickResult(worker.asset, timestamp, "success", result, 0, False)
+        worker._publish_if_enabled(tick)
+        assert worker._pending_publication is result
+        ticks.append((worker, result))
+
+    async def publish_all():
+        await asyncio.gather(*(worker._publish_one(result) for worker, result in ticks))
+
+    asyncio.run(publish_all())
+
+    assert set(calls) == {("NVDAx", "NVDAx"), ("SPYx", "SPYx"), ("AAPLx", "AAPLx")}
+    assert max_active == 1
+    expected_status = {"NVDAx": "published", "SPYx": "failed", "AAPLx": "published"}
+    for asset, status in expected_status.items():
+        publication = store.load_publication(asset)
+        assert publication is not None
+        assert publication.last_publish_status == status
+        assert store.load_runtime(asset).latest_result.asset == asset
+    assert store.load_publication("SPYx").last_publish_error == "PublicationError"
 
 
 def test_multi_worker_selection_skips_known_unready_asset_without_stopping_ready_one(

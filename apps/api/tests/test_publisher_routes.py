@@ -149,3 +149,33 @@ def test_onchain_status_reports_missing_deployment_for_registered_candidate():
 
     assert response.status_code == 503
     assert response.json()["detail"] == "ONCHAIN_NOT_CONFIGURED"
+
+
+def test_onchain_route_keeps_each_asset_binding_scoped(monkeypatch):
+    import valtide_api.routes.onchain as onchain_route
+
+    expected = {
+        asset: {
+            "asset_id": f"asset-{asset}",
+            "reference_id": f"reference-{asset}",
+            "demo_vault": f"vault-{asset}",
+            "policy": {"max_age": 900, "asset": asset},
+            "attestation": {"asset": asset},
+        }
+        for asset in ("NVDAx", "SPYx", "AAPLx")
+    }
+    observed = []
+
+    def fake_read_control_plane(*, asset):
+        observed.append(asset)
+        return expected[asset]
+
+    monkeypatch.setattr(onchain_route, "require_api_asset", lambda asset, *_: asset)
+    monkeypatch.setattr(onchain_route.publisher, "read_control_plane", fake_read_control_plane)
+
+    for asset in ("NVDAx", "SPYx", "AAPLx"):
+        response = client.get(f"/api/onchain/{asset}")
+        assert response.status_code == 200
+        assert response.json() == {"asset": asset, **expected[asset]}
+
+    assert observed == ["NVDAx", "SPYx", "AAPLx"]
