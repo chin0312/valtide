@@ -167,15 +167,11 @@
 .docs-header nav a, .docs-console { color: var(--color-ink-dim); font-size: 11px; text-decoration: none; }
 .docs-console { justify-self: end; }
 .docs-page main { max-width: 1480px; margin: 0 auto; padding-inline: clamp(24px, 5vw, 80px); }
-.docs-hero { display: grid; min-height: 570px; grid-template-columns: 1.3fr .7fr; gap: 72px; align-items: center; padding: 76px 0; }
+.docs-hero { display: flex; min-height: 520px; align-items: center; padding: 76px 0; }
+.docs-hero > div { max-width: 920px; }
 .docs-hero h1 { max-width: 800px; margin: 0; font-size: clamp(44px, 4.6vw, 68px); font-weight: 500; letter-spacing: -.05em; line-height: 1; }
 .docs-hero > div > p:not(.marketing-kicker) { max-width: 680px; margin: 24px 0 0; color: var(--color-ink-dim); font-size: 15px; line-height: 1.7; }
 .docs-hero__actions { display: flex; align-items: center; gap: 30px; margin-top: 30px; }
-.docs-hero aside { padding: 28px; background: var(--color-panel); border: 1px solid var(--color-line); border-radius: 10px; }
-.docs-hero aside > span { color: var(--color-accent); font-size: 9px; letter-spacing: .1em; }
-.docs-hero aside p { margin: 25px 0 0; color: var(--color-ink-dim); border-top: 1px solid var(--color-line-subtle); padding-top: 15px; }
-.docs-hero aside p strong { color: var(--color-ink); }
-.docs-hero aside small { display: block; margin-top: 28px; color: var(--color-muted); }
 .docs-section { padding: 82px 0; border-top: 1px solid var(--color-line-subtle); scroll-margin-top: 68px; }
 .docs-anchor { position: relative; top: -68px; display: block; height: 0; visibility: hidden; }
 .docs-section__title { display: grid; grid-template-columns: 70px 1fr; margin-bottom: 60px; }
@@ -279,9 +275,10 @@
 .role-guide__intro aside { padding: 24px; background: var(--color-panel); border: 1px solid var(--color-line); border-radius: 10px; }
 .role-guide__intro aside span { color: var(--color-accent); font-size: 9px; font-weight: 600; letter-spacing: .1em; }
 .role-guide__intro aside p { margin: 28px 0 0; color: var(--color-ink-dim); font-size: 14px; line-height: 1.65; }
-.docs-section--walkthrough { padding-bottom: 32px; }
-.guide-walkthrough { margin-top: 58px; }
+.docs-section--walkthrough { padding: 0 0 32px; }
+.guide-walkthrough { margin-top: 0; }
 .guide-walkthrough__row { position: relative; display: grid; grid-template-columns: minmax(280px, .72fr) minmax(500px, 1.28fr); gap: clamp(40px, 6vw, 90px); align-items: center; min-height: 500px; padding: 54px 0; border-top: 1px solid var(--color-line-subtle); }
+.guide-walkthrough__row:first-child { border-top: 0; }
 .guide-walkthrough__row:nth-child(even) { grid-template-columns: minmax(500px, 1.28fr) minmax(280px, .72fr); }
 .guide-walkthrough__row:nth-child(even) .guide-walkthrough__copy { grid-column: 2; }
 .guide-walkthrough__row:nth-child(even) .guide-shot { grid-column: 1; grid-row: 1; }
@@ -398,8 +395,6 @@
   .docs-bridges { grid-template-columns: 1fr; }
   .docs-bridges a { min-height: 170px; border-top: 1px solid var(--color-line); }
   .docs-bridges strong { margin-top: 38px; }
-  .docs-hero { grid-template-columns: 1fr; gap: 50px; }
-  .docs-hero aside { max-width: 560px; }
   .docs-cta { display: block; }
   .docs-cta > div:last-child { margin-top: 40px; }
   .incident-topline { grid-template-columns: 1fr 1fr; }

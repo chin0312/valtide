@@ -34,11 +34,19 @@ import { LandingPage } from "./components/LandingPage";
 import { DocsPage } from "./components/DocsPage";
 import { LogoMotionPrototype } from "./components/LogoMotionPrototype";
 import { AnimatedValtideLogo } from "./components/AnimatedValtideLogo";
+import { AssetPicker } from "./components/AssetPicker";
 import { InstrumentPassport } from "./components/InstrumentPassport";
 import { PolicyFoundry } from "./components/PolicyFoundry";
 
 type Context = "Operational" | "Historical" | "Demo";
 const EMPTY_RESULTS: ValuationResult[] = [];
+
+export function consoleContextFromSearch(search: string): Context {
+  const requested = new URLSearchParams(search).get("context")?.toLowerCase();
+  if (requested === "historical") return "Historical";
+  if (requested === "demo") return "Demo";
+  return "Operational";
+}
 
 export default function App() {
   const view = typeof window === "undefined" ? "console" : new URLSearchParams(window.location.search).get("view");
@@ -61,7 +69,7 @@ export default function App() {
 }
 
 function ValidationConsole() {
-  const [context, setContext] = useState<Context>("Operational");
+  const [context, setContext] = useState<Context>(() => consoleContextFromSearch(typeof window === "undefined" ? "" : window.location.search));
   const [selectedAsset, setSelectedAsset] = useState<string>(DEFAULT_ASSET);
   const [range, setRange] = useState<OperationalRange>("24H");
   const [historicalRange, setHistoricalRange] = useState<HistoricalRange>("ALL");
@@ -255,9 +263,7 @@ function AppHeader({ backendUp, chainUp, source, context, onContextChange, asset
   selectedAsset: string;
   onAssetChange: (asset: string) => void;
 }) {
-  const assetOptions = assets.filter((item) => item.api_exposed).length
-    ? assets.filter((item) => item.api_exposed).map((item) => item.asset)
-    : [DEFAULT_ASSET];
+  const assetOptions = assets.filter((item) => item.api_exposed);
   return (
     <header className="mb-4 flex flex-wrap items-center justify-between gap-4 border-b pb-4" style={{ borderColor: "var(--color-line-subtle)" }}>
       <div className="flex flex-wrap items-center gap-3 sm:gap-6">
@@ -265,12 +271,7 @@ function AppHeader({ backendUp, chainUp, source, context, onContextChange, asset
         <nav aria-label="Evidence context" className="flex gap-1 rounded p-1" style={{ border: "1px solid var(--color-line)" }}>{(["Operational", "Historical", "Demo"] as Context[]).map((option) => <button key={option} aria-pressed={context === option} onClick={() => onContextChange(option)} className="rounded px-2.5 py-1.5 text-xs font-medium" style={{ background: context === option ? "var(--color-panel-2)" : undefined, color: context === option ? "var(--color-ink)" : "var(--color-muted)" }}>{option}</button>)}</nav>
       </div>
       <div className="flex flex-wrap items-center gap-3 text-[11px]">
-        <label className="flex items-center gap-2" style={{ color: "var(--color-ink-dim)" }}>
-          <span>Asset</span>
-          <select aria-label="Selected asset" value={selectedAsset} onChange={(event) => onAssetChange(event.target.value)} className="rounded px-2 py-1 font-mono text-[11px] text-ink" style={{ background: "var(--color-panel)", border: "1px solid var(--color-line)" }}>
-            {assetOptions.map((asset) => <option key={asset} value={asset}>{asset}</option>)}
-          </select>
-        </label>
+        <AssetPicker assets={assetOptions} selectedAsset={selectedAsset} onChange={onAssetChange} />
         <span className="rounded px-2 py-1 font-mono" style={{ color: "var(--color-accent)", background: "var(--color-accent-soft)" }}>{source}</span>
         <ConnectionLabel active={backendUp} activeText="API connected" inactiveText="API unavailable" />
         <ConnectionLabel active={chainUp} activeText="X Layer connected" inactiveText="X Layer unavailable" />
