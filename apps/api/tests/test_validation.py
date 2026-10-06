@@ -538,7 +538,12 @@ def test_support_band_and_xperp_closer_to_xstock_can_emit_supported_without_trut
 
     assert result.evidence_state == EvidenceState.SUPPORTED
     assert "P1A_XSTOCK_SUPPORT_BAND" in result.reason_codes
-    assert "XPERP_CORROBORATES_XSTOCK" in result.reason_codes
+    assert "XPERP_CORROBORATES_XSTOCK" not in result.reason_codes
+    assert "XPERP_CORROBORATES_P1A" not in result.reason_codes
+    assert "XPERP_EVIDENCE_AMBIGUOUS" not in result.reason_codes
+    assert result.xstock_vs_p1ac_deviation_pct is not None
+    assert result.xperp_vs_p1ac_deviation_pct is not None
+    assert result.xstock_vs_xperp_deviation_pct is not None
     assert "UNDERLYING_REFERENCE_NOT_CONTEMPORANEOUS" not in result.reason_codes
 
 
@@ -555,9 +560,15 @@ def test_support_band_emits_supported_for_any_valid_xperp_direction(asset):
     )
 
     assert sided_with_p1a.evidence_state == EvidenceState.SUPPORTED
-    assert "XPERP_CORROBORATES_P1A" in sided_with_p1a.reason_codes
+    assert "P1A_XSTOCK_SUPPORT_BAND" in sided_with_p1a.reason_codes
+    assert "XPERP_CORROBORATES_XSTOCK" not in sided_with_p1a.reason_codes
+    assert "XPERP_CORROBORATES_P1A" not in sided_with_p1a.reason_codes
+    assert "XPERP_EVIDENCE_AMBIGUOUS" not in sided_with_p1a.reason_codes
     assert token_and_model_equal.evidence_state == EvidenceState.SUPPORTED
-    assert "XPERP_EVIDENCE_AMBIGUOUS" in token_and_model_equal.reason_codes
+    assert "P1A_XSTOCK_SUPPORT_BAND" in token_and_model_equal.reason_codes
+    assert "XPERP_CORROBORATES_XSTOCK" not in token_and_model_equal.reason_codes
+    assert "XPERP_CORROBORATES_P1A" not in token_and_model_equal.reason_codes
+    assert "XPERP_EVIDENCE_AMBIGUOUS" not in token_and_model_equal.reason_codes
     assert "TOKEN_AND_CHALLENGER_AGREE" in token_and_model_equal.reason_codes
 
     # xStock/P1a agreement is descriptive only. Exact-time X-Perp availability
@@ -646,6 +657,12 @@ def test_unified_support_band_needs_healthy_exact_xperp_but_not_direction(asset)
     assert result.evidence_state_basis == (
         "frozen_p1a_xstock_support_band_with_exact_xperp_available"
     )
+    assert "P1A_XSTOCK_SUPPORT_BAND" in result.reason_codes
+    assert not {
+        "XPERP_CORROBORATES_XSTOCK",
+        "XPERP_CORROBORATES_P1A",
+        "XPERP_EVIDENCE_AMBIGUOUS",
+    }.intersection(result.reason_codes)
 
 
 def test_research_only_qqq_does_not_gain_v2_state_authority():

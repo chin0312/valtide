@@ -23,7 +23,7 @@
         "capability": "TRI_SOURCE_SUPPORTED",
         "rule": "frozen_support_band_and_exact_xperp_available",
         "evidence_ref": "assets.NVDAx.frozen_challenger_detector.research_band_counts.support",
-        "rationale": "James's frozen SUPPORT band defines NVDAx's low-disagreement regime. A healthy exact-time X-Perp observation is required for tri-source readiness; its direction within SUPPORT is descriptive only because no separate directional threshold is research-validated."
+        "rationale": "James's original frozen exposed-test status_error_profile.csv (quant/research/challenger/results/nvdax/status_error_profile.csv, SUPPORT row; not the fresh retrospective panel) reports n=10,369, raw-xStock MAE 4.28 bps, p95 absolute error 13.64 bps, and relative-q95 tail rate 0.395%; REVIEW raw-xStock MAE is 18.91 bps (about 4.4x SUPPORT). This frozen SUPPORT regime has materially lower raw-xStock error and tail incidence than REVIEW. Evidence State v2 maps SUPPORT to SUPPORTED when exact-time X-Perp is available and source/model quality gates pass, without requiring an unvalidated directional preference between nearby prices."
       },
       "challenge": {
         "enabled": true,
@@ -40,7 +40,7 @@
         "capability": "TRI_SOURCE_SUPPORTED",
         "rule": "frozen_support_band_and_exact_xperp_available",
         "evidence_ref": "assets.SPYx.frozen_challenger_detector.research_band_counts.support",
-        "rationale": "James's frozen SUPPORT band defines SPYx's low-disagreement regime. A healthy exact-time X-Perp observation is required for tri-source readiness; its direction within SUPPORT is descriptive only because no separate directional threshold is research-validated."
+        "rationale": "James's original frozen exposed-test status_error_profile.csv (quant/research/challenger/results/spyx/status_error_profile.csv, SUPPORT row; not the fresh retrospective panel) reports n=11,551, raw-xStock MAE 3.38 bps, p95 absolute error 12.69 bps, and relative-q95 tail rate 0%; REVIEW raw-xStock MAE is 125.74 bps (about 37.3x SUPPORT). This frozen SUPPORT regime has materially lower raw-xStock error and tail incidence than REVIEW. Evidence State v2 maps SUPPORT to SUPPORTED when exact-time X-Perp is available and source/model quality gates pass, without requiring an unvalidated directional preference between nearby prices."
       },
       "challenge": {
         "enabled": true,
@@ -57,7 +57,7 @@
         "capability": "TRI_SOURCE_SUPPORTED",
         "rule": "frozen_support_band_and_exact_xperp_available",
         "evidence_ref": "assets.AAPLx.frozen_challenger_detector.research_band_counts.support",
-        "rationale": "James's frozen SUPPORT band defines AAPLx's low-disagreement regime. A healthy exact-time X-Perp observation is required for tri-source readiness; its direction within SUPPORT is descriptive only because no separate directional threshold is research-validated."
+        "rationale": "James's original frozen exposed-test status_error_profile.csv (quant/research/challenger/results/aaplx/status_error_profile.csv, SUPPORT row; not the fresh retrospective panel) reports n=11,195, raw-xStock MAE 5.41 bps, p95 absolute error 27.04 bps, and relative-q95 tail rate 0.027%; REVIEW raw-xStock MAE is 61.82 bps (about 11.4x SUPPORT). This frozen SUPPORT regime has materially lower raw-xStock error and tail incidence than REVIEW. Evidence State v2 maps SUPPORT to SUPPORTED when exact-time X-Perp is available and source/model quality gates pass, without requiring an unvalidated directional preference between nearby prices."
       },
       "challenge": {
         "enabled": true,

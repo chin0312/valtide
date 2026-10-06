@@ -20,6 +20,7 @@ from valtide_api.publisher import (
     _assert_readback,
     _custom_error_abi,
     _receipt_from_state,
+    assert_publication_compatible,
     build_attestation,
     canonical_evidence_bytes,
     check_demo_vault_enforcement,
@@ -39,7 +40,7 @@ def _compatible_manifest(tmp_path):
         "asset": "NVDAx",
         "referenceId": manifest["demo"]["referenceId"],
         "referenceProfile": "unified_xstock_p1ac_xperp_evidence_v1",
-        "evidenceSemantics": "p1a_xstock_challenger_xperp_second_market_v1",
+        "evidenceSemantics": "p1a_xstock_band_with_xperp_review_corroboration_v2",
         "modelId": "P1a-C",
         "modelVersion": "0.2.0",
     }
@@ -78,6 +79,7 @@ def result():
         reference_under_test=120.5,
         reference_under_test_source="okx_xperp_index",
         reference_profile="unified_xstock_p1ac_xperp_evidence_v1",
+        evidence_semantics="p1a_xstock_band_with_xperp_review_corroboration_v2",
         reference_under_test_ts=datetime(2026, 9, 24, 12, 0, tzinfo=UTC),
         reference_under_test_age_seconds=0,
         reference_deviation_pct=0.25,
@@ -535,8 +537,13 @@ def test_legacy_binding_is_readable_but_not_publish_compatible(
         }
     )
 
+    class NoRpcAccess:
+        @property
+        def eth(self):
+            raise AssertionError("semantic mismatch must be rejected before RPC use")
+
     with pytest.raises(PublicationSemanticMismatchError, match="does not declare"):
-        publish(result, settings=legacy_settings, web3_client=w3)
+        publish(result, settings=legacy_settings, web3_client=NoRpcAccess())
 
     assert w3.eth.sent_raw_transactions == []
     assert w3.eth.account.sign_calls == []
@@ -567,6 +574,40 @@ def test_publication_semantic_contract_mismatch_fails_closed(result, deployment_
 
     with pytest.raises(PublicationSemanticMismatchError):
         build_attestation(result, config=config, validity_seconds=900)
+
+
+def test_v2_result_and_explicit_v2_declaration_are_compatible(result, deployment_config):
+    resolved = assert_publication_compatible(result, config=deployment_config)
+
+    assert resolved.publication_compatibility is not None
+    assert (
+        resolved.publication_compatibility.evidence_semantics
+        == "p1a_xstock_band_with_xperp_review_corroboration_v2"
+    )
+
+
+def test_v1_result_is_rejected_by_v2_publication_contract(result, deployment_config):
+    v1_result = result.model_copy(
+        update={"evidence_semantics": "p1a_xstock_challenger_xperp_second_market_v1"}
+    )
+
+    with pytest.raises(PublicationSemanticMismatchError):
+        build_attestation(v1_result, config=deployment_config, validity_seconds=900)
+
+
+def test_v2_result_is_rejected_by_v1_publication_declaration(result, deployment_config):
+    declaration = deployment_config.publication_compatibility
+    assert declaration is not None
+    v1_deployment = replace(
+        deployment_config,
+        publication_compatibility=replace(
+            declaration,
+            evidence_semantics="p1a_xstock_challenger_xperp_second_market_v1",
+        ),
+    )
+
+    with pytest.raises(PublicationSemanticMismatchError):
+        build_attestation(result, config=v1_deployment, validity_seconds=900)
 
 
 def test_publish_idempotency_returns_existing_published_at(result, publisher_settings, fake_chain):

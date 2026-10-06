@@ -649,7 +649,7 @@ def _scheduler_with_publisher(
         "asset": "NVDAx",
         "referenceId": manifest["demo"]["referenceId"],
         "referenceProfile": "unified_xstock_p1ac_xperp_evidence_v1",
-        "evidenceSemantics": "p1a_xstock_challenger_xperp_second_market_v1",
+        "evidenceSemantics": "p1a_xstock_band_with_xperp_review_corroboration_v2",
         "modelId": "P1a-C",
         "modelVersion": "0.2.0",
     }

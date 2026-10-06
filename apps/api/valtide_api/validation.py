@@ -269,7 +269,6 @@ def validate(
                     abs_tol=1e-12,
                 ):
                     xperp_relation = "ambiguous"
-                    reason_codes.append("XPERP_EVIDENCE_AMBIGUOUS")
                 elif distance_to_xstock < distance_to_p1a:
                     xperp_relation = "xstock"
                 else:
@@ -287,12 +286,6 @@ def validate(
                     evidence_state_basis = (
                         "frozen_p1a_xstock_support_band_with_exact_xperp_available"
                     )
-                    if xperp_relation == "xstock":
-                        reason_codes.append("XPERP_CORROBORATES_XSTOCK")
-                    elif xperp_relation == "p1a":
-                        reason_codes.append("XPERP_CORROBORATES_P1A")
-                elif xperp_relation == "p1a":
-                    reason_codes.append("XPERP_CORROBORATES_P1A")
             elif band == "review":
                 if capability is None or not capability.challenge_enabled:
                     reason_codes.append("P1A_XSTOCK_CHALLENGE_NOT_PROMOTED")
@@ -307,6 +300,8 @@ def validate(
                     evidence_state_basis = (
                         "frozen_p1a_xstock_review_band_with_xperp_directional_corroboration"
                     )
+                elif xperp_relation == "ambiguous":
+                    reason_codes.append("XPERP_EVIDENCE_AMBIGUOUS")
     elif detector_spec is not None:
         band = detector_result.research_band if detector_result is not None else "unavailable"
         if detector_spec.promotion_status != "CHALLENGER_DETECTOR_PROMOTABLE":
