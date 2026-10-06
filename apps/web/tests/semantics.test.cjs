@@ -297,11 +297,11 @@ test("Operational failure preserves cached evidence with a degraded label", () =
   assert.doesNotMatch(html,/Demo Fixture · 6 Observations|Example demo policy/);
 });
 
-test("Prior operational evidence is not paired with current enforcement", () => {
+test("Prior evidence is not paired with current enforcement", () => {
   const policy = {on_supported:"ALLOW",on_inconclusive:"REQUIRE_REVIEW",on_challenged:"RESTRICT_NEW_RISK",on_stale:"REQUIRE_REVIEW",max_age:900};
   const chain = {policy,policy_action:"RESTRICT_NEW_RISK",evidence_state:"CHALLENGED",exists:true,fresh:true,network:"Testnet",chain_id:1952,attestation:null};
   const html = appWith({result:fixture[1],rows:fixture.slice(0,2),chain});
-  assert.match(html,/Prior observation/);
+  assert.match(html,/Prior evidence → current policy/);
   assert.match(html,/Current deployed state — not historical chain state/);
   assert.doesNotMatch(html,/Current RiskGuard ·/);
 });
@@ -310,8 +310,8 @@ test("Current evidence mapping and stale RiskGuard enforcement remain separate",
   const policy = {on_supported:"ALLOW",on_inconclusive:"REQUIRE_REVIEW",on_challenged:"RESTRICT_NEW_RISK",on_stale:"REQUIRE_REVIEW",max_age:900};
   const chain = {policy,policy_action:"REQUIRE_REVIEW",evidence_state:"SUPPORTED",exists:true,fresh:false,network:"Testnet",chain_id:1952,attestation:null};
   const html = appWith({result:fixture[0],chain});
-  assert.match(html,/Current evidence · policy mapping/);
-  assert.match(html,/Current RiskGuard · STALE/);
+  assert.match(html,/Current evidence → policy action/);
+  assert.match(html,/Current RiskGuard status · STALE/);
   assert.match(html,/ALLOW/);
   assert.match(html,/REQUIRE_REVIEW/);
 });
@@ -355,7 +355,7 @@ test("Decision summary explains xStock dependence while retaining the legacy pro
 test("Observation and delivery audit survives unavailable X Layer reads", () => {
   const runtime = {scheduler_enabled:true,last_tick_status:"failure",last_tick_attempt_at:"2026-09-25T10:01:00Z",last_error:"source missing",auto_publish_enabled:true,last_publish_status:"failed",last_publish_attempt_at:"2026-09-25T10:02:00Z",last_publish_observation_ts:"2026-09-25T09:55:00Z",last_published_observation_ts:"2026-09-25T09:50:00Z",last_published_at:1790325969,last_publish_tx_hash:"0xFULL_TRANSACTION_HASH",last_publish_error:"delivery failed"};
   const audit = render(ObservationAudit,{result:fixture[0],context:"Operational",runtime});
-  for (const label of ["Canonical 5m", "Reference Source Lag", "Trusted-Anchor Age", "Source Provenance", "Model / Version", "Last Attempt"]) assert.ok(audit.includes(label));
+  for (const label of ["5-minute operational observation", "Reference source lag", "Trusted-anchor age", "Source provenance", "Model and version", "Last attempt"]) assert.ok(audit.includes(label));
   assert.match(audit,/source missing/);
   const chain = render(RegistryPanel,{isError:true,mode:"historical",runtime});
   assert.doesNotMatch(chain,/DEMO MAPPING/);
@@ -382,14 +382,14 @@ test("Instrument Passport validates addresses and resolves only the labelled fix
   assert.match(unknown, /No verified passport fixture/);
   assert.doesNotMatch(unknown, /SHAREHOLDER RIGHTS/);
   const resolved = render(InstrumentPassport, { initialAddress: DEMO_PASSPORT_ADDRESS });
-  for (const value of ["PRICE EXPOSURE", "VERIFIED", "FIXTURE ASSERTION", "SHAREHOLDER RIGHTS", "NONE", "BALANCE ADJUSTMENT", "xSTOCKS WITHDRAWAL", "RIGHTS PROFILE", "DIFFERS FROM A SHARE"]) assert.match(resolved, new RegExp(value));
+  for (const value of ["Price exposure", "VERIFIED", "FIXTURE ASSERTION", "Shareholder rights", "NONE", "BALANCE ADJUSTMENT", "xSTOCKS WITHDRAWAL", "Rights profile", "differs from a share"]) assert.match(resolved, new RegExp(value, "i"));
   assert.match(resolved, /not live address resolution/i);
   assert.match(resolved, /type="submit"/);
 });
 
 test("Policy Foundry renders a deterministic diff and read-only approval boundary", () => {
   const html = render(PolicyFoundry);
-  for (const value of ["Precomputed Policy Proposal", "not generated live", "900s", "600s", "REQUIRE_REVIEW", "MONITOR", "RESTRICT_NEW_RISK", "Unsigned Calldata", "No transaction capability in this prototype"]) assert.match(html, new RegExp(value, "i"));
+  for (const value of ["Precomputed policy proposal", "not generated live", "900s", "600s", "REQUIRE_REVIEW", "MONITOR", "RESTRICT_NEW_RISK", "Unsigned calldata", "No transaction capability in this prototype"]) assert.match(html, new RegExp(value, "i"));
   assert.doesNotMatch(html, /Agent Council|ABI SHAPE VERIFIED|Human Approval Required/);
   assert.match(html, /Not deployed/i);
   assert.match(POLICY_PROPOSAL.calldata, /^0xf5b39423[0-9a-f]{320}$/);
@@ -401,10 +401,10 @@ test("Machine publication statuses use the requested display casing", () => {
   assert.equal(deliveryStatusLabel("failed"), "Failed");
 });
 
-test("Historical observation audit is labelled as panel evidence", () => {
+test("Historical observation audit is labelled as historical evidence", () => {
   const audit = render(ObservationAudit, { result: fixture[0], context: "Historical" });
-  assert.match(audit, /Historical Panel Observation/);
-  assert.doesNotMatch(audit, /Canonical 5m Operational Observation/);
+  assert.match(audit, /Historical observation/);
+  assert.doesNotMatch(audit, /5-minute operational observation/);
 });
 
 test("Chart viewport zooms around an anchor and pans within the full domain", () => {

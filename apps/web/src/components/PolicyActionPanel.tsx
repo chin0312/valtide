@@ -43,12 +43,12 @@ export function PolicyActionPanel({ current, policy, evaluation, policySource, s
   const historical = observationKind === "historical-panel";
   const scenario = observationKind === "scenario";
   const mappingLabel = scenario
-    ? "Curator Mapping For This Scenario Evidence State"
+    ? "Curator mapping for this scenario evidence state"
     : priorOperational
-      ? "Policy Under Current Configuration"
+      ? "Policy under current configuration"
       : historical
-        ? "Policy Under Current Configuration"
-        : "Curator Mapping For This Evidence State";
+        ? "Policy under current configuration"
+        : "Curator mapping for this evidence state";
   const mappingDescription = scenario
     ? "Policy projection for this deterministic scenario state; the scenario is not published to X Layer."
     : priorOperational
@@ -65,10 +65,10 @@ export function PolicyActionPanel({ current, policy, evaluation, policySource, s
         : "This mapping applies to a fresh attestation. A stale attestation uses the configured STALE policy.";
 
   return (
-    <Panel title={scenario ? "Scenario Policy Projection" : priorOperational ? "Prior Operational Policy Mapping" : historical ? "Historical Policy Mapping" : "Policy Result"} subtitle="Configured curator rule — not a Valtide recommendation.">
+    <Panel title={scenario ? "Scenario policy projection" : priorOperational ? "Prior operational policy mapping" : historical ? "Historical policy mapping" : "Policy result"} subtitle="Configured curator rule — not a Valtide recommendation.">
       <div className="rounded-lg px-4 py-4" style={{ background: "var(--color-panel-2)", border: "1px solid var(--color-line)", borderLeft: `2px solid ${currentStyle.fg}` }}>
         <div className="eyebrow" style={{ color: "var(--color-muted)" }}>
-          {observationLabel ?? (scenario ? "Scenario Evidence State" : historical ? "Selected Historical Evidence" : "Current Operational Evidence")}
+          {observationLabel ?? (scenario ? "Scenario evidence state" : historical ? "Selected historical evidence" : "Current operational evidence")}
         </div>
         <div className="mt-2"><EvidenceChip state={current} size="lg" /></div>
 
@@ -82,13 +82,13 @@ export function PolicyActionPanel({ current, policy, evaluation, policySource, s
         ) : (
           <div className="mt-4 grid gap-3">
             <ActionBlock
-              label="Curator Mapping For This Evidence State"
+              label="Curator mapping for this evidence state"
               action={projectedAction}
               description="The configured curator mapping for the current operational Evidence State."
               detail="This mapping applies to a fresh attestation. A stale attestation uses the configured STALE policy."
             />
             <ActionBlock
-              label="Current Onchain Enforced Action"
+              label="Current onchain enforced action"
               action={enforcedAction}
               description="The RiskGuard result for the Registry generation currently on X Layer."
               detail={evaluation ? evaluationDescription(evaluation) : undefined}
@@ -100,7 +100,7 @@ export function PolicyActionPanel({ current, policy, evaluation, policySource, s
       {currentOperational && sync && (
         <div className="mt-3 rounded-lg px-3 py-2 text-xs" style={{ background: "var(--color-panel-2)", border: "1px solid var(--color-line)", color: "var(--color-ink-dim)" }}>
           <div className="flex items-center justify-between gap-3">
-            <span>Operational ↔ Registry</span>
+            <span>Operational → Registry</span>
             <strong className="text-ink">{sync.state}</strong>
           </div>
           <div className="mt-1">{sync.detail}</div>
@@ -108,18 +108,18 @@ export function PolicyActionPanel({ current, policy, evaluation, policySource, s
       )}
 
       <div className="mt-4 flex items-center justify-between gap-3 text-xs" style={{ color: "var(--color-ink-dim)" }}>
-        <span>Policy Source</span>
+        <span>Policy source</span>
         <strong className="text-right text-ink">{policySource}</strong>
       </div>
 
       {policy ? (
         <>
           <div className="mt-3 flex items-center justify-between gap-3 text-xs" style={{ color: "var(--color-ink-dim)" }}>
-            <span>Maximum Observation Age</span>
+            <span>Maximum observation age</span>
             <strong className="tnum text-ink">{ageLabel(policy.max_age)}</strong>
           </div>
           <details className="mt-4 overflow-hidden rounded-lg" style={{ border: "1px solid var(--color-line)" }}>
-            <summary className="eyebrow flex items-center justify-between px-3 py-2.5" style={{ background: "var(--color-panel-2)", color: "var(--color-muted)" }}><span>Curator Policy Mapping</span><span aria-hidden style={{ color: "var(--color-accent)" }}>＋</span></summary>
+            <summary className="eyebrow flex items-center justify-between px-3 py-2.5" style={{ background: "var(--color-panel-2)", color: "var(--color-muted)" }}><span>Curator policy mapping</span><span aria-hidden style={{ color: "var(--color-accent)" }}>＋</span></summary>
             <div>
               {STATES.map((state, index) => <MappingRow key={state} state={state} action={actionFor(policy, state)} active={state === current} first={index === 0} />)}
               <MappingRow stateLabel="STALE ATTESTATION" action={policy.on_stale} active={false} />
@@ -133,7 +133,7 @@ export function PolicyActionPanel({ current, policy, evaluation, policySource, s
       )}
 
       <p className="mt-3 text-xs" style={{ color: "var(--color-muted)" }}>
-        Evidence State and Policy Action are separate. Valtide determines the evidence; the policy owner chooses the mapping; the consuming contract enforces the result.
+        Evidence state and policy action are separate. Valtide determines the evidence; the policy owner chooses the mapping; the consuming contract enforces the result.
       </p>
     </Panel>
   );
@@ -151,8 +151,8 @@ function ActionBlock({ label, action, description, detail }: { label: string; ac
 }
 
 function evaluationDescription(evaluation: OnchainEvaluation): string {
-  if (!evaluation.exists) return "Registry Evidence: no attestation; STALE policy action returned.";
-  return `Registry Evidence: ${evaluation.evidence_state} · ${evaluation.fresh ? "FRESH" : "STALE"} attestation.`;
+  if (!evaluation.exists) return "Registry evidence: no attestation; STALE policy action returned.";
+  return `Registry evidence: ${evaluation.evidence_state} · ${evaluation.fresh ? "FRESH" : "STALE"} attestation.`;
 }
 
 function actionFor(policy: OnchainPolicy, state: EvidenceState): PolicyAction {

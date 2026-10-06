@@ -12,8 +12,8 @@ export function ReferenceComparison({ r }: { r: ValuationResult }) {
       ? "Legacy NVDAx profile: the reference under test is the separate OKX X-Perp index."
       : "The reference profile identifies the source and its relationship to the challenger model inputs.";
   return (
-    <Panel title="Price Range" icon="range" className="flex-1" right={<span className="font-mono text-[10px] uppercase tracking-[0.05em]" style={{ color: "var(--color-muted)" }}>Interval View</span>}>
-      <p className="mb-3 text-sm font-medium text-ink">{r.reference_under_test == null ? "The tested reference is unavailable." : referenceInsideRange ? "The tested reference is inside the expected range." : "The tested reference is outside the expected range."}</p>
+    <Panel title="Valuation range" icon="range" className="flex-1" right={<span className="font-mono text-[10px] uppercase tracking-[0.05em]" style={{ color: "var(--color-muted)" }}>Interval view</span>}>
+      <p className="mb-3 text-sm font-medium text-ink">{r.reference_under_test == null ? "Reference price unavailable." : referenceInsideRange ? "The reference is within the valuation range." : "The reference is outside the valuation range."}</p>
       <p className="mb-3 text-xs text-ink-dim" title={comparisonBoundary}>{comparisonBoundary}</p>
       <ReferenceNumberLine r={r} />
     </Panel>

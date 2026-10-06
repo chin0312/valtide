@@ -37,7 +37,7 @@ export function deriveOnchainSync(
       registryObservedAt,
       operationalEvidenceState,
       registryEvidenceState,
-      detail: "Operational or Registry state is not available for comparison.",
+      detail: "Operational or registry state is not available for comparison.",
     };
   }
 
@@ -48,7 +48,7 @@ export function deriveOnchainSync(
       registryObservedAt: null,
       operationalEvidenceState,
       registryEvidenceState: null,
-      detail: "No Registry attestation exists for this asset/reference pair.",
+      detail: "No registry attestation exists for this asset/reference pair.",
     };
   }
 
@@ -70,7 +70,7 @@ export function deriveOnchainSync(
       registryObservedAt,
       operationalEvidenceState,
       registryEvidenceState,
-      detail: "The Registry attestation is older than the latest operational result.",
+      detail: "Registry is behind the latest operational result.",
     };
   }
 
@@ -81,7 +81,7 @@ export function deriveOnchainSync(
       registryObservedAt,
       operationalEvidenceState,
       registryEvidenceState,
-      detail: "The Registry contains a different, newer operational generation.",
+      detail: "Registry contains a different, newer operational result.",
     };
   }
 
@@ -92,7 +92,7 @@ export function deriveOnchainSync(
       registryObservedAt,
       operationalEvidenceState,
       registryEvidenceState,
-      detail: "Timestamps match, but Registry and operational Evidence States disagree.",
+      detail: "Timestamps match, but registry and operational evidence states disagree.",
     };
   }
 
@@ -102,6 +102,6 @@ export function deriveOnchainSync(
     registryObservedAt,
     operationalEvidenceState,
     registryEvidenceState,
-    detail: "The Registry attestation represents the current operational result.",
+    detail: "Registry matches the latest operational result.",
   };
 }

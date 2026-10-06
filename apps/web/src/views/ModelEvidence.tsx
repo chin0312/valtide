@@ -23,16 +23,16 @@ export function ModelEvidence({ asset, profile }: { asset: string; profile: stri
   const hasMetrics = data && data.mae != null && data.rmse != null && data.interval_coverage != null;
 
   return (
-    <Panel title="Selected Historical Panel" subtitle="A focused research window, separate from both the deterministic demo and the homepage evaluation">
+    <Panel title="Selected historical evidence" subtitle="A focused research period, separate from the demo scenario and homepage evaluation.">
       {isError || !data ? (
         <div className="rounded-lg px-3 py-3 text-sm" style={{ background: "var(--color-panel-2)", border: "1px solid var(--color-line)", color: "var(--color-ink-dim)" }}>
           {isLoading ? "Loading historical model evidence…" : "Historical model evidence unavailable. Scenario verdicts are not empirical performance evidence."}
         </div>
       ) : (
         <>
-          <p className="mb-4 rounded-lg px-3 py-3 text-xs leading-5" style={{ background: "var(--color-panel-2)", border: "1px solid var(--color-line)", color: "var(--color-ink-dim)" }}>This selected panel is not the same evaluation as the 11,828-observation June–September study shown on the homepage. State counts describe classifications, not whether prices were ultimately correct.</p>
+          <p className="mb-4 rounded-lg px-3 py-3 text-xs leading-5" style={{ background: "var(--color-panel-2)", border: "1px solid var(--color-line)", color: "var(--color-ink-dim)" }}>These counts describe classifications, not price accuracy. This period is separate from the homepage evaluation.</p>
           <div className="mb-2 text-xs font-medium" style={{ color: "var(--color-ink-dim)" }}>
-            Evidence States across historical observations ({total})
+            Evidence states across historical observations ({total})
           </div>
           <div className="mb-3 grid gap-x-4 gap-y-1 text-xs sm:grid-cols-2" style={{ color: "var(--color-ink-dim)" }}>
             <span>Window: <strong className="text-ink">{dateTimeUTC(data.window_start)} → {dateTimeUTC(data.window_end)}</strong></span>
@@ -54,9 +54,9 @@ export function ModelEvidence({ asset, profile }: { asset: string; profile: stri
           </div>
 
           <div className="mt-4 grid grid-cols-1 overflow-hidden rounded-lg sm:grid-cols-3" style={{ border: "1px solid var(--color-line)" }}>
-            <Metric label="Panel observations" value={String(data.n_observations)} hint="Rows in this selected historical window." />
-            <Metric label="Benchmark-comparable rows" value={String(data.n_evaluable)} hint="Rows with a contemporaneous trusted benchmark." />
-            <Metric label="Benchmark prices inside range" value={hasMetrics ? `${(data.interval_coverage! * 100).toFixed(0)}%` : "—"} hint="Coverage in this panel; not point-price accuracy." />
+            <Metric label="Observations" value={String(data.n_observations)} hint="Rows in this selected historical window." />
+            <Metric label="Observations with a contemporaneous benchmark" value={String(data.n_evaluable)} hint="Rows with a contemporaneous trusted benchmark." />
+            <Metric label="Benchmark coverage" value={hasMetrics ? `${(data.interval_coverage! * 100).toFixed(0)}%` : "—"} hint="Coverage in this panel; not point-price accuracy." />
           </div>
 
           <details className="mt-3 rounded-lg" style={{ border: "1px solid var(--color-line)" }}>

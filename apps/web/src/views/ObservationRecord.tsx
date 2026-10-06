@@ -19,14 +19,14 @@ export function ObservationRecord({ results, currentIndex, sourceLabelText }: { 
 
   return (
     <Panel
-      title="Evidence Record"
+      title="Evidence summary"
       icon="record"
       right={<span className="rounded px-2 py-1 font-mono text-[10px] uppercase tracking-[0.05em]" style={{ color: "var(--color-muted)", background: "var(--color-panel-2)", border: "1px solid var(--color-line)" }}>{sourceLabelText}</span>}
     >
-      <p className="mb-3 text-xs leading-5 text-muted">Counts describe classifications in the selected window—not whether prices were ultimately correct and not production performance.</p>
+      <p className="mb-3 text-xs leading-5 text-muted">Counts show how observations were classified in the selected period. They do not measure price accuracy or production performance.</p>
       <div className="grid grid-cols-2 overflow-hidden rounded-lg lg:grid-cols-4" style={{ border: "1px solid var(--color-line-subtle)" }}>
-        <RecordMetric label="Rows in window" value={String(results.length)} />
-        <RecordMetric label="State Changes" value={String(transitions.length)} />
+        <RecordMetric label="Observations" value={String(results.length)} />
+        <RecordMetric label="State changes" value={String(transitions.length)} />
         <RecordMetric label="Peak model distance" value={sigma(maxSigma)} />
         <RecordMetric label="Reference outside range" value={`${breaches}/${results.length}`} />
       </div>
@@ -54,12 +54,12 @@ export function ObservationRecord({ results, currentIndex, sourceLabelText }: { 
         </div>
 
         <div className="grid grid-cols-2 gap-x-5 gap-y-3 border-t pt-4 lg:border-l lg:border-t-0 lg:pl-5 lg:pt-0" style={{ borderColor: "var(--color-line-subtle)" }}>
-          <SourceFact label="Token Source" value={current?.token_source ? sourceLabel(current.token_source) : current?.token_price != null ? "Demo Scenario" : "—"} />
+          <SourceFact label="Token source" value={current?.token_source ? sourceLabel(current.token_source) : current?.token_price != null ? "Demo scenario" : "—"} />
           <SourceFact label="Reference" value={sourceLabel(current?.reference_under_test_source)} />
           <SourceFact label="Model" value={current ? `${current.model_id} ${current.model_version}` : "—"} />
-          <SourceFact label="Market State" value={current?.market_state?.toUpperCase() ?? "—"} />
+          <SourceFact label="Market state" value={current?.market_state?.toUpperCase() ?? "—"} />
           <SourceFact label="Residual" value={pct(current?.residual_premium_discount_pct)} />
-          <SourceFact label="First Signal" value={events[0] ? `${timeUTC(events[0].timestamp)} · ${events[0].evidence_state}` : "—"} />
+          <SourceFact label="First signal" value={events[0] ? `${timeUTC(events[0].timestamp)} · ${events[0].evidence_state}` : "—"} />
         </div>
       </div>
     </Panel>
