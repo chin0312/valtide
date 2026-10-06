@@ -23,7 +23,7 @@ const { InstrumentPassport, passportStatusFor } = load("../src/components/Instru
 const { PolicyFoundry } = load("../src/components/PolicyFoundry.tsx");
 const { DEMO_PASSPORT_ADDRESS, MODEL_EVIDENCE_SUMMARY, POLICY_PROPOSAL } = load("../src/fixtures/prototypeData.ts");
 const { default: App, consoleContextFromSearch } = load("../src/App.tsx");
-const { deliveryStatusLabel, pipelineStatusLabel } = load("../src/lib/format.ts");
+const { deliveryStatusLabel, lastUpdatedLabel, pipelineStatusLabel } = load("../src/lib/format.ts");
 const { chartDomain, clampViewport, lowerBoundTimestamp, minimumViewportWidth, panViewport, shouldRenderStateDots, sliceChartDataForViewport, upperBoundTimestamp, wheelGestureIntent, wheelZoomScale, zoomSensitivity, zoomViewport } = load("../src/components/EscalationChart.tsx");
 const h = React.createElement;
 const render = (component, props) => renderToStaticMarkup(h(component, props));
@@ -371,12 +371,13 @@ test("Prior evidence is not paired with current enforcement", () => {
 
 test("Current evidence mapping and stale RiskGuard enforcement remain separate", () => {
   const policy = {on_supported:"ALLOW",on_inconclusive:"REQUIRE_REVIEW",on_challenged:"RESTRICT_NEW_RISK",on_stale:"REQUIRE_REVIEW",max_age:900};
-  const chain = {policy,policy_action:"REQUIRE_REVIEW",evidence_state:"SUPPORTED",exists:true,fresh:false,network:"Testnet",chain_id:1952,attestation:null};
+  const chain = {policy,policy_action:"REQUIRE_REVIEW",evidence_state:"SUPPORTED",exists:true,fresh:false,network:"Testnet",chain_id:1952,attestation:{publishedAt:Math.floor(Date.now()/1000)-7200}};
   const html = appWith({result:fixture[0],chain});
   assert.match(html,/Current evidence → policy action/);
   assert.match(html,/Reason/);
   assert.match(html,/Evidence supports the reference/);
   assert.match(html,/RiskGuard data · Stale/);
+  assert.match(html,/Last updated 2h ago/);
   assert.match(html,/Technical details/);
   assert.match(html,/Evidence state/);
   assert.match(html,/Mapped policy action/);
@@ -385,6 +386,16 @@ test("Current evidence mapping and stale RiskGuard enforcement remain separate",
   assert.match(html,/ALLOW/);
   assert.match(html,/REQUIRE_REVIEW/);
   assert.doesNotMatch(html,/Raw policy value/);
+});
+
+test("RiskGuard recency uses its publication timestamp and omits unavailable values", () => {
+  const now = Date.parse("2026-10-06T12:00:00Z");
+  assert.equal(lastUpdatedLabel(now / 1000 - 30, now), "Last updated just now");
+  assert.equal(lastUpdatedLabel(now / 1000 - 12 * 60, now), "Last updated 12m ago");
+  assert.equal(lastUpdatedLabel(now / 1000 - 2 * 60 * 60, now), "Last updated 2h ago");
+  assert.equal(lastUpdatedLabel(now / 1000 - 3 * 24 * 60 * 60, now), "Last updated 3d ago");
+  assert.equal(lastUpdatedLabel(null, now), null);
+  assert.equal(lastUpdatedLabel(0, now), null);
 });
 
 test("Null reference, all reasons and unavailable policy remain truthful", () => {

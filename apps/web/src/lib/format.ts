@@ -53,6 +53,15 @@ export function ageLabel(seconds: number | null | undefined): string {
   return `${Math.floor(h / 24)}d ${h % 24}h`;
 }
 
+export function lastUpdatedLabel(unixSeconds: number | null | undefined, nowMs = Date.now()): string | null {
+  if (unixSeconds == null || !Number.isFinite(unixSeconds) || unixSeconds <= 0 || !Number.isFinite(nowMs)) return null;
+  const elapsedSeconds = Math.max(0, Math.floor(nowMs / 1000 - unixSeconds));
+  if (elapsedSeconds < 60) return "Last updated just now";
+  if (elapsedSeconds < 60 * 60) return `Last updated ${Math.floor(elapsedSeconds / 60)}m ago`;
+  if (elapsedSeconds < 24 * 60 * 60) return `Last updated ${Math.floor(elapsedSeconds / (60 * 60))}h ago`;
+  return `Last updated ${Math.floor(elapsedSeconds / (24 * 60 * 60))}d ago`;
+}
+
 export function compactUsd(x: number | null | undefined): string {
   if (x == null || Number.isNaN(x)) return DASH;
   if (x >= 1e9) return `$${(x / 1e9).toFixed(1)}B`;

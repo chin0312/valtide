@@ -21,7 +21,7 @@ import { RegistryPanel } from "./components/RegistryPanel";
 import { Panel } from "./components/ui";
 import { Icon } from "./components/Icon";
 import { EVIDENCE } from "./lib/evidence";
-import { ageLabel, compactUsd, money, pct, sigma, sourceLabel } from "./lib/format";
+import { ageLabel, compactUsd, lastUpdatedLabel, money, pct, sigma, sourceLabel } from "./lib/format";
 import { deriveOnchainSync } from "./lib/onchain";
 import { clampPosition, mergeObservations, rebasePosition } from "./lib/playback";
 import { HistoricalReplay } from "./views/HistoricalReplay";
@@ -348,6 +348,7 @@ function EvidenceCard({ result }: { result: ValuationResult }) {
 
 function PolicyCard({ state, action, source, label, enforced }: { state?: EvidenceState; action: PolicyAction | null; source: string; label: string; enforced?: OnchainControlPlane }) {
   const riskGuardState = enforced ? enforced.fresh ? "FRESH" : "STALE" : "UNAVAILABLE";
+  const riskGuardUpdated = lastUpdatedLabel(enforced?.attestation?.publishedAt);
   return (
     <Panel title="Policy action" icon="shield" right={<span title={source} className="inline-flex items-center gap-1.5 text-[10px] text-muted"><Icon name="chain" size={14} />{label}</span>}>
       <div className="break-words text-xl font-semibold tracking-[-0.03em] text-ink">{plainAction(action)}</div>
@@ -355,7 +356,7 @@ function PolicyCard({ state, action, source, label, enforced }: { state?: Eviden
         <div className="eyebrow text-muted">Reason</div>
         <div className="mt-1 text-sm text-ink-dim">{plainEvidenceReason(state)}</div>
       </div>
-      {enforced && <div className="mt-3 text-xs text-ink-dim">RiskGuard data · {plainFreshness(enforced.fresh)}</div>}
+      {enforced && <div className="mt-3 text-xs text-ink-dim">RiskGuard data · {plainFreshness(enforced.fresh)}{riskGuardUpdated ? ` · ${riskGuardUpdated}` : ""}</div>}
       <details className="mt-3 overflow-hidden rounded" style={{ border: "1px solid var(--color-line)" }}>
         <summary className="eyebrow flex items-center justify-between px-3 py-2.5" style={{ background: "var(--color-panel-2)", color: "var(--color-muted)" }}><span>Technical details</span><span aria-hidden style={{ color: "var(--color-accent)" }}>＋</span></summary>
         <dl className="grid gap-2 px-3 py-3 text-xs">
