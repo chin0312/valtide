@@ -355,7 +355,7 @@ test("Decision summary explains xStock dependence while retaining the legacy pro
 test("Observation and delivery audit survives unavailable X Layer reads", () => {
   const runtime = {scheduler_enabled:true,last_tick_status:"failure",last_tick_attempt_at:"2026-09-25T10:01:00Z",last_error:"source missing",auto_publish_enabled:true,last_publish_status:"failed",last_publish_attempt_at:"2026-09-25T10:02:00Z",last_publish_observation_ts:"2026-09-25T09:55:00Z",last_published_observation_ts:"2026-09-25T09:50:00Z",last_published_at:1790325969,last_publish_tx_hash:"0xFULL_TRANSACTION_HASH",last_publish_error:"delivery failed"};
   const audit = render(ObservationAudit,{result:fixture[0],context:"Operational",runtime});
-  for (const label of ["Canonical 5m", "Reference Source Lag", "Trusted-Anchor Age", "Source Provenance", "Model / Version", "Last Attempt"]) assert.ok(audit.includes(label));
+  for (const label of ["5-minute operational observation", "Reference source lag", "Trusted-anchor age", "Source provenance", "Model and version", "Last attempt"]) assert.ok(audit.includes(label));
   assert.match(audit,/source missing/);
   const chain = render(RegistryPanel,{isError:true,mode:"historical",runtime});
   assert.doesNotMatch(chain,/DEMO MAPPING/);
@@ -401,10 +401,10 @@ test("Machine publication statuses use the requested display casing", () => {
   assert.equal(deliveryStatusLabel("failed"), "Failed");
 });
 
-test("Historical observation audit is labelled as panel evidence", () => {
+test("Historical observation audit is labelled as historical evidence", () => {
   const audit = render(ObservationAudit, { result: fixture[0], context: "Historical" });
-  assert.match(audit, /Historical Panel Observation/);
-  assert.doesNotMatch(audit, /Canonical 5m Operational Observation/);
+  assert.match(audit, /Historical observation/);
+  assert.doesNotMatch(audit, /5-minute operational observation/);
 });
 
 test("Chart viewport zooms around an anchor and pans within the full domain", () => {
