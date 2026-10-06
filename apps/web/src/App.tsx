@@ -179,7 +179,7 @@ function ValidationConsole() {
         <DecisionSummary current={current} action={policyAction} />
         <MetricGrid current={current} isDemo={context === "Demo"} observationCount={results.length} />
 
-        <div className="grid items-stretch gap-4 xl:grid-cols-[minmax(0,1.3fr)_minmax(0,1fr)]">
+        <div className="grid items-start gap-4 xl:grid-cols-[minmax(0,1.3fr)_minmax(0,1fr)]">
           <HistoricalReplay
             asset={contextAsset}
             results={results}
@@ -211,7 +211,7 @@ function ValidationConsole() {
             rangeControl={<RangeControls context={context} range={activeRange} onChange={(value) => { if (context === "Operational") setRange(value as OperationalRange); else if (context === "Historical") setHistoricalRange(value as HistoricalRange); else setDemoRange(value as DemoRange); }} />}
           />
           <div className="flex min-w-0 flex-col gap-4">
-            <ReferenceComparison r={current} domainResults={results} />
+            <ReferenceComparison r={current} />
             <PolicyCard
               state={current.evidence_state}
               action={policyAction}

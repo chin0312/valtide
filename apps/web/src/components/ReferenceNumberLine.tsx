@@ -1,14 +1,13 @@
 import type { ValuationResult } from "../api/types";
 import { coverageLabel, money } from "../lib/format";
-import { priceToRangeFraction, rangeViewPriceDomain, type RangeViewPriceDomain } from "../lib/scale";
+import { priceToFraction, unitsToFraction } from "../lib/scale";
 import { isEvidenceStateV2, isXStockValidation } from "../lib/semantics";
 
-export function ReferenceNumberLine({ r, domain }: { r: ValuationResult; domain?: RangeViewPriceDomain }) {
+export function ReferenceNumberLine({ r }: { r: ValuationResult }) {
   const evidenceStateV2 = isEvidenceStateV2(r);
   const xstockProduct = isXStockValidation(r);
   const xperpPrice = evidenceStateV2 ? r.xperp_index_price : r.xperp_index_price ?? r.reference_under_test;
-  const priceDomain = domain ?? rangeViewPriceDomain([r]);
-  const fairValueFraction = priceToRangeFraction(r.valtide_fair_value, priceDomain);
+  const fairValueFraction = priceToFraction(r.valtide_fair_value, r);
   const xstockPrices = [
     { label: "Observed xStock", price: r.token_price, color: "var(--color-series-token)", shape: "circle" },
     { label: "Valtide Fair Value", price: r.valtide_fair_value, color: "var(--color-series-valtide)", shape: "square" },
@@ -21,9 +20,11 @@ export function ReferenceNumberLine({ r, domain }: { r: ValuationResult; domain?
   ];
   const markers = candidates.filter((marker): marker is typeof marker & { price: number } => marker.price != null);
   const summary = xstockProduct ? xstockPrices : markers;
-  const bandStart = priceToRangeFraction(r.fair_value_lower, priceDomain) * 100;
-  const bandEnd = priceToRangeFraction(r.fair_value_upper, priceDomain) * 100;
-  const bandWidth = bandEnd - bandStart;
+  const validInterval = Number.isFinite(r.fair_value_lower)
+    && Number.isFinite(r.fair_value_upper)
+    && r.fair_value_upper > r.fair_value_lower;
+  const bandStart = validInterval ? unitsToFraction(-1) * 100 : fairValueFraction * 100;
+  const bandWidth = validInterval ? (unitsToFraction(1) - unitsToFraction(-1)) * 100 : 0;
   const rangeLabel = coverageLabel(r.interval_coverage_target);
   const accessibleLabel = xstockProduct
     ? `Observed xStock ${money(r.token_price)}; Valtide Fair Value ${money(r.valtide_fair_value)}; X-Perp ${money(xperpPrice)}; ${rangeLabel} from ${money(r.fair_value_lower)} to ${money(r.fair_value_upper)}`
@@ -42,7 +43,7 @@ export function ReferenceNumberLine({ r, domain }: { r: ValuationResult; domain?
         <div className="absolute top-[32px] h-14 w-px" style={{ left: `${fairValueFraction * 100}%`, background: "var(--color-series-valtide)" }} />
         <div className="absolute top-0 -translate-x-1/2 whitespace-nowrap text-center text-[11px]" style={{ left: `${fairValueFraction * 100}%`, color: "var(--color-muted)" }}>Valtide Fair Value <span className="tnum ml-1 text-ink">{money(r.valtide_fair_value)}</span></div>
         {markers.map((marker) => {
-          const markerFraction = marker.label === "Valtide Fair Value" ? fairValueFraction : priceToRangeFraction(marker.price, priceDomain);
+          const markerFraction = marker.label === "Valtide Fair Value" ? fairValueFraction : priceToFraction(marker.price, r);
           return <div key={marker.label} data-price-marker={marker.label} className="absolute" style={{ left: `${markerFraction * 100}%`, top: 60, zIndex: marker.shape === "diamond" ? 3 : marker.shape === "square" ? 2 : 1 }} title={`${marker.label}: ${money(marker.price)}`}>
             <svg className="absolute -translate-x-1/2 -translate-y-1/2" width="28" height="28" viewBox="0 0 28 28" aria-hidden="true" style={{ overflow: "visible" }}>
               {/* Nested outlines keep equal-price sources visible at their exact position. */}

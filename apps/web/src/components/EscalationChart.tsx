@@ -344,7 +344,7 @@ export function EscalationChart({ results, index, playhead = index, onSelect, re
   return (
     <div
       ref={chartRef}
-      className="h-[320px] min-h-[280px] w-full flex-1"
+      className="h-[320px] min-h-[280px] w-full"
       onPointerDown={handlePointerDown}
       onPointerMove={handlePointerMove}
       onPointerUp={finishPointer}

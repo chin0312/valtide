@@ -77,7 +77,7 @@ export function HistoricalReplay({
     <Panel
       title={`${asset} Validation Timeline`}
       icon="signal"
-      className="flex h-full min-w-0 flex-col"
+      className="flex min-w-0 flex-col"
       right={<span className="rounded px-2 py-1 font-mono text-[10px] uppercase tracking-[0.04em]" style={{ color: "var(--color-accent)", background: "var(--color-accent-soft)", border: "1px solid var(--color-line)" }}>{sourceLabel}</span>}
     >
       <div className="mb-2 flex flex-wrap items-start justify-between gap-3">
