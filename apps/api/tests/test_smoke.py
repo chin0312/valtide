@@ -1,14 +1,20 @@
 """API smoke tests for computed-result and explicit data-unavailable paths."""
 
 from datetime import UTC, datetime
+from pathlib import Path
 from types import SimpleNamespace
 
 import pytest
 from fastapi.testclient import TestClient
 
+from valtide_api import config as config_module
+from valtide_api import publisher as publisher_module
 from valtide_api import state_store
+from valtide_api.config import Settings
 from valtide_api.main import app
 from valtide_api.replay import replay, run_inference
+from valtide_api.routes import publish as publish_route
+from valtide_api.routes import runtime as runtime_route
 from valtide_api.runtime_store import (
     RuntimeStateIntegrityError,
     RuntimeStore,
@@ -49,6 +55,63 @@ def test_health():
     assert resp.json()["status"] == "ok"
 
 
+def test_manual_publish_route_rejects_unverified_legacy_semantics_before_rpc(
+    runtime_store, monkeypatch
+):
+    settings = Settings(
+        _env_file=None,
+        publish_enabled=True,
+        deployment_manifest_path=Path(__file__).resolve().parents[3]
+        / "deployments"
+        / "xlayer-testnet.json",
+    )
+    monkeypatch.setattr(config_module, "get_settings", lambda: settings)
+    monkeypatch.setattr(publish_route, "get_settings", lambda: settings)
+    monkeypatch.setattr(publish_route, "get_runtime_store", lambda: runtime_store)
+    monkeypatch.setattr(publisher_module, "get_settings", lambda: settings)
+    monkeypatch.setattr(
+        publisher_module,
+        "connect_web3",
+        lambda _config: pytest.fail("semantic gate must run before RPC access"),
+    )
+    _seed_scenario(runtime_store)
+
+    response = client.post("/api/publish/NVDAx")
+
+    assert response.status_code == 409
+    assert response.json()["detail"] == (
+        "deployed binding does not declare compatible evidence semantics"
+    )
+
+
+def test_runtime_exposes_semantic_publication_block_without_secret_fields(
+    runtime_store, monkeypatch
+):
+    settings = Settings(
+        _env_file=None,
+        auto_publish_enabled=True,
+        deployment_manifest_path=Path(__file__).resolve().parents[3]
+        / "deployments"
+        / "xlayer-testnet.json",
+    )
+    monkeypatch.setattr(config_module, "get_settings", lambda: settings)
+    monkeypatch.setattr(runtime_route, "get_settings", lambda: settings)
+    monkeypatch.setattr(runtime_route, "get_runtime_store", lambda: runtime_store)
+    _seed_scenario(runtime_store)
+    timestamp = runtime_store.load_runtime("NVDAx").latest_result.timestamp
+    runtime_store.record_publication_blocked_semantic_mismatch("NVDAx", timestamp)
+
+    response = client.get("/api/runtime/NVDAx")
+
+    assert response.status_code == 200
+    payload = response.json()
+    assert payload["last_publish_status"] == "publication_blocked_semantic_mismatch"
+    assert payload["last_publish_error"] == "deployed_binding_semantics_unverified"
+    assert payload["auto_publish_enabled"] is True
+    assert "publisher_private_key" not in payload
+    assert "xlayer_rpc_url" not in payload
+
+
 def test_cors_exposes_historical_source_header():
     resp = client.get(
         "/health",
@@ -84,6 +147,9 @@ def test_valuation_shape_from_computed_scenario_result(monkeypatch, runtime_stor
         "standardized_deviation",
         "evidence_state",
         "reason_codes",
+        "validation_target",
+        "evidence_semantics",
+        "xperp_role",
     ):
         assert key in body
     assert body["evidence_state"] in ("SUPPORTED", "INCONCLUSIVE", "CHALLENGED")
@@ -101,6 +167,10 @@ def test_assets_list():
     assert resp.json()[0]["token_source"] == "okx_onchainos"
     assert resp.json()[0]["underlying_source"] == "alpaca"
     assert resp.json()[0]["model_available"] is True
+    assert resp.json()[0]["challenger_detector_status"] == (
+        "CHALLENGER_DETECTOR_NOT_PROMOTABLE"
+    )
+    assert resp.json()[0]["evidence_state_capability"] == "ABSTAIN_ONLY"
 
 
 def test_runtime_status_is_explicit_when_live_runtime_is_empty(monkeypatch, tmp_path):

@@ -31,7 +31,7 @@ def _snapshot(timestamp: datetime) -> MarketSnapshot:
         reference_age_seconds=300,
         reference_under_test=181.2,
         reference_under_test_source="okx_xperp_index",
-        reference_profile="legacy_xperp_vs_p1ac",
+        reference_profile="unified_xstock_p1ac_xperp_evidence_v1",
         reference_under_test_ts=timestamp,
         reference_under_test_age_seconds=0,
         market_state=MarketState.REGULAR,
@@ -39,7 +39,7 @@ def _snapshot(timestamp: datetime) -> MarketSnapshot:
             "token": f"okx_onchainos@{timestamp.isoformat()}",
             "underlying": "alpaca",
             "reference_under_test": "okx_xperp_index",
-            "reference_profile": "legacy_xperp_vs_p1ac",
+            "reference_profile": "unified_xstock_p1ac_xperp_evidence_v1",
         },
     )
 
@@ -139,9 +139,12 @@ def test_history_generation_filter_keeps_reference_profiles_separate(tmp_path):
     first_ts = _ANCHOR + timedelta(minutes=5)
     second_ts = first_ts + timedelta(minutes=5)
     first_result, _ = run_inference(_snapshot(first_ts), None)
+    first_result = first_result.model_copy(
+        update={"reference_profile": "legacy_xperp_vs_p1ac"}
+    )
     second_result, _ = run_inference(_snapshot(second_ts), None)
     second_result = second_result.model_copy(
-        update={"reference_profile": "xstock_vs_p1ac_challenger"}
+        update={"reference_profile": "unified_xstock_p1ac_xperp_evidence_v1"}
     )
     store.save_runtime_and_history(
         "NVDAx",
@@ -163,7 +166,7 @@ def test_history_generation_filter_keeps_reference_profiles_separate(tmp_path):
     ) == [first_result]
     assert store.load_history(
         "NVDAx", expected_identity="xstock-binding",
-        reference_profile="xstock_vs_p1ac_challenger",
+        reference_profile="unified_xstock_p1ac_xperp_evidence_v1",
     ) == [second_result]
     assert store.load_history(
         "NVDAx", expected_identity="xstock-binding",

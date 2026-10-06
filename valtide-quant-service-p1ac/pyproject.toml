@@ -8,4 +8,4 @@ requires-python=">=3.11"
 [tool.setuptools.packages.find]
 where=["src"]
 [tool.setuptools.package-data]
-valtide_quant_service=["model_artifacts/*.json"]
+valtide_quant_service=["model_artifacts/*.json", "model_artifacts/*/*.json"]

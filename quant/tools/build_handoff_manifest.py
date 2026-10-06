@@ -89,13 +89,24 @@ def render_manifest() -> bytes:
         "schema_version": 1,
         "handoff_version": "1.0.0",
         "generated_date": "2026-10-05",
-        "runtime_scope": "NVDAx P1a-C challenger and calibrated uncertainty only",
+        "runtime_scope": (
+            "NVDAx P1a-C production bundle plus asset-bound SPYx/QQQx/AAPLx "
+            "runtime bundles; additional assets are not production-promoted"
+        ),
         "runtime_artifacts": records("runtime"),
         "research_artifacts": records("research"),
         "rejected_artifacts": [row for row in records("research/rejected_experiments")],
         "raw_data_manifest_files": records("data_manifest"),
         "model_verdicts": VERDICTS,
-        "model_versions": {"P1a-C": "0.2.0", "handoff": "1.0.0"},
+        "model_versions": {
+            "P1a-C": {
+                "NVDAx": "0.2.0",
+                "SPYx": "0.3.0",
+                "QQQx": "0.3.0",
+                "AAPLx": "0.3.0",
+            },
+            "handoff": "1.0.0",
+        },
         "dataset_hashes": {row["asset_id"]: row["dataset_sha256"] for row in datasets},
         "notes": [
             "The current test periods have been inspected repeatedly and are development evidence.",

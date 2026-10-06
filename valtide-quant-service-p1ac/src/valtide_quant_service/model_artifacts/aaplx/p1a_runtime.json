@@ -1,0 +1,20 @@
+{
+  "model_family": "P1a",
+  "deployment_model_id": "P1a-C",
+  "model_version": "0.3.0",
+  "asset": "AAPLx",
+  "interval_level": 0.90000000000000002,
+  "q_by_session": {
+    "regular": 1.7788623876645084e-06,
+    "premarket": 5.1962773751917688e-07,
+    "afterhours": 8.3633156626535434e-07,
+    "overnight": 6.3102506112725858e-07,
+    "closed": 1.0562056259355123e-07
+  },
+  "r_nvda": 1.8903220089937051e-07,
+  "r_nvdax": 1.1387370773280677e-05,
+  "trained_through_utc": "2026-06-23T14:20:00+00:00",
+  "source_model_version": null,
+  "source_fit_sha256": "ffc3230f0bfd72bbea498bda823c60675f46d865c2e315c126d9fc8f7b1733e3",
+  "source_dataset_sha256": "f58b97cdf83418f3dc74b77c298a20dc05b46bc3bdb497d9782a44a227c12240"
+}

@@ -9,7 +9,16 @@ class QuantService:
     def __init__(self,runtime:P1aCRuntime): self.runtime=runtime
     @classmethod
     def from_artifacts(cls,model_path,calibrator_path,state:FilterState|None=None):
-        return cls(P1aCRuntime(load_p1a(model_path),P1aCCalibrator(calibrator_path),state))
+        artifact=load_p1a(model_path)
+        calibrator=P1aCCalibrator(calibrator_path)
+        if artifact.source_fit_sha256 is not None:
+            if calibrator.raw.get('asset_id') != artifact.asset:
+                raise ValueError('calibration asset does not match fitted artifact')
+            if calibrator.raw.get('dataset_sha256') != artifact.source_dataset_sha256:
+                raise ValueError('calibration dataset does not match fitted artifact')
+            if abs(calibrator.level-artifact.interval_level)>1e-12:
+                raise ValueError('calibration level does not match fitted artifact')
+        return cls(P1aCRuntime(artifact,calibrator,state))
     @classmethod
     def from_default_artifacts(cls,state:FilterState|None=None):
         root=Path(__file__).resolve().parent/'model_artifacts'

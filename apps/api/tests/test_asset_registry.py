@@ -20,7 +20,11 @@ from valtide_api.assets import (
 from valtide_api.config import Settings
 from valtide_api.main import app
 from valtide_api.models import MarketSnapshot, MarketState
-from valtide_api.publisher import build_attestation, load_deployment_config
+from valtide_api.publisher import (
+    PublicationSemanticMismatchError,
+    build_attestation,
+    load_deployment_config,
+)
 from valtide_api.quant_runtime import estimate, get_quant_service, resolve_quant_runtime
 from valtide_api.replay import run_inference
 from valtide_api.runtime_store import RuntimeStateIntegrityError, RuntimeStore
@@ -114,7 +118,9 @@ def test_unknown_asset_fails_closed_before_source_or_artifact_selection():
         ("AAPLx", "AAPL", "XsbEhLAtcf6HdfpFZ5xEMdqW8nfAvcsP5bdudRLJzJp"),
     ],
 )
-def test_primary_token_bindings_are_asset_specific_and_unfitted(asset, underlying, address):
+def test_primary_token_bindings_and_frozen_quant_bundles_are_asset_specific(
+    asset, underlying, address
+):
     config = resolve_asset_config(asset, Settings(_env_file=None))
 
     assert (config.underlying_symbol, config.okx_chain_index, config.token_address) == (
@@ -122,13 +128,17 @@ def test_primary_token_bindings_are_asset_specific_and_unfitted(asset, underlyin
         "501",
         address,
     )
-    assert config.reference_profile == "xstock_vs_p1ac_challenger"
-    assert config.reference_under_test_instrument == asset
+    assert config.reference_profile == "unified_xstock_p1ac_xperp_evidence_v1"
+    assert config.reference_under_test_source == "okx_xperp_index"
+    assert config.reference_under_test_instrument == f"{underlying}-USD"
     assert config.allow_token_discovery is False
-    assert config.capabilities.quant is False
-    assert config.capabilities.runtime is False
-    with pytest.raises(AssetConfigurationError, match="quant runtime is unavailable"):
-        get_quant_service(asset)
+    assert config.capabilities.quant is True
+    assert config.capabilities.runtime is True
+    service = get_quant_service(asset)
+    assert service.runtime.artifact.asset == asset
+    assert service.runtime.artifact.model_version == "0.3.0"
+    assert service.runtime.artifact.source_fit_sha256
+    assert service.runtime.artifact.source_dataset_sha256
 
 
 def test_registered_token_identity_matches_research_data_manifest():
@@ -167,11 +177,29 @@ def test_quant_runtime_metadata_is_artifact_owned_and_registry_drives_api(monkey
     config = resolve_asset_config("NVDAx", Settings(_env_file=None))
     spec = resolve_quant_runtime(config)
     assert (spec.asset, spec.model_id, spec.model_version) == ("NVDAx", "P1a-C", "0.2.0")
+    import valtide_api.routes.assets as assets_route
+
+    monkeypatch.setattr(assets_route, "get_settings", lambda: Settings(_env_file=None))
+    monkeypatch.setattr(assets_route, "get_runtime_store", lambda: RuntimeStore(":memory:"))
     listed = list_assets()
     assert [item.asset for item in listed] == ["NVDAx", "SPYx", "QQQx", "AAPLx"]
     assert listed[0].model_available is True
-    assert all(not item.model_available for item in listed[1:])
+    assert all(item.model_available for item in listed)
+    assert all(item.reference_profile == "unified_xstock_p1ac_xperp_evidence_v1" for item in listed)
     assert all(not item.live_market_data_available for item in listed[1:])
+    capability_by_asset = {
+        item.asset: (item.challenger_detector_status, item.evidence_state_capability)
+        for item in listed
+    }
+    assert capability_by_asset == {
+        "NVDAx": ("CHALLENGER_DETECTOR_NOT_PROMOTABLE", "ABSTAIN_ONLY"),
+        "SPYx": ("CHALLENGER_DETECTOR_PROMOTABLE", "CHALLENGED_ONLY"),
+        "QQQx": ("CHALLENGER_DETECTOR_NOT_PROMOTABLE", "ABSTAIN_ONLY"),
+        "AAPLx": (
+            "CHALLENGER_DETECTOR_REVIEW_ONLY",
+            "ABSTAIN_WITH_REVIEW_DIAGNOSTICS",
+        ),
+    }
     monkeypatch.setattr(quant_runtime, "_QUANT_RUNTIME_FACTORIES", MappingProxyType({}))
     assert list_assets()[0].model_available is False
     assert TestClient(app).get("/api/valuation/NVDAx/live").status_code == 503
@@ -315,51 +343,54 @@ def test_golden_nvdax_quant_to_runtime_boundary_remains_p1ac():
             deployment_manifest_path=REPO_ROOT / "deployments" / "xlayer-testnet.json",
         )
     )
-    payload = build_attestation(
-        result,
-        config=config,
-        validity_seconds=900,
-        current_chain_timestamp=int(snapshot.observation_ts.timestamp()) + 1,
-        settings=Settings(_env_file=None, publish_validity_seconds=900),
-    )
-
     assert result.asset == "NVDAx"
     assert result.model_id == "P1a-C"
     assert result.model_version == "0.2.0"
     assert result.reference_under_test_source == "okx_xperp_index"
     assert state.last_ts == snapshot.observation_ts
-    assert payload["assetId"] == config.asset_id
-    assert payload["referenceId"] == config.reference_id
-    assert payload["modelVersion"] == config.model_version
-    assert payload["observedAt"] == int(snapshot.observation_ts.timestamp())
+    # The deployed legacy binding remains readable, but is not authorized for
+    # the new evidence semantics without an explicit manifest compatibility
+    # declaration. Positive payload construction is covered by publisher tests
+    # using a test-only compatible deployment binding.
+    with pytest.raises(PublicationSemanticMismatchError):
+        build_attestation(
+            result,
+            config=config,
+            validity_seconds=900,
+            current_chain_timestamp=int(snapshot.observation_ts.timestamp()) + 1,
+            settings=Settings(_env_file=None, publish_validity_seconds=900),
+        )
 
 
-# Frozen from the accepted P1a-C 0.2.0 artifact and backend validation on the
-# deterministic four-step sequence below, before this dispatch refactor.
-# Literal values intentionally protect causal token-first / underlying-after
-# ordering and Evidence State decisions; they are never computed from a second
-# invocation of the runtime as an oracle.
+# Frozen from the accepted P1a-C 0.2.0 artifact on the deterministic four-step
+# sequence below. Literal quant values protect causal token-first / underlying-
+# after ordering. This unspecified-profile fixture intentionally retains the
+# legacy conservative X-Perp abstention; the unified profile is tested separately.
 _GOLDEN_STEPS = [
     (120.3042612160223, 120.09579726009031, 120.51308702658963,
      4.790024043932874, 7.594589496003624e-07, 4.790024043932874,
      7.594589496003624e-07, 0.0012894491675961993, "INCONCLUSIVE",
-     ["CALIBRATION_GLOBAL_FALLBACK", "TOKEN_AND_CHALLENGER_AGREE"],
-     0.16270311791053427, 1.2607778877130742),
+     ["XPERP_RESIDUAL_CALIBRATION_UNVERIFIED", "CALIBRATION_GLOBAL_FALLBACK",
+      "TOKEN_AND_CHALLENGER_AGREE", "P1A_XSTOCK_DETECTOR_NOT_PROMOTED"],
+     0.16270311791053427, None, 1.2607778877130742),
     (120.77006066778506, 120.56538715557272, 120.97508163665631,
      4.793888412628675, 6.871443270832543e-07, 4.794710261865752,
-     3.9025181196678715e-07, 0.0012610965598626551, "CHALLENGED",
-     ["REFERENCE_UNDER_TEST_OUTSIDE_INTERVAL", "CALIBRATION_GLOBAL_FALLBACK"],
-     3.502473468031675, 27.297929254026027),
+     3.9025181196678715e-07, 0.0012610965598626551, "INCONCLUSIVE",
+     ["XPERP_RESIDUAL_CALIBRATION_UNVERIFIED", "CALIBRATION_GLOBAL_FALLBACK",
+      "P1A_XSTOCK_DETECTOR_NOT_PROMOTED"],
+     3.502473468031675, None, 27.297929254026027),
     (120.86935624741585, 120.6715292493172, 121.06750755996896,
      4.794710261865752, 5.799993071374501e-07, 4.794710261865752,
      5.799993071374501e-07, 0.0012178749990666609, "INCONCLUSIVE",
-     ["TOKEN_DATA_UNAVAILABLE", "REFERENCE_UNDER_TEST_OUTSIDE_INTERVAL",
-      "CALIBRATION_GLOBAL_FALLBACK"], 2.5901054243854915, 20.99665709443221),
+     ["TOKEN_DATA_UNAVAILABLE", "XPERP_RESIDUAL_CALIBRATION_UNVERIFIED",
+      "CALIBRATION_GLOBAL_FALLBACK", "P1A_XSTOCK_DETECTOR_NOT_PROMOTED"],
+     2.5901054243854915, None, 20.99665709443221),
     (120.78200566266659, 120.58379501185405, 120.98054212394223,
      4.793987314658972, 5.879187755101473e-07, 4.788126881881963,
-     3.561171186333003e-07, 0.0012211220175413742, "CHALLENGED",
-     ["REFERENCE_UNDER_TEST_OUTSIDE_INTERVAL", "CALIBRATION_GLOBAL_FALLBACK",
-      "TOKEN_AND_CHALLENGER_AGREE"], -1.0614210747974528, -8.738638018247864),
+     3.561171186333003e-07, 0.0012211220175413742, "INCONCLUSIVE",
+     ["XPERP_RESIDUAL_CALIBRATION_UNVERIFIED", "CALIBRATION_GLOBAL_FALLBACK",
+      "TOKEN_AND_CHALLENGER_AGREE", "P1A_XSTOCK_DETECTOR_NOT_PROMOTED"],
+     -1.0614210747974528, None, -8.738638018247864),
 ]
 
 
@@ -404,6 +435,7 @@ def test_frozen_nvdax_numerical_causal_sequence_and_publication_identity():
             value.state_P_after_nvda, value.reference_predictive_sd_log,
             final_result.evidence_state.value, final_result.reason_codes,
             final_result.reference_deviation_pct, final_result.standardized_deviation,
+            final_result.xperp_deviation_scaled_by_model_predictive_sd,
         )
         for got, want in zip(actual, expected, strict=True):
             if isinstance(want, float):
@@ -416,18 +448,23 @@ def test_frozen_nvdax_numerical_causal_sequence_and_publication_identity():
             anchor, anchor_ts = underlying, ts
 
     config = load_deployment_config(Settings(_env_file=None))
-    payload = build_attestation(
-        final_result, config=config, validity_seconds=900,
-        current_chain_timestamp=int(final_result.timestamp.timestamp()) + 1,
-        settings=Settings(_env_file=None),
-    )
-    assert payload["assetId"] == (
+    assert config.asset_id == (
         "0xd475b7977c1c808b1faa8fbe092d3f952b6007a6ec418a58f877a69a3945440c"
     )
-    assert payload["referenceId"] == (
+    assert config.reference_id == (
         "0x53d122bd54a2ebc11b119ef6d5f1bbb7fca155dac4c7cfc997edd3182646850d"
     )
-    assert payload["modelVersion"] == (
+    assert config.model_version == (
         "0x177d57055bb57caacc5f72e04f893f984b95e26f8749bff5b374a6d1548ea727"
     )
-    assert payload["observedAt"] == int((start + timedelta(minutes=15)).timestamp())
+    assert int(final_result.timestamp.timestamp()) == int(
+        (start + timedelta(minutes=15)).timestamp()
+    )
+    with pytest.raises(PublicationSemanticMismatchError):
+        build_attestation(
+            final_result,
+            config=config,
+            validity_seconds=900,
+            current_chain_timestamp=int(final_result.timestamp.timestamp()) + 1,
+            settings=Settings(_env_file=None),
+        )

@@ -47,4 +47,4 @@ where = ["."]
 include = ["valtide_api*"]
 
 [tool.setuptools.package-data]
-valtide_api = ["scenarios/*.json", "abis/*.json"]
+valtide_api = ["scenarios/*.json", "abis/*.json", "detectors/*.json"]

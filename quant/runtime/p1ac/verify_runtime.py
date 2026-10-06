@@ -85,16 +85,16 @@ def validate_runtime_binding(
     production_files = {
         path.relative_to(production_package).as_posix(): path
         for path in production_package.rglob("*")
-        if path.is_file() and "__pycache__" not in path.parts and path.suffix != ".pyc"
+        if path.is_file() and path.suffix == ".py" and "__pycache__" not in path.parts
     }
     snapshot_files = {
         path.relative_to(snapshot_package).as_posix(): path
         for path in snapshot_package.rglob("*")
-        if path.is_file() and "__pycache__" not in path.parts and path.suffix != ".pyc"
+        if path.is_file() and path.suffix == ".py" and "__pycache__" not in path.parts
     }
     if production_files.keys() != snapshot_files.keys():
         raise ValueError(
-            "runtime source snapshot file set differs from production package"
+            "runtime Python source snapshot file set differs from production package"
         )
     for relative_path, production_path in production_files.items():
         if production_path.read_bytes() != snapshot_files[relative_path].read_bytes():

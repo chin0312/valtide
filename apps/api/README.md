@@ -81,16 +81,34 @@ failure leaves the warmed valuation intact and does not stop the scheduler. The
 publisher performs chain-ID, bytecode, linkage, policy,
 publisher-authorization, monotonic-observation, transaction, and read-back
 checks. API reads, replay, and cold diagnostics never publish.
-The current operational token observation is an exact confirmed OKX OnchainOS
-NVDAx five-minute candle at the settled scheduler timestamp; DexScreener remains
-diagnostic-only. The API catalog also exposes SPYx, QQQx, and AAPLx identities
-with separate readiness fields, but these assets currently lack verified
-Solana-matched model bundles and historical panels and therefore return an
-explicit unavailable state rather than NVDAx values. NVDAx retains its OKX
-X-Perp reference profile. The catalog's xStock-versus-challenger profile reuses
-the token observation after assimilation and is not an independent-source
-comparison. `GET /api/history/{asset}` returns only successful warmed scheduler
-results and is not a backtest or scenario replay.
+The current asset-aware live path uses the exact confirmed OKX OnchainOS
+Solana candle for the selected asset, its configured underlying, and a separate
+asset-matched OKX X-Perp/index observation when available. DexScreener remains
+diagnostic-only. NVDAx, SPYx, QQQx, and AAPLx each have explicit Solana pins and
+asset-specific P1a-C bundles; the three newer bundles were exported from
+checksum-verified frozen fits without retraining. Their original canonical
+panel bytes were not supplied, so their declared training dataset hashes have
+not been independently recomputed. A separate 2026-09-21 through 2026-10-05
+provider-history window was collected and replayed locally for all four assets;
+it is a short retrospective diagnostic, not production readiness evidence.
+Those panels are not committed or provisioned on a persistent production
+volume. Only NVDAx has an X Layer binding, and the multi-asset scheduler has not
+been activated in production. P1a assimilates the same xStock observation being
+modeled, so xStock-versus-challenger is model-based evidence rather than an
+independent-observation comparison; the X-Perp/index is separate market
+evidence. `GET /api/history/{asset}` remains limited to successful warmed
+scheduler results, not historical replay or scenario data.
+
+The current `ValuationResult` also retains xStock, P1a-C, and X-Perp/index
+pairwise diagnostics explicitly. These diagnostics do not alter Evidence State:
+the xStock-versus-model and xStock-versus-X-Perp differences are descriptive.
+For the currently registered X-Perp/index comparator, Evidence State now
+abstains as `INCONCLUSIVE` with `XPERP_RESIDUAL_CALIBRATION_UNVERIFIED`: the
+existing P1a-C predictive uncertainty is calibrated for its underlying target,
+not for X-Perp residuals. A research-backed validation rule that jointly
+interprets xStock, the model-based challenger, and the separately sourced
+X-Perp/index remains a product/quant follow-up. Because P1a assimilates the
+current xStock input, xStock-versus-P1a-C is not an independent-observation test.
 
 ## Layout
 

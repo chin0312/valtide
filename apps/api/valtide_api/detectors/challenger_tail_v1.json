@@ -1,0 +1,108 @@
+{
+  "schema": "valtide-challenger-tail-detector-v1",
+  "research_code": "quant/research/challenger/code/challenger_tail_analysis.py",
+  "research_code_sha256": "cf69c563db2f60d4da69c1eebbe788e44a20033e4d950965c32f111e1af358f5",
+  "dataset_manifest": "quant/data_manifest/datasets_manifest.json",
+  "dataset_manifest_sha256": "40b027d1b9bb916b815cf54365709f29cb6747e75df98a8ee4fb0721b59fb8c1",
+  "selection_rule": "Select on OOF cross-fit training scores by highest average precision for the raw-xStock relative-q95 tail event; tie-break by AUROC.",
+  "threshold_rule": "Freeze q80 and q95 of the selected score on score-eligible OOF cross-fit training rows using R type-7 linear quantiles. No fresh-period fitting.",
+  "score_definitions": {
+    "disagreement_bps": "abs(log(xstock_price) - p1a_challenger_log_mean) * 10000",
+    "disagreement_z": "abs(log(xstock_price) - p1a_challenger_log_mean) / p1a_reference_predictive_sd_log"
+  },
+  "research_bands": {
+    "below_q80": "SUPPORT",
+    "q80_to_q95": "WATCH",
+    "at_or_above_q95": "REVIEW"
+  },
+  "tail_event_definition": "Absolute log error of raw xStock versus contemporaneous underlying is at least the asset-specific 95th percentile of that error on OOF cross-fit training rows.",
+  "fresh_validation": {
+    "dataset_id": "valtide_solana_xstock_fresh_validation_20260921_20261005_0625",
+    "manifest": "quant/data_manifest/fresh_validation_20261005.json",
+    "period_start_utc": "2026-09-21T00:00:00Z",
+    "period_end_utc": "2026-10-05T06:25:00Z",
+    "interpretation": "Retrospective frozen-threshold diagnostic on later Solana panels; short period, not prospective production validation."
+  },
+  "known_limitations": [
+    "The challenger assimilates the current xStock observation; score is model-based challenger evidence, not independent-market confirmation.",
+    "Original chronological test outputs are exposed development evidence and are not described as untouched validation.",
+    "SUPPORT/WATCH/REVIEW are research detector bands, not canonical Valtide Evidence States.",
+    "A REVIEW band alone does not establish which market price is correct."
+  ],
+  "assets": {
+    "NVDAx": {
+      "dataset_sha256": "722929383e6ca1aa28382e828879efeccb60faabdf2bd5e05f14a721f7fc740d",
+      "score_name": "disagreement_z",
+      "training_rows": 22441,
+      "tail_event_threshold_bps": 27.833443316902517,
+      "threshold_review_q80": 0.8224619622115359,
+      "threshold_challenge_q95": 1.5816442827412427,
+      "training_selected_score_average_precision": 0.370634625,
+      "exposed_test_review_precision": 0.248427673,
+      "exposed_test_review_recall": 0.417989418,
+      "promotion_status": "CHALLENGER_DETECTOR_NOT_PROMOTABLE",
+      "promotion_rationale": "Weak exposed-test detection and low fresh-period q95 recall do not justify a production Evidence State escalation."
+    },
+    "SPYx": {
+      "dataset_sha256": "aa39adcd2205cd93232d4ee9cbd426a01069d0e70751f026205e88f8fa31d07b",
+      "score_name": "disagreement_bps",
+      "training_rows": 21848,
+      "tail_event_threshold_bps": 57.726602359267076,
+      "threshold_review_q80": 40.08731697252088,
+      "threshold_challenge_q95": 54.92275340852967,
+      "training_selected_score_average_precision": 0.8619641374,
+      "exposed_test_review_precision": 0.9883040936,
+      "exposed_test_review_recall": 0.9941176471,
+      "promotion_status": "CHALLENGER_DETECTOR_PROMOTABLE",
+      "promotion_rationale": "Frozen q95 detector recovered 20 of 21 fresh-period underlying tail events with no false positive among contemporaneously evaluable q95 flags; use only as a challenged-only, source-quality-gated detector and not as a safe-state rule."
+    },
+    "QQQx": {
+      "dataset_sha256": "758e97b56183a028949b323612510e0f993b6986d4dd57431756858f0fa20991",
+      "score_name": "disagreement_bps",
+      "training_rows": 20469,
+      "tail_event_threshold_bps": 48.32584427016327,
+      "threshold_review_q80": 27.4534351873026,
+      "threshold_challenge_q95": 48.57182118002254,
+      "training_selected_score_average_precision": 0.8288259346,
+      "exposed_test_review_precision": 0.670212766,
+      "exposed_test_review_recall": 0.9,
+      "promotion_status": "CHALLENGER_DETECTOR_NOT_PROMOTABLE",
+      "promotion_rationale": "Fresh-period q95 precision and recall are weak, the frozen boundary-risk model is a weaker ordinary point estimate, and the challenge band is overrepresented."
+    },
+    "AAPLx": {
+      "dataset_sha256": "f58b97cdf83418f3dc74b77c298a20dc05b46bc3bdb497d9782a44a227c12240",
+      "score_name": "disagreement_bps",
+      "training_rows": 16916,
+      "tail_event_threshold_bps": 59.355096532351936,
+      "threshold_review_q80": 34.635272224798896,
+      "threshold_challenge_q95": 53.97894975052386,
+      "training_selected_score_average_precision": 0.7160363902,
+      "exposed_test_review_precision": 0.5419847328,
+      "exposed_test_review_recall": 0.8554216867,
+      "promotion_status": "CHALLENGER_DETECTOR_REVIEW_ONLY",
+      "promotion_rationale": "Fresh-period q95 catches few tail events because the event count is small; retain as review evidence pending a longer frozen-threshold sample."
+    }
+  },
+  "source_checksums": {
+    "NVDAx": {
+      "quant/research/challenger/results/nvdax/challenger_tail_report.json": "b0619cfaf30eb1b9ed61a06a0e163b03150ef334b1341a1ef3b066f09549d972",
+      "quant/research/challenger/results/nvdax/candidate_score_metrics.csv": "b48f5371cc3394342111c352b3d37947a3dea9a645e288bf9ccf4333eccb6607",
+      "quant/research/challenger/results/nvdax/detection_metrics.csv": "4c195ee0a74a5df7ebe579d0e1e30b7086e27f9a6d84bbd71c9b7a2ec094f55f"
+    },
+    "SPYx": {
+      "quant/research/challenger/results/spyx/challenger_tail_report.json": "1f58bd42de05e66b5d951dbc851c90aa1c6b22dad3dfba6228a31f3c10e112c4",
+      "quant/research/challenger/results/spyx/candidate_score_metrics.csv": "c04570b9050a185f974a494fa21caecdec8c70f347c4e31f3c9d8ef47160b66e",
+      "quant/research/challenger/results/spyx/detection_metrics.csv": "8dd895db2d3cdd07c653c5ab478efa6b5ead019cc9439e5aa418b4a8199d4f95"
+    },
+    "QQQx": {
+      "quant/research/challenger/results/qqqx/challenger_tail_report.json": "20a6d3f37a77a48e6503f64f8a2429bd7727cbafcb1526b496d88e8fd32c9aa1",
+      "quant/research/challenger/results/qqqx/candidate_score_metrics.csv": "f21daba54746a26e389b6de8641731cd1210698590214a19e2113a556961f6dd",
+      "quant/research/challenger/results/qqqx/detection_metrics.csv": "5a1c75bae8924c1b7498931d6f2e530401a547417e3836d1727d34f8bd85bb73"
+    },
+    "AAPLx": {
+      "quant/research/challenger/results/aaplx/challenger_tail_report.json": "0226ab47ff0c6cb82ebcbfeded3ea2c64356e12e94338370c0c999ff3014b5f3",
+      "quant/research/challenger/results/aaplx/candidate_score_metrics.csv": "c8efcf1790118a4eb64e87c764ac95b754d690d8362c56e24d1106d68bf3ba04",
+      "quant/research/challenger/results/aaplx/detection_metrics.csv": "b64c6022c81e522df96d69ce45aaa954b08633b79cc1b81019c823869f4d0771"
+    }
+  }
+}

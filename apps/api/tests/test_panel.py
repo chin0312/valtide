@@ -224,7 +224,7 @@ _GENERIC_COLUMNS = (
     "token_volume,token_volume_usd,token_available,token_observed_at,"
     "underlying_close,underlying_available,last_trusted_reference,"
     "last_trusted_reference_ts,reference_under_test,reference_under_test_available,"
-    "reference_under_test_source,reference_under_test_ts"
+    "reference_under_test_source,reference_under_test_ts,reference_profile"
 )
 
 
@@ -234,14 +234,16 @@ def _generic_rows(
     chain="501",
     address="Xsc9qvGR1efVDFGLrVsmkzv3qi45LTBjeUKSPmx9qEh",
 ):
-    prefix = f"{asset},{underlying},okx_onchainos,{chain},{address},NVDA-USD,closed"
+    instrument = f"{underlying}-USD"
+    profile = "unified_xstock_p1ac_xperp_evidence_v1"
+    prefix = f"{asset},{underlying},okx_onchainos,{chain},{address},{instrument},closed"
     return [
         f"2026-09-20T14:00:00Z,{prefix},180.1,500,90000,TRUE,"
         "2026-09-20T14:00:00Z,180.0,TRUE,,,180.0,TRUE,okx_xperp_index,"
-        "2026-09-20T14:00:00Z",
+        f"2026-09-20T14:00:00Z,{profile}",
         f"2026-09-20T14:05:00Z,{prefix},180.3,900,123456,TRUE,"
         "2026-09-20T14:05:00Z,,FALSE,180.0,2026-09-20T14:00:00Z,"
-        "180.5,TRUE,okx_xperp_index,2026-09-20T14:05:00Z",
+        f"180.5,TRUE,okx_xperp_index,2026-09-20T14:05:00Z,{profile}",
     ]
 
 
@@ -268,7 +270,32 @@ def test_generic_panel_loads_offline_against_pinned_deployment(tmp_path, monkeyp
     assert snapshots[0].last_trusted_reference == 180.0
     assert snapshots[0].last_trusted_reference_ts < snapshots[0].observation_ts
     assert snapshots[0].underlying_reference is None
+    assert snapshots[0].xperp_index_price == 180.5
+    assert snapshots[0].xperp_index_source == "okx_xperp_index"
+    assert snapshots[0].xperp_index_ts == snapshots[0].observation_ts
     assert snapshots[0].source_provenance["token_deployment_verified"] == "true"
+
+
+def test_bom_readiness_and_loader_agree_and_nonfinite_prices_fail_closed(tmp_path):
+    settings = _pinned_settings()
+    rows = _generic_rows()
+    bom_path = _write(tmp_path, "\ufeff" + "\n".join([_GENERIC_COLUMNS, *rows]) + "\n")
+
+    readiness = inspect_panel_readiness(bom_path, asset="NVDAx", settings=settings)
+    snapshots = load_panel_snapshots(bom_path, settings=settings)
+
+    assert readiness.canonical_identity_verified is True
+    assert readiness.replay_compatible is True
+    assert len(snapshots) == 1
+
+    bad_rows = [rows[0], rows[1].replace(",180.3,", ",NaN,")]
+    bad_path = _write(tmp_path, "\n".join([_GENERIC_COLUMNS, *bad_rows]) + "\n")
+    bad_readiness = inspect_panel_readiness(bad_path, asset="NVDAx", settings=settings)
+
+    assert bad_readiness.canonical_identity_verified is False
+    assert bad_readiness.replay_compatible is False
+    with pytest.raises(PanelIdentityError, match="finite and positive"):
+        load_panel_snapshots(bad_path, settings=settings)
 
 
 def test_legacy_normalization_matches_equivalent_canonical_snapshots(tmp_path):
@@ -418,18 +445,13 @@ def _spy_canonical_panel(tmp_path, *, chain="501", address=None, mixed=False):
     token_address = address or config.token_address
     fields = _GENERIC_COLUMNS.split(",")
     rows = [
-        row.replace("NVDA-USD", "SPYx")
-        .replace("okx_xperp_index", "xstock_token_market")
-        .split(",")
+        row.split(",")
         for row in _generic_rows("SPYx", "SPY", chain, token_address)
     ]
     if mixed:
         fields.extend(("nvda_close", "nvdax_close"))
         for row in rows:
             row.extend(("180.0", "180.1"))
-    fields.append("reference_profile")
-    for row in rows:
-        row.append("xstock_vs_p1ac_challenger")
     path = _write(
         tmp_path,
         "\n".join([",".join(fields), *(",".join(row) for row in rows)]) + "\n",
@@ -451,7 +473,6 @@ def test_panel_readiness_verifies_canonical_solana_identity_without_replay(tmp_p
 
 def test_panel_readiness_separates_verified_file_from_empty_replay(tmp_path):
     fields = _GENERIC_COLUMNS.split(",")
-    fields.append("reference_profile")
     path = _write(tmp_path, ",".join(fields) + "\n")
     settings = Settings(_env_file=None, spyx_historical_panel_path=path)
 
@@ -572,6 +593,7 @@ def test_synthetic_panel_does_not_inherit_nvda_columns(monkeypatch, tmp_path):
         assets_module.resolve_asset_config("NVDAx"),
         asset="TESTx", underlying_symbol="TEST", okx_chain_index="777",
         token_address="0xsynthetic", allow_token_discovery=False,
+        reference_under_test_instrument="TEST-USD",
         quant_runtime_key="missing", historical_panel_key="missing",
         capabilities=replace(assets_module._NVDA_CONFIG.capabilities, api_exposed=False),
     )

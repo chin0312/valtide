@@ -20,6 +20,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from datetime import UTC, datetime
+from time import sleep
 
 import httpx
 
@@ -29,6 +30,23 @@ _V5_BASE_URL = "https://www.okx.com"
 
 # The X-Perp index instId to confirm from the builder kit. Placeholder default.
 _DEFAULT_INDEX_ID = "NVDA-USD"
+_MAX_RATE_LIMIT_RETRIES = 2
+_MAX_RATE_LIMIT_WAIT_SECONDS = 60.0
+_HISTORY_PAGE_DELAY_SECONDS = 0.11
+
+
+def _rate_limit_wait_seconds(response: httpx.Response) -> float:
+    for name in ("retry-after", "ratelimit-reset", "x-ratelimit-reset"):
+        value = response.headers.get(name)
+        if value is None:
+            continue
+        try:
+            seconds = float(value)
+        except (TypeError, ValueError):
+            continue
+        if seconds >= 0:
+            return min(seconds, _MAX_RATE_LIMIT_WAIT_SECONDS)
+    return 1.0
 
 
 @dataclass
@@ -117,9 +135,15 @@ def get_okx_xperp_index_candles(
         while True:
             params = {"instId": index_id, "bar": bar, "limit": "100", "after": cursor}
             try:
-                response = client.get(
-                    f"{_V5_BASE_URL}/api/v5/market/history-index-candles", params=params
-                )
+                for attempt in range(_MAX_RATE_LIMIT_RETRIES + 1):
+                    response = client.get(
+                        f"{_V5_BASE_URL}/api/v5/market/history-index-candles", params=params
+                    )
+                    if response.status_code != 429 or attempt == _MAX_RATE_LIMIT_RETRIES:
+                        break
+                    delay = _rate_limit_wait_seconds(response)
+                    if delay > 0:
+                        sleep(delay)
                 response.raise_for_status()
                 body = response.json()
                 if not isinstance(body, dict):
@@ -180,6 +204,9 @@ def get_okx_xperp_index_candles(
                 break
             seen_oldest = oldest
             cursor = str(oldest)
+            # Public OKX v5 history endpoints are IP-rate-limited. Keep the
+            # sequential pagination well below the documented request budget.
+            sleep(_HISTORY_PAGE_DELAY_SECONDS)
         return [out[key] for key in sorted(out)]
     finally:
         if owns_client:

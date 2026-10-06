@@ -3,6 +3,7 @@
 from dataclasses import replace
 from datetime import UTC, datetime, timedelta
 
+import httpx
 import pytest
 
 import valtide_api.adapters.okx as okx
@@ -138,3 +139,36 @@ def test_generic_token_adapter_rejects_unconfirmed_candle(monkeypatch):
     )
     monkeypatch.setattr(okx, "get_historical_candles", lambda *_a, **_k: [_candle(ts, confirm=0)])
     assert token_market.get_exact_candle(config, ts) is None
+
+
+def test_okx_429_retry_respects_bounded_vendor_reset_without_logging_credentials(monkeypatch):
+    calls = []
+    waits = []
+
+    def handler(request):
+        calls.append(request)
+        if len(calls) == 1:
+            return httpx.Response(
+                429,
+                headers={"ratelimit-reset": "0.25"},
+                json={"code": "50011", "msg": "rate limit"},
+            )
+        return httpx.Response(200, json={"code": "0", "data": []})
+
+    monkeypatch.setattr(
+        okx,
+        "get_settings",
+        lambda: Settings(
+            _env_file=None,
+            okx_api_key="test-key",
+            okx_api_secret="test-secret",
+            okx_api_passphrase="test-passphrase",
+        ),
+    )
+    monkeypatch.setattr(okx, "sleep", waits.append)
+    with httpx.Client(transport=httpx.MockTransport(handler)) as client:
+        assert okx._get("/test", {}, client) == []
+
+    assert len(calls) == 2
+    assert waits == [0.25]
+    assert "test-secret" not in repr(calls)

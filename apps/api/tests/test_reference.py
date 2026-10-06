@@ -5,6 +5,7 @@ from datetime import UTC, datetime
 import httpx
 import pytest
 
+import valtide_api.adapters.reference as reference_adapter
 from valtide_api.adapters.reference import (
     ReferenceHistoryUnavailable,
     get_confirmed_index_bar,
@@ -119,3 +120,34 @@ def test_confirmed_index_bar_is_none_on_history_failure():
         get_confirmed_index_bar(datetime(2026, 9, 22, 14, 0, tzinfo=UTC), client=client)
         is None
     )
+
+
+def test_history_adapter_retries_429_only_after_vendor_reset(monkeypatch):
+    boundary = datetime(2026, 9, 22, 14, 0, tzinfo=UTC)
+    boundary_ms = int(boundary.timestamp() * 1000)
+    calls = []
+    waits = []
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        calls.append(request)
+        if len(calls) == 1:
+            return httpx.Response(
+                429,
+                headers={"ratelimit-reset": "0.25"},
+                json={"code": "50011", "msg": "rate limit"},
+            )
+        return httpx.Response(
+            200,
+            json={
+                "code": "0",
+                "data": [[str(boundary_ms), "184", "185", "183", "184.5", "1"]],
+            },
+        )
+
+    monkeypatch.setattr(reference_adapter, "sleep", waits.append)
+    client = httpx.Client(transport=httpx.MockTransport(handler))
+    candles = get_okx_xperp_index_candles(start=boundary, end=boundary, client=client)
+
+    assert len(calls) == 2
+    assert waits == [0.25]
+    assert [candle.ts for candle in candles] == [boundary]

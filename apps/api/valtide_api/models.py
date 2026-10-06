@@ -62,7 +62,7 @@ class MarketSnapshot(BaseModel):
     # validation as a market-quality floor; None where a source omits it.
     token_liquidity_usd: float | None = None
 
-    # Current NVDA if the market is open, else None (weekend/overnight).
+    # Current underlying-equity observation for this asset when available.
     underlying_reference: float | None = None
     underlying_reference_ts: datetime | None = None
 
@@ -71,17 +71,25 @@ class MarketSnapshot(BaseModel):
     last_trusted_reference_ts: datetime
     reference_age_seconds: int
 
-    # The reference under test (Pt) — what we validate. Sourced explicitly; never
-    # implicitly derived. See docs/BACKEND_ARCHITECTURE.md.
+    # Compatibility comparator retained for existing API consumers. In the
+    # unified profile the validation target is xStock; OKX X-Perp is separate
+    # market evidence, not the primary reference-under-test.
     reference_under_test: float | None
     reference_under_test_source: str = Field(examples=["nvda_live", "okx_xperp_index"])
     reference_profile: str = "unspecified"
     reference_under_test_ts: datetime | None = None
     reference_under_test_age_seconds: int | None = None
 
+    # Preserve separately sourced OKX X-Perp/index evidence explicitly. It is a
+    # second market challenger in the unified profile; no Gaussian residual
+    # calibration is implied.
+    xperp_index_price: float | None = None
+    xperp_index_source: str | None = None
+    xperp_index_ts: datetime | None = None
+
     market_state: MarketState
 
-    # P0: kept at 1.0; validation flags only a gross NVDAx/NVDA unit mismatch
+    # P0: kept at 1.0; validation flags only a gross token/underlying unit mismatch
     # (TOKEN_UNIT_SUSPECT) instead of blindly rescaling (see James's pipeline
     # README). A moderate economic divergence is judged as normal evidence.
     corporate_action_multiplier: float = 1.0
@@ -91,7 +99,7 @@ class MarketSnapshot(BaseModel):
 
 
 class ChallengerEstimate(BaseModel):
-    """Output of the quant runtime — the independent (NVDAx-only) challenger.
+    """Output of the asset-specific quant runtime's model-based challenger.
 
     Carries the log-space state directly so validation never has to reverse-
     engineer sigma from asymmetric price bounds. See docs/BACKEND_ARCHITECTURE.md.
@@ -100,14 +108,15 @@ class ChallengerEstimate(BaseModel):
     fair_value: float  # exp(state_m)
     lower_bound: float  # price-space interval (may be asymmetric)
     upper_bound: float
-    state_m: float  # posterior mean in LOG space (NVDAx-only)
+    state_m: float  # posterior mean in LOG space
     state_sd_log: float  # sqrt(P_t) in LOG space — latent-state uncertainty
     reference_predictive_sd_log: float  # sqrt(P_t + R_nvda), used for validation
     coverage_target: float
     interval_calibration_type: str = "session_sym"
     interval_calibration_source: str = "global"
 
-    # State AFTER folding in NVDA (if present), carried into the next step.
+    # Legacy field name: state after folding in the current underlying, carried
+    # into the next step for every asset.
     state_m_after_nvda: float
     state_P_after_nvda: float
     model_id: str
@@ -115,8 +124,20 @@ class ChallengerEstimate(BaseModel):
     interval_semantics: str
 
 
+class ChallengerDetectorEvidence(BaseModel):
+    """Frozen research score band kept separate from canonical Evidence State."""
+
+    artifact_version: str
+    score_name: str
+    score: float | None
+    review_threshold: float
+    challenge_threshold: float
+    research_band: str
+    promotion_status: str
+
+
 class ValuationResult(BaseModel):
-    """The public result served to the frontend and X Layer publisher.
+    """The public asset-scoped result served to clients and optional publisher.
 
     See docs/BACKEND_ARCHITECTURE.md.
     """
@@ -150,6 +171,23 @@ class ValuationResult(BaseModel):
     reference_under_test_age_seconds: int | None = None
     reference_deviation_pct: float | None
     standardized_deviation: float | None  # log-space z-score
+
+    # Explicit pairwise diagnostics. They are descriptive quantities only and
+    # are not additional threshold inputs to Evidence State.
+    xperp_index_price: float | None = None
+    xperp_index_source: str | None = None
+    xperp_index_ts: datetime | None = None
+    xstock_vs_p1ac_deviation_pct: float | None = None
+    xperp_vs_p1ac_deviation_pct: float | None = None
+    xstock_vs_xperp_deviation_pct: float | None = None
+    xperp_deviation_scaled_by_model_predictive_sd: float | None = None
+    evidence_state_basis: str = "selected_reference_under_test"
+    # Additive semantic identity. Defaults keep old persisted result JSON
+    # readable while new unified-profile results identify their actual target.
+    validation_target: str = "reference_under_test"
+    evidence_semantics: str = "legacy_reference_under_test_v1"
+    xperp_role: str = "reference_under_test"
+    challenger_detector: ChallengerDetectorEvidence | None = None
 
     evidence_state: EvidenceState
     reason_codes: list[str] = Field(default_factory=list)

@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import csv
+import math
 from dataclasses import dataclass
 from datetime import UTC, datetime
 from functools import lru_cache
@@ -13,7 +14,7 @@ from valtide_api.clock import require_canonical_5m
 from valtide_api.config import Settings
 from valtide_api.models import MarketSnapshot, MarketState
 
-_NA = {"", "NA", "N/A", "NaN", "nan", "null", "None"}
+_NA = {"", "NA", "N/A", "null", "None"}
 _FIVE_MINUTES = 300
 
 
@@ -216,6 +217,7 @@ def _inspect_panel_cached(
                 if not any(value not in (None, "") for value in raw_row.values()):
                     raise PanelIdentityError("panel contains an empty row")
                 row = _canonical_row(raw_row, config, legacy=legacy)
+                _validate_numeric_market_fields(row)
                 if schema == "canonical_hybrid":
                     # Check row identity before classifying the otherwise
                     # ambiguous schema, so an incorrect identity is never hidden.
@@ -327,6 +329,23 @@ def _num(value: str | None) -> float | None:
     return float(value)
 
 
+def _validate_numeric_market_fields(row: dict[str, str]) -> None:
+    """Reject non-finite prices and invalid volumes in readiness and replay alike."""
+    for field in (
+        "token_close",
+        "underlying_close",
+        "reference_under_test",
+        "last_trusted_reference",
+    ):
+        value = _num(row.get(field))
+        if value is not None and (not math.isfinite(value) or value <= 0):
+            raise PanelIdentityError(f"panel field {field} must be finite and positive")
+    for field in ("token_volume", "token_volume_usd"):
+        value = _num(row.get(field))
+        if value is not None and (not math.isfinite(value) or value < 0):
+            raise PanelIdentityError(f"panel field {field} must be finite and non-negative")
+
+
 def _flag(value: str | None) -> bool:
     return (value or "").strip().upper() in {"TRUE", "T", "1"}
 
@@ -362,7 +381,7 @@ def load_panel_snapshots(
     last_close_ts: datetime | None = None
     previous_ts: datetime | None = None
 
-    with path.open(newline="") as f:
+    with path.open(newline="", encoding="utf-8-sig") as f:
         reader = csv.DictReader(f)
         headers = reader.fieldnames or []
         if len(headers) != len(set(headers)):
@@ -373,6 +392,7 @@ def load_panel_snapshots(
         legacy = schema == "legacy_nvda_diagnostic"
         for raw_row in reader:
             row = _canonical_row(raw_row, asset_config, legacy=legacy)
+            _validate_numeric_market_fields(row)
             if schema == "canonical_hybrid":
                 raise PanelIdentityError("ambiguous hybrid canonical/legacy panel schema")
             try:
@@ -396,6 +416,10 @@ def load_panel_snapshots(
             token = (
                 _num(row.get("token_close")) if _flag(row.get("token_available")) else None
             )
+            if _flag(row.get("token_available")) and token is None:
+                raise PanelIdentityError("available token observation has no price")
+            if _flag(row.get("underlying_available")) and underlying is None:
+                raise PanelIdentityError("available underlying observation has no price")
             if token is not None and row.get("token_observed_at"):
                 if _parse_ts(row["token_observed_at"]) != ts:
                     raise PanelIdentityError("token observation does not match canonical timestamp")
@@ -482,6 +506,15 @@ def load_panel_snapshots(
                     ),
                     reference_under_test_ts=reference_ts,
                     reference_under_test_age_seconds=reference_age,
+                    xperp_index_price=(
+                        reference if reference_source == "okx_xperp_index" else None
+                    ),
+                    xperp_index_source=(
+                        reference_source if reference_source == "okx_xperp_index" else None
+                    ),
+                    xperp_index_ts=(
+                        reference_ts if reference_source == "okx_xperp_index" else None
+                    ),
                     market_state=_market_state(row.get("session_state"), ts),
                     source_provenance={
                         "panel": path.name,
@@ -490,10 +523,8 @@ def load_panel_snapshots(
                         "reference_profile": (
                             row.get("reference_profile") or asset_config.reference_profile
                         ),
-                        **(
-                            {"reference_independence": "same_xstock_input_assimilated_by_p1a"}
-                            if asset_config.reference_profile == "xstock_vs_p1ac_challenger"
-                            else {}
+                        "reference_relationship": (
+                            "xstock_is_model_input;_xperp_is_separate_market_evidence"
                         ),
                         "panel_schema": schema,
                         "token_deployment_verified": str(not legacy).lower(),

@@ -14,6 +14,7 @@ from valtide_api.publisher import (
     ChainPreflightError,
     EnforcementVerificationError,
     PublicationError,
+    PublicationSemanticMismatchError,
     PublishabilityError,
     ReadbackMismatchError,
     _assert_readback,
@@ -26,16 +27,33 @@ from valtide_api.publisher import (
     decode_evaluation,
     load_deployment_config,
     publish,
+    read_control_plane,
 )
 
 REPO_ROOT = Path(__file__).resolve().parents[3]
 
 
+def _compatible_manifest(tmp_path):
+    manifest = json.loads((REPO_ROOT / "deployments" / "xlayer-testnet.json").read_text())
+    manifest["demo"]["publicationCompatibility"] = {
+        "asset": "NVDAx",
+        "referenceId": manifest["demo"]["referenceId"],
+        "referenceProfile": "unified_xstock_p1ac_xperp_evidence_v1",
+        "evidenceSemantics": "p1a_xstock_challenger_xperp_second_market_v1",
+        "modelId": "P1a-C",
+        "modelVersion": "0.2.0",
+    }
+    path = tmp_path / "compatible-xlayer-manifest.json"
+    path.write_text(json.dumps(manifest), encoding="utf-8")
+    return path
+
+
 @pytest.fixture()
-def deployment_config():
+def deployment_config(tmp_path):
     return load_deployment_config(
         Settings(
-            deployment_manifest_path=REPO_ROOT / "deployments" / "xlayer-testnet.json",
+            _env_file=None,
+            deployment_manifest_path=_compatible_manifest(tmp_path),
             publish_validity_seconds=900,
         )
     )
@@ -59,6 +77,7 @@ def result():
         residual_premium_discount_pct=0.002,
         reference_under_test=120.5,
         reference_under_test_source="okx_xperp_index",
+        reference_profile="unified_xstock_p1ac_xperp_evidence_v1",
         reference_under_test_ts=datetime(2026, 9, 24, 12, 0, tzinfo=UTC),
         reference_under_test_age_seconds=0,
         reference_deviation_pct=0.25,
@@ -152,6 +171,7 @@ def test_publisher_rejects_cross_asset_result_and_deployment_binding(result, dep
         ("fair_value_lower", 125.0),
         ("model_version", "0.1.0"),
         ("model_id", "another-model"),
+        ("reference_profile", "legacy_xperp_vs_p1ac"),
     ],
 )
 def test_unpublishable_results_are_rejected(result, deployment_config, field, value):
@@ -437,13 +457,14 @@ class _FakeWeb3:
 
 
 @pytest.fixture()
-def publisher_settings():
+def publisher_settings(tmp_path):
     return Settings(
+        _env_file=None,
         xlayer_rpc_url="http://fake-xlayer",
         publisher_private_key="test-private-key",
         publish_enabled=True,
         publish_validity_seconds=900,
-        deployment_manifest_path=REPO_ROOT / "deployments" / "xlayer-testnet.json",
+        deployment_manifest_path=_compatible_manifest(tmp_path),
     )
 
 
@@ -502,6 +523,50 @@ def test_publish_rejects_result_asset_different_from_requested_asset(
             web3_client=w3,
             asset="NVDAx",
         )
+
+
+def test_legacy_binding_is_readable_but_not_publish_compatible(
+    result, publisher_settings, fake_chain
+):
+    _config, w3 = fake_chain
+    legacy_settings = publisher_settings.model_copy(
+        update={
+            "deployment_manifest_path": REPO_ROOT / "deployments" / "xlayer-testnet.json"
+        }
+    )
+
+    with pytest.raises(PublicationSemanticMismatchError, match="does not declare"):
+        publish(result, settings=legacy_settings, web3_client=w3)
+
+    assert w3.eth.sent_raw_transactions == []
+    assert w3.eth.account.sign_calls == []
+
+    status = read_control_plane(settings=legacy_settings, web3_client=w3)
+    assert status["configured"] is True
+    assert status["deployed"] is True
+    assert status["publication_compatible"] is False
+    assert status["publication_compatibility_status"] == "not_declared"
+
+
+@pytest.mark.parametrize(
+    "field",
+    [
+        "asset",
+        "reference_id",
+        "reference_profile",
+        "evidence_semantics",
+        "model_id",
+        "model_version",
+    ],
+)
+def test_publication_semantic_contract_mismatch_fails_closed(result, deployment_config, field):
+    declaration = deployment_config.publication_compatibility
+    assert declaration is not None
+    changed = replace(declaration, **{field: f"wrong-{field}"})
+    config = replace(deployment_config, publication_compatibility=changed)
+
+    with pytest.raises(PublicationSemanticMismatchError):
+        build_attestation(result, config=config, validity_seconds=900)
 
 
 def test_publish_idempotency_returns_existing_published_at(result, publisher_settings, fake_chain):
