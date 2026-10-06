@@ -249,7 +249,7 @@ export function MarketingHeader({ page = false }: { page?: boolean }) {
     </a>
     <nav aria-label="Primary navigation">
       <a href="/#incident">Product</a>
-      <a href="/#method">Methodology</a>
+      <a href="/methodology">Methodology</a>
       <a href="/docs">Docs</a>
     </nav>
     <a className="valtide-hero__nav-action" href="/?view=console">Open console <span aria-hidden="true">↗</span></a>

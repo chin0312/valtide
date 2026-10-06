@@ -32,6 +32,7 @@ import { filterDemoResults, filterHistoricalResults, filterOperationalResults, o
 import { ObservationAudit } from "./components/ObservationAudit";
 import { LandingPage } from "./components/LandingPage";
 import { DocsPage } from "./components/DocsPage";
+import { MethodologyPage } from "./components/MethodologyPage";
 import { LogoMotionPrototype } from "./components/LogoMotionPrototype";
 import { AnimatedValtideLogo } from "./components/AnimatedValtideLogo";
 import { InstrumentPassport } from "./components/InstrumentPassport";
@@ -52,11 +53,14 @@ export default function App() {
       ? "Valtide — Validation Console"
       : path === "/docs" || path.startsWith("/docs/")
         ? "Valtide Docs — Collateral Validation Evidence"
+        : path === "/methodology" || path.startsWith("/methodology/")
+          ? "Valtide Methodology — Collateral Validation Evidence"
         : "Valtide — Independent Collateral Validation";
   }, [path, showConsole, showLogoPrototype]);
   if (showLogoPrototype) return <LogoMotionPrototype />;
   if (showConsole) return <ValidationConsole />;
   if (path === "/docs" || path.startsWith("/docs/")) return <DocsPage />;
+  if (path === "/methodology" || path.startsWith("/methodology/")) return <MethodologyPage />;
   return <LandingPage />;
 }
 
@@ -209,10 +213,7 @@ function ValidationConsole() {
 
         <div className="grid gap-4 md:grid-cols-2">
           <EvidenceCard result={current} />
-          <details className="rounded-[10px]" style={{ background: "var(--color-panel)", border: "1px solid var(--color-line-subtle)" }}>
-            <summary className="cursor-pointer px-5 py-3 text-sm font-medium text-ink">Advanced market diagnostics</summary>
-            <div className="border-t p-3" style={{ borderColor: "var(--color-line-subtle)" }}><BasisCard result={current} /></div>
-          </details>
+          <BasisCard result={current} />
         </div>
 
         <ObservationRecord results={results} currentIndex={currentIndex} sourceLabelText={source} />
