@@ -211,7 +211,7 @@ function ValidationConsole() {
             rangeControl={<RangeControls context={context} range={activeRange} onChange={(value) => { if (context === "Operational") setRange(value as OperationalRange); else if (context === "Historical") setHistoricalRange(value as HistoricalRange); else setDemoRange(value as DemoRange); }} />}
           />
           <div className="flex min-w-0 flex-col gap-4">
-            <ReferenceComparison r={current} />
+            <ReferenceComparison r={current} domainResults={results} />
             <PolicyCard
               state={current.evidence_state}
               action={policyAction}
