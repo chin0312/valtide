@@ -99,6 +99,17 @@ independent-observation comparison; the X-Perp/index is separate market
 evidence. `GET /api/history/{asset}` remains limited to successful warmed
 scheduler results, not historical replay or scenario data.
 
+The current `ValuationResult` also retains xStock, P1a-C, and X-Perp/index
+pairwise diagnostics explicitly. These diagnostics do not alter Evidence State:
+the xStock-versus-model and xStock-versus-X-Perp differences are descriptive.
+For the currently registered X-Perp/index comparator, Evidence State now
+abstains as `INCONCLUSIVE` with `XPERP_RESIDUAL_CALIBRATION_UNVERIFIED`: the
+existing P1a-C predictive uncertainty is calibrated for its underlying target,
+not for X-Perp residuals. A research-backed validation rule that jointly
+interprets xStock, the model-based challenger, and the separately sourced
+X-Perp/index remains a product/quant follow-up. Because P1a assimilates the
+current xStock input, xStock-versus-P1a-C is not an independent-observation test.
+
 ## Layout
 
 ```text

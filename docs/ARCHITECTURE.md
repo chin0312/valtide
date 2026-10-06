@@ -2,12 +2,10 @@
 
 **Status:** Public architecture reference
 
-Valtide is a validation and control layer for tokenized-equity collateral. It
-combines the observed xStock input, a model-based P1a-C challenger, the
-corresponding underlying, and separately sourced X-Perp/index evidence to
-produce a backend-owned Evidence State. P1a assimilates the current xStock
-observation, so xStock-versus-challenger is not a comparison of independent
-observations and disagreement does not prove which price is correct.
+Valtide is an independent validation and control layer for tokenized-equity
+collateral. It compares a reference under test with a challenger estimate and
+independent market evidence, produces a backend-owned Evidence State, and
+makes that state available to curator-owned policy controls on X Layer.
 
 The system is deliberately split across two planes:
 
@@ -25,32 +23,33 @@ The quantitative model remains offchain. Contracts do not calculate fair value,
 recompute intervals, determine Evidence State, set universal LTVs, custody
 assets, or liquidate positions.
 
-The public product catalog exposes NVDAx, SPYx, QQQx, and AAPLx through one
-asset-aware pipeline. Each has a pinned Solana token identity, corresponding
-underlying and OKX index instrument, and an asset-specific P1a-C bundle. The
-three newer bundles were exported from checksum-verified frozen handoff fits;
-their declared training-dataset bindings match the committed manifest, though
-the original panel bytes were not available for independent hash recomputation.
-All four were exercised against a separate, locally collected 2026-09-21 through
-2026-10-05 provider-history window. This short retrospective check is diagnostic,
-not proof of production readiness or prospective performance. The collected
-panels are not committed or provisioned to a persistent production volume, and
-the multi-asset schedulers have not been activated in a production service.
-Only NVDAx has an X Layer deployment. TSLAx remains hidden. See
-[`docs/ASSET_INTEGRATION_FOUNDATION.md`](ASSET_INTEGRATION_FOUNDATION.md) and
-`quant/data_manifest/fresh_validation_20261005.json` for exact evidence and
-limitations.
+The only currently operational product path is NVDAx with:
+
+- OKX OnchainOS tokenized-market observations;
+- trusted underlying NVDA observations from the configured equity adapter;
+- OKX X-Perp as the reference under test in the live path;
+- the packaged P1a-C challenger runtime;
+- backend validation and reason codes; and
+- the deployed X Layer Registry, RiskGuard, and DemoCollateralVault.
+
+The API asset catalog also lists SPYx, QQQx, and AAPLx so the Console can select
+their identities and report readiness without substituting NVDAx data. They do
+not yet have verified Solana-matched P1a-C bundles or canonical historical
+panels, so they are not operational or historically ready. TSLAx remains hidden
+as a research candidate. See
+[`docs/ASSET_INTEGRATION_FOUNDATION.md`](ASSET_INTEGRATION_FOUNDATION.md) for
+the evidence and promotion gates.
 
 ## 2. As-Built System Flow
 
 ```mermaid
 flowchart TB
     subgraph OFFCHAIN["Offchain Validation Plane"]
-        OKX[OKX OnchainOS / selected Solana xStock]
-        UNDERLYING[Corresponding underlying adapter]
-        REF[Asset-matched OKX X-Perp/index evidence]
+        OKX[OKX OnchainOS / NVDAx]
+        UNDERLYING[Trusted NVDA adapter]
+        REF[OKX X-Perp reference under test]
         NORMALIZE[Snapshot normalization]
-        QUANT[Asset-specific P1a-C QuantService]
+        QUANT[P1a-C QuantService]
         VALIDATE[Backend Validation Engine]
         STORE[SQLite warmed runtime]
         API[FastAPI API]
@@ -120,7 +119,7 @@ between:
 ```text
 challenger estimate
 reference under test
-separately sourced market evidence
+independent evidence
 Evidence State
 ```
 

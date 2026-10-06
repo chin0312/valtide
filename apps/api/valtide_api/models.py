@@ -79,6 +79,14 @@ class MarketSnapshot(BaseModel):
     reference_under_test_ts: datetime | None = None
     reference_under_test_age_seconds: int | None = None
 
+    # Preserve the separately sourced OKX X-Perp/index as an explicit evidence
+    # component. ``reference_under_test`` remains the compatibility comparator
+    # consumed by today's Evidence State rules; these fields do not silently
+    # broaden those rules or imply a calibrated three-source decision.
+    xperp_index_price: float | None = None
+    xperp_index_source: str | None = None
+    xperp_index_ts: datetime | None = None
+
     market_state: MarketState
 
     # P0: kept at 1.0; validation flags only a gross token/underlying unit mismatch
@@ -151,6 +159,17 @@ class ValuationResult(BaseModel):
     reference_under_test_age_seconds: int | None = None
     reference_deviation_pct: float | None
     standardized_deviation: float | None  # log-space z-score
+
+    # Explicit pairwise diagnostics. They are descriptive quantities only and
+    # are not additional threshold inputs to Evidence State.
+    xperp_index_price: float | None = None
+    xperp_index_source: str | None = None
+    xperp_index_ts: datetime | None = None
+    xstock_vs_p1ac_deviation_pct: float | None = None
+    xperp_vs_p1ac_deviation_pct: float | None = None
+    xstock_vs_xperp_deviation_pct: float | None = None
+    xperp_deviation_scaled_by_model_predictive_sd: float | None = None
+    evidence_state_basis: str = "selected_reference_under_test"
 
     evidence_state: EvidenceState
     reason_codes: list[str] = Field(default_factory=list)

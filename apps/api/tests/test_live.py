@@ -75,6 +75,9 @@ def test_build_live_snapshot_uses_confirmed_reference_candle(monkeypatch):
     assert snap.reference_under_test == 190.0
     assert snap.reference_under_test_source == "okx_xperp_index"
     assert snap.reference_under_test_ts == observation_ts
+    assert snap.xperp_index_price == 190.0
+    assert snap.xperp_index_source == "okx_xperp_index"
+    assert snap.xperp_index_ts == observation_ts
     # The confirmed candle opens at the valued bar, so its age is always zero.
     assert snap.reference_under_test_age_seconds == 0
     assert snap.last_trusted_reference == 180.0

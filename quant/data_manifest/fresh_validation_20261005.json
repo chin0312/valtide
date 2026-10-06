@@ -27,6 +27,13 @@
     "directory": null,
     "warning": "A panel hash is verifiable only while the corresponding local CSV bytes remain available. No persistent production panel has been provisioned."
   },
+  "reproduction": {
+    "status": "replayed from available local panel bytes on 2026-10-06",
+    "script": "quant/tools/evaluate_fresh_panels.py",
+    "command_contract": "one --panel ASSET=CSV argument for each registered primary asset; output JSON is deterministic for identical panel bytes and artifacts",
+    "verification": "All four current panel SHA-256 values, row counts, dollar MAE/RMSE, 90% interval coverage/width/score, Evidence State counts, and pairwise diagnostics were recomputed through the backend panel loader and chronological P1a-C replay.",
+    "limitation": "The files remain local temporary inputs; no persistence or production Historical readiness is implied."
+  },
   "assets": {
     "NVDAx": {
       "chain_index": "501",
@@ -56,9 +63,12 @@
         "mean_interval_score_90": 1.1748860046078362
       },
       "evidence_state_counts": {
-        "SUPPORTED": 3777,
-        "INCONCLUSIVE": 310,
-        "CHALLENGED": 23
+        "INCONCLUSIVE": 4110
+      },
+      "reason_code_counts": {
+        "CALIBRATION_GLOBAL_FALLBACK": 2190,
+        "TOKEN_AND_CHALLENGER_AGREE": 4109,
+        "XPERP_RESIDUAL_CALIBRATION_UNVERIFIED": 4110
       },
       "mean_signed_deviation": {
         "xstock_minus_challenger": 0.003546686428043969,
@@ -98,9 +108,12 @@
         "mean_interval_score_90": 2.4482816252661896
       },
       "evidence_state_counts": {
-        "SUPPORTED": 2645,
-        "INCONCLUSIVE": 816,
-        "CHALLENGED": 649
+        "INCONCLUSIVE": 4110
+      },
+      "reason_code_counts": {
+        "CALIBRATION_GLOBAL_FALLBACK": 2190,
+        "TOKEN_AND_CHALLENGER_AGREE": 4078,
+        "XPERP_RESIDUAL_CALIBRATION_UNVERIFIED": 4110
       },
       "mean_signed_deviation": {
         "xstock_minus_challenger": -0.08095269781659604,
@@ -140,9 +153,13 @@
         "mean_interval_score_90": 3.252834516740529
       },
       "evidence_state_counts": {
-        "SUPPORTED": 3434,
-        "INCONCLUSIVE": 612,
-        "CHALLENGED": 64
+        "INCONCLUSIVE": 4110
+      },
+      "reason_code_counts": {
+        "CALIBRATION_GLOBAL_FALLBACK": 2190,
+        "TOKEN_AND_CHALLENGER_AGREE": 4002,
+        "TOKEN_DATA_UNAVAILABLE": 42,
+        "XPERP_RESIDUAL_CALIBRATION_UNVERIFIED": 4110
       },
       "mean_signed_deviation": {
         "xstock_minus_challenger": 0.2117516872160867,
@@ -154,7 +171,25 @@
         "underlying": 3182,
         "reference": 0
       },
-      "model_risk_note": "Frozen P1a fit converged but r_nvdax is at the upper optimization bound in all sessions; preserved unchanged."
+      "model_risk_review": {
+        "decision": "QQQ_MODEL_ACCEPTED_WITH_DISCLOSED_BOUNDARY_RISK",
+        "optimizer_convergence": 0,
+        "log_token_measurement_variance_bound": -1,
+        "fitted_token_measurement_variance": 0.36787944117144233,
+        "boundary_hit_all_sessions": true,
+        "interpretation": "The frozen constrained fit is finite, positive, and numerically stable, but its token measurement variance is vastly larger than its process variance. The scalar Kalman update therefore gives the xStock token observation very little weight; this is a weak-challenger limitation, not evidence that the filter is unstable. Fresh diagnostic-period MAE/RMSE are worse than raw xStock, so do not present QQQx as a superior point estimate.",
+        "fresh_model_mae": 0.4717856296054207,
+        "fresh_raw_xstock_mae": 0.38466731561865736,
+        "fresh_model_rmse": 0.7431029006860862,
+        "fresh_raw_xstock_rmse": 0.6941470238620964,
+        "fresh_token_observation_count": 4068,
+        "fresh_mean_token_kalman_gain": 0.00005655423313982031,
+        "fresh_median_token_kalman_gain": 0.000050217239392497115,
+        "fresh_max_token_kalman_gain": 0.0002271669935848502,
+        "interval_coverage": 0.9601293103448276,
+        "mean_interval_width": 2.868187362643902,
+        "limitation": "Retrospective short-period diagnostics only; not a production-quality or prospective promotion verdict."
+      }
     },
     "AAPLx": {
       "chain_index": "501",
@@ -183,9 +218,12 @@
         "mean_interval_score_90": 1.9198458503531255
       },
       "evidence_state_counts": {
-        "SUPPORTED": 3042,
-        "INCONCLUSIVE": 997,
-        "CHALLENGED": 71
+        "INCONCLUSIVE": 4110
+      },
+      "reason_code_counts": {
+        "TOKEN_AND_CHALLENGER_AGREE": 4061,
+        "TOKEN_DATA_UNAVAILABLE": 49,
+        "XPERP_RESIDUAL_CALIBRATION_UNVERIFIED": 4110
       },
       "mean_signed_deviation": {
         "xstock_minus_challenger": -0.014829067053643558,
@@ -204,6 +242,7 @@
     "Metrics score only contemporaneous underlying-observable rows and are descriptive, retrospective diagnostics.",
     "No tuning or recalibration was performed on this period; it is out of the frozen model training cutoff but is not a prospectively observed trial.",
     "P1a assimilates the same xStock input being compared with its challenger; this is model-based challenger evidence, not an independent-observation test.",
-    "The original handoff training CSV bytes are unavailable; source_training_dataset_sha256 is the declared fit binding and was not independently recomputed."
+    "The original handoff training CSV bytes are unavailable; source_training_dataset_sha256 is the declared fit binding and was not independently recomputed.",
+    "X-Perp residual uncertainty has not been calibrated by this P1a-C training/calibration process, so the backend conservatively reports INCONCLUSIVE rather than reusing underlying-target predictive uncertainty as a venue-specific test."
   ]
 }

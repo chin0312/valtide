@@ -345,32 +345,32 @@ def test_golden_nvdax_quant_to_runtime_boundary_remains_p1ac():
     assert payload["observedAt"] == int(snapshot.observation_ts.timestamp())
 
 
-# Frozen from the accepted P1a-C 0.2.0 artifact and backend validation on the
-# deterministic four-step sequence below, before this dispatch refactor.
-# Literal values intentionally protect causal token-first / underlying-after
-# ordering and Evidence State decisions; they are never computed from a second
-# invocation of the runtime as an oracle.
+# Frozen from the accepted P1a-C 0.2.0 artifact on the deterministic four-step
+# sequence below. Literal quant values protect causal token-first / underlying-
+# after ordering; X-Perp Evidence State is the current conservative abstention
+# because its target-specific residual calibration is unavailable.
 _GOLDEN_STEPS = [
     (120.3042612160223, 120.09579726009031, 120.51308702658963,
      4.790024043932874, 7.594589496003624e-07, 4.790024043932874,
      7.594589496003624e-07, 0.0012894491675961993, "INCONCLUSIVE",
-     ["CALIBRATION_GLOBAL_FALLBACK", "TOKEN_AND_CHALLENGER_AGREE"],
-     0.16270311791053427, 1.2607778877130742),
+     ["XPERP_RESIDUAL_CALIBRATION_UNVERIFIED", "CALIBRATION_GLOBAL_FALLBACK",
+      "TOKEN_AND_CHALLENGER_AGREE"],
+     0.16270311791053427, None, 1.2607778877130742),
     (120.77006066778506, 120.56538715557272, 120.97508163665631,
      4.793888412628675, 6.871443270832543e-07, 4.794710261865752,
-     3.9025181196678715e-07, 0.0012610965598626551, "CHALLENGED",
-     ["REFERENCE_UNDER_TEST_OUTSIDE_INTERVAL", "CALIBRATION_GLOBAL_FALLBACK"],
-     3.502473468031675, 27.297929254026027),
+     3.9025181196678715e-07, 0.0012610965598626551, "INCONCLUSIVE",
+     ["XPERP_RESIDUAL_CALIBRATION_UNVERIFIED", "CALIBRATION_GLOBAL_FALLBACK"],
+     3.502473468031675, None, 27.297929254026027),
     (120.86935624741585, 120.6715292493172, 121.06750755996896,
      4.794710261865752, 5.799993071374501e-07, 4.794710261865752,
      5.799993071374501e-07, 0.0012178749990666609, "INCONCLUSIVE",
-     ["TOKEN_DATA_UNAVAILABLE", "REFERENCE_UNDER_TEST_OUTSIDE_INTERVAL",
-      "CALIBRATION_GLOBAL_FALLBACK"], 2.5901054243854915, 20.99665709443221),
+     ["TOKEN_DATA_UNAVAILABLE", "XPERP_RESIDUAL_CALIBRATION_UNVERIFIED",
+      "CALIBRATION_GLOBAL_FALLBACK"], 2.5901054243854915, None, 20.99665709443221),
     (120.78200566266659, 120.58379501185405, 120.98054212394223,
      4.793987314658972, 5.879187755101473e-07, 4.788126881881963,
-     3.561171186333003e-07, 0.0012211220175413742, "CHALLENGED",
-     ["REFERENCE_UNDER_TEST_OUTSIDE_INTERVAL", "CALIBRATION_GLOBAL_FALLBACK",
-      "TOKEN_AND_CHALLENGER_AGREE"], -1.0614210747974528, -8.738638018247864),
+     3.561171186333003e-07, 0.0012211220175413742, "INCONCLUSIVE",
+     ["XPERP_RESIDUAL_CALIBRATION_UNVERIFIED", "CALIBRATION_GLOBAL_FALLBACK",
+      "TOKEN_AND_CHALLENGER_AGREE"], -1.0614210747974528, None, -8.738638018247864),
 ]
 
 
@@ -415,6 +415,7 @@ def test_frozen_nvdax_numerical_causal_sequence_and_publication_identity():
             value.state_P_after_nvda, value.reference_predictive_sd_log,
             final_result.evidence_state.value, final_result.reason_codes,
             final_result.reference_deviation_pct, final_result.standardized_deviation,
+            final_result.xperp_deviation_scaled_by_model_predictive_sd,
         )
         for got, want in zip(actual, expected, strict=True):
             if isinstance(want, float):

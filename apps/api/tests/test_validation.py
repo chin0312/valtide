@@ -7,6 +7,8 @@ each Evidence State and override path.
 import math
 from datetime import UTC, datetime
 
+import pytest
+
 from valtide_api.models import ChallengerEstimate, EvidenceState, MarketSnapshot, MarketState
 from valtide_api.validation import Thresholds, validate
 
@@ -41,7 +43,7 @@ def _snapshot(reference_under_test: float | None, **overrides) -> MarketSnapshot
         last_trusted_reference_ts=datetime(2026, 9, 19, 20, 0, tzinfo=UTC),
         reference_age_seconds=64_800,
         reference_under_test=reference_under_test,
-        reference_under_test_source="okx_xperp_index",
+        reference_under_test_source="calibrated_reference_fixture",
         market_state=MarketState.CLOSED,
     )
     base.update(overrides)
@@ -114,6 +116,39 @@ def test_derived_quantities():
     assert round(result.observed_token_move_pct, 2) == 2.83
     # reference deviation = 190/185.70 - 1 = +2.316%
     assert round(result.reference_deviation_pct, 2) == 2.32
+
+
+def test_xstock_and_xperp_are_explicit_pairwise_evidence_not_a_new_state_rule():
+    snapshot = _snapshot(
+        190.0,
+        reference_under_test_source="okx_xperp_index",
+        xperp_index_price=190.0,
+        xperp_index_source="okx_xperp_index",
+        xperp_index_ts=datetime(2026, 9, 20, 14, 0, tzinfo=UTC),
+    )
+
+    result = validate(snapshot, _estimate())
+
+    assert result.xperp_index_price == 190.0
+    assert result.xperp_index_source == "okx_xperp_index"
+    assert result.xstock_vs_p1ac_deviation_pct == pytest.approx(
+        (185.10 / 185.70 - 1) * 100
+    )
+    assert result.xperp_vs_p1ac_deviation_pct == pytest.approx(
+        (190.0 / 185.70 - 1) * 100
+    )
+    assert result.xstock_vs_xperp_deviation_pct == pytest.approx(
+        (185.10 / 190.0 - 1) * 100
+    )
+    # No X-Perp-specific residual calibration exists. Pairwise values remain
+    # descriptive and the backend abstains rather than applying unrelated gates.
+    assert result.evidence_state == EvidenceState.INCONCLUSIVE
+    assert result.standardized_deviation is None
+    assert result.xperp_deviation_scaled_by_model_predictive_sd is not None
+    assert "XPERP_RESIDUAL_CALIBRATION_UNVERIFIED" in result.reason_codes
+    assert result.evidence_state_basis == (
+        "xperp_residual_calibration_unverified"
+    )
 
 
 def test_custom_thresholds_respected():

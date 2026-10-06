@@ -1,37 +1,27 @@
 # Asset Integration Foundation
 
-This note describes the four-asset runtime foundation and its current evidence
-limits. NVDAx, SPYx, QQQx, and AAPLx have explicit Solana identities and
-asset-specific P1a-C runtime bundles. Only NVDAx has an X Layer binding. A
-loaded model artifact is not, by itself, evidence that a fresh historical panel
-or production operational path is ready.
+This note describes the current multi-asset integration seams and their
+readiness limits. Four primary asset identities are visible in the API catalog,
+but only NVDAx has a complete runtime bundle and deployed control-plane binding.
+Catalog visibility is not operational or historical readiness.
 
 ## Current state
 
 `apps/api/valtide_api/assets.py` is the canonical application asset registry.
 The public catalog contains `NVDAx`, `SPYx`, `QQQx`, and `AAPLx`; `TSLAx` is a
-registered but hidden candidate. Each primary entry has separate live-data,
-historical, quant, warmed-runtime, onchain, and API-exposure capabilities. The
-three non-NVDAx quant bundles were exported from James's frozen RDS fits and
-their matching P1a-C calibrators after checksum and dataset-binding checks;
-the R/Python sequential parity fixture passes. The original Solana source CSVs
-were not in the private handoff, so their declared dataset hashes have not been
-independently recomputed. On 2026-10-05, the configured OKX OnchainOS, Alpaca,
-and OKX index adapters each returned a successful exact-identity live tick for
-all four assets, and 2026-09-21 through 2026-10-05 canonical panels were
-collected and replayed locally. These checks are retrospective/local; panel CSVs
-remain outside Git and are not provisioned on persistent production storage.
-They do not establish sustained scheduler operation or production readiness.
-Only NVDAx has an X Layer deployment. Selecting an asset never substitutes
-another asset's prices, model, panel, or onchain state. Exact panel SHA-256s and
-observed counts are recorded in
-`quant/data_manifest/fresh_validation_20261005.json`.
+registered but hidden candidate. Each entry has separate live-data, historical,
+quant, warmed-runtime, onchain, and API-exposure capabilities. The three new
+primary entries have pinned Solana token identities and adapter configuration,
+but remain unavailable for valuation/replay because no verified compatible
+P1a-C runtime or matching canonical historical panel is present. Only NVDAx is
+currently runtime-ready and deployed on X Layer. Selecting a catalog asset
+never substitutes another asset's prices, model, panel, or onchain state.
 
 The existing NVDAx behavior remains:
 
 ```text
-OKX OnchainOS Solana xStock + Alpaca underlying + matching OKX X-Perp/index
-    -> asset-specific packaged P1a-C runtime
+OKX OnchainOS NVDAx + Alpaca NVDA + OKX X-Perp NVDA-USD
+    -> packaged P1a-C runtime
     -> backend validation
     -> warmed SQLite runtime/history
     -> existing X Layer control-plane binding
@@ -68,15 +58,18 @@ remain accepted only when they match its registered pin. Production dispatch
 does not discover or select another chain by volume. Future assets must pin a
 deployment.
 
-`market_sources.py` dispatches each configured underlying and separate OKX
-X-Perp/index instrument for live and historical reads. All four current product
-assets use one evidence identity. The Solana xStock observation is assimilated
-by P1a before the model-based challenger estimate is emitted; it is therefore
-not an independent second market observation. The separately sourced
-X-Perp/index is retained as distinct market evidence. Disagreement does not
-prove which price is correct. Prior NVDAx generations retain their original
-profile identity for audit and are not relabeled. The scheduler retries only
-absence of the exact confirmed token candle at the same canonical timestamp.
+`market_sources.py` dispatches the underlying symbol and reference instrument
+for live and historical reads. The adapters are Alpaca and the public OKX
+X-Perp index. `live.py` obtains the exact confirmed token candle through the
+generic `token_market` boundary and assembles an asset-scoped snapshot. NVDAx
+retains its explicit `legacy_xperp_vs_p1ac` profile. The four-asset catalog
+declares `xstock_vs_p1ac_challenger`: the observed token is compared with a
+challenger that has already assimilated that same token input, so the comparison
+is model-based challenger evidence, not two fully independent observations;
+disagreement alone does not identify a correct price. The separate NVDAx
+`legacy_xperp_vs_p1ac` profile's historical Evidence States are not comparable
+with states from the xStock profile. The scheduler retries only absence of the
+exact confirmed token candle at the same canonical timestamp.
 
 New panels use asset-neutral columns (`token_close`, `underlying_close`,
 availability, volumes, exact timestamps, trusted anchor, and reference under
@@ -108,20 +101,17 @@ operational product capability.
 
 ## Current four-asset blocker
 
-The handoff's five-asset manifest declares Solana `chainIndex=501` dataset
-identities and hashes; the original canonical panels and metadata are absent
-from the private ZIP and Git. Its `TBD_SHARED_STORAGE/valtide/2026-10-01/{asset}/`
-locations remain external dependencies. The three supplied frozen model fits
-and calibrators are hash-bound to those declared dataset hashes, but the source
-CSV bytes are not available for an independent hash recomputation. A separate
-local untracked research tree contained Ethereum (`chainIndex=1`) panels; those
-are not used for model export, fresh validation, replay, or runtime promotion.
-They do not establish which chain James used for the handoff research.
-
-QQQx's frozen fit reports convergence, but its token measurement log-variance
-is at the optimizer's upper bound for all sessions. The artifact is preserved
-unchanged and its fresh-period behavior must be reviewed; no fitting or
-threshold change is inferred from the bound.
+The research handoff's five-asset dataset manifest identifies Solana
+`chainIndex=501` datasets and records their hashes, but the canonical panels and
+metadata are not in Git and their shared-storage locations are still
+`TBD_SHARED_STORAGE/...`. A local untracked research tree was inspected but its
+v3 panels identify Ethereum (`chainIndex=1`) deployments and different token
+addresses; they cannot be used as the Solana production panels. Per-asset
+research parameter files/calibrators tied to those inputs therefore do not
+constitute verified bundles for the pinned Solana identities. No SPYx, QQQx, or
+AAPLx P1a-C runtime has been registered. This PR exposes the identities and
+fail-closed readiness surfaces; it does not claim the four-asset operational
+or historical acceptance gate is met.
 
 ## Future promotion checklist
 
@@ -147,7 +137,7 @@ A future asset requires an explicit review and green evidence for each step:
 11. Isolation, numerical regression, and control-plane tests pass.
 12. API exposure and frontend activation occur as separate reviewed steps.
 
-Research files or an artifact alone do not make an asset operational. The
-Console selector exposes the four primary identities and per-asset readiness;
-the three new X Layer bindings remain unconfigured, and fresh live/history
-evidence is required before the four-asset acceptance gate can be claimed.
+Research files or a local panel do not make an asset operational. The Console
+selector exposes the four catalog identities and their readiness status, but
+no additional runtime, quant artifact, X Layer binding, or live-result path is
+activated here.

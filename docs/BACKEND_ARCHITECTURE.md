@@ -49,20 +49,20 @@ row with no token observation is retained as `token_price=None`; the quant state
 advances without a fabricated measurement and backend validation returns
 `INCONCLUSIVE` with `TOKEN_DATA_UNAVAILABLE`.
 
-## 3. Unified reference and evidence semantics
+## 3. Reference-under-test semantics
 
-Current asset selection does not select a reference profile. Each observation
-uses its pinned Solana xStock candle as the token/model input, the corresponding
-underlying as the configured measurement/anchor, and the asset's separate OKX
-X-Perp/index observation as market evidence when available. P1a assimilates the
-xStock observation before emitting the challenger estimate, so the token and
-challenger are not two fully independent market observations. The X-Perp/index
-is a separate market-evidence source; disagreement does not prove which price
-is correct. New rows use the unified evidence identity and retain source
-provenance. Historical rows from the prior NVDAx reference generation retain
-their stored identity for audit and must not be silently relabeled or mixed into
-the current generation. Missing configured reference data is never replaced by
-another asset or by xStock.
+The reference under test is an explicitly named profile, not a fallback slot.
+NVDAx retains the legacy `legacy_xperp_vs_p1ac` profile using the confirmed
+OKX X-Perp index. The four-asset catalog declares
+`xstock_vs_p1ac_challenger`, where the observed token candle is compared with a
+P1a challenger that has already assimilated that same token observation. This
+should be described as **model-based challenger evidence**, not as two fully
+independent observations. Disagreement is not proof of which price is correct.
+The separate NVDAx `legacy_xperp_vs_p1ac` identity compares against the OKX
+X-Perp index and must not be blended with xStock-profile historical Evidence
+States. Each result carries its `reference_profile` and source provenance. A
+missing configured reference is not replaced with another asset or another
+source.
 
 Historical replay may explicitly use `stale_nvda` or a scenario reference; the
 identity is then part of the snapshot and is valid for that replay.
@@ -160,12 +160,10 @@ and `502` for a chain, transaction, or read-back failure.
 - Historical-panel backtests report metrics only for rows with a real
   contemporaneous underlying observation. Scenario backtests report evidence
   counts only and deliberately keep empirical metrics null.
-- The canonical live token input is the exact confirmed OKX OnchainOS Solana
-  candle for the selected asset at the settled five-minute observation.
-  DexScreener is not a fallback. All four assets use one evidence structure with
-  their matched underlying and separate OKX X-Perp/index evidence. P1a
-  assimilates xStock before emitting its model-based challenger, so these are
-  not independent market observations. Only NVDAx has an X Layer binding.
+- The canonical live token input is the exact confirmed OKX OnchainOS candle
+  for the selected asset at the settled five-minute observation. DexScreener is
+  not a fallback. NVDAx remains on its original X-Perp profile; the other
+  catalog assets use the explicitly labelled xStock-versus-challenger profile.
 - Operational history is the chronological sequence of successful warmed
   scheduler validations. It is distinct from scenario replay and historical
   backtest metrics.
@@ -189,16 +187,11 @@ and `502` for a chain, transaction, or read-back failure.
 Asset identity and public catalog exposure are registry-backed. The API
 catalog lists `NVDAx`, `SPYx`, `QQQx`, and `AAPLx`; `TSLAx` remains a hidden
 candidate. `/api/assets` reports live, quant, historical, scheduler, and
-onchain readiness independently. All four catalog assets have pinned Solana
-identities and asset-specific verified P1a-C bundles. A separate
-2026-09-21–2026-10-05 provider-history window was collected and replayed locally
-for each; its short retrospective metrics are diagnostic only. The source
-training-panel bytes for the three imported fits were not supplied for
-independent SHA recomputation, and the new panels are not committed or
-provisioned to persistent production storage. Thus this repo revision supports
-four-asset inference and local historical replay, but does not establish a
-production-warmed four-asset deployment. Only NVDAx has an X Layer binding.
-Legacy single-worker
+onchain readiness independently. Only NVDAx currently has a complete
+registered P1a-C runtime and X Layer binding. SPYx/QQQx/AAPLx have pinned
+Solana token identities and source-adapter seams but no verified compatible
+P1a-C bundles or matching restored canonical panels, so valuation/replay do
+not fabricate results or fall back to NVDAx. Legacy single-worker
 `LIVE_SCHEDULER_ASSET` configuration remains supported; an explicit
 `LIVE_SCHEDULER_ASSETS` list may select multiple independently ready workers.
 Unready known assets are not started. Unknown assets and cross-asset identities

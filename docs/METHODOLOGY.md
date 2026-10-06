@@ -10,16 +10,16 @@ Valtide is designed to validate tokenized-equity collateral valuations using an 
 The methodology has two layers:
 
 1. **Challenger valuation** — estimate a latent current equity value and uncertainty using point-in-time market information;
-2. **Reference validation** — test whether the reference under test is consistent with the model-based challenger and other evidence, while recording source dependence explicitly.
+2. **Reference validation** — test whether the reference under test is consistent with the challenger estimate and other evidence, with source dependence declared by the active reference profile.
 
-The current four-asset pipeline uses the pinned Solana xStock candle as a token
-and model input, the corresponding underlying, and a separate OKX X-Perp/index
-observation as market evidence where available. P1a assimilates the same
-xStock observation before emitting its estimate, so xStock and the challenger
-are not two fully independent market observations. The X-Perp/index is a
-separate market-evidence source. Disagreement structures review but does not
-prove which price is correct. Earlier NVDAx generations retain their stored
-reference identity for audit and are not silently mixed with current rows.
+The reference under test is the explicit price or valuation methodology
+Valtide evaluates. For the deployed NVDAx vertical slice, the live reference
+under test is the separate OKX X-Perp NVDA index. The
+`xstock_vs_p1ac_challenger` profile instead compares the observed xStock price
+with model-based challenger evidence after P1a has assimilated that same token
+observation. That profile is not a comparison of two fully independent
+observations and does not prove which price is correct. Evidence and historical
+results must remain identified by their reference profile.
 
 The product is therefore not asking only:
 
@@ -27,7 +27,7 @@ The product is therefore not asking only:
 
 It is asking:
 
-> **“Is the price methodology currently used for collateral valuation supported by the evidence available for the selected asset?”**
+> **“Is the price methodology currently used for collateral valuation supported by the evidence available under its declared reference profile?”**
 
 This is a nowcasting and model-validation problem, not a long-horizon equity forecast.
 
@@ -39,7 +39,7 @@ This is a nowcasting and model-validation problem, not a long-horizon equity for
 
 For an observation timestamp `t` during a closed, fragmented or lower-quality market period:
 
-> **Is the reference under test supported by the evidence available for the selected asset?**
+> **Is the reference under test supported by the evidence available under its declared profile?**
 
 In the primary real-world workflow, the reference under test is the production collateral reference.
 
@@ -228,11 +228,10 @@ Subject to point-in-time availability:
 
 ## 7. Independence Policy
 
-The current challenger is model-based evidence that assimilates the same
-timestamp's xStock input; it is not an independent second token-market
-observation. OKX X-Perp/index is separately sourced market evidence. Historical
-legacy labels identify old persisted semantics only and are not user-selectable
-current product modes.
+The challenger model's independence is profile-specific. It is separate from
+the legacy NVDAx OKX X-Perp reference inputs, while the xStock comparison uses
+the same xStock observation as a P1a input and must be described as
+model-based challenger evidence rather than an independent-source test.
 
 ### 7.1 Core benchmark model
 
@@ -255,7 +254,7 @@ After `Ft` is produced, Valtide may compare:
 
 ### 7.3 Augmented experiments
 
-A second experimental model may use Pyth or OKX as a feature, but it must be labeled separately and must not be presented as the current asset-specific P1a challenger.
+A second experimental model may use Pyth or OKX as a feature, but it must be labeled separately and must not be presented as the independent challenger model.
 
 ---
 
@@ -365,7 +364,7 @@ Do not automatically call it:
 
 It means only:
 
-> **the tokenized market is trading above or below the model-based challenger estimate by this amount.**
+> **the tokenized market is trading above or below the independent challenger estimate by this amount.**
 
 ---
 
@@ -379,7 +378,7 @@ Let `Pt` be the reference under test being validated. In the primary product use
 referenceDeviation = Pt / Ft - 1
 ```
 
-This shows the difference between the reference-under-test valuation and the model-based challenger center.
+This shows the difference between the reference-under-test valuation and the independent challenger center.
 
 ### 11.2 Standardized deviation
 
@@ -452,7 +451,7 @@ CHALLENGED
 
 ### SUPPORTED
 
-Available asset-matched evidence under the current shared validation rules does not provide a material reason to challenge the reference under test.
+Available evidence under the declared profile does not provide a material reason to challenge the reference under test.
 
 This does **not** mean that the reference is proven correct.
 
@@ -479,7 +478,7 @@ The ability to abstain is an important property of a credible validation system.
 
 ### CHALLENGED
 
-The reference under test is materially inconsistent with sufficiently strong evidence under the current shared validation rules.
+The reference under test is materially inconsistent with sufficiently strong evidence under the declared profile.
 
 This does **not** mean that the reference is definitely wrong. It means the evidence is strong enough to justify challenge and downstream investigation under a curator-defined policy.
 
@@ -680,7 +679,7 @@ Valtide's core methodology does **not** claim to solve the protocol's entire tra
 
 Instead it quantifies:
 
-- how far production valuation is from separately sourced market evidence,
+- how far production valuation is from independent evidence,
 - how uncertain that evidence is,
 - how similar disagreement behaved historically.
 
@@ -856,7 +855,7 @@ Valtide's methodology can be summarized as:
 ```text
 Point-in-time market data
         ↓
-Asset-specific model-based challenger
+Independent challenger model
         ↓
 Fair value + calibrated uncertainty
         ↓

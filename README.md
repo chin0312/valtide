@@ -20,10 +20,7 @@ reference is closed, delayed, or degraded. During those periods:
 
 The key question is not whether one feed is universally “correct”: it is
 whether the collateral reference a protocol relies on remains supported by
-the available, provenance-labelled market evidence. P1a assimilates the current
-xStock observation before emitting its model-based challenger, so they are not
-independent observations; the asset-matched OKX X-Perp/index is separately
-sourced market evidence where available.
+independent market evidence.
 
 ## What Valtide Does
 
@@ -51,9 +48,9 @@ does not prescribe a universal risk action.
 
 ```mermaid
 flowchart TD
-    A[OKX OnchainOS<br/>selected Solana xStock]
-    B[Corresponding underlying<br/>trusted anchor]
-    C[Asset-matched OKX X-Perp/index<br/>market evidence]
+    A[OKX OnchainOS<br/>NVDAx market data]
+    B[NVDA trusted anchor]
+    C[OKX X-Perp<br/>reference under test]
 
     A --> D[P1a-C Challenger Model]
     B --> D
@@ -146,10 +143,8 @@ is objectively correct.
 
 ## Key Technical Properties
 
-- **Exact operational observations** — asset-aware live paths use confirmed
-  five-minute Solana xStock candles at settled observation timestamps; the
-  current four-asset local smoke is not a claim of sustained production
-  scheduling.
+- **Exact operational observations** — the warmed live runtime uses confirmed
+  five-minute OKX NVDAx candles at settled observation timestamps.
 - **Point-in-time integrity** — historical replay prevents future-information
   leakage and preserves causal trusted anchors.
 - **Explicit abstention** — unavailable, stale, weak, or conflicting evidence

@@ -44,7 +44,8 @@ def validate(
     Missing token or reference observations are explicit abstentions. The quant
     state may still advance on a missing token, but the backend cannot claim
     token agreement or compute a reference deviation without the corresponding
-    observation.
+    observation. X-Perp deviations remain visible, but Evidence State abstains
+    until a target-specific X-Perp residual calibration is supported.
     """
     th = thresholds or Thresholds()
 
@@ -59,8 +60,35 @@ def validate(
 
     reference_deviation: float | None = None
     standardized_deviation: float | None = None
-    inside_interval = False
+    xperp_scaled_deviation: float | None = None
+    evidence_state_basis = (
+        f"selected_reference_under_test:{snapshot.reference_under_test_source}"
+        if reference is not None
+        else "no_comparator_available"
+    )
     reason_codes: list[str] = []
+
+    # Older constructors/persisted snapshots carry X-Perp only in the generic
+    # comparator fields. Keep those records readable while making the distinct
+    # market evidence explicit on new responses.
+    xperp_price = snapshot.xperp_index_price
+    xperp_source = snapshot.xperp_index_source
+    xperp_ts = snapshot.xperp_index_ts
+    if xperp_price is None and snapshot.reference_under_test_source == "okx_xperp_index":
+        xperp_price = reference
+        xperp_source = snapshot.reference_under_test_source
+        xperp_ts = snapshot.reference_under_test_ts
+
+    xperp_vs_p1ac = (
+        (xperp_price / fair - 1) * 100
+        if xperp_price is not None and fair > 0
+        else None
+    )
+    xstock_vs_xperp = (
+        (token / xperp_price - 1) * 100
+        if token is not None and xperp_price is not None and xperp_price > 0
+        else None
+    )
 
     if token is None:
         state = EvidenceState.INCONCLUSIVE
@@ -74,21 +102,30 @@ def validate(
         state = EvidenceState.INCONCLUSIVE
     else:
         reference_deviation = reference / fair - 1
-        standardized_deviation = (
+        model_scaled_deviation = (
             math.log(reference) - estimate.state_m
         ) / estimate.reference_predictive_sd_log
-        inside_interval = estimate.lower_bound <= reference <= estimate.upper_bound
-
-        abs_z = abs(standardized_deviation)
-        if abs_z >= th.z_challenge:
-            state = EvidenceState.CHALLENGED
-        elif abs_z < th.z_support:
-            state = EvidenceState.SUPPORTED
-        else:
+        if snapshot.reference_under_test_source == "okx_xperp_index":
+            # The current P1a-C predictive variance is calibrated for the
+            # underlying target, not for the X-Perp/index residual. Keep the
+            # comparison visible as a scaled diagnostic but do not present it
+            # as a calibrated z-score or use existing thresholds on it.
+            xperp_scaled_deviation = model_scaled_deviation
+            evidence_state_basis = "xperp_residual_calibration_unverified"
             state = EvidenceState.INCONCLUSIVE
-
-        if not inside_interval:
-            reason_codes.append("REFERENCE_UNDER_TEST_OUTSIDE_INTERVAL")
+            reason_codes.append("XPERP_RESIDUAL_CALIBRATION_UNVERIFIED")
+        else:
+            standardized_deviation = model_scaled_deviation
+            inside_interval = estimate.lower_bound <= reference <= estimate.upper_bound
+            abs_z = abs(standardized_deviation)
+            if abs_z >= th.z_challenge:
+                state = EvidenceState.CHALLENGED
+            elif abs_z < th.z_support:
+                state = EvidenceState.SUPPORTED
+            else:
+                state = EvidenceState.INCONCLUSIVE
+            if not inside_interval:
+                reason_codes.append("REFERENCE_UNDER_TEST_OUTSIDE_INTERVAL")
 
     # Data-quality gates are backend validation concerns, not quant outputs.
     if token is None:
@@ -159,6 +196,14 @@ def validate(
             reference_deviation * 100 if reference_deviation is not None else None
         ),
         standardized_deviation=standardized_deviation,
+        xperp_index_price=xperp_price,
+        xperp_index_source=xperp_source,
+        xperp_index_ts=xperp_ts,
+        xstock_vs_p1ac_deviation_pct=residual * 100 if residual is not None else None,
+        xperp_vs_p1ac_deviation_pct=xperp_vs_p1ac,
+        xstock_vs_xperp_deviation_pct=xstock_vs_xperp,
+        xperp_deviation_scaled_by_model_predictive_sd=xperp_scaled_deviation,
+        evidence_state_basis=evidence_state_basis,
         evidence_state=state,
         reason_codes=reason_codes,
         confidence=None,

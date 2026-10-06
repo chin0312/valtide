@@ -270,7 +270,32 @@ def test_generic_panel_loads_offline_against_pinned_deployment(tmp_path, monkeyp
     assert snapshots[0].last_trusted_reference == 180.0
     assert snapshots[0].last_trusted_reference_ts < snapshots[0].observation_ts
     assert snapshots[0].underlying_reference is None
+    assert snapshots[0].xperp_index_price == 180.5
+    assert snapshots[0].xperp_index_source == "okx_xperp_index"
+    assert snapshots[0].xperp_index_ts == snapshots[0].observation_ts
     assert snapshots[0].source_provenance["token_deployment_verified"] == "true"
+
+
+def test_bom_readiness_and_loader_agree_and_nonfinite_prices_fail_closed(tmp_path):
+    settings = _pinned_settings()
+    rows = _generic_rows()
+    bom_path = _write(tmp_path, "\ufeff" + "\n".join([_GENERIC_COLUMNS, *rows]) + "\n")
+
+    readiness = inspect_panel_readiness(bom_path, asset="NVDAx", settings=settings)
+    snapshots = load_panel_snapshots(bom_path, settings=settings)
+
+    assert readiness.canonical_identity_verified is True
+    assert readiness.replay_compatible is True
+    assert len(snapshots) == 1
+
+    bad_rows = [rows[0], rows[1].replace(",180.3,", ",NaN,")]
+    bad_path = _write(tmp_path, "\n".join([_GENERIC_COLUMNS, *bad_rows]) + "\n")
+    bad_readiness = inspect_panel_readiness(bad_path, asset="NVDAx", settings=settings)
+
+    assert bad_readiness.canonical_identity_verified is False
+    assert bad_readiness.replay_compatible is False
+    with pytest.raises(PanelIdentityError, match="finite and positive"):
+        load_panel_snapshots(bad_path, settings=settings)
 
 
 def test_legacy_normalization_matches_equivalent_canonical_snapshots(tmp_path):

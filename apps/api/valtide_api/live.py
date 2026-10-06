@@ -181,6 +181,9 @@ def build_live_snapshot(
         reference_profile=asset_config.reference_profile,
         reference_under_test_ts=pt_ts,
         reference_under_test_age_seconds=reference_age,
+        xperp_index_price=(pt if pt_source == "okx_xperp_index" else None),
+        xperp_index_source=(pt_source if pt_source == "okx_xperp_index" else None),
+        xperp_index_ts=(pt_ts if pt_source == "okx_xperp_index" else None),
         market_state=market_state,
         external_reference=None,
         source_provenance={

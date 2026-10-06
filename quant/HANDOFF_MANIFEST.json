@@ -2,7 +2,7 @@
   "schema_version": 1,
   "handoff_version": "1.0.0",
   "generated_date": "2026-10-05",
-  "runtime_scope": "NVDAx P1a-C challenger and calibrated uncertainty only",
+  "runtime_scope": "NVDAx P1a-C production bundle plus asset-bound SPYx/QQQx/AAPLx runtime bundles; additional assets are not production-promoted",
   "runtime_artifacts": [
     {
       "path": "runtime/README.md",
@@ -2092,8 +2092,8 @@
     },
     {
       "path": "data_manifest/fresh_validation_20261005.json",
-      "bytes": 9378,
-      "sha256": "d34000e05881848e7a9bfffdfce42d0fda01c32b09707920ff666cf096087d92"
+      "bytes": 12160,
+      "sha256": "78cddc51a8a79d4c15cd559b8d545e3594f5c7c8bd1b97ebc9040d537c0db94e"
     }
   ],
   "model_verdicts": [
@@ -2139,7 +2139,12 @@
     }
   ],
   "model_versions": {
-    "P1a-C": "0.2.0",
+    "P1a-C": {
+      "NVDAx": "0.2.0",
+      "SPYx": "0.3.0",
+      "QQQx": "0.3.0",
+      "AAPLx": "0.3.0"
+    },
     "handoff": "1.0.0"
   },
   "dataset_hashes": {
