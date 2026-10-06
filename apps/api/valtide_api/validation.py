@@ -1,4 +1,4 @@
-"""Backend-owned validation of a quant estimate against a selected reference."""
+"""Backend-owned tri-source evidence classification for a quant estimate."""
 
 from __future__ import annotations
 
@@ -8,6 +8,7 @@ from dataclasses import dataclass
 from valtide_api.challenger_detector import (
     detector_evidence,
     resolve_challenger_detector,
+    resolve_tri_source_state_capability,
 )
 from valtide_api.models import (
     ChallengerDetectorEvidence,
@@ -80,6 +81,15 @@ def validate(
         )
     )
     reason_codes: list[str] = []
+    model_uncertainty_invalid = not all(
+        math.isfinite(value) and value > 0
+        for value in (
+            estimate.state_sd_log,
+            estimate.reference_predictive_sd_log,
+        )
+    )
+    if model_uncertainty_invalid:
+        reason_codes.append("MODEL_UNCERTAINTY_INVALID")
 
     # Older constructors/persisted snapshots carry X-Perp only in the generic
     # comparator fields. Keep those records readable while making the distinct
@@ -110,8 +120,7 @@ def validate(
     if reference is None:
         reason_codes.append("COMPARATOR_UNAVAILABLE")
         state = EvidenceState.INCONCLUSIVE
-    elif estimate.reference_predictive_sd_log <= 0:
-        reason_codes.append("MODEL_UNCERTAINTY_INVALID")
+    elif model_uncertainty_invalid:
         state = EvidenceState.INCONCLUSIVE
     else:
         reference_deviation = reference / fair - 1
@@ -188,79 +197,105 @@ def validate(
 
     detector_spec = resolve_challenger_detector(snapshot.asset)
     detector_result: ChallengerDetectorEvidence | None = None
+    if detector_spec is not None:
+        detector_result = detector_evidence(detector_spec, token, estimate)
+
     if unified_profile:
-        # There is no validated low-risk interpretation: lack of a promoted,
-        # corroborated challenge remains INCONCLUSIVE, never SUPPORTED.
+        # This is the shared operational/historical tri-source classifier.
+        # Same-t underlying truth is intentionally not a voter; only its prior
+        # anchor quality is checked above.
         state = EvidenceState.INCONCLUSIVE
         standardized_deviation = None
         xperp_scaled_deviation = None
         evidence_state_basis = _UNIFIED_EVIDENCE_SEMANTICS
-    if detector_spec is not None:
-        detector_result = detector_evidence(detector_spec, token, estimate)
-        band = detector_result.research_band
-        if unified_profile:
-            if band == "support":
-                reason_codes.append("P1A_XSTOCK_BELOW_REVIEW_THRESHOLD")
-            elif band == "watch":
-                reason_codes.append("P1A_XSTOCK_REVIEW_THRESHOLD")
-            elif band == "review":
-                reason_codes.append("P1A_XSTOCK_CHALLENGE_THRESHOLD")
+        capability = resolve_tri_source_state_capability(snapshot.asset)
 
-            if not (
-                snapshot.asset == "SPYx"
-                and detector_spec.promotion_status == "CHALLENGER_DETECTOR_PROMOTABLE"
-            ):
-                reason_codes.append("P1A_XSTOCK_DETECTOR_NOT_PROMOTED")
-            elif band == "review":
-                quality_abstentions = {
-                    "TOKEN_DATA_UNAVAILABLE",
-                    "UNDERLYING_REFERENCE_STALE",
-                    "REFERENCE_UNDER_TEST_STALE",
-                    "TOKEN_MARKET_QUALITY_LOW",
-                    "TOKEN_UNIT_SUSPECT",
-                    "MODEL_UNCERTAINTY_INVALID",
-                    "MODEL_UNCERTAINTY_HIGH",
-                }
-                # The same-time underlying is deliberately absent: it is an
-                # offline truth label and a post-emission state update, not a
-                # production Evidence State voter.
-                xperp_is_configured_source = (
-                    xperp_source == "okx_xperp_index"
-                    and snapshot.reference_under_test_source == "okx_xperp_index"
+        if detector_result is None:
+            reason_codes.append("P1A_XSTOCK_DETECTOR_UNAVAILABLE")
+        else:
+            band = detector_result.research_band
+            band_reason = {
+                "support": "P1A_XSTOCK_SUPPORT_BAND",
+                "watch": "P1A_XSTOCK_WATCH_BAND",
+                "review": "P1A_XSTOCK_REVIEW_BAND",
+            }.get(band)
+            if band_reason is not None:
+                reason_codes.append(band_reason)
+
+            quality_abstentions = {
+                "TOKEN_DATA_UNAVAILABLE",
+                "UNDERLYING_REFERENCE_STALE",
+                "REFERENCE_UNDER_TEST_STALE",
+                "TOKEN_MARKET_QUALITY_LOW",
+                "TOKEN_UNIT_SUSPECT",
+                "MODEL_UNCERTAINTY_INVALID",
+                "MODEL_UNCERTAINTY_HIGH",
+            }
+            source_is_xperp = (
+                xperp_source == "okx_xperp_index"
+                and snapshot.reference_under_test_source == "okx_xperp_index"
+            )
+            xperp_relation: str | None = None
+            if xperp_price is None or not source_is_xperp:
+                reason_codes.append("XPERP_EVIDENCE_UNAVAILABLE")
+            elif (
+                not math.isfinite(xperp_price)
+                or xperp_price <= 0
+                or xperp_ts != snapshot.observation_ts
+                or (
+                    snapshot.reference_under_test_age_seconds is not None
+                    and snapshot.reference_under_test_age_seconds > 0
                 )
-                if xperp_price is None or not xperp_is_configured_source:
-                    reason_codes.append("XPERP_EVIDENCE_UNAVAILABLE")
-                elif (
-                    not math.isfinite(xperp_price)
-                    or xperp_price <= 0
-                    or xperp_ts != snapshot.observation_ts
-                    or (
-                        snapshot.reference_under_test_age_seconds is not None
-                        and snapshot.reference_under_test_age_seconds > 0
-                    )
+            ):
+                reason_codes.append("XPERP_EVIDENCE_STALE")
+            elif token is not None:
+                xperp_log = math.log(xperp_price)
+                distance_to_p1a = abs(xperp_log - estimate.state_m)
+                distance_to_xstock = abs(xperp_log - math.log(token))
+                if math.isclose(
+                    distance_to_p1a,
+                    distance_to_xstock,
+                    rel_tol=1e-12,
+                    abs_tol=1e-12,
                 ):
-                    reason_codes.append("XPERP_EVIDENCE_STALE")
-                elif quality_abstentions.intersection(reason_codes):
-                    # Existing model/source quality reasons remain authoritative.
-                    pass
+                    xperp_relation = "ambiguous"
+                    reason_codes.append("XPERP_EVIDENCE_AMBIGUOUS")
+                elif distance_to_xstock < distance_to_p1a:
+                    xperp_relation = "xstock"
                 else:
-                    assert token is not None
-                    xperp_log = math.log(xperp_price)
-                    challenger_gap = abs(xperp_log - estimate.state_m)
-                    xstock_gap = abs(xperp_log - math.log(token))
-                    # This tolerance only absorbs deterministic floating-point
-                    # roundoff in log-distance equality; it is not a market band.
-                    if math.isclose(challenger_gap, xstock_gap, rel_tol=1e-12, abs_tol=1e-12):
-                        reason_codes.append("XPERP_EVIDENCE_AMBIGUOUS")
-                    elif challenger_gap < xstock_gap:
-                        state = EvidenceState.CHALLENGED
-                        evidence_state_basis = (
-                            "frozen_p1a_xstock_tail_detector_with_xperp_directional_corroboration"
-                        )
-                        reason_codes.append("XPERP_CORROBORATES_CHALLENGE")
-                    else:
-                        reason_codes.append("XPERP_CONTRADICTS_MODEL_CHALLENGE")
-        elif detector_spec.promotion_status != "CHALLENGER_DETECTOR_PROMOTABLE":
+                    xperp_relation = "p1a"
+
+            if band == "support":
+                if capability is None or not capability.support_enabled:
+                    reason_codes.append("P1A_XSTOCK_SUPPORT_NOT_PROMOTED")
+                elif xperp_relation == "p1a":
+                    reason_codes.append("XPERP_CORROBORATES_P1A")
+                elif (
+                    xperp_relation == "xstock"
+                    and not quality_abstentions.intersection(reason_codes)
+                ):
+                    state = EvidenceState.SUPPORTED
+                    reason_codes.append("XPERP_CORROBORATES_XSTOCK")
+                    evidence_state_basis = (
+                        "frozen_p1a_xstock_support_band_with_xperp_directional_corroboration"
+                    )
+            elif band == "review":
+                if capability is None or not capability.challenge_enabled:
+                    reason_codes.append("P1A_XSTOCK_CHALLENGE_NOT_PROMOTED")
+                elif xperp_relation == "xstock":
+                    reason_codes.append("XPERP_CORROBORATES_XSTOCK")
+                elif (
+                    xperp_relation == "p1a"
+                    and not quality_abstentions.intersection(reason_codes)
+                ):
+                    state = EvidenceState.CHALLENGED
+                    reason_codes.append("XPERP_CORROBORATES_P1A")
+                    evidence_state_basis = (
+                        "frozen_p1a_xstock_review_band_with_xperp_directional_corroboration"
+                    )
+    elif detector_spec is not None:
+        band = detector_result.research_band if detector_result is not None else "unavailable"
+        if detector_spec.promotion_status != "CHALLENGER_DETECTOR_PROMOTABLE":
             reason_codes.append("P1A_XSTOCK_DETECTOR_NOT_PROMOTED")
         elif band == "watch":
             reason_codes.append("P1A_XSTOCK_REVIEW_THRESHOLD")
@@ -309,9 +344,6 @@ def validate(
                     reason_codes.append("XPERP_CONTRADICTS_MODEL_CHALLENGE")
                 else:
                     reason_codes.append("XPERP_EVIDENCE_AMBIGUOUS")
-    elif unified_profile:
-        reason_codes.append("P1A_XSTOCK_DETECTOR_UNAVAILABLE")
-
     return ValuationResult(
         asset=snapshot.asset,
         timestamp=snapshot.observation_ts,

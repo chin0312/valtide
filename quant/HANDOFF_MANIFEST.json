@@ -2,7 +2,7 @@
   "schema_version": 1,
   "handoff_version": "1.0.0",
   "generated_date": "2026-10-05",
-  "runtime_scope": "NVDAx P1a-C production bundle plus asset-bound SPYx/QQQx/AAPLx runtime bundles; additional assets are not production-promoted",
+  "runtime_scope": "NVDAx/SPYx/AAPLx production P1a-C bundles; QQQx and TSLAx runtime materials are retained for research and are not production-activated",
   "runtime_artifacts": [
     {
       "path": "runtime/README.md",
@@ -2092,8 +2092,8 @@
     },
     {
       "path": "data_manifest/fresh_validation_20261005.json",
-      "bytes": 38689,
-      "sha256": "47b488b50d55918844ca17f96aee95e62c9d4d1d1dd81f0960d83ae7445ef327"
+      "bytes": 70562,
+      "sha256": "17d6a79240cbbcfa06e64c3432fab45f02e7454709b927e0cb445ed8c346249c"
     }
   ],
   "model_verdicts": [

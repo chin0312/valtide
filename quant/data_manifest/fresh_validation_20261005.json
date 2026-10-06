@@ -1,6 +1,6 @@
 {
   "dataset_id": "valtide_solana_xstock_fresh_validation_20260921_20261005_0625",
-  "purpose": "retrospective out-of-fit-period adapter and model diagnostic; not prospective or production-readiness evidence",
+  "purpose": "retrospective out-of-fit-period model and tri-source capability diagnostic; bounded review evidence, not prospective validation or a guarantee",
   "collected_date_utc": "2026-10-05",
   "period_start_utc": "2026-09-21T00:00:00Z",
   "period_end_utc": "2026-10-05T06:25:00Z",
@@ -31,11 +31,13 @@
     "status": "replayed from available local panel bytes on 2026-10-06",
     "script": "quant/tools/evaluate_fresh_panels.py",
     "command_contract": "one --panel ASSET=CSV argument for each registered primary asset; output JSON is deterministic for identical panel bytes and artifacts",
-    "verification": "Recomputed all panel SHA-256 values, row counts, MAE/RMSE, interval diagnostics, Evidence State counts, pairwise diagnostics, and frozen James detector thresholds/confusion/session/X-Perp diagnostics through the backend panel loader and chronological replay.",
+    "verification": "Recomputed all panel SHA-256 values, row counts, model/interval diagnostics, frozen James detector metrics, and the shared tri-source classifier's state distributions from the canonical panels using chronological replay. No fitting or threshold tuning.",
     "limitation": "The files remain local temporary inputs; no persistence or production Historical readiness is implied.",
-    "evaluator_source_sha256": "6fa5d2546b63f3d93a3b4b68bb045f43abd671af4f5d3c4a99ed212c17dcf62d",
-    "validation_source_sha256": "33e1b3f3eccfeef9c294f806cfbdd747db02564b31c7e485e5df4108a3ff3ffb",
-    "frozen_detector_policy": "Frozen James thresholds are applied unchanged. Fresh-panel results are retrospective diagnostics, not threshold fitting or prospective validation."
+    "evaluator_source_sha256": "e8a2ba368330420a20c92971f1510c4afe206680b354e7ae5260e775bc7c0e43",
+    "validation_source_sha256": "d96d93523b753d08ae3f17353b3add553fd57ec3bfaabc80bb15924193c9da92",
+    "frozen_detector_policy": "Frozen James thresholds are applied unchanged. Fresh-panel results are retrospective diagnostics, not threshold fitting or prospective validation.",
+    "state_capability_artifact_sha256": "260b0f06191e5f79dc17a3d3a1e1a85e77e8218f4aace9b1b153a099f0ba3b9a",
+    "challenger_detector_source_sha256": "d7bd787cee5a365913708eace34e86f08f0eac7bee004b9334498a579d20e455"
   },
   "assets": {
     "NVDAx": {
@@ -66,15 +68,18 @@
         "mean_interval_score_90": 1.1748860046078362
       },
       "evidence_state_counts": {
-        "INCONCLUSIVE": 4110
+        "CHALLENGED": 60,
+        "INCONCLUSIVE": 2228,
+        "SUPPORTED": 1822
       },
       "reason_code_counts": {
         "CALIBRATION_GLOBAL_FALLBACK": 2190,
-        "P1A_XSTOCK_BELOW_REVIEW_THRESHOLD": 3731,
-        "P1A_XSTOCK_CHALLENGE_THRESHOLD": 75,
-        "P1A_XSTOCK_DETECTOR_NOT_PROMOTED": 4110,
-        "P1A_XSTOCK_REVIEW_THRESHOLD": 304,
-        "TOKEN_AND_CHALLENGER_AGREE": 4109
+        "P1A_XSTOCK_REVIEW_BAND": 75,
+        "P1A_XSTOCK_SUPPORT_BAND": 3731,
+        "P1A_XSTOCK_WATCH_BAND": 304,
+        "TOKEN_AND_CHALLENGER_AGREE": 4109,
+        "XPERP_CORROBORATES_P1A": 1969,
+        "XPERP_CORROBORATES_XSTOCK": 1837
       },
       "mean_signed_deviation": {
         "xstock_minus_challenger": 0.003546686428043969,
@@ -87,185 +92,414 @@
         "reference": 0
       },
       "frozen_challenger_detector": {
-        "artifact_sha256": "695dde83eb927f0010faabe694cb5d2f51003cda3834019dce25ba6b33f8a541",
         "artifact_version": "james-challenger-tail-v1",
-        "canonical_rows": 4110,
-        "decision_limitations": "Weak exposed-test detection and low fresh-period q95 recall do not justify a production Evidence State escalation.",
-        "original_oof_training_rows": 22441,
+        "artifact_sha256": "695dde83eb927f0010faabe694cb5d2f51003cda3834019dce25ba6b33f8a541",
         "promotion_status": "CHALLENGER_DETECTOR_NOT_PROMOTABLE",
+        "score_name": "disagreement_z",
+        "score_definition": "abs(log(xstock_price) - p1a_challenger_log_mean) / p1a_reference_predictive_sd_log",
+        "threshold_review_q80": 0.8224619622115359,
+        "threshold_challenge_q95": 1.5816442827412427,
+        "training_tail_event_threshold_bps": 27.833443316902517,
+        "original_oof_training_rows": 22441,
+        "research_status_mapping": {
+          "below_q80": "SUPPORT",
+          "q80_to_q95": "WATCH",
+          "at_or_above_q95": "REVIEW"
+        },
+        "canonical_rows": 4110,
+        "rows_with_token": 4110,
+        "rows_with_contemporaneous_underlying": 817,
+        "rows_with_p1a_output": 4110,
+        "rows_eligible_for_score": 4110,
         "research_band_counts": {
           "review": 75,
           "support": 3731,
           "watch": 304
         },
         "research_band_rates": {
-          "review": 0.01824817518248175,
           "support": 0.9077858880778589,
-          "watch": 0.07396593673965937
+          "watch": 0.07396593673965937,
+          "review": 0.01824817518248175
         },
-        "research_status_mapping": {
-          "at_or_above_q95": "REVIEW",
-          "below_q80": "SUPPORT",
-          "q80_to_q95": "WATCH"
-        },
-        "rows_eligible_for_score": 4110,
-        "rows_with_contemporaneous_underlying": 817,
-        "rows_with_p1a_output": 4110,
-        "rows_with_token": 4110,
-        "score_definition": "abs(log(xstock_price) - p1a_challenger_log_mean) / p1a_reference_predictive_sd_log",
         "score_distribution": {
-          "max": 9.54285757955721,
-          "min": 0.0003921267482993798,
           "n": 4110,
+          "min": 0.0003921267482993798,
           "q50": 0.2579336745811726,
           "q90": 0.794418349334883,
-          "q95": 1.0491855827288186
+          "q95": 1.0491855827288186,
+          "max": 9.54285757955721
         },
-        "score_name": "disagreement_z",
+        "underlying_tail_event": {
+          "definition": "Absolute log error of raw xStock versus contemporaneous underlying is at least the asset-specific 95th percentile of that error on OOF cross-fit training rows.",
+          "evaluable_rows": 817,
+          "event_count": 29,
+          "prevalence": 0.03549571603427173,
+          "q95_threshold_detection": {
+            "tp": 5,
+            "fp": 5,
+            "fn": 24,
+            "tn": 783,
+            "precision": 0.5,
+            "recall": 0.1724137931034483,
+            "false_challenge_rate": 0.006345177664974619,
+            "missed_tail_rate": 0.8275862068965517
+          },
+          "continuous_score_average_precision": 0.3842649302431464,
+          "p1a_closer_rate": 0.4834761321909425
+        },
+        "tri_source_state_candidates": {
+          "definition": "Frozen SUPPORT band plus exact-time X-Perp closer to xStock is a supported candidate; frozen REVIEW band plus exact-time X-Perp closer to P1a is a challenged candidate. Underlying is used only for ex-post truth labels.",
+          "production_capability": {
+            "support_enabled": true,
+            "challenge_enabled": true,
+            "panel_sha256": "7785e47383943beedcdf893680820dbefb8b2370e32d363fbb5ea4074a05d3c3"
+          },
+          "tri_source_supported": {
+            "count": 1822,
+            "evaluable_count": 392,
+            "false_support_count": 0,
+            "false_support_rate": 0.0,
+            "overall_tail_prevalence": 0.03549571603427173,
+            "raw_xstock_mae_bps": 4.070317451108674,
+            "raw_xstock_p95_error_bps": 12.60887357664497
+          },
+          "tri_source_challenged": {
+            "count": 60,
+            "candidate_truth_evaluable_count": 6,
+            "evaluable_count": 817,
+            "tp": 5,
+            "fp": 1,
+            "fn": 24,
+            "tn": 787,
+            "precision": 0.8333333333333334,
+            "recall": 0.1724137931034483,
+            "false_challenge_rate": 0.0012690355329949238,
+            "missed_tail_rate": 0.8275862068965517,
+            "raw_xstock_mae_bps": 73.51373096729249,
+            "p1a_mae_bps": 32.75823459211551,
+            "p1a_better_rate": 1.0
+          },
+          "overall_tail_prevalence": 0.03549571603427173,
+          "xperp_relation_counts": {
+            "closer_to_p1a": 2158,
+            "closer_to_xstock": 1952
+          },
+          "challenge_candidate_raw_xstock_mae_bps": 73.51373096729249,
+          "challenge_candidate_p1a_mae_bps": 32.75823459211551,
+          "challenge_candidate_p1a_closer_rate": 1.0
+        },
+        "xperp_diagnostics": {
+          "definition": "Descriptive exact-timestamp distance comparisons only; no X-Perp residual z-score or fitted threshold is used.",
+          "counts": {
+            "review_with_exact_xperp": 75,
+            "review_xperp_closer_to_p1a": 60,
+            "review_xperp_closer_to_xstock": 15,
+            "support_with_exact_xperp": 3731,
+            "support_xperp_closer_to_p1a": 1909,
+            "support_xperp_closer_to_xstock": 1822,
+            "xperp_closer_to_underlying_than_xstock": 709,
+            "xperp_not_closer_to_underlying_than_xstock": 108
+          }
+        },
         "session_breakdown": {
           "afterhours": {
-            "continuous_score_average_precision": null,
-            "q95_detection": {
-              "false_challenge_rate": 0.2,
-              "fn": 0,
-              "fp": 1,
-              "missed_tail_rate": null,
-              "precision": 0.0,
-              "recall": null,
-              "tn": 4,
-              "tp": 0
-            },
+            "score_rows": 480,
+            "underlying_evaluable_rows": 5,
             "research_band_counts": {
               "review": 7,
               "support": 451,
               "watch": 22
             },
-            "score_rows": 480,
             "tail_event_count": 0,
             "tail_event_prevalence": 0.0,
-            "underlying_evaluable_rows": 5
+            "q95_detection": {
+              "tp": 0,
+              "fp": 1,
+              "fn": 0,
+              "tn": 4,
+              "precision": 0.0,
+              "recall": null,
+              "false_challenge_rate": 0.2,
+              "missed_tail_rate": null
+            },
+            "continuous_score_average_precision": null,
+            "tri_source_supported": {
+              "count": 192,
+              "evaluable_count": 1,
+              "false_support_count": 0,
+              "false_support_rate": 0.0,
+              "overall_tail_prevalence": 0.03549571603427173,
+              "raw_xstock_mae_bps": 0.7754977142404584,
+              "raw_xstock_p95_error_bps": 0.7754977142404584
+            },
+            "tri_source_challenged": {
+              "tp": 0,
+              "fp": 1,
+              "fn": 0,
+              "tn": 4,
+              "precision": 0.0,
+              "recall": null,
+              "false_challenge_rate": 0.2,
+              "missed_tail_rate": null
+            },
+            "tri_source_challenged_candidate_count": 7
           },
           "closed": {
-            "continuous_score_average_precision": null,
-            "q95_detection": {
-              "false_challenge_rate": null,
-              "fn": 0,
-              "fp": 0,
-              "missed_tail_rate": null,
-              "precision": null,
-              "recall": null,
-              "tn": 0,
-              "tp": 0
-            },
+            "score_rows": 1200,
+            "underlying_evaluable_rows": 0,
             "research_band_counts": {
               "review": 28,
               "support": 1065,
               "watch": 107
             },
-            "score_rows": 1200,
             "tail_event_count": 0,
             "tail_event_prevalence": null,
-            "underlying_evaluable_rows": 0
-          },
-          "overnight": {
-            "continuous_score_average_precision": null,
             "q95_detection": {
-              "false_challenge_rate": null,
-              "fn": 0,
+              "tp": 0,
               "fp": 0,
-              "missed_tail_rate": null,
+              "fn": 0,
+              "tn": 0,
               "precision": null,
               "recall": null,
-              "tn": 0,
-              "tp": 0
+              "false_challenge_rate": null,
+              "missed_tail_rate": null
             },
+            "continuous_score_average_precision": null,
+            "tri_source_supported": {
+              "count": 492,
+              "evaluable_count": 0,
+              "false_support_count": 0,
+              "false_support_rate": null,
+              "overall_tail_prevalence": 0.03549571603427173,
+              "raw_xstock_mae_bps": null,
+              "raw_xstock_p95_error_bps": null
+            },
+            "tri_source_challenged": {
+              "tp": 0,
+              "fp": 0,
+              "fn": 0,
+              "tn": 0,
+              "precision": null,
+              "recall": null,
+              "false_challenge_rate": null,
+              "missed_tail_rate": null
+            },
+            "tri_source_challenged_candidate_count": 27
+          },
+          "overnight": {
+            "score_rows": 990,
+            "underlying_evaluable_rows": 0,
             "research_band_counts": {
               "review": 20,
               "support": 902,
               "watch": 68
             },
-            "score_rows": 990,
             "tail_event_count": 0,
             "tail_event_prevalence": null,
-            "underlying_evaluable_rows": 0
+            "q95_detection": {
+              "tp": 0,
+              "fp": 0,
+              "fn": 0,
+              "tn": 0,
+              "precision": null,
+              "recall": null,
+              "false_challenge_rate": null,
+              "missed_tail_rate": null
+            },
+            "continuous_score_average_precision": null,
+            "tri_source_supported": {
+              "count": 438,
+              "evaluable_count": 0,
+              "false_support_count": 0,
+              "false_support_rate": null,
+              "overall_tail_prevalence": 0.03549571603427173,
+              "raw_xstock_mae_bps": null,
+              "raw_xstock_p95_error_bps": null
+            },
+            "tri_source_challenged": {
+              "tp": 0,
+              "fp": 0,
+              "fn": 0,
+              "tn": 0,
+              "precision": null,
+              "recall": null,
+              "false_challenge_rate": null,
+              "missed_tail_rate": null
+            },
+            "tri_source_challenged_candidate_count": 16
           },
           "premarket": {
-            "continuous_score_average_precision": 0.3333333333333333,
-            "q95_detection": {
-              "false_challenge_rate": 0.0,
-              "fn": 1,
-              "fp": 0,
-              "missed_tail_rate": 1.0,
-              "precision": null,
-              "recall": 0.0,
-              "tn": 31,
-              "tp": 0
-            },
+            "score_rows": 660,
+            "underlying_evaluable_rows": 32,
             "research_band_counts": {
               "review": 11,
               "support": 588,
               "watch": 61
             },
-            "score_rows": 660,
             "tail_event_count": 1,
             "tail_event_prevalence": 0.03125,
-            "underlying_evaluable_rows": 32
+            "q95_detection": {
+              "tp": 0,
+              "fp": 0,
+              "fn": 1,
+              "tn": 31,
+              "precision": null,
+              "recall": 0.0,
+              "false_challenge_rate": 0.0,
+              "missed_tail_rate": 1.0
+            },
+            "continuous_score_average_precision": 0.3333333333333333,
+            "tri_source_supported": {
+              "count": 329,
+              "evaluable_count": 20,
+              "false_support_count": 0,
+              "false_support_rate": 0.0,
+              "overall_tail_prevalence": 0.03549571603427173,
+              "raw_xstock_mae_bps": 4.976332573755737,
+              "raw_xstock_p95_error_bps": 12.601386791428311
+            },
+            "tri_source_challenged": {
+              "tp": 0,
+              "fp": 0,
+              "fn": 1,
+              "tn": 31,
+              "precision": null,
+              "recall": 0.0,
+              "false_challenge_rate": 0.0,
+              "missed_tail_rate": 1.0
+            },
+            "tri_source_challenged_candidate_count": 5
           },
           "regular": {
-            "continuous_score_average_precision": 0.404605959430271,
-            "q95_detection": {
-              "false_challenge_rate": 0.005319148936170213,
-              "fn": 23,
-              "fp": 4,
-              "missed_tail_rate": 0.8214285714285714,
-              "precision": 0.5555555555555556,
-              "recall": 0.17857142857142858,
-              "tn": 748,
-              "tp": 5
-            },
+            "score_rows": 780,
+            "underlying_evaluable_rows": 780,
             "research_band_counts": {
               "review": 9,
               "support": 725,
               "watch": 46
             },
-            "score_rows": 780,
             "tail_event_count": 28,
             "tail_event_prevalence": 0.035897435897435895,
-            "underlying_evaluable_rows": 780
+            "q95_detection": {
+              "tp": 5,
+              "fp": 4,
+              "fn": 23,
+              "tn": 748,
+              "precision": 0.5555555555555556,
+              "recall": 0.17857142857142858,
+              "false_challenge_rate": 0.005319148936170213,
+              "missed_tail_rate": 0.8214285714285714
+            },
+            "continuous_score_average_precision": 0.404605959430271,
+            "tri_source_supported": {
+              "count": 371,
+              "evaluable_count": 371,
+              "false_support_count": 0,
+              "false_support_rate": 0.0,
+              "overall_tail_prevalence": 0.03549571603427173,
+              "raw_xstock_mae_bps": 4.03035658125403,
+              "raw_xstock_p95_error_bps": 12.618978018554827
+            },
+            "tri_source_challenged": {
+              "tp": 5,
+              "fp": 0,
+              "fn": 23,
+              "tn": 752,
+              "precision": 1.0,
+              "recall": 0.17857142857142858,
+              "false_challenge_rate": 0.0,
+              "missed_tail_rate": 0.8214285714285714
+            },
+            "tri_source_challenged_candidate_count": 5
           }
         },
-        "threshold_challenge_q95": 1.5816442827412427,
-        "threshold_review_q80": 0.8224619622115359,
-        "training_tail_event_threshold_bps": 27.833443316902517,
-        "underlying_tail_event": {
-          "continuous_score_average_precision": 0.3842649302431464,
-          "definition": "Absolute log error of raw xStock versus contemporaneous underlying is at least the asset-specific 95th percentile of that error on OOF cross-fit training rows.",
-          "evaluable_rows": 817,
-          "event_count": 29,
-          "p1a_closer_rate": 0.4834761321909425,
-          "prevalence": 0.03549571603427173,
-          "q95_threshold_detection": {
-            "false_challenge_rate": 0.006345177664974619,
-            "fn": 24,
-            "fp": 5,
-            "missed_tail_rate": 0.8275862068965517,
-            "precision": 0.5,
-            "recall": 0.1724137931034483,
-            "tn": 783,
-            "tp": 5
-          }
+        "decision_limitations": "Weak exposed-test detection and low fresh-period q95 recall do not justify a production Evidence State escalation."
+      },
+      "tri_source_state_distribution": {
+        "counts": {
+          "SUPPORTED": 1822,
+          "INCONCLUSIVE": 2228,
+          "CHALLENGED": 60
         },
-        "xperp_diagnostics": {
-          "counts": {
-            "review_with_exact_xperp": 75,
-            "review_xperp_closer_to_p1a": 60,
-            "review_xperp_closer_to_xstock": 15,
-            "xperp_closer_to_underlying_than_xstock": 709,
-            "xperp_not_closer_to_underlying_than_xstock": 108
+        "rates": {
+          "SUPPORTED": 0.44330900243309,
+          "INCONCLUSIVE": 0.5420924574209246,
+          "CHALLENGED": 0.014598540145985401
+        },
+        "total": 4110,
+        "tri_source_inconclusive": {
+          "count": 2228,
+          "rate": 0.5420924574209246
+        },
+        "session_breakdown": {
+          "afterhours": {
+            "count": 480,
+            "counts": {
+              "SUPPORTED": 192,
+              "INCONCLUSIVE": 281,
+              "CHALLENGED": 7
+            },
+            "rates": {
+              "SUPPORTED": 0.4,
+              "INCONCLUSIVE": 0.5854166666666667,
+              "CHALLENGED": 0.014583333333333334
+            }
           },
-          "definition": "Descriptive exact-timestamp distance comparisons only; no X-Perp residual z-score or fitted threshold is used."
+          "closed": {
+            "count": 1200,
+            "counts": {
+              "SUPPORTED": 492,
+              "INCONCLUSIVE": 681,
+              "CHALLENGED": 27
+            },
+            "rates": {
+              "SUPPORTED": 0.41,
+              "INCONCLUSIVE": 0.5675,
+              "CHALLENGED": 0.0225
+            }
+          },
+          "overnight": {
+            "count": 990,
+            "counts": {
+              "SUPPORTED": 438,
+              "INCONCLUSIVE": 536,
+              "CHALLENGED": 16
+            },
+            "rates": {
+              "SUPPORTED": 0.44242424242424244,
+              "INCONCLUSIVE": 0.5414141414141415,
+              "CHALLENGED": 0.01616161616161616
+            }
+          },
+          "premarket": {
+            "count": 660,
+            "counts": {
+              "SUPPORTED": 329,
+              "INCONCLUSIVE": 326,
+              "CHALLENGED": 5
+            },
+            "rates": {
+              "SUPPORTED": 0.4984848484848485,
+              "INCONCLUSIVE": 0.49393939393939396,
+              "CHALLENGED": 0.007575757575757576
+            }
+          },
+          "regular": {
+            "count": 780,
+            "counts": {
+              "SUPPORTED": 371,
+              "INCONCLUSIVE": 404,
+              "CHALLENGED": 5
+            },
+            "rates": {
+              "SUPPORTED": 0.4756410256410256,
+              "INCONCLUSIVE": 0.517948717948718,
+              "CHALLENGED": 0.00641025641025641
+            }
+          }
         }
-      }
+      },
+      "model_id": "P1a-C"
     },
     "SPYx": {
       "chain_index": "501",
@@ -295,16 +529,17 @@
       },
       "evidence_state_counts": {
         "CHALLENGED": 71,
-        "INCONCLUSIVE": 4039
+        "INCONCLUSIVE": 1838,
+        "SUPPORTED": 2201
       },
       "reason_code_counts": {
         "CALIBRATION_GLOBAL_FALLBACK": 2190,
-        "P1A_XSTOCK_BELOW_REVIEW_THRESHOLD": 4009,
-        "P1A_XSTOCK_CHALLENGE_THRESHOLD": 72,
-        "P1A_XSTOCK_REVIEW_THRESHOLD": 29,
+        "P1A_XSTOCK_REVIEW_BAND": 72,
+        "P1A_XSTOCK_SUPPORT_BAND": 4009,
+        "P1A_XSTOCK_WATCH_BAND": 29,
         "TOKEN_AND_CHALLENGER_AGREE": 4078,
-        "XPERP_CONTRADICTS_MODEL_CHALLENGE": 1,
-        "XPERP_CORROBORATES_CHALLENGE": 71
+        "XPERP_CORROBORATES_P1A": 1879,
+        "XPERP_CORROBORATES_XSTOCK": 2202
       },
       "mean_signed_deviation": {
         "xstock_minus_challenger": -0.08095269781659604,
@@ -317,185 +552,414 @@
         "reference": 0
       },
       "frozen_challenger_detector": {
-        "artifact_sha256": "695dde83eb927f0010faabe694cb5d2f51003cda3834019dce25ba6b33f8a541",
         "artifact_version": "james-challenger-tail-v1",
-        "canonical_rows": 4110,
-        "decision_limitations": "Frozen q95 detector recovered 20 of 21 fresh-period underlying tail events with no false positive among contemporaneously evaluable q95 flags; use only as a challenged-only, source-quality-gated detector and not as a safe-state rule.",
-        "original_oof_training_rows": 21848,
+        "artifact_sha256": "695dde83eb927f0010faabe694cb5d2f51003cda3834019dce25ba6b33f8a541",
         "promotion_status": "CHALLENGER_DETECTOR_PROMOTABLE",
+        "score_name": "disagreement_bps",
+        "score_definition": "abs(log(xstock_price) - p1a_challenger_log_mean) * 10000",
+        "threshold_review_q80": 40.08731697252088,
+        "threshold_challenge_q95": 54.92275340852967,
+        "training_tail_event_threshold_bps": 57.726602359267076,
+        "original_oof_training_rows": 21848,
+        "research_status_mapping": {
+          "below_q80": "SUPPORT",
+          "q80_to_q95": "WATCH",
+          "at_or_above_q95": "REVIEW"
+        },
+        "canonical_rows": 4110,
+        "rows_with_token": 4110,
+        "rows_with_contemporaneous_underlying": 833,
+        "rows_with_p1a_output": 4110,
+        "rows_eligible_for_score": 4110,
         "research_band_counts": {
           "review": 72,
           "support": 4009,
           "watch": 29
         },
         "research_band_rates": {
-          "review": 0.017518248175182483,
           "support": 0.975425790754258,
-          "watch": 0.007055961070559611
+          "watch": 0.007055961070559611,
+          "review": 0.017518248175182483
         },
-        "research_status_mapping": {
-          "at_or_above_q95": "REVIEW",
-          "below_q80": "SUPPORT",
-          "q80_to_q95": "WATCH"
-        },
-        "rows_eligible_for_score": 4110,
-        "rows_with_contemporaneous_underlying": 833,
-        "rows_with_p1a_output": 4110,
-        "rows_with_token": 4110,
-        "score_definition": "abs(log(xstock_price) - p1a_challenger_log_mean) * 10000",
         "score_distribution": {
-          "max": 179.160500203146,
-          "min": 4.214619764297822e-05,
           "n": 4110,
+          "min": 4.214619764297822e-05,
           "q50": 4.001187936499839,
           "q90": 15.197057061291375,
-          "q95": 23.66408470323566
+          "q95": 23.66408470323566,
+          "max": 179.160500203146
         },
-        "score_name": "disagreement_bps",
+        "underlying_tail_event": {
+          "definition": "Absolute log error of raw xStock versus contemporaneous underlying is at least the asset-specific 95th percentile of that error on OOF cross-fit training rows.",
+          "evaluable_rows": 833,
+          "event_count": 21,
+          "prevalence": 0.025210084033613446,
+          "q95_threshold_detection": {
+            "tp": 20,
+            "fp": 0,
+            "fn": 1,
+            "tn": 812,
+            "precision": 1.0,
+            "recall": 0.9523809523809523,
+            "false_challenge_rate": 0.0,
+            "missed_tail_rate": 0.047619047619047616
+          },
+          "continuous_score_average_precision": 0.9978354978354977,
+          "p1a_closer_rate": 0.48259303721488594
+        },
+        "tri_source_state_candidates": {
+          "definition": "Frozen SUPPORT band plus exact-time X-Perp closer to xStock is a supported candidate; frozen REVIEW band plus exact-time X-Perp closer to P1a is a challenged candidate. Underlying is used only for ex-post truth labels.",
+          "production_capability": {
+            "support_enabled": true,
+            "challenge_enabled": true,
+            "panel_sha256": "0ce51834e044d9f3a52682843898833ba3e88d7e25ced82f60def9f1a023a3a0"
+          },
+          "tri_source_supported": {
+            "count": 2201,
+            "evaluable_count": 431,
+            "false_support_count": 0,
+            "false_support_rate": 0.0,
+            "overall_tail_prevalence": 0.025210084033613446,
+            "raw_xstock_mae_bps": 1.9927268401928826,
+            "raw_xstock_p95_error_bps": 5.376024244840849
+          },
+          "tri_source_challenged": {
+            "count": 71,
+            "candidate_truth_evaluable_count": 20,
+            "evaluable_count": 833,
+            "tp": 20,
+            "fp": 0,
+            "fn": 1,
+            "tn": 812,
+            "precision": 1.0,
+            "recall": 0.9523809523809523,
+            "false_challenge_rate": 0.0,
+            "missed_tail_rate": 0.047619047619047616,
+            "raw_xstock_mae_bps": 131.97310560215357,
+            "p1a_mae_bps": 12.746985186642856,
+            "p1a_better_rate": 1.0
+          },
+          "overall_tail_prevalence": 0.025210084033613446,
+          "xperp_relation_counts": {
+            "closer_to_p1a": 1907,
+            "closer_to_xstock": 2203
+          },
+          "challenge_candidate_raw_xstock_mae_bps": 131.97310560215357,
+          "challenge_candidate_p1a_mae_bps": 12.746985186642856,
+          "challenge_candidate_p1a_closer_rate": 1.0
+        },
+        "xperp_diagnostics": {
+          "definition": "Descriptive exact-timestamp distance comparisons only; no X-Perp residual z-score or fitted threshold is used.",
+          "counts": {
+            "review_with_exact_xperp": 72,
+            "review_xperp_closer_to_p1a": 71,
+            "review_xperp_closer_to_xstock": 1,
+            "support_with_exact_xperp": 4009,
+            "support_xperp_closer_to_p1a": 1808,
+            "support_xperp_closer_to_xstock": 2201,
+            "xperp_closer_to_underlying_than_xstock": 733,
+            "xperp_not_closer_to_underlying_than_xstock": 100
+          }
+        },
         "session_breakdown": {
           "afterhours": {
-            "continuous_score_average_precision": null,
-            "q95_detection": {
-              "false_challenge_rate": 0.0,
-              "fn": 0,
-              "fp": 0,
-              "missed_tail_rate": null,
-              "precision": null,
-              "recall": null,
-              "tn": 14,
-              "tp": 0
-            },
+            "score_rows": 480,
+            "underlying_evaluable_rows": 14,
             "research_band_counts": {
               "review": 4,
               "support": 471,
               "watch": 5
             },
-            "score_rows": 480,
             "tail_event_count": 0,
             "tail_event_prevalence": 0.0,
-            "underlying_evaluable_rows": 14
-          },
-          "closed": {
-            "continuous_score_average_precision": null,
             "q95_detection": {
-              "false_challenge_rate": null,
-              "fn": 0,
+              "tp": 0,
               "fp": 0,
-              "missed_tail_rate": null,
+              "fn": 0,
+              "tn": 14,
               "precision": null,
               "recall": null,
-              "tn": 0,
-              "tp": 0
+              "false_challenge_rate": 0.0,
+              "missed_tail_rate": null
             },
+            "continuous_score_average_precision": null,
+            "tri_source_supported": {
+              "count": 238,
+              "evaluable_count": 10,
+              "false_support_count": 0,
+              "false_support_rate": 0.0,
+              "overall_tail_prevalence": 0.025210084033613446,
+              "raw_xstock_mae_bps": 2.016841982880102,
+              "raw_xstock_p95_error_bps": 5.2996839985284225
+            },
+            "tri_source_challenged": {
+              "tp": 0,
+              "fp": 0,
+              "fn": 0,
+              "tn": 14,
+              "precision": null,
+              "recall": null,
+              "false_challenge_rate": 0.0,
+              "missed_tail_rate": null
+            },
+            "tri_source_challenged_candidate_count": 4
+          },
+          "closed": {
+            "score_rows": 1200,
+            "underlying_evaluable_rows": 0,
             "research_band_counts": {
               "review": 26,
               "support": 1164,
               "watch": 10
             },
-            "score_rows": 1200,
             "tail_event_count": 0,
             "tail_event_prevalence": null,
-            "underlying_evaluable_rows": 0
-          },
-          "overnight": {
-            "continuous_score_average_precision": null,
             "q95_detection": {
-              "false_challenge_rate": null,
-              "fn": 0,
+              "tp": 0,
               "fp": 0,
-              "missed_tail_rate": null,
+              "fn": 0,
+              "tn": 0,
               "precision": null,
               "recall": null,
-              "tn": 0,
-              "tp": 0
+              "false_challenge_rate": null,
+              "missed_tail_rate": null
             },
+            "continuous_score_average_precision": null,
+            "tri_source_supported": {
+              "count": 646,
+              "evaluable_count": 0,
+              "false_support_count": 0,
+              "false_support_rate": null,
+              "overall_tail_prevalence": 0.025210084033613446,
+              "raw_xstock_mae_bps": null,
+              "raw_xstock_p95_error_bps": null
+            },
+            "tri_source_challenged": {
+              "tp": 0,
+              "fp": 0,
+              "fn": 0,
+              "tn": 0,
+              "precision": null,
+              "recall": null,
+              "false_challenge_rate": null,
+              "missed_tail_rate": null
+            },
+            "tri_source_challenged_candidate_count": 25
+          },
+          "overnight": {
+            "score_rows": 990,
+            "underlying_evaluable_rows": 0,
             "research_band_counts": {
               "review": 13,
               "support": 974,
               "watch": 3
             },
-            "score_rows": 990,
             "tail_event_count": 0,
             "tail_event_prevalence": null,
-            "underlying_evaluable_rows": 0
-          },
-          "premarket": {
-            "continuous_score_average_precision": null,
             "q95_detection": {
-              "false_challenge_rate": 0.0,
-              "fn": 0,
+              "tp": 0,
               "fp": 0,
-              "missed_tail_rate": null,
+              "fn": 0,
+              "tn": 0,
               "precision": null,
               "recall": null,
-              "tn": 39,
-              "tp": 0
+              "false_challenge_rate": null,
+              "missed_tail_rate": null
             },
+            "continuous_score_average_precision": null,
+            "tri_source_supported": {
+              "count": 541,
+              "evaluable_count": 0,
+              "false_support_count": 0,
+              "false_support_rate": null,
+              "overall_tail_prevalence": 0.025210084033613446,
+              "raw_xstock_mae_bps": null,
+              "raw_xstock_p95_error_bps": null
+            },
+            "tri_source_challenged": {
+              "tp": 0,
+              "fp": 0,
+              "fn": 0,
+              "tn": 0,
+              "precision": null,
+              "recall": null,
+              "false_challenge_rate": null,
+              "missed_tail_rate": null
+            },
+            "tri_source_challenged_candidate_count": 13
+          },
+          "premarket": {
+            "score_rows": 660,
+            "underlying_evaluable_rows": 39,
             "research_band_counts": {
               "review": 9,
               "support": 646,
               "watch": 5
             },
-            "score_rows": 660,
             "tail_event_count": 0,
             "tail_event_prevalence": 0.0,
-            "underlying_evaluable_rows": 39
+            "q95_detection": {
+              "tp": 0,
+              "fp": 0,
+              "fn": 0,
+              "tn": 39,
+              "precision": null,
+              "recall": null,
+              "false_challenge_rate": 0.0,
+              "missed_tail_rate": null
+            },
+            "continuous_score_average_precision": null,
+            "tri_source_supported": {
+              "count": 374,
+              "evaluable_count": 19,
+              "false_support_count": 0,
+              "false_support_rate": 0.0,
+              "overall_tail_prevalence": 0.025210084033613446,
+              "raw_xstock_mae_bps": 3.458745390383611,
+              "raw_xstock_p95_error_bps": 9.558482501145866
+            },
+            "tri_source_challenged": {
+              "tp": 0,
+              "fp": 0,
+              "fn": 0,
+              "tn": 39,
+              "precision": null,
+              "recall": null,
+              "false_challenge_rate": 0.0,
+              "missed_tail_rate": null
+            },
+            "tri_source_challenged_candidate_count": 9
           },
           "regular": {
-            "continuous_score_average_precision": 0.9978354978354977,
-            "q95_detection": {
-              "false_challenge_rate": 0.0,
-              "fn": 1,
-              "fp": 0,
-              "missed_tail_rate": 0.047619047619047616,
-              "precision": 1.0,
-              "recall": 0.9523809523809523,
-              "tn": 759,
-              "tp": 20
-            },
+            "score_rows": 780,
+            "underlying_evaluable_rows": 780,
             "research_band_counts": {
               "review": 20,
               "support": 754,
               "watch": 6
             },
-            "score_rows": 780,
             "tail_event_count": 21,
             "tail_event_prevalence": 0.026923076923076925,
-            "underlying_evaluable_rows": 780
+            "q95_detection": {
+              "tp": 20,
+              "fp": 0,
+              "fn": 1,
+              "tn": 759,
+              "precision": 1.0,
+              "recall": 0.9523809523809523,
+              "false_challenge_rate": 0.0,
+              "missed_tail_rate": 0.047619047619047616
+            },
+            "continuous_score_average_precision": 0.9978354978354977,
+            "tri_source_supported": {
+              "count": 402,
+              "evaluable_count": 402,
+              "false_support_count": 0,
+              "false_support_rate": 0.0,
+              "overall_tail_prevalence": 0.025210084033613446,
+              "raw_xstock_mae_bps": 1.9228375270573201,
+              "raw_xstock_p95_error_bps": 5.085088314400021
+            },
+            "tri_source_challenged": {
+              "tp": 20,
+              "fp": 0,
+              "fn": 1,
+              "tn": 759,
+              "precision": 1.0,
+              "recall": 0.9523809523809523,
+              "false_challenge_rate": 0.0,
+              "missed_tail_rate": 0.047619047619047616
+            },
+            "tri_source_challenged_candidate_count": 20
           }
         },
-        "threshold_challenge_q95": 54.92275340852967,
-        "threshold_review_q80": 40.08731697252088,
-        "training_tail_event_threshold_bps": 57.726602359267076,
-        "underlying_tail_event": {
-          "continuous_score_average_precision": 0.9978354978354977,
-          "definition": "Absolute log error of raw xStock versus contemporaneous underlying is at least the asset-specific 95th percentile of that error on OOF cross-fit training rows.",
-          "evaluable_rows": 833,
-          "event_count": 21,
-          "p1a_closer_rate": 0.48259303721488594,
-          "prevalence": 0.025210084033613446,
-          "q95_threshold_detection": {
-            "false_challenge_rate": 0.0,
-            "fn": 1,
-            "fp": 0,
-            "missed_tail_rate": 0.047619047619047616,
-            "precision": 1.0,
-            "recall": 0.9523809523809523,
-            "tn": 812,
-            "tp": 20
-          }
+        "decision_limitations": "Frozen q95 detector recovered 20 of 21 fresh-period underlying tail events with no false positive among contemporaneously evaluable q95 flags; use only as a challenged-only, source-quality-gated detector and not as a safe-state rule."
+      },
+      "tri_source_state_distribution": {
+        "counts": {
+          "SUPPORTED": 2201,
+          "INCONCLUSIVE": 1838,
+          "CHALLENGED": 71
         },
-        "xperp_diagnostics": {
-          "counts": {
-            "review_with_exact_xperp": 72,
-            "review_xperp_closer_to_p1a": 71,
-            "review_xperp_closer_to_xstock": 1,
-            "xperp_closer_to_underlying_than_xstock": 733,
-            "xperp_not_closer_to_underlying_than_xstock": 100
+        "rates": {
+          "SUPPORTED": 0.5355231143552311,
+          "INCONCLUSIVE": 0.44720194647201944,
+          "CHALLENGED": 0.01727493917274939
+        },
+        "total": 4110,
+        "tri_source_inconclusive": {
+          "count": 1838,
+          "rate": 0.44720194647201944
+        },
+        "session_breakdown": {
+          "afterhours": {
+            "count": 480,
+            "counts": {
+              "SUPPORTED": 238,
+              "INCONCLUSIVE": 238,
+              "CHALLENGED": 4
+            },
+            "rates": {
+              "SUPPORTED": 0.49583333333333335,
+              "INCONCLUSIVE": 0.49583333333333335,
+              "CHALLENGED": 0.008333333333333333
+            }
           },
-          "definition": "Descriptive exact-timestamp distance comparisons only; no X-Perp residual z-score or fitted threshold is used."
+          "closed": {
+            "count": 1200,
+            "counts": {
+              "SUPPORTED": 646,
+              "INCONCLUSIVE": 529,
+              "CHALLENGED": 25
+            },
+            "rates": {
+              "SUPPORTED": 0.5383333333333333,
+              "INCONCLUSIVE": 0.44083333333333335,
+              "CHALLENGED": 0.020833333333333332
+            }
+          },
+          "overnight": {
+            "count": 990,
+            "counts": {
+              "SUPPORTED": 541,
+              "INCONCLUSIVE": 436,
+              "CHALLENGED": 13
+            },
+            "rates": {
+              "SUPPORTED": 0.5464646464646464,
+              "INCONCLUSIVE": 0.4404040404040404,
+              "CHALLENGED": 0.013131313131313131
+            }
+          },
+          "premarket": {
+            "count": 660,
+            "counts": {
+              "SUPPORTED": 374,
+              "INCONCLUSIVE": 277,
+              "CHALLENGED": 9
+            },
+            "rates": {
+              "SUPPORTED": 0.5666666666666667,
+              "INCONCLUSIVE": 0.4196969696969697,
+              "CHALLENGED": 0.013636363636363636
+            }
+          },
+          "regular": {
+            "count": 780,
+            "counts": {
+              "SUPPORTED": 402,
+              "INCONCLUSIVE": 358,
+              "CHALLENGED": 20
+            },
+            "rates": {
+              "SUPPORTED": 0.5153846153846153,
+              "INCONCLUSIVE": 0.45897435897435895,
+              "CHALLENGED": 0.02564102564102564
+            }
+          }
         }
-      }
+      },
+      "model_id": "P1a-C"
     },
     "QQQx": {
       "chain_index": "501",
@@ -528,10 +992,11 @@
       },
       "reason_code_counts": {
         "CALIBRATION_GLOBAL_FALLBACK": 2190,
-        "P1A_XSTOCK_BELOW_REVIEW_THRESHOLD": 3133,
-        "P1A_XSTOCK_CHALLENGE_THRESHOLD": 466,
-        "P1A_XSTOCK_DETECTOR_NOT_PROMOTED": 4110,
-        "P1A_XSTOCK_REVIEW_THRESHOLD": 469,
+        "P1A_XSTOCK_CHALLENGE_NOT_PROMOTED": 466,
+        "P1A_XSTOCK_REVIEW_BAND": 466,
+        "P1A_XSTOCK_SUPPORT_BAND": 3133,
+        "P1A_XSTOCK_SUPPORT_NOT_PROMOTED": 3133,
+        "P1A_XSTOCK_WATCH_BAND": 469,
         "TOKEN_AND_CHALLENGER_AGREE": 4002,
         "TOKEN_DATA_UNAVAILABLE": 42
       },
@@ -565,185 +1030,414 @@
         "limitation": "Retrospective short-period diagnostics only; not a production-quality or prospective promotion verdict."
       },
       "frozen_challenger_detector": {
-        "artifact_sha256": "695dde83eb927f0010faabe694cb5d2f51003cda3834019dce25ba6b33f8a541",
         "artifact_version": "james-challenger-tail-v1",
-        "canonical_rows": 4110,
-        "decision_limitations": "Fresh-period q95 precision and recall are weak, the frozen boundary-risk model is a weaker ordinary point estimate, and the challenge band is overrepresented.",
-        "original_oof_training_rows": 20469,
+        "artifact_sha256": "695dde83eb927f0010faabe694cb5d2f51003cda3834019dce25ba6b33f8a541",
         "promotion_status": "CHALLENGER_DETECTOR_NOT_PROMOTABLE",
+        "score_name": "disagreement_bps",
+        "score_definition": "abs(log(xstock_price) - p1a_challenger_log_mean) * 10000",
+        "threshold_review_q80": 27.4534351873026,
+        "threshold_challenge_q95": 48.57182118002254,
+        "training_tail_event_threshold_bps": 48.32584427016327,
+        "original_oof_training_rows": 20469,
+        "research_status_mapping": {
+          "below_q80": "SUPPORT",
+          "q80_to_q95": "WATCH",
+          "at_or_above_q95": "REVIEW"
+        },
+        "canonical_rows": 4110,
+        "rows_with_token": 4068,
+        "rows_with_contemporaneous_underlying": 928,
+        "rows_with_p1a_output": 4110,
+        "rows_eligible_for_score": 4068,
         "research_band_counts": {
           "review": 466,
           "support": 3133,
           "watch": 469
         },
         "research_band_rates": {
-          "review": 0.11455260570304818,
           "support": 0.77015732546706,
-          "watch": 0.11529006882989185
+          "watch": 0.11529006882989185,
+          "review": 0.11455260570304818
         },
-        "research_status_mapping": {
-          "at_or_above_q95": "REVIEW",
-          "below_q80": "SUPPORT",
-          "q80_to_q95": "WATCH"
-        },
-        "rows_eligible_for_score": 4068,
-        "rows_with_contemporaneous_underlying": 928,
-        "rows_with_p1a_output": 4110,
-        "rows_with_token": 4068,
-        "score_definition": "abs(log(xstock_price) - p1a_challenger_log_mean) * 10000",
         "score_distribution": {
-          "max": 283.36703725550194,
-          "min": 0.013078816820666361,
           "n": 4068,
+          "min": 0.013078816820666361,
           "q50": 12.509189618525873,
           "q90": 53.875930123512106,
-          "q95": 79.58168336640975
+          "q95": 79.58168336640975,
+          "max": 283.36703725550194
         },
-        "score_name": "disagreement_bps",
+        "underlying_tail_event": {
+          "definition": "Absolute log error of raw xStock versus contemporaneous underlying is at least the asset-specific 95th percentile of that error on OOF cross-fit training rows.",
+          "evaluable_rows": 928,
+          "event_count": 5,
+          "prevalence": 0.005387931034482759,
+          "q95_threshold_detection": {
+            "tp": 2,
+            "fp": 8,
+            "fn": 3,
+            "tn": 915,
+            "precision": 0.2,
+            "recall": 0.4,
+            "false_challenge_rate": 0.00866738894907909,
+            "missed_tail_rate": 0.6
+          },
+          "continuous_score_average_precision": 0.3827618288144604,
+          "p1a_closer_rate": 0.38362068965517243
+        },
+        "tri_source_state_candidates": {
+          "definition": "Frozen SUPPORT band plus exact-time X-Perp closer to xStock is a supported candidate; frozen REVIEW band plus exact-time X-Perp closer to P1a is a challenged candidate. Underlying is used only for ex-post truth labels.",
+          "production_capability": {
+            "support_enabled": false,
+            "challenge_enabled": false,
+            "status": "research_only_no_production_state_capability"
+          },
+          "tri_source_supported": {
+            "count": 2228,
+            "evaluable_count": 575,
+            "false_support_count": 0,
+            "false_support_rate": 0.0,
+            "overall_tail_prevalence": 0.005387931034482759,
+            "raw_xstock_mae_bps": 1.9049366780705503,
+            "raw_xstock_p95_error_bps": 7.276060379898473
+          },
+          "tri_source_challenged": {
+            "count": 11,
+            "candidate_truth_evaluable_count": 3,
+            "evaluable_count": 928,
+            "tp": 2,
+            "fp": 1,
+            "fn": 3,
+            "tn": 922,
+            "precision": 0.6666666666666666,
+            "recall": 0.4,
+            "false_challenge_rate": 0.0010834236186348862,
+            "missed_tail_rate": 0.6,
+            "raw_xstock_mae_bps": 62.035104898733685,
+            "p1a_mae_bps": 5.892008571312483,
+            "p1a_better_rate": 1.0
+          },
+          "overall_tail_prevalence": 0.005387931034482759,
+          "xperp_relation_counts": {
+            "closer_to_p1a": 968,
+            "closer_to_xstock": 3100
+          },
+          "challenge_candidate_raw_xstock_mae_bps": 62.035104898733685,
+          "challenge_candidate_p1a_mae_bps": 5.892008571312483,
+          "challenge_candidate_p1a_closer_rate": 1.0
+        },
+        "xperp_diagnostics": {
+          "definition": "Descriptive exact-timestamp distance comparisons only; no X-Perp residual z-score or fitted threshold is used.",
+          "counts": {
+            "review_with_exact_xperp": 466,
+            "review_xperp_closer_to_p1a": 11,
+            "review_xperp_closer_to_xstock": 455,
+            "support_with_exact_xperp": 3133,
+            "support_xperp_closer_to_p1a": 905,
+            "support_xperp_closer_to_xstock": 2228,
+            "xperp_closer_to_underlying_than_xstock": 696,
+            "xperp_not_closer_to_underlying_than_xstock": 232
+          }
+        },
         "session_breakdown": {
           "afterhours": {
-            "continuous_score_average_precision": null,
-            "q95_detection": {
-              "false_challenge_rate": 0.0,
-              "fn": 0,
-              "fp": 0,
-              "missed_tail_rate": null,
-              "precision": null,
-              "recall": null,
-              "tn": 76,
-              "tp": 0
-            },
+            "score_rows": 480,
+            "underlying_evaluable_rows": 76,
             "research_band_counts": {
               "review": 1,
               "support": 467,
               "watch": 12
             },
-            "score_rows": 480,
             "tail_event_count": 0,
             "tail_event_prevalence": 0.0,
-            "underlying_evaluable_rows": 76
-          },
-          "closed": {
-            "continuous_score_average_precision": null,
             "q95_detection": {
-              "false_challenge_rate": null,
-              "fn": 0,
+              "tp": 0,
               "fp": 0,
-              "missed_tail_rate": null,
+              "fn": 0,
+              "tn": 76,
               "precision": null,
               "recall": null,
-              "tn": 0,
-              "tp": 0
+              "false_challenge_rate": 0.0,
+              "missed_tail_rate": null
             },
+            "continuous_score_average_precision": null,
+            "tri_source_supported": {
+              "count": 341,
+              "evaluable_count": 47,
+              "false_support_count": 0,
+              "false_support_rate": 0.0,
+              "overall_tail_prevalence": 0.005387931034482759,
+              "raw_xstock_mae_bps": 1.1431221235979936,
+              "raw_xstock_p95_error_bps": 3.728453276025332
+            },
+            "tri_source_challenged": {
+              "tp": 0,
+              "fp": 0,
+              "fn": 0,
+              "tn": 76,
+              "precision": null,
+              "recall": null,
+              "false_challenge_rate": 0.0,
+              "missed_tail_rate": null
+            },
+            "tri_source_challenged_candidate_count": 1
+          },
+          "closed": {
+            "score_rows": 1159,
+            "underlying_evaluable_rows": 0,
             "research_band_counts": {
               "review": 35,
               "support": 1002,
               "watch": 122
             },
-            "score_rows": 1159,
             "tail_event_count": 0,
             "tail_event_prevalence": null,
-            "underlying_evaluable_rows": 0
-          },
-          "overnight": {
-            "continuous_score_average_precision": null,
             "q95_detection": {
-              "false_challenge_rate": null,
-              "fn": 0,
+              "tp": 0,
               "fp": 0,
-              "missed_tail_rate": null,
+              "fn": 0,
+              "tn": 0,
               "precision": null,
               "recall": null,
-              "tn": 0,
-              "tp": 0
+              "false_challenge_rate": null,
+              "missed_tail_rate": null
             },
+            "continuous_score_average_precision": null,
+            "tri_source_supported": {
+              "count": 677,
+              "evaluable_count": 0,
+              "false_support_count": 0,
+              "false_support_rate": null,
+              "overall_tail_prevalence": 0.005387931034482759,
+              "raw_xstock_mae_bps": null,
+              "raw_xstock_p95_error_bps": null
+            },
+            "tri_source_challenged": {
+              "tp": 0,
+              "fp": 0,
+              "fn": 0,
+              "tn": 0,
+              "precision": null,
+              "recall": null,
+              "false_challenge_rate": null,
+              "missed_tail_rate": null
+            },
+            "tri_source_challenged_candidate_count": 3
+          },
+          "overnight": {
+            "score_rows": 989,
+            "underlying_evaluable_rows": 0,
             "research_band_counts": {
               "review": 143,
               "support": 583,
               "watch": 263
             },
-            "score_rows": 989,
             "tail_event_count": 0,
             "tail_event_prevalence": null,
-            "underlying_evaluable_rows": 0
+            "q95_detection": {
+              "tp": 0,
+              "fp": 0,
+              "fn": 0,
+              "tn": 0,
+              "precision": null,
+              "recall": null,
+              "false_challenge_rate": null,
+              "missed_tail_rate": null
+            },
+            "continuous_score_average_precision": null,
+            "tri_source_supported": {
+              "count": 467,
+              "evaluable_count": 0,
+              "false_support_count": 0,
+              "false_support_rate": null,
+              "overall_tail_prevalence": 0.005387931034482759,
+              "raw_xstock_mae_bps": null,
+              "raw_xstock_p95_error_bps": null
+            },
+            "tri_source_challenged": {
+              "tp": 0,
+              "fp": 0,
+              "fn": 0,
+              "tn": 0,
+              "precision": null,
+              "recall": null,
+              "false_challenge_rate": null,
+              "missed_tail_rate": null
+            },
+            "tri_source_challenged_candidate_count": 3
           },
           "premarket": {
-            "continuous_score_average_precision": null,
-            "q95_detection": {
-              "false_challenge_rate": 0.09722222222222222,
-              "fn": 0,
-              "fp": 7,
-              "missed_tail_rate": null,
-              "precision": 0.0,
-              "recall": null,
-              "tn": 65,
-              "tp": 0
-            },
+            "score_rows": 660,
+            "underlying_evaluable_rows": 72,
             "research_band_counts": {
               "review": 284,
               "support": 323,
               "watch": 53
             },
-            "score_rows": 660,
             "tail_event_count": 0,
             "tail_event_prevalence": 0.0,
-            "underlying_evaluable_rows": 72
+            "q95_detection": {
+              "tp": 0,
+              "fp": 7,
+              "fn": 0,
+              "tn": 65,
+              "precision": 0.0,
+              "recall": null,
+              "false_challenge_rate": 0.09722222222222222,
+              "missed_tail_rate": null
+            },
+            "continuous_score_average_precision": null,
+            "tri_source_supported": {
+              "count": 257,
+              "evaluable_count": 42,
+              "false_support_count": 0,
+              "false_support_rate": 0.0,
+              "overall_tail_prevalence": 0.005387931034482759,
+              "raw_xstock_mae_bps": 3.0601894567010355,
+              "raw_xstock_p95_error_bps": 7.867203571684022
+            },
+            "tri_source_challenged": {
+              "tp": 0,
+              "fp": 0,
+              "fn": 0,
+              "tn": 72,
+              "precision": null,
+              "recall": null,
+              "false_challenge_rate": 0.0,
+              "missed_tail_rate": null
+            },
+            "tri_source_challenged_candidate_count": 1
           },
           "regular": {
-            "continuous_score_average_precision": 0.7103174603174603,
-            "q95_detection": {
-              "false_challenge_rate": 0.0012903225806451613,
-              "fn": 3,
-              "fp": 1,
-              "missed_tail_rate": 0.6,
-              "precision": 0.6666666666666666,
-              "recall": 0.4,
-              "tn": 774,
-              "tp": 2
-            },
+            "score_rows": 780,
+            "underlying_evaluable_rows": 780,
             "research_band_counts": {
               "review": 3,
               "support": 758,
               "watch": 19
             },
-            "score_rows": 780,
             "tail_event_count": 5,
             "tail_event_prevalence": 0.00641025641025641,
-            "underlying_evaluable_rows": 780
+            "q95_detection": {
+              "tp": 2,
+              "fp": 1,
+              "fn": 3,
+              "tn": 774,
+              "precision": 0.6666666666666666,
+              "recall": 0.4,
+              "false_challenge_rate": 0.0012903225806451613,
+              "missed_tail_rate": 0.6
+            },
+            "continuous_score_average_precision": 0.7103174603174603,
+            "tri_source_supported": {
+              "count": 486,
+              "evaluable_count": 486,
+              "false_support_count": 0,
+              "false_support_rate": 0.0,
+              "overall_tail_prevalence": 0.005387931034482759,
+              "raw_xstock_mae_bps": 1.8787734421811055,
+              "raw_xstock_p95_error_bps": 7.245322830742307
+            },
+            "tri_source_challenged": {
+              "tp": 2,
+              "fp": 1,
+              "fn": 3,
+              "tn": 774,
+              "precision": 0.6666666666666666,
+              "recall": 0.4,
+              "false_challenge_rate": 0.0012903225806451613,
+              "missed_tail_rate": 0.6
+            },
+            "tri_source_challenged_candidate_count": 3
           }
         },
-        "threshold_challenge_q95": 48.57182118002254,
-        "threshold_review_q80": 27.4534351873026,
-        "training_tail_event_threshold_bps": 48.32584427016327,
-        "underlying_tail_event": {
-          "continuous_score_average_precision": 0.3827618288144604,
-          "definition": "Absolute log error of raw xStock versus contemporaneous underlying is at least the asset-specific 95th percentile of that error on OOF cross-fit training rows.",
-          "evaluable_rows": 928,
-          "event_count": 5,
-          "p1a_closer_rate": 0.38362068965517243,
-          "prevalence": 0.005387931034482759,
-          "q95_threshold_detection": {
-            "false_challenge_rate": 0.00866738894907909,
-            "fn": 3,
-            "fp": 8,
-            "missed_tail_rate": 0.6,
-            "precision": 0.2,
-            "recall": 0.4,
-            "tn": 915,
-            "tp": 2
-          }
+        "decision_limitations": "Fresh-period q95 precision and recall are weak, the frozen boundary-risk model is a weaker ordinary point estimate, and the challenge band is overrepresented."
+      },
+      "tri_source_state_distribution": {
+        "counts": {
+          "SUPPORTED": 0,
+          "INCONCLUSIVE": 4110,
+          "CHALLENGED": 0
         },
-        "xperp_diagnostics": {
-          "counts": {
-            "review_with_exact_xperp": 466,
-            "review_xperp_closer_to_p1a": 11,
-            "review_xperp_closer_to_xstock": 455,
-            "xperp_closer_to_underlying_than_xstock": 696,
-            "xperp_not_closer_to_underlying_than_xstock": 232
+        "rates": {
+          "SUPPORTED": 0.0,
+          "INCONCLUSIVE": 1.0,
+          "CHALLENGED": 0.0
+        },
+        "total": 4110,
+        "tri_source_inconclusive": {
+          "count": 4110,
+          "rate": 1.0
+        },
+        "session_breakdown": {
+          "afterhours": {
+            "count": 480,
+            "counts": {
+              "SUPPORTED": 0,
+              "INCONCLUSIVE": 480,
+              "CHALLENGED": 0
+            },
+            "rates": {
+              "SUPPORTED": 0.0,
+              "INCONCLUSIVE": 1.0,
+              "CHALLENGED": 0.0
+            }
           },
-          "definition": "Descriptive exact-timestamp distance comparisons only; no X-Perp residual z-score or fitted threshold is used."
+          "closed": {
+            "count": 1200,
+            "counts": {
+              "SUPPORTED": 0,
+              "INCONCLUSIVE": 1200,
+              "CHALLENGED": 0
+            },
+            "rates": {
+              "SUPPORTED": 0.0,
+              "INCONCLUSIVE": 1.0,
+              "CHALLENGED": 0.0
+            }
+          },
+          "overnight": {
+            "count": 990,
+            "counts": {
+              "SUPPORTED": 0,
+              "INCONCLUSIVE": 990,
+              "CHALLENGED": 0
+            },
+            "rates": {
+              "SUPPORTED": 0.0,
+              "INCONCLUSIVE": 1.0,
+              "CHALLENGED": 0.0
+            }
+          },
+          "premarket": {
+            "count": 660,
+            "counts": {
+              "SUPPORTED": 0,
+              "INCONCLUSIVE": 660,
+              "CHALLENGED": 0
+            },
+            "rates": {
+              "SUPPORTED": 0.0,
+              "INCONCLUSIVE": 1.0,
+              "CHALLENGED": 0.0
+            }
+          },
+          "regular": {
+            "count": 780,
+            "counts": {
+              "SUPPORTED": 0,
+              "INCONCLUSIVE": 780,
+              "CHALLENGED": 0
+            },
+            "rates": {
+              "SUPPORTED": 0.0,
+              "INCONCLUSIVE": 1.0,
+              "CHALLENGED": 0.0
+            }
+          }
         }
-      }
+      },
+      "model_id": "P1a-C"
     },
     "AAPLx": {
       "chain_index": "501",
@@ -772,15 +1466,18 @@
         "mean_interval_score_90": 1.9198458503531255
       },
       "evidence_state_counts": {
-        "INCONCLUSIVE": 4110
+        "CHALLENGED": 7,
+        "INCONCLUSIVE": 1915,
+        "SUPPORTED": 2188
       },
       "reason_code_counts": {
-        "P1A_XSTOCK_BELOW_REVIEW_THRESHOLD": 4001,
-        "P1A_XSTOCK_CHALLENGE_THRESHOLD": 11,
-        "P1A_XSTOCK_DETECTOR_NOT_PROMOTED": 4110,
-        "P1A_XSTOCK_REVIEW_THRESHOLD": 49,
+        "P1A_XSTOCK_REVIEW_BAND": 11,
+        "P1A_XSTOCK_SUPPORT_BAND": 4001,
+        "P1A_XSTOCK_WATCH_BAND": 49,
         "TOKEN_AND_CHALLENGER_AGREE": 4061,
-        "TOKEN_DATA_UNAVAILABLE": 49
+        "TOKEN_DATA_UNAVAILABLE": 49,
+        "XPERP_CORROBORATES_P1A": 1820,
+        "XPERP_CORROBORATES_XSTOCK": 2192
       },
       "mean_signed_deviation": {
         "xstock_minus_challenger": -0.014829067053643558,
@@ -793,183 +1490,412 @@
         "reference": 0
       },
       "frozen_challenger_detector": {
-        "artifact_sha256": "695dde83eb927f0010faabe694cb5d2f51003cda3834019dce25ba6b33f8a541",
         "artifact_version": "james-challenger-tail-v1",
-        "canonical_rows": 4110,
-        "decision_limitations": "Fresh-period q95 catches few tail events because the event count is small; retain as review evidence pending a longer frozen-threshold sample.",
-        "original_oof_training_rows": 16916,
+        "artifact_sha256": "695dde83eb927f0010faabe694cb5d2f51003cda3834019dce25ba6b33f8a541",
         "promotion_status": "CHALLENGER_DETECTOR_REVIEW_ONLY",
+        "score_name": "disagreement_bps",
+        "score_definition": "abs(log(xstock_price) - p1a_challenger_log_mean) * 10000",
+        "threshold_review_q80": 34.635272224798896,
+        "threshold_challenge_q95": 53.97894975052386,
+        "training_tail_event_threshold_bps": 59.355096532351936,
+        "original_oof_training_rows": 16916,
+        "research_status_mapping": {
+          "below_q80": "SUPPORT",
+          "q80_to_q95": "WATCH",
+          "at_or_above_q95": "REVIEW"
+        },
+        "canonical_rows": 4110,
+        "rows_with_token": 4061,
+        "rows_with_contemporaneous_underlying": 817,
+        "rows_with_p1a_output": 4110,
+        "rows_eligible_for_score": 4061,
         "research_band_counts": {
           "review": 11,
           "support": 4001,
           "watch": 49
         },
         "research_band_rates": {
-          "review": 0.002708692440285644,
           "support": 0.9852253139620784,
-          "watch": 0.01206599359763605
+          "watch": 0.01206599359763605,
+          "review": 0.002708692440285644
         },
-        "research_status_mapping": {
-          "at_or_above_q95": "REVIEW",
-          "below_q80": "SUPPORT",
-          "q80_to_q95": "WATCH"
-        },
-        "rows_eligible_for_score": 4061,
-        "rows_with_contemporaneous_underlying": 817,
-        "rows_with_p1a_output": 4110,
-        "rows_with_token": 4061,
-        "score_definition": "abs(log(xstock_price) - p1a_challenger_log_mean) * 10000",
         "score_distribution": {
-          "max": 91.00888928636586,
-          "min": 0.0074761873580797555,
           "n": 4061,
+          "min": 0.0074761873580797555,
           "q50": 6.606651511491535,
           "q90": 18.48392502842522,
-          "q95": 24.809828259684252
+          "q95": 24.809828259684252,
+          "max": 91.00888928636586
         },
-        "score_name": "disagreement_bps",
+        "underlying_tail_event": {
+          "definition": "Absolute log error of raw xStock versus contemporaneous underlying is at least the asset-specific 95th percentile of that error on OOF cross-fit training rows.",
+          "evaluable_rows": 817,
+          "event_count": 4,
+          "prevalence": 0.004895960832313341,
+          "q95_threshold_detection": {
+            "tp": 4,
+            "fp": 3,
+            "fn": 0,
+            "tn": 810,
+            "precision": 0.5714285714285714,
+            "recall": 1.0,
+            "false_challenge_rate": 0.0036900369003690036,
+            "missed_tail_rate": 0.0
+          },
+          "continuous_score_average_precision": 0.6083333333333333,
+          "p1a_closer_rate": 0.42105263157894735
+        },
+        "tri_source_state_candidates": {
+          "definition": "Frozen SUPPORT band plus exact-time X-Perp closer to xStock is a supported candidate; frozen REVIEW band plus exact-time X-Perp closer to P1a is a challenged candidate. Underlying is used only for ex-post truth labels.",
+          "production_capability": {
+            "support_enabled": true,
+            "challenge_enabled": true,
+            "panel_sha256": "2556cc1ee492a06afcbf6ff0ae6c6a56eaf75f44431f18b94849182d253cbc09"
+          },
+          "tri_source_supported": {
+            "count": 2188,
+            "evaluable_count": 472,
+            "false_support_count": 0,
+            "false_support_rate": 0.0,
+            "overall_tail_prevalence": 0.004895960832313341,
+            "raw_xstock_mae_bps": 2.4411145770056555,
+            "raw_xstock_p95_error_bps": 9.000301789372052
+          },
+          "tri_source_challenged": {
+            "count": 7,
+            "candidate_truth_evaluable_count": 4,
+            "evaluable_count": 817,
+            "tp": 4,
+            "fp": 0,
+            "fn": 0,
+            "tn": 813,
+            "precision": 1.0,
+            "recall": 1.0,
+            "false_challenge_rate": 0.0,
+            "missed_tail_rate": 0.0,
+            "raw_xstock_mae_bps": 70.06902985100538,
+            "p1a_mae_bps": 6.391209258262975,
+            "p1a_better_rate": 1.0
+          },
+          "overall_tail_prevalence": 0.004895960832313341,
+          "xperp_relation_counts": {
+            "closer_to_p1a": 1858,
+            "closer_to_xstock": 2203
+          },
+          "challenge_candidate_raw_xstock_mae_bps": 70.06902985100538,
+          "challenge_candidate_p1a_mae_bps": 6.391209258262975,
+          "challenge_candidate_p1a_closer_rate": 1.0
+        },
+        "xperp_diagnostics": {
+          "definition": "Descriptive exact-timestamp distance comparisons only; no X-Perp residual z-score or fitted threshold is used.",
+          "counts": {
+            "review_with_exact_xperp": 11,
+            "review_xperp_closer_to_p1a": 7,
+            "review_xperp_closer_to_xstock": 4,
+            "support_with_exact_xperp": 4001,
+            "support_xperp_closer_to_p1a": 1813,
+            "support_xperp_closer_to_xstock": 2188,
+            "xperp_closer_to_underlying_than_xstock": 687,
+            "xperp_not_closer_to_underlying_than_xstock": 130
+          }
+        },
         "session_breakdown": {
           "afterhours": {
-            "continuous_score_average_precision": null,
-            "q95_detection": {
-              "false_challenge_rate": 0.0,
-              "fn": 0,
-              "fp": 0,
-              "missed_tail_rate": null,
-              "precision": null,
-              "recall": null,
-              "tn": 2,
-              "tp": 0
-            },
+            "score_rows": 480,
+            "underlying_evaluable_rows": 2,
             "research_band_counts": {
               "support": 479,
               "watch": 1
             },
-            "score_rows": 480,
             "tail_event_count": 0,
             "tail_event_prevalence": 0.0,
-            "underlying_evaluable_rows": 2
-          },
-          "closed": {
-            "continuous_score_average_precision": null,
             "q95_detection": {
-              "false_challenge_rate": null,
-              "fn": 0,
+              "tp": 0,
               "fp": 0,
-              "missed_tail_rate": null,
+              "fn": 0,
+              "tn": 2,
               "precision": null,
               "recall": null,
-              "tn": 0,
-              "tp": 0
+              "false_challenge_rate": 0.0,
+              "missed_tail_rate": null
             },
+            "continuous_score_average_precision": null,
+            "tri_source_supported": {
+              "count": 273,
+              "evaluable_count": 2,
+              "false_support_count": 0,
+              "false_support_rate": 0.0,
+              "overall_tail_prevalence": 0.004895960832313341,
+              "raw_xstock_mae_bps": 1.5165657764315554,
+              "raw_xstock_p95_error_bps": 2.44953164975259
+            },
+            "tri_source_challenged": {
+              "tp": 0,
+              "fp": 0,
+              "fn": 0,
+              "tn": 2,
+              "precision": null,
+              "recall": null,
+              "false_challenge_rate": 0.0,
+              "missed_tail_rate": null
+            },
+            "tri_source_challenged_candidate_count": 0
+          },
+          "closed": {
+            "score_rows": 1153,
+            "underlying_evaluable_rows": 0,
             "research_band_counts": {
               "review": 1,
               "support": 1144,
               "watch": 8
             },
-            "score_rows": 1153,
             "tail_event_count": 0,
             "tail_event_prevalence": null,
-            "underlying_evaluable_rows": 0
-          },
-          "overnight": {
-            "continuous_score_average_precision": null,
             "q95_detection": {
-              "false_challenge_rate": null,
-              "fn": 0,
+              "tp": 0,
               "fp": 0,
-              "missed_tail_rate": null,
+              "fn": 0,
+              "tn": 0,
               "precision": null,
               "recall": null,
-              "tn": 0,
-              "tp": 0
+              "false_challenge_rate": null,
+              "missed_tail_rate": null
             },
+            "continuous_score_average_precision": null,
+            "tri_source_supported": {
+              "count": 489,
+              "evaluable_count": 0,
+              "false_support_count": 0,
+              "false_support_rate": null,
+              "overall_tail_prevalence": 0.004895960832313341,
+              "raw_xstock_mae_bps": null,
+              "raw_xstock_p95_error_bps": null
+            },
+            "tri_source_challenged": {
+              "tp": 0,
+              "fp": 0,
+              "fn": 0,
+              "tn": 0,
+              "precision": null,
+              "recall": null,
+              "false_challenge_rate": null,
+              "missed_tail_rate": null
+            },
+            "tri_source_challenged_candidate_count": 1
+          },
+          "overnight": {
+            "score_rows": 988,
+            "underlying_evaluable_rows": 0,
             "research_band_counts": {
               "support": 983,
               "watch": 5
             },
-            "score_rows": 988,
             "tail_event_count": 0,
             "tail_event_prevalence": null,
-            "underlying_evaluable_rows": 0
+            "q95_detection": {
+              "tp": 0,
+              "fp": 0,
+              "fn": 0,
+              "tn": 0,
+              "precision": null,
+              "recall": null,
+              "false_challenge_rate": null,
+              "missed_tail_rate": null
+            },
+            "continuous_score_average_precision": null,
+            "tri_source_supported": {
+              "count": 551,
+              "evaluable_count": 0,
+              "false_support_count": 0,
+              "false_support_rate": null,
+              "overall_tail_prevalence": 0.004895960832313341,
+              "raw_xstock_mae_bps": null,
+              "raw_xstock_p95_error_bps": null
+            },
+            "tri_source_challenged": {
+              "tp": 0,
+              "fp": 0,
+              "fn": 0,
+              "tn": 0,
+              "precision": null,
+              "recall": null,
+              "false_challenge_rate": null,
+              "missed_tail_rate": null
+            },
+            "tri_source_challenged_candidate_count": 0
           },
           "premarket": {
-            "continuous_score_average_precision": null,
-            "q95_detection": {
-              "false_challenge_rate": 0.02857142857142857,
-              "fn": 0,
-              "fp": 1,
-              "missed_tail_rate": null,
-              "precision": 0.0,
-              "recall": null,
-              "tn": 34,
-              "tp": 0
-            },
+            "score_rows": 660,
+            "underlying_evaluable_rows": 35,
             "research_band_counts": {
               "review": 4,
               "support": 649,
               "watch": 7
             },
-            "score_rows": 660,
             "tail_event_count": 0,
             "tail_event_prevalence": 0.0,
-            "underlying_evaluable_rows": 35
+            "q95_detection": {
+              "tp": 0,
+              "fp": 1,
+              "fn": 0,
+              "tn": 34,
+              "precision": 0.0,
+              "recall": null,
+              "false_challenge_rate": 0.02857142857142857,
+              "missed_tail_rate": null
+            },
+            "continuous_score_average_precision": null,
+            "tri_source_supported": {
+              "count": 427,
+              "evaluable_count": 22,
+              "false_support_count": 0,
+              "false_support_rate": 0.0,
+              "overall_tail_prevalence": 0.004895960832313341,
+              "raw_xstock_mae_bps": 4.031961068499225,
+              "raw_xstock_p95_error_bps": 11.041294371386456
+            },
+            "tri_source_challenged": {
+              "tp": 0,
+              "fp": 0,
+              "fn": 0,
+              "tn": 35,
+              "precision": null,
+              "recall": null,
+              "false_challenge_rate": 0.0,
+              "missed_tail_rate": null
+            },
+            "tri_source_challenged_candidate_count": 2
           },
           "regular": {
-            "continuous_score_average_precision": 0.6791666666666667,
-            "q95_detection": {
-              "false_challenge_rate": 0.002577319587628866,
-              "fn": 0,
-              "fp": 2,
-              "missed_tail_rate": 0.0,
-              "precision": 0.6666666666666666,
-              "recall": 1.0,
-              "tn": 774,
-              "tp": 4
-            },
+            "score_rows": 780,
+            "underlying_evaluable_rows": 780,
             "research_band_counts": {
               "review": 6,
               "support": 746,
               "watch": 28
             },
-            "score_rows": 780,
             "tail_event_count": 4,
             "tail_event_prevalence": 0.005128205128205128,
-            "underlying_evaluable_rows": 780
+            "q95_detection": {
+              "tp": 4,
+              "fp": 2,
+              "fn": 0,
+              "tn": 774,
+              "precision": 0.6666666666666666,
+              "recall": 1.0,
+              "false_challenge_rate": 0.002577319587628866,
+              "missed_tail_rate": 0.0
+            },
+            "continuous_score_average_precision": 0.6791666666666667,
+            "tri_source_supported": {
+              "count": 448,
+              "evaluable_count": 448,
+              "false_support_count": 0,
+              "false_support_rate": 0.0,
+              "overall_tail_prevalence": 0.004895960832313341,
+              "raw_xstock_mae_bps": 2.3671201010866594,
+              "raw_xstock_p95_error_bps": 8.369501127247762
+            },
+            "tri_source_challenged": {
+              "tp": 4,
+              "fp": 0,
+              "fn": 0,
+              "tn": 776,
+              "precision": 1.0,
+              "recall": 1.0,
+              "false_challenge_rate": 0.0,
+              "missed_tail_rate": 0.0
+            },
+            "tri_source_challenged_candidate_count": 4
           }
         },
-        "threshold_challenge_q95": 53.97894975052386,
-        "threshold_review_q80": 34.635272224798896,
-        "training_tail_event_threshold_bps": 59.355096532351936,
-        "underlying_tail_event": {
-          "continuous_score_average_precision": 0.6083333333333333,
-          "definition": "Absolute log error of raw xStock versus contemporaneous underlying is at least the asset-specific 95th percentile of that error on OOF cross-fit training rows.",
-          "evaluable_rows": 817,
-          "event_count": 4,
-          "p1a_closer_rate": 0.42105263157894735,
-          "prevalence": 0.004895960832313341,
-          "q95_threshold_detection": {
-            "false_challenge_rate": 0.0036900369003690036,
-            "fn": 0,
-            "fp": 3,
-            "missed_tail_rate": 0.0,
-            "precision": 0.5714285714285714,
-            "recall": 1.0,
-            "tn": 810,
-            "tp": 4
-          }
+        "decision_limitations": "Fresh-period q95 catches few tail events because the event count is small; retain as review evidence pending a longer frozen-threshold sample."
+      },
+      "tri_source_state_distribution": {
+        "counts": {
+          "SUPPORTED": 2188,
+          "INCONCLUSIVE": 1915,
+          "CHALLENGED": 7
         },
-        "xperp_diagnostics": {
-          "counts": {
-            "review_with_exact_xperp": 11,
-            "review_xperp_closer_to_p1a": 7,
-            "review_xperp_closer_to_xstock": 4,
-            "xperp_closer_to_underlying_than_xstock": 687,
-            "xperp_not_closer_to_underlying_than_xstock": 130
+        "rates": {
+          "SUPPORTED": 0.532360097323601,
+          "INCONCLUSIVE": 0.4659367396593674,
+          "CHALLENGED": 0.0017031630170316302
+        },
+        "total": 4110,
+        "tri_source_inconclusive": {
+          "count": 1915,
+          "rate": 0.4659367396593674
+        },
+        "session_breakdown": {
+          "afterhours": {
+            "count": 480,
+            "counts": {
+              "SUPPORTED": 273,
+              "INCONCLUSIVE": 207,
+              "CHALLENGED": 0
+            },
+            "rates": {
+              "SUPPORTED": 0.56875,
+              "INCONCLUSIVE": 0.43125,
+              "CHALLENGED": 0.0
+            }
           },
-          "definition": "Descriptive exact-timestamp distance comparisons only; no X-Perp residual z-score or fitted threshold is used."
+          "closed": {
+            "count": 1200,
+            "counts": {
+              "SUPPORTED": 489,
+              "INCONCLUSIVE": 710,
+              "CHALLENGED": 1
+            },
+            "rates": {
+              "SUPPORTED": 0.4075,
+              "INCONCLUSIVE": 0.5916666666666667,
+              "CHALLENGED": 0.0008333333333333334
+            }
+          },
+          "overnight": {
+            "count": 990,
+            "counts": {
+              "SUPPORTED": 551,
+              "INCONCLUSIVE": 439,
+              "CHALLENGED": 0
+            },
+            "rates": {
+              "SUPPORTED": 0.5565656565656566,
+              "INCONCLUSIVE": 0.44343434343434346,
+              "CHALLENGED": 0.0
+            }
+          },
+          "premarket": {
+            "count": 660,
+            "counts": {
+              "SUPPORTED": 427,
+              "INCONCLUSIVE": 231,
+              "CHALLENGED": 2
+            },
+            "rates": {
+              "SUPPORTED": 0.646969696969697,
+              "INCONCLUSIVE": 0.35,
+              "CHALLENGED": 0.0030303030303030303
+            }
+          },
+          "regular": {
+            "count": 780,
+            "counts": {
+              "SUPPORTED": 448,
+              "INCONCLUSIVE": 328,
+              "CHALLENGED": 4
+            },
+            "rates": {
+              "SUPPORTED": 0.5743589743589743,
+              "INCONCLUSIVE": 0.4205128205128205,
+              "CHALLENGED": 0.005128205128205128
+            }
+          }
         }
-      }
+      },
+      "model_id": "P1a-C"
     }
   },
   "interpretation_limits": [

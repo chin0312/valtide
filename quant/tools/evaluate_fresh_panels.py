@@ -28,12 +28,13 @@ from pathlib import Path
 from statistics import mean, median
 from typing import Any
 
-from valtide_api.assets import resolve_asset_config, supported_asset_names
+from valtide_api.assets import resolve_asset_config
 from valtide_api.challenger_detector import (
     detector_artifact,
     detector_band,
     detector_score,
     resolve_challenger_detector,
+    resolve_tri_source_state_capability,
 )
 from valtide_api.config import Settings
 from valtide_api.models import ChallengerEstimate, ValuationResult
@@ -239,6 +240,7 @@ def _frozen_detector_metrics(
         raise ValueError(f"no frozen challenger detector is registered for {asset}")
     artifact = detector_artifact()
     artifact_entry = artifact["assets"][asset]
+    state_capability = resolve_tri_source_state_capability(asset)
     detector_rows: list[dict[str, Any]] = []
     session_rows: dict[str, list[dict[str, Any]]] = defaultdict(list)
     corroboration = Counter()
@@ -276,8 +278,29 @@ def _frozen_detector_metrics(
         ):
             xperp = snapshot.reference_under_test
             xperp_ts = snapshot.reference_under_test_ts
-        if xperp is not None and xperp_ts == snapshot.observation_ts and xperp > 0:
+        xperp_relation = "unavailable"
+        if (
+            xperp is not None
+            and math.isfinite(xperp)
+            and xperp > 0
+            and xperp_ts == snapshot.observation_ts
+        ):
             p1a_row["xperp_log"] = math.log(xperp)
+            challenger_gap = abs(p1a_row["xperp_log"] - p1a.state_m)
+            xstock_gap = abs(p1a_row["xperp_log"] - token_log)
+            if math.isclose(challenger_gap, xstock_gap, rel_tol=1e-12, abs_tol=1e-12):
+                xperp_relation = "ambiguous"
+            elif xstock_gap < challenger_gap:
+                xperp_relation = "closer_to_xstock"
+            else:
+                xperp_relation = "closer_to_p1a"
+        p1a_row["xperp_relation"] = xperp_relation
+        p1a_row["tri_source_supported_candidate"] = (
+            band == "support" and xperp_relation == "closer_to_xstock"
+        )
+        p1a_row["tri_source_challenged_candidate"] = (
+            band == "review" and xperp_relation == "closer_to_p1a"
+        )
 
         if p1a_row["truth_log"] is not None and token_log is not None:
             raw_error_bps = abs(token_log - p1a_row["truth_log"]) * 10_000
@@ -293,19 +316,17 @@ def _frozen_detector_metrics(
         detector_rows.append(p1a_row)
         session_rows[p1a_row["session"]].append(p1a_row)
 
-        if band == "review":
+        if band in {"support", "review"}:
             if p1a_row["xperp_log"] is None:
-                corroboration["review_without_exact_xperp"] += 1
+                corroboration[f"{band}_without_exact_xperp"] += 1
             else:
-                corroboration["review_with_exact_xperp"] += 1
-                challenger_gap = abs(p1a_row["xperp_log"] - p1a.state_m)
-                xstock_gap = abs(p1a_row["xperp_log"] - token_log)
-                if challenger_gap < xstock_gap:
-                    corroboration["review_xperp_closer_to_p1a"] += 1
-                elif xstock_gap < challenger_gap:
-                    corroboration["review_xperp_closer_to_xstock"] += 1
+                corroboration[f"{band}_with_exact_xperp"] += 1
+                if xperp_relation == "closer_to_p1a":
+                    corroboration[f"{band}_xperp_closer_to_p1a"] += 1
+                elif xperp_relation == "closer_to_xstock":
+                    corroboration[f"{band}_xperp_closer_to_xstock"] += 1
                 else:
-                    corroboration["review_equal_distance"] += 1
+                    corroboration[f"{band}_xperp_ambiguous"] += 1
         if p1a_row["truth_log"] is not None and p1a_row["xperp_log"] is not None:
             truth_log = p1a_row["truth_log"]
             token_error = abs(token_log - truth_log)
@@ -320,8 +341,46 @@ def _frozen_detector_metrics(
     labels = [bool(row["tail_event"]) for row in eligible]
     scores = [float(row["score"]) for row in eligible]
     q95_flags = [row["score"] >= spec.threshold_challenge for row in eligible]
+    tri_challenge_flags = [bool(row["tri_source_challenged_candidate"]) for row in eligible]
     all_scores = [float(row["score"]) for row in detector_rows]
     all_bands = Counter(row["band"] for row in detector_rows)
+    support_candidates = [
+        row for row in detector_rows if row["tri_source_supported_candidate"]
+    ]
+    support_evaluable = [row for row in support_candidates if row["tail_event"] is not None]
+    challenge_candidates = [
+        row for row in detector_rows if row["tri_source_challenged_candidate"]
+    ]
+    challenge_evaluable = [
+        row for row in challenge_candidates if row["tail_event"] is not None
+    ]
+
+    def supported_metrics(
+        candidates: list[dict[str, Any]], evaluable_rows: list[dict[str, Any]]
+    ) -> dict[str, Any]:
+        errors = [float(row["raw_error_bps"]) for row in evaluable_rows]
+        tail_count = sum(bool(row["tail_event"]) for row in evaluable_rows)
+        overall_tail_count = sum(bool(row["tail_event"]) for row in eligible)
+        return {
+            "count": len(candidates),
+            "evaluable_count": len(evaluable_rows),
+            "false_support_count": tail_count,
+            "false_support_rate": (
+                tail_count / len(evaluable_rows)
+                if evaluable_rows
+                else None
+            ),
+            "overall_tail_prevalence": (
+                overall_tail_count / len(eligible) if eligible else None
+            ),
+            "raw_xstock_mae_bps": _mean(errors),
+            "raw_xstock_p95_error_bps": _quantile(errors, 0.95),
+        }
+
+    challenge_confusion = _confusion(
+        tri_challenge_flags,
+        labels,
+    )
 
     def session_summary(rows: list[dict[str, Any]]) -> dict[str, Any]:
         evaluated = [row for row in rows if row["tail_event"] is not None]
@@ -340,6 +399,22 @@ def _frozen_detector_metrics(
             "q95_detection": _confusion(q95_by_session, labels_by_session),
             "continuous_score_average_precision": _average_precision(
                 scores_by_session, labels_by_session
+            ),
+            "tri_source_supported": supported_metrics(
+                [row for row in rows if row["tri_source_supported_candidate"]],
+                [
+                    row
+                    for row in rows
+                    if row["tri_source_supported_candidate"]
+                    and row["tail_event"] is not None
+                ],
+            ),
+            "tri_source_challenged": _confusion(
+                [bool(row["tri_source_challenged_candidate"]) for row in evaluated],
+                labels_by_session,
+            ),
+            "tri_source_challenged_candidate_count": sum(
+                bool(row["tri_source_challenged_candidate"]) for row in rows
             ),
         }
 
@@ -394,6 +469,63 @@ def _frozen_detector_metrics(
                 else None
             ),
         },
+        "tri_source_state_candidates": {
+            "definition": (
+                "Frozen SUPPORT band plus exact-time X-Perp closer to xStock is a supported "
+                "candidate; frozen REVIEW band plus exact-time X-Perp closer to P1a is a "
+                "challenged candidate. Underlying is used only for ex-post truth labels."
+            ),
+            "production_capability": (
+                {
+                    "support_enabled": state_capability.support_enabled,
+                    "challenge_enabled": state_capability.challenge_enabled,
+                    "panel_sha256": state_capability.panel_sha256,
+                }
+                if state_capability is not None
+                else {
+                    "support_enabled": False,
+                    "challenge_enabled": False,
+                    "status": "research_only_no_production_state_capability",
+                }
+            ),
+            "tri_source_supported": supported_metrics(
+                support_candidates, support_evaluable
+            ),
+            "tri_source_challenged": {
+                "count": len(challenge_candidates),
+                "candidate_truth_evaluable_count": len(challenge_evaluable),
+                "evaluable_count": len(eligible),
+                **challenge_confusion,
+                "raw_xstock_mae_bps": _mean(
+                    [float(row["raw_error_bps"]) for row in challenge_evaluable]
+                ),
+                "p1a_mae_bps": _mean(
+                    [float(row["p1a_error_bps"]) for row in challenge_evaluable]
+                ),
+                "p1a_better_rate": (
+                    sum(bool(row["p1a_better"]) for row in challenge_evaluable)
+                    / len(challenge_evaluable)
+                    if challenge_evaluable
+                    else None
+                ),
+            },
+            "overall_tail_prevalence": sum(labels) / len(labels) if labels else None,
+            "xperp_relation_counts": dict(
+                sorted(Counter(row["xperp_relation"] for row in detector_rows).items())
+            ),
+            "challenge_candidate_raw_xstock_mae_bps": _mean(
+                [float(row["raw_error_bps"]) for row in challenge_evaluable]
+            ),
+            "challenge_candidate_p1a_mae_bps": _mean(
+                [float(row["p1a_error_bps"]) for row in challenge_evaluable]
+            ),
+            "challenge_candidate_p1a_closer_rate": (
+                sum(bool(row["p1a_better"]) for row in challenge_evaluable)
+                / len(challenge_evaluable)
+                if challenge_evaluable
+                else None
+            ),
+        },
         "xperp_diagnostics": {
             "definition": (
                 "Descriptive exact-timestamp distance comparisons only; no X-Perp residual "
@@ -411,7 +543,9 @@ def _frozen_detector_metrics(
 
 def evaluate_panel(asset: str, path: str | Path) -> dict[str, Any]:
     """Verify one panel and replay it using the registered frozen runtime."""
-    if asset not in _EXPECTED_ASSETS or asset not in supported_asset_names():
+    # QQQx remains resolvable here for explicitly offline research even while
+    # its production API/runtime capabilities are disabled.
+    if asset not in _EXPECTED_ASSETS:
         raise ValueError(f"unsupported evaluation asset: {asset}")
     panel_path = Path(path).expanduser().resolve(strict=True)
     settings = _pinned_settings(asset)
@@ -489,6 +623,25 @@ def evaluate_panel(asset: str, path: str | Path) -> dict[str, Any]:
     )
     states = Counter(result.evidence_state.value for result in results)
     reasons = Counter(code for result in results for code in result.reason_codes)
+    state_by_session: dict[str, Counter[str]] = defaultdict(Counter)
+    for snapshot, result in zip(snapshots, results, strict=True):
+        state_by_session[snapshot.market_state.value][result.evidence_state.value] += 1
+    tri_source_state_by_session = {}
+    for session, counts in sorted(state_by_session.items()):
+        session_total = sum(counts.values())
+        normalized_counts = {
+            state: counts.get(state, 0)
+            for state in ("SUPPORTED", "INCONCLUSIVE", "CHALLENGED")
+        }
+        tri_source_state_by_session[session] = {
+            "count": session_total,
+            "counts": normalized_counts,
+            "rates": {
+                state: count / session_total
+                for state, count in normalized_counts.items()
+            },
+        }
+    tri_state_count = sum(states.get(state, 0) for state in ("SUPPORTED", "INCONCLUSIVE", "CHALLENGED"))
 
     return {
         "asset": asset,
@@ -548,21 +701,40 @@ def evaluate_panel(asset: str, path: str | Path) -> dict[str, Any]:
             "nominal_coverage": results[0].interval_coverage_target if results else None,
         },
         "evidence_state_counts": dict(sorted(states.items())),
+        "tri_source_state_distribution": {
+            "counts": {
+                state: states.get(state, 0)
+                for state in ("SUPPORTED", "INCONCLUSIVE", "CHALLENGED")
+            },
+            "rates": {
+                state: states.get(state, 0) / len(results) if results else None
+                for state in ("SUPPORTED", "INCONCLUSIVE", "CHALLENGED")
+            },
+            "total": tri_state_count,
+            "tri_source_inconclusive": {
+                "count": states.get("INCONCLUSIVE", 0),
+                "rate": (
+                    states.get("INCONCLUSIVE", 0) / len(results) if results else None
+                ),
+            },
+            "session_breakdown": tri_source_state_by_session,
+        },
         "reason_code_counts": dict(sorted(reasons.items())),
         "pairwise_diagnostics": _pairwise_diagnostics(snapshots, results),
         "frozen_challenger_detector": frozen_detector,
         "interpretation": {
             "evidence_states": (
-                "X-Perp residuals are not Gaussian-calibrated by P1a-C. For an asset with a promoted "
-                "frozen P1a-xStock tail detector, the backend may emit CHALLENGED only when the frozen "
-                "challenge threshold is crossed and exact-time X-Perp evidence directionally corroborates "
-                "the model challenge; otherwise the unified profile remains INCONCLUSIVE. Pairwise "
-                "diagnostics do not create a calibrated X-Perp z-score. P1a-C assimilates xStock, so "
-                "xStock-vs-model is model-based challenger evidence, not independent-market proof."
+                "The current evaluator reports the shared tri-source classifier output. Production "
+                "SUPPORTED requires an asset-enabled frozen SUPPORT band and exact-time X-Perp closer "
+                "to xStock; CHALLENGED requires an asset-enabled frozen REVIEW band and exact-time X-Perp "
+                "closer to P1a-C. WATCH, missing/stale/ambiguous X-Perp, and disabled asset capabilities "
+                "remain INCONCLUSIVE. X-Perp residuals are not Gaussian-calibrated by P1a-C. P1a-C "
+                "assimilates xStock, so xStock-vs-model is model-based challenger evidence, not independent-market proof."
             ),
             "evaluation": (
-                "Retrospective out-of-fit-period diagnostics only; not prospective validation, "
-                "not calibration, and not production-readiness evidence."
+                "Retrospective out-of-fit-period frozen-threshold diagnostics used as bounded "
+                "evidence for explicit capability review; not prospective validation, a guarantee, "
+                "calibration, or threshold fitting."
             ),
         },
     }
@@ -577,10 +749,93 @@ def _parse_panel(value: str) -> tuple[str, Path]:
     return asset, Path(path)
 
 
+def _update_evidence_manifest(path: Path, result: dict[str, Any]) -> None:
+    """Refresh only replay-derived fields after verifying immutable panel hashes."""
+    manifest_path = path.expanduser().resolve(strict=True)
+    manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+    evaluated_assets = result.get("assets", {})
+    if set(evaluated_assets) != set(manifest.get("assets", {})):
+        raise ValueError("evaluator assets do not match the evidence manifest asset set")
+    if manifest.get("dataset_id") != "valtide_solana_xstock_fresh_validation_20260921_20261005_0625":
+        raise ValueError("unexpected fresh validation dataset identity")
+
+    for asset, evaluated in evaluated_assets.items():
+        record = manifest["assets"][asset]
+        panel = evaluated.get("panel", {})
+        if panel.get("sha256") != record.get("panel_sha256"):
+            raise ValueError(f"{asset} evaluator panel SHA does not match the committed manifest")
+        if panel.get("input_rows") != manifest.get("row_count_per_asset"):
+            raise ValueError(f"{asset} evaluator row count does not match the committed manifest")
+        if panel.get("window_start_utc", "").replace("+00:00", "Z") != manifest.get(
+            "period_start_utc"
+        ) or panel.get("window_end_utc", "").replace("+00:00", "Z") != manifest.get(
+            "period_end_utc"
+        ):
+            raise ValueError(f"{asset} evaluator window does not match the committed manifest")
+        identity = evaluated.get("identity", {})
+        if (
+            identity.get("token_source") != "okx_onchainos"
+            or identity.get("reference_source") != "okx_xperp_index"
+        ):
+            raise ValueError(f"{asset} evaluator sources do not match the canonical panel sources")
+        for result_key, manifest_key in (
+            ("chain_index", "chain_index"),
+            ("token_address", "token_address"),
+            ("underlying_symbol", "underlying_symbol"),
+            ("reference_instrument", "reference_instrument"),
+        ):
+            if identity.get(result_key) != record.get(manifest_key):
+                raise ValueError(f"{asset} evaluator {result_key} does not match the manifest")
+        runtime = evaluated.get("runtime", {})
+        if (
+            runtime.get("registered_model_id") != runtime.get("model_id")
+            or runtime.get("registered_model_version") != record.get("model_version")
+            or runtime.get("model_version") != record.get("model_version")
+        ):
+            raise ValueError(f"{asset} evaluator model binding does not match the manifest")
+        record["evidence_state_counts"] = evaluated["evidence_state_counts"]
+        record["reason_code_counts"] = evaluated["reason_code_counts"]
+        record["frozen_challenger_detector"] = evaluated["frozen_challenger_detector"]
+        record["tri_source_state_distribution"] = evaluated[
+            "tri_source_state_distribution"
+        ]
+        record["model_id"] = runtime["registered_model_id"]
+
+    api_root = Path(__file__).resolve().parents[2] / "apps" / "api" / "valtide_api"
+    detector_dir = api_root / "detectors"
+    reproduction = manifest["reproduction"]
+    reproduction["verification"] = (
+        "Recomputed all panel SHA-256 values, row counts, model/interval diagnostics, frozen "
+        "James detector metrics, and the shared tri-source classifier's state distributions "
+        "from the canonical panels using chronological replay. No fitting or threshold tuning."
+    )
+    reproduction["evaluator_source_sha256"] = hashlib.sha256(
+        Path(__file__).read_bytes()
+    ).hexdigest()
+    reproduction["validation_source_sha256"] = hashlib.sha256(
+        (api_root / "validation.py").read_bytes()
+    ).hexdigest()
+    reproduction["challenger_detector_source_sha256"] = hashlib.sha256(
+        (api_root / "challenger_detector.py").read_bytes()
+    ).hexdigest()
+    reproduction["state_capability_artifact_sha256"] = hashlib.sha256(
+        (detector_dir / "tri_source_capabilities_v1.json").read_bytes()
+    ).hexdigest()
+    rendered = json.dumps(manifest, indent=2, allow_nan=False) + "\n"
+    temporary = manifest_path.with_name(f".{manifest_path.name}.tmp")
+    temporary.write_text(rendered, encoding="utf-8")
+    temporary.replace(manifest_path)
+
+
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--panel", action="append", type=_parse_panel, required=True)
     parser.add_argument("--output", type=Path, help="write JSON here (default: stdout)")
+    parser.add_argument(
+        "--update-evidence-manifest",
+        type=Path,
+        help="refresh replay-derived evidence in an existing manifest after SHA checks",
+    )
     args = parser.parse_args(argv)
     panels = dict(args.panel)
     if len(panels) != len(args.panel) or tuple(sorted(panels)) != tuple(sorted(_EXPECTED_ASSETS)):
@@ -598,6 +853,8 @@ def main(argv: list[str] | None = None) -> int:
             args.output.write_text(rendered, encoding="utf-8")
         else:
             sys.stdout.write(rendered)
+        if args.update_evidence_manifest:
+            _update_evidence_manifest(args.update_evidence_manifest, result)
     except (OSError, ValueError, RuntimeError) as exc:
         print(f"fresh panel evaluation failed: {exc}", file=sys.stderr)
         return 2

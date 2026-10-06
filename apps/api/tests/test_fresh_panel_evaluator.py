@@ -4,9 +4,13 @@ from datetime import UTC, datetime, timedelta
 from pathlib import Path
 
 import pytest
-from quant.tools.evaluate_fresh_panels import evaluate_panel
+from quant.tools.evaluate_fresh_panels import (
+    _update_evidence_manifest,
+    evaluate_panel,
+)
 
 from valtide_api.assets import resolve_asset_config
+from valtide_api.challenger_detector import tri_source_capability_artifact
 from valtide_api.config import Settings
 
 
@@ -14,8 +18,8 @@ def _iso(timestamp):
     return timestamp.isoformat().replace("+00:00", "Z")
 
 
-def _write_spy_panel(path):
-    config = resolve_asset_config("SPYx", Settings(_env_file=None))
+def _write_asset_panel(path, asset="SPYx"):
+    config = resolve_asset_config(asset, Settings(_env_file=None))
     header = (
         "timestamp_utc,asset,underlying_symbol,token_source,token_chain_index,"
         "token_address,reference_under_test_instrument,session_state,token_close,"
@@ -35,8 +39,9 @@ def _write_spy_panel(path):
         timestamp_text = _iso(timestamp)
         prior_timestamp_text = _iso(timestamp - timedelta(minutes=5))
         row = (
-            f"{timestamp_text},SPYx,SPY,"
-            f"okx_onchainos,{config.okx_chain_index},{config.token_address},SPY-USD,"
+            f"{timestamp_text},{asset},{config.underlying_symbol},"
+            f"okx_onchainos,{config.okx_chain_index},{config.token_address},"
+            f"{config.reference_under_test_instrument},"
             f"regular,{token},100,50000,TRUE,{timestamp_text},"
             f"{underlying},TRUE,{timestamp_text},"
             f"{underlying - 0.1},{prior_timestamp_text},"
@@ -49,7 +54,7 @@ def _write_spy_panel(path):
 
 
 def test_fresh_panel_evaluator_uses_verified_asset_runtime_and_real_replay(tmp_path):
-    panel = _write_spy_panel(tmp_path / "spyx.csv")
+    panel = _write_asset_panel(tmp_path / "spyx.csv")
 
     result = evaluate_panel("SPYx", panel)
 
@@ -79,8 +84,39 @@ def test_fresh_panel_evaluator_uses_verified_asset_runtime_and_real_replay(tmp_p
     assert detector["underlying_tail_event"]["evaluable_rows"] == 4
     assert sum(detector["research_band_counts"].values()) == 4
     assert detector["threshold_challenge_q95"] > detector["threshold_review_q80"]
+    tri = detector["tri_source_state_candidates"]
+    assert tri["tri_source_supported"]["count"] >= tri[
+        "tri_source_supported"
+    ]["evaluable_count"]
+    assert tri["tri_source_challenged"]["count"] >= tri[
+        "tri_source_challenged"
+    ]["candidate_truth_evaluable_count"]
+    assert tri["overall_tail_prevalence"] is not None
+    assert "tri_source_supported" in detector["session_breakdown"]["regular"]
+    state_distribution = result["tri_source_state_distribution"]
+    assert state_distribution["total"] == 4
+    assert sum(state_distribution["counts"].values()) == 4
+    assert state_distribution["tri_source_inconclusive"]["count"] == result[
+        "evidence_state_counts"
+    ].get("INCONCLUSIVE", 0)
+    assert state_distribution["session_breakdown"]["regular"]["count"] == 4
     repeated = evaluate_panel("SPYx", panel)
     assert repeated["frozen_challenger_detector"] == detector
+    assert repeated["tri_source_state_distribution"] == state_distribution
+
+
+def test_qqqx_remains_available_to_offline_research_evaluator(tmp_path):
+    panel = _write_asset_panel(tmp_path / "qqqx.csv", asset="QQQx")
+
+    result = evaluate_panel("QQQx", panel)
+
+    assert result["asset"] == "QQQx"
+    assert result["identity"]["underlying_symbol"] == "QQQ"
+    assert result["panel"]["canonical_identity_verified"] is True
+    tri = result["frozen_challenger_detector"]["tri_source_state_candidates"]
+    assert tri["production_capability"]["status"] == (
+        "research_only_no_production_state_capability"
+    )
 
 
 def test_frozen_detector_config_matches_retained_research_hashes_and_thresholds():
@@ -121,6 +157,7 @@ def test_committed_fresh_detector_evidence_is_machine_readable_and_asset_bound()
     )
     assert manifest["period_start_utc"] == "2026-09-21T00:00:00Z"
     assert manifest["period_end_utc"] == "2026-10-05T06:25:00Z"
+    assert "not prospective validation or a guarantee" in manifest["purpose"]
     for asset in ("NVDAx", "SPYx", "QQQx", "AAPLx"):
         record = manifest["assets"][asset]
         assert len(record["panel_sha256"]) == 64
@@ -146,14 +183,137 @@ def test_committed_fresh_detector_evidence_is_machine_readable_and_asset_bound()
     )
     assert confusion["precision"] == 1.0
     assert confusion["recall"] == pytest.approx(20 / 21)
-    assert spy["evidence_state_counts"] == {"CHALLENGED": 71, "INCONCLUSIVE": 4039}
+    assert spy["evidence_state_counts"] == {
+        "CHALLENGED": 71,
+        "INCONCLUSIVE": 1838,
+        "SUPPORTED": 2201,
+    }
     assert spy["frozen_challenger_detector"]["xperp_diagnostics"]["counts"][
         "review_xperp_closer_to_p1a"
     ] == 71
 
+    nvda = manifest["assets"]["NVDAx"]
+    assert nvda["evidence_state_counts"] == {
+        "CHALLENGED": 60,
+        "INCONCLUSIVE": 2228,
+        "SUPPORTED": 1822,
+    }
+    nvda_challenge = nvda["frozen_challenger_detector"][
+        "tri_source_state_candidates"
+    ]["tri_source_challenged"]
+    assert (nvda_challenge["count"], nvda_challenge["candidate_truth_evaluable_count"]) == (
+        60,
+        6,
+    )
+    assert (nvda_challenge["tp"], nvda_challenge["fp"]) == (5, 1)
+    assert nvda_challenge["precision"] == pytest.approx(5 / 6)
+    assert nvda_challenge["recall"] == pytest.approx(5 / 29)
+
+    aapl = manifest["assets"]["AAPLx"]
+    assert aapl["evidence_state_counts"] == {
+        "CHALLENGED": 7,
+        "INCONCLUSIVE": 1915,
+        "SUPPORTED": 2188,
+    }
+    aapl_challenge = aapl["frozen_challenger_detector"][
+        "tri_source_state_candidates"
+    ]["tri_source_challenged"]
+    assert (aapl_challenge["count"], aapl_challenge["candidate_truth_evaluable_count"]) == (
+        7,
+        4,
+    )
+    assert (aapl_challenge["tp"], aapl_challenge["fp"]) == (4, 0)
+    assert "three remaining candidates have no ex-post truth label" in (
+        tri_source_capability_artifact()["assets"]["AAPLx"]["challenge"]["rationale"]
+    )
+
+
+def test_tri_source_capabilities_bind_only_production_assets_to_exact_fresh_panels():
+    repo_root = Path(__file__).resolve().parents[3]
+    manifest = json.loads(
+        (repo_root / "quant" / "data_manifest" / "fresh_validation_20261005.json").read_text()
+    )
+    artifact = tri_source_capability_artifact()
+
+    assert artifact["validation_dataset_id"] == manifest["dataset_id"]
+    assert artifact["evaluation_kind"] == "retrospective_frozen_threshold_diagnostic"
+    assert set(artifact["assets"]) == {"NVDAx", "SPYx", "AAPLx"}
+    for asset, capability in artifact["assets"].items():
+        assert capability["panel_sha256"] == manifest["assets"][asset]["panel_sha256"]
+
+    assert artifact["assets"]["NVDAx"]["support"]["enabled"] is True
+    assert artifact["assets"]["NVDAx"]["challenge"]["enabled"] is True
+    assert artifact["assets"]["SPYx"]["challenge"]["enabled"] is True
+    assert artifact["assets"]["AAPLx"]["challenge"]["enabled"] is True
+    for asset in ("NVDAx", "SPYx", "AAPLx"):
+        assert artifact["assets"][asset]["support"]["enabled"] is True
+        assert artifact["assets"][asset]["challenge"]["enabled"] is True
+    assert manifest["reproduction"]["state_capability_artifact_sha256"] == hashlib.sha256(
+        (repo_root / "apps/api/valtide_api/detectors/tri_source_capabilities_v1.json").read_bytes()
+    ).hexdigest()
+    assert manifest["reproduction"]["evaluator_source_sha256"] == hashlib.sha256(
+        (repo_root / "quant/tools/evaluate_fresh_panels.py").read_bytes()
+    ).hexdigest()
+    assert manifest["reproduction"]["validation_source_sha256"] == hashlib.sha256(
+        (repo_root / "apps/api/valtide_api/validation.py").read_bytes()
+    ).hexdigest()
+    assert manifest["reproduction"]["challenger_detector_source_sha256"] == hashlib.sha256(
+        (repo_root / "apps/api/valtide_api/challenger_detector.py").read_bytes()
+    ).hexdigest()
+
+
+def test_evidence_manifest_refresh_is_sha_guarded_and_deterministic(tmp_path):
+    repo_root = Path(__file__).resolve().parents[3]
+    source = json.loads(
+        (repo_root / "quant" / "data_manifest" / "fresh_validation_20261005.json").read_text()
+    )
+    manifest_path = tmp_path / "fresh_validation.json"
+    manifest_path.write_text(json.dumps(source, indent=2) + "\n", encoding="utf-8")
+    evaluated_assets = {}
+    for asset, record in source["assets"].items():
+        evaluated_assets[asset] = {
+            "panel": {
+                "sha256": record["panel_sha256"],
+                "input_rows": source["row_count_per_asset"],
+                "window_start_utc": "2026-09-21T00:00:00+00:00",
+                "window_end_utc": "2026-10-05T06:25:00+00:00",
+            },
+            "identity": {
+                "token_source": "okx_onchainos",
+                "reference_source": "okx_xperp_index",
+                "chain_index": record["chain_index"],
+                "token_address": record["token_address"],
+                "underlying_symbol": record["underlying_symbol"],
+                "reference_instrument": record["reference_instrument"],
+            },
+            "runtime": {
+                "model_id": "P1a-C",
+                "registered_model_id": "P1a-C",
+                "model_version": record["model_version"],
+                "registered_model_version": record["model_version"],
+            },
+            "evidence_state_counts": {"INCONCLUSIVE": source["row_count_per_asset"]},
+            "reason_code_counts": {},
+            "frozen_challenger_detector": {},
+            "tri_source_state_distribution": {},
+        }
+    result = {"assets": evaluated_assets}
+    wrong_sha_result = json.loads(json.dumps(result))
+    wrong_sha_result["assets"]["SPYx"]["panel"]["sha256"] = "0" * 64
+
+    with pytest.raises(ValueError, match="panel SHA"):
+        _update_evidence_manifest(manifest_path, wrong_sha_result)
+    before = manifest_path.read_bytes()
+
+    _update_evidence_manifest(manifest_path, result)
+    first = manifest_path.read_bytes()
+    _update_evidence_manifest(manifest_path, result)
+    assert manifest_path.read_bytes() == first
+    assert before != first
+
 
 def test_fresh_panel_evaluator_rejects_cross_asset_panel(tmp_path):
-    panel = _write_spy_panel(tmp_path / "spyx.csv")
+    panel = _write_asset_panel(tmp_path / "spyx.csv")
 
     with pytest.raises(ValueError, match="not verified/replay-ready"):
         evaluate_panel("QQQx", panel)

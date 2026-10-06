@@ -28,6 +28,7 @@ from valtide_api.publisher import (
 from valtide_api.quant_runtime import estimate, get_quant_service, resolve_quant_runtime
 from valtide_api.replay import run_inference
 from valtide_api.runtime_store import RuntimeStateIntegrityError, RuntimeStore
+from valtide_api.scheduler import build_enabled_schedulers
 from valtide_api.state_store import KalmanState
 from valtide_api.validation import validate
 
@@ -58,10 +59,12 @@ def _snapshot(asset: str = "NVDAx") -> MarketSnapshot:
     )
 
 
-def test_registry_exposes_four_primary_assets_and_keeps_tsla_as_hidden_candidate():
-    assert supported_asset_names() == ("NVDAx", "SPYx", "QQQx", "AAPLx")
+def test_registry_exposes_three_production_assets_and_keeps_research_candidates_hidden():
+    assert supported_asset_names() == ("NVDAx", "SPYx", "AAPLx")
     assert "TSLAx" in {config.asset for config in assets_module.registered_asset_configs()}
+    assert "QQQx" in {config.asset for config in assets_module.registered_asset_configs()}
     assert not assets_module.is_supported_asset("TSLAx")
+    assert not assets_module.is_supported_asset("QQQx")
 
 
 def test_nvdax_config_keeps_existing_env_backed_bindings():
@@ -114,7 +117,6 @@ def test_unknown_asset_fails_closed_before_source_or_artifact_selection():
     ("asset", "underlying", "address"),
     [
         ("SPYx", "SPY", "XsoCS1TfEyfFhfvj8EtZ528L3CaKBDBRqRapnBbDF2W"),
-        ("QQQx", "QQQ", "Xs8S1uUs1zvS2p7iwtsG3b6fkhpvmwz4GYU3gWAmWHZ"),
         ("AAPLx", "AAPL", "XsbEhLAtcf6HdfpFZ5xEMdqW8nfAvcsP5bdudRLJzJp"),
     ],
 )
@@ -139,6 +141,18 @@ def test_primary_token_bindings_and_frozen_quant_bundles_are_asset_specific(
     assert service.runtime.artifact.model_version == "0.3.0"
     assert service.runtime.artifact.source_fit_sha256
     assert service.runtime.artifact.source_dataset_sha256
+
+
+def test_qqqx_retains_offline_quant_and_historical_research_but_no_runtime():
+    config = resolve_asset_config("QQQx", Settings(_env_file=None))
+
+    assert config.capabilities.quant is True
+    assert config.capabilities.historical_data is True
+    assert config.capabilities.api_exposed is False
+    assert config.capabilities.live_data is False
+    assert config.capabilities.runtime is False
+    assert config.capabilities.onchain is False
+    assert get_quant_service("QQQx").runtime.artifact.asset == "QQQx"
 
 
 def test_registered_token_identity_matches_research_data_manifest():
@@ -182,9 +196,17 @@ def test_quant_runtime_metadata_is_artifact_owned_and_registry_drives_api(monkey
     monkeypatch.setattr(assets_route, "get_settings", lambda: Settings(_env_file=None))
     monkeypatch.setattr(assets_route, "get_runtime_store", lambda: RuntimeStore(":memory:"))
     listed = list_assets()
-    assert [item.asset for item in listed] == ["NVDAx", "SPYx", "QQQx", "AAPLx"]
+    assert [item.asset for item in listed] == ["NVDAx", "SPYx", "AAPLx"]
     assert listed[0].model_available is True
     assert all(item.model_available for item in listed)
+    assert all(
+        config.capabilities.api_exposed
+        and config.capabilities.live_data
+        and config.capabilities.historical_data
+        and config.capabilities.quant
+        and config.capabilities.runtime
+        for config in assets_module.api_asset_configs()
+    )
     assert all(item.reference_profile == "unified_xstock_p1ac_xperp_evidence_v1" for item in listed)
     assert all(not item.live_market_data_available for item in listed[1:])
     capability_by_asset = {
@@ -192,17 +214,58 @@ def test_quant_runtime_metadata_is_artifact_owned_and_registry_drives_api(monkey
         for item in listed
     }
     assert capability_by_asset == {
-        "NVDAx": ("CHALLENGER_DETECTOR_NOT_PROMOTABLE", "ABSTAIN_ONLY"),
-        "SPYx": ("CHALLENGER_DETECTOR_PROMOTABLE", "CHALLENGED_ONLY"),
-        "QQQx": ("CHALLENGER_DETECTOR_NOT_PROMOTABLE", "ABSTAIN_ONLY"),
+        "NVDAx": (
+            "CHALLENGER_DETECTOR_NOT_PROMOTABLE",
+            "TRI_SOURCE_SUPPORTED_AND_CHALLENGED",
+        ),
+        "SPYx": (
+            "CHALLENGER_DETECTOR_PROMOTABLE",
+            "TRI_SOURCE_SUPPORTED_AND_CHALLENGED",
+        ),
         "AAPLx": (
             "CHALLENGER_DETECTOR_REVIEW_ONLY",
-            "ABSTAIN_WITH_REVIEW_DIAGNOSTICS",
+            "TRI_SOURCE_SUPPORTED_AND_CHALLENGED",
         ),
     }
     monkeypatch.setattr(quant_runtime, "_QUANT_RUNTIME_FACTORIES", MappingProxyType({}))
     assert list_assets()[0].model_available is False
     assert TestClient(app).get("/api/valuation/NVDAx/live").status_code == 503
+
+
+def test_qqqx_production_http_routes_are_not_exposed(monkeypatch):
+    monkeypatch.setattr(
+        "valtide_api.routes.assets.get_settings", lambda: Settings(_env_file=None)
+    )
+    monkeypatch.setattr(
+        "valtide_api.routes.assets.get_runtime_store", lambda: RuntimeStore(":memory:")
+    )
+    client = TestClient(app)
+    assert [item["asset"] for item in client.get("/api/assets").json()] == [
+        "NVDAx",
+        "SPYx",
+        "AAPLx",
+    ]
+    for path in (
+        "/api/valuation/QQQx",
+        "/api/valuation/QQQx/live",
+        "/api/history/QQQx",
+        "/api/replay/QQQx?source=panel",
+        "/api/backtest/QQQx?source=historical",
+        "/api/runtime/QQQx",
+        "/api/onchain/QQQx",
+        "/api/onchain/QQQx/enforcement",
+    ):
+        assert client.get(path).status_code == 404, path
+    assert client.post("/api/publish/QQQx").status_code == 404
+
+
+def test_qqqx_scheduler_selection_fails_closed_without_affecting_research_runtime():
+    settings = Settings(
+        _env_file=None,
+        live_scheduler_enabled=True,
+        live_scheduler_assets="QQQx",
+    )
+    assert build_enabled_schedulers(settings, RuntimeStore(":memory:")) == ()
 
 
 def test_incomplete_synthetic_capabilities_do_not_activate_production_layers():
