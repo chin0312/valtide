@@ -12,6 +12,8 @@ contract ValtideControlPlaneTest is Test {
     ValtideValidationRegistry internal registry;
     ValtideRiskGuard internal riskGuard;
     DemoCollateralVault internal vault;
+    DemoCollateralVault internal spyVault;
+    DemoCollateralVault internal aaplVault;
 
     address internal owner;
     address internal publisher;
@@ -23,6 +25,12 @@ contract ValtideControlPlaneTest is Test {
     bytes32 internal constant ASSET_ID = keccak256(bytes("NVDAx"));
     bytes32 internal constant REFERENCE_ID = keccak256(bytes("OKX_NVDA_USD_INDEX"));
     bytes32 internal constant OTHER_REFERENCE_ID = keccak256(bytes("CHAINLINK_NVDA"));
+    bytes32 internal constant SPY_ASSET_ID = keccak256(bytes("SPYx"));
+    bytes32 internal constant SPY_REFERENCE_ID = keccak256(bytes("OKX_SPY_USD_INDEX"));
+    bytes32 internal constant AAPL_ASSET_ID = keccak256(bytes("AAPLx"));
+    bytes32 internal constant AAPL_REFERENCE_ID = keccak256(bytes("OKX_AAPL_USD_INDEX"));
+    bytes32 internal constant NVDA_MODEL_VERSION = keccak256(bytes("0.2.0"));
+    bytes32 internal constant MULTI_ASSET_MODEL_VERSION = keccak256(bytes("0.3.0"));
 
     function setUp() public {
         vm.warp(1_000_000);
@@ -37,12 +45,18 @@ contract ValtideControlPlaneTest is Test {
         registry = new ValtideValidationRegistry(owner);
         riskGuard = new ValtideRiskGuard(address(registry));
         vault = new DemoCollateralVault(owner, address(riskGuard), ASSET_ID, REFERENCE_ID);
+        spyVault = new DemoCollateralVault(owner, address(riskGuard), SPY_ASSET_ID, SPY_REFERENCE_ID);
+        aaplVault = new DemoCollateralVault(owner, address(riskGuard), AAPL_ASSET_ID, AAPL_REFERENCE_ID);
 
         vm.prank(owner);
         registry.setPublisher(publisher, true);
 
         vm.prank(owner);
         vault.configurePolicy(_defaultVaultPolicy());
+        vm.prank(owner);
+        spyVault.configurePolicy(_defaultVaultPolicy());
+        vm.prank(owner);
+        aaplVault.configurePolicy(_defaultVaultPolicy());
     }
 
     // ---------------------------------------------------------------------
@@ -231,6 +245,99 @@ contract ValtideControlPlaneTest is Test {
         assertTrue(exists);
         assertEq(stored.observedAt, olderObservedAt);
         assertEq(uint8(stored.evidenceState), uint8(ValtideValidationRegistry.EvidenceState.INCONCLUSIVE));
+    }
+
+    function testThreeAssetAttestationsAreIsolatedOnOneSharedRegistry() public {
+        _publishFor(ASSET_ID, REFERENCE_ID, NVDA_MODEL_VERSION, ValtideValidationRegistry.EvidenceState.SUPPORTED);
+        _publishFor(
+            SPY_ASSET_ID,
+            SPY_REFERENCE_ID,
+            MULTI_ASSET_MODEL_VERSION,
+            ValtideValidationRegistry.EvidenceState.INCONCLUSIVE
+        );
+        _publishFor(
+            AAPL_ASSET_ID,
+            AAPL_REFERENCE_ID,
+            MULTI_ASSET_MODEL_VERSION,
+            ValtideValidationRegistry.EvidenceState.CHALLENGED
+        );
+
+        (ValtideValidationRegistry.ValidationAttestation memory nvda, bool nvdaExists) =
+            registry.getLatest(ASSET_ID, REFERENCE_ID);
+        (ValtideValidationRegistry.ValidationAttestation memory spy, bool spyExists) =
+            registry.getLatest(SPY_ASSET_ID, SPY_REFERENCE_ID);
+        (ValtideValidationRegistry.ValidationAttestation memory aapl, bool aaplExists) =
+            registry.getLatest(AAPL_ASSET_ID, AAPL_REFERENCE_ID);
+
+        assertTrue(nvdaExists);
+        assertTrue(spyExists);
+        assertTrue(aaplExists);
+        assertEq(uint8(nvda.evidenceState), uint8(ValtideValidationRegistry.EvidenceState.SUPPORTED));
+        assertEq(uint8(spy.evidenceState), uint8(ValtideValidationRegistry.EvidenceState.INCONCLUSIVE));
+        assertEq(uint8(aapl.evidenceState), uint8(ValtideValidationRegistry.EvidenceState.CHALLENGED));
+        assertEq(registry.hasAttestation(ASSET_ID, REFERENCE_ID), true);
+        assertEq(registry.hasAttestation(SPY_ASSET_ID, SPY_REFERENCE_ID), true);
+        assertEq(registry.hasAttestation(AAPL_ASSET_ID, AAPL_REFERENCE_ID), true);
+    }
+
+    function testSameReferenceIdIsIsolatedAcrossDifferentAssets() public {
+        bytes32 sharedReferenceId = keccak256(bytes("SHARED_REFERENCE"));
+        ValtideValidationRegistry.ValidationInput memory nvdaInput = _attestation(
+            ValtideValidationRegistry.EvidenceState.SUPPORTED, block.timestamp - 60, block.timestamp + 900
+        );
+        nvdaInput.referenceId = sharedReferenceId;
+        nvdaInput.modelVersion = NVDA_MODEL_VERSION;
+        _publishInput(ASSET_ID, nvdaInput);
+
+        ValtideValidationRegistry.ValidationInput memory spyInput = _attestation(
+            ValtideValidationRegistry.EvidenceState.CHALLENGED, block.timestamp - 60, block.timestamp + 900
+        );
+        spyInput.referenceId = sharedReferenceId;
+        spyInput.modelVersion = MULTI_ASSET_MODEL_VERSION;
+        _publishInput(SPY_ASSET_ID, spyInput);
+
+        (ValtideValidationRegistry.ValidationAttestation memory nvda, bool nvdaExists) =
+            registry.getLatest(ASSET_ID, sharedReferenceId);
+        (ValtideValidationRegistry.ValidationAttestation memory spy, bool spyExists) =
+            registry.getLatest(SPY_ASSET_ID, sharedReferenceId);
+
+        assertTrue(nvdaExists);
+        assertTrue(spyExists);
+        assertEq(uint8(nvda.evidenceState), uint8(ValtideValidationRegistry.EvidenceState.SUPPORTED));
+        assertEq(uint8(spy.evidenceState), uint8(ValtideValidationRegistry.EvidenceState.CHALLENGED));
+    }
+
+    function testThreeVaultsHaveIndependentPoliciesAndEnforcement() public {
+        _assertDefaultPolicy(address(vault), ASSET_ID, REFERENCE_ID);
+        _assertDefaultPolicy(address(spyVault), SPY_ASSET_ID, SPY_REFERENCE_ID);
+        _assertDefaultPolicy(address(aaplVault), AAPL_ASSET_ID, AAPL_REFERENCE_ID);
+
+        _exerciseDefaultPolicy(vault, ASSET_ID, REFERENCE_ID, NVDA_MODEL_VERSION);
+        _exerciseDefaultPolicy(spyVault, SPY_ASSET_ID, SPY_REFERENCE_ID, MULTI_ASSET_MODEL_VERSION);
+        _exerciseDefaultPolicy(aaplVault, AAPL_ASSET_ID, AAPL_REFERENCE_ID, MULTI_ASSET_MODEL_VERSION);
+
+        vm.prank(owner);
+        spyVault.configurePolicy(
+            _policy(
+                15 minutes,
+                ValtideRiskGuard.PolicyAction.MONITOR,
+                ValtideRiskGuard.PolicyAction.REQUIRE_REVIEW,
+                ValtideRiskGuard.PolicyAction.RESTRICT_NEW_RISK,
+                ValtideRiskGuard.PolicyAction.REQUIRE_REVIEW
+            )
+        );
+
+        (ValtideRiskGuard.ValidationPolicy memory nvdaPolicy, bool nvdaConfigured) =
+            riskGuard.getPolicy(address(vault), ASSET_ID, REFERENCE_ID);
+        (ValtideRiskGuard.ValidationPolicy memory spyPolicy, bool spyConfigured) =
+            riskGuard.getPolicy(address(spyVault), SPY_ASSET_ID, SPY_REFERENCE_ID);
+        (ValtideRiskGuard.ValidationPolicy memory aaplPolicy, bool aaplConfigured) =
+            riskGuard.getPolicy(address(aaplVault), AAPL_ASSET_ID, AAPL_REFERENCE_ID);
+
+        assertTrue(nvdaConfigured && spyConfigured && aaplConfigured);
+        assertEq(uint8(nvdaPolicy.onSupported), uint8(ValtideRiskGuard.PolicyAction.ALLOW));
+        assertEq(uint8(spyPolicy.onSupported), uint8(ValtideRiskGuard.PolicyAction.MONITOR));
+        assertEq(uint8(aaplPolicy.onSupported), uint8(ValtideRiskGuard.PolicyAction.ALLOW));
     }
 
     // ---------------------------------------------------------------------
@@ -588,6 +695,87 @@ contract ValtideControlPlaneTest is Test {
     function _publishInput(bytes32 assetId, ValtideValidationRegistry.ValidationInput memory input) internal {
         vm.prank(publisher);
         registry.publishValidation(assetId, input);
+    }
+
+    function _publishFor(
+        bytes32 assetId,
+        bytes32 referenceId,
+        bytes32 modelVersion,
+        ValtideValidationRegistry.EvidenceState evidenceState
+    ) internal {
+        uint256 timestamp = vm.getBlockTimestamp();
+        ValtideValidationRegistry.ValidationInput memory input =
+            _attestation(evidenceState, timestamp - 60, timestamp + 900);
+        input.referenceId = referenceId;
+        input.modelVersion = modelVersion;
+        _publishInput(assetId, input);
+    }
+
+    function _assertDefaultPolicy(address policyOwner, bytes32 assetId, bytes32 referenceId) internal view {
+        (ValtideRiskGuard.ValidationPolicy memory configuredPolicy, bool configured) =
+            riskGuard.getPolicy(policyOwner, assetId, referenceId);
+        assertTrue(configured);
+        assertEq(configuredPolicy.maxAge, 15 minutes);
+        assertEq(uint8(configuredPolicy.onSupported), uint8(ValtideRiskGuard.PolicyAction.ALLOW));
+        assertEq(uint8(configuredPolicy.onInconclusive), uint8(ValtideRiskGuard.PolicyAction.REQUIRE_REVIEW));
+        assertEq(uint8(configuredPolicy.onChallenged), uint8(ValtideRiskGuard.PolicyAction.RESTRICT_NEW_RISK));
+        assertEq(uint8(configuredPolicy.onStale), uint8(ValtideRiskGuard.PolicyAction.REQUIRE_REVIEW));
+    }
+
+    function _exerciseDefaultPolicy(
+        DemoCollateralVault assetVault,
+        bytes32 assetId,
+        bytes32 referenceId,
+        bytes32 modelVersion
+    ) internal {
+        _publishFor(assetId, referenceId, modelVersion, ValtideValidationRegistry.EvidenceState.SUPPORTED);
+        vm.prank(user);
+        assertEq(uint8(assetVault.requestNewExposure(100)), uint8(ValtideRiskGuard.PolicyAction.ALLOW));
+
+        _publishFor(assetId, referenceId, modelVersion, ValtideValidationRegistry.EvidenceState.INCONCLUSIVE);
+        vm.expectRevert(
+            abi.encodeWithSelector(
+                DemoCollateralVault.NewExposureNotAllowed.selector,
+                ValtideValidationRegistry.EvidenceState.INCONCLUSIVE,
+                ValtideRiskGuard.PolicyAction.REQUIRE_REVIEW,
+                true,
+                true
+            )
+        );
+        vm.prank(user);
+        assetVault.requestNewExposure(100);
+
+        _publishFor(assetId, referenceId, modelVersion, ValtideValidationRegistry.EvidenceState.CHALLENGED);
+        vm.expectRevert(
+            abi.encodeWithSelector(
+                DemoCollateralVault.NewExposureNotAllowed.selector,
+                ValtideValidationRegistry.EvidenceState.CHALLENGED,
+                ValtideRiskGuard.PolicyAction.RESTRICT_NEW_RISK,
+                true,
+                true
+            )
+        );
+        vm.prank(user);
+        assetVault.requestNewExposure(100);
+
+        uint256 timestamp = vm.getBlockTimestamp();
+        ValtideValidationRegistry.ValidationInput memory staleInput =
+            _attestation(ValtideValidationRegistry.EvidenceState.SUPPORTED, timestamp - 60, timestamp + 60);
+        staleInput.referenceId = referenceId;
+        staleInput.modelVersion = modelVersion;
+        _publishInput(assetId, staleInput);
+        vm.warp(vm.getBlockTimestamp() + 61);
+        vm.expectRevert(
+            abi.encodeWithSelector(
+                DemoCollateralVault.NewExposureNotAllowed.selector,
+                ValtideValidationRegistry.EvidenceState.SUPPORTED,
+                ValtideRiskGuard.PolicyAction.REQUIRE_REVIEW,
+                true,
+                false
+            )
+        );
+        vm.prank(user);
+        assetVault.requestNewExposure(100);
     }
 
     function _attestation(ValtideValidationRegistry.EvidenceState evidenceState, uint256 observedAt, uint256 validUntil)
