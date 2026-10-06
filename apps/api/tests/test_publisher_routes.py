@@ -1,7 +1,10 @@
+from pathlib import Path
 from types import SimpleNamespace
 
+import pytest
 from fastapi.testclient import TestClient
 
+from valtide_api.config import Settings
 from valtide_api.main import app
 from valtide_api.publisher import PublishReceipt
 
@@ -26,7 +29,8 @@ def _receipt(status: str, tx_hash: str | None, published_at: int | None) -> Publ
     )
 
 
-def test_auto_publish_does_not_enable_manual_publish_route(monkeypatch):
+@pytest.mark.parametrize("asset", ["NVDAx", "SPYx", "AAPLx"])
+def test_auto_publish_does_not_enable_manual_publish_route(monkeypatch, asset):
     import valtide_api.routes.publish as publish_route
 
     monkeypatch.setattr(
@@ -35,7 +39,7 @@ def test_auto_publish_does_not_enable_manual_publish_route(monkeypatch):
         lambda: SimpleNamespace(publish_enabled=False, auto_publish_enabled=True),
     )
 
-    response = client.post("/api/publish/NVDAx")
+    response = client.post(f"/api/publish/{asset}")
 
     assert response.status_code == 503
     assert response.json()["detail"] == "publication is disabled"
@@ -144,11 +148,20 @@ def test_onchain_status_rejects_unsupported_asset():
     assert response.status_code == 404
 
 
-def test_onchain_status_reports_missing_deployment_for_registered_candidate():
+def test_onchain_status_reports_missing_rpc_after_configured_binding(monkeypatch):
+    import valtide_api.routes.onchain as onchain_route
+
+    root = Path(__file__).resolve().parents[3]
+    settings = Settings(
+        _env_file=None,
+        xlayer_rpc_url=None,
+        deployment_manifest_path=root / "deployments" / "xlayer-testnet.json",
+    )
+    monkeypatch.setattr(onchain_route.publisher, "get_settings", lambda: settings)
     response = client.get("/api/onchain/SPYx")
 
     assert response.status_code == 503
-    assert response.json()["detail"] == "ONCHAIN_NOT_CONFIGURED"
+    assert response.json()["detail"] == "set XLAYER_RPC_URL for X Layer access"
 
 
 def test_onchain_route_keeps_each_asset_binding_scoped(monkeypatch):

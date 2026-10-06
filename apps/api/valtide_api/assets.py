@@ -118,7 +118,7 @@ def _xstock_asset_config(
             historical_data=True,
             quant=True,
             runtime=not research_only,
-            onchain=False,
+            onchain=not research_only,
             api_exposed=not research_only,
         ),
     )

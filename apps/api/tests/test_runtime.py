@@ -201,6 +201,8 @@ def test_multi_worker_selection_skips_known_unready_asset_without_stopping_ready
 def test_auto_publish_does_not_require_onchain_binding_for_offchain_scheduler(
     tmp_path, monkeypatch
 ):
+    from valtide_api.assets import resolve_asset_config
+
     calls = []
     timestamp = _ANCHOR + timedelta(minutes=5)
     snapshot = _snapshot(timestamp).model_copy(update={"asset": "SPYx"})
@@ -211,6 +213,15 @@ def test_auto_publish_does_not_require_onchain_binding_for_offchain_scheduler(
         live_scheduler_asset="SPYx",
     )
     monkeypatch.setattr(scheduler_module, "get_settings", lambda: settings)
+    configured = resolve_asset_config("SPYx")
+    monkeypatch.setattr(
+        scheduler_module,
+        "resolve_asset_config",
+        lambda _asset, _settings=None: replace(
+            configured,
+            capabilities=replace(configured.capabilities, onchain=False),
+        ),
+    )
     scheduler = LiveScheduler(
         asset="SPYx",
         store=RuntimeStore(tmp_path / "spy-runtime.sqlite3"),
@@ -726,9 +737,9 @@ def _scheduler_with_publisher(
 ):
     repo_root = Path(__file__).resolve().parents[3]
     manifest = json.loads((repo_root / "deployments" / "xlayer-testnet.json").read_text())
-    manifest["demo"]["publicationCompatibility"] = {
+    manifest["assets"]["NVDAx"]["publicationCompatibility"] = {
         "asset": "NVDAx",
-        "referenceId": manifest["demo"]["referenceId"],
+        "referenceId": manifest["assets"]["NVDAx"]["referenceId"],
         "referenceProfile": "unified_xstock_p1ac_xperp_evidence_v1",
         "evidenceSemantics": "p1a_xstock_band_with_xperp_review_corroboration_v2",
         "modelId": "P1a-C",
@@ -812,13 +823,23 @@ def test_auto_publish_is_blocked_before_publisher_for_legacy_binding(tmp_path, m
     store = RuntimeStore(tmp_path / "runtime.sqlite3")
     tick = run_live_tick("NVDAx", timestamp, store=store, snapshot_builder=builder)
     calls = []
+    repo_root = Path(__file__).resolve().parents[3]
+    manifest = json.loads((repo_root / "deployments" / "xlayer-testnet.json").read_text())
+    nvda = manifest["assets"]["NVDAx"]
+    manifest["demo"] = {
+        key: nvda[key] for key in ("assetId", "referenceId", "modelVersion")
+    }
+    manifest["contracts"]["DemoCollateralVault"] = nvda["demoVault"]
+    manifest.pop("assets")
+    manifest.pop("deploymentReceipts", None)
+    manifest["deployment"] = manifest.pop("initialDeployment")
+    legacy_manifest = tmp_path / "legacy-nvdax-manifest.json"
+    legacy_manifest.write_text(json.dumps(manifest), encoding="utf-8")
     settings = Settings(
         _env_file=None,
         auto_publish_enabled=True,
         live_scheduler_enabled=True,
-        deployment_manifest_path=(
-            Path(__file__).resolve().parents[3] / "deployments" / "xlayer-testnet.json"
-        ),
+        deployment_manifest_path=legacy_manifest,
     )
     monkeypatch.setattr(scheduler_module, "get_settings", lambda: settings)
     scheduler = LiveScheduler(

@@ -136,6 +136,7 @@ def test_primary_token_bindings_and_frozen_quant_bundles_are_asset_specific(
     assert config.allow_token_discovery is False
     assert config.capabilities.quant is True
     assert config.capabilities.runtime is True
+    assert config.capabilities.onchain is True
     service = get_quant_service(asset)
     assert service.runtime.artifact.asset == asset
     assert service.runtime.artifact.model_version == "0.3.0"
@@ -232,11 +233,15 @@ def test_quant_runtime_metadata_is_artifact_owned_and_registry_drives_api(monkey
     assert TestClient(app).get("/api/valuation/NVDAx/live").status_code == 503
 
 
-def test_intentionally_offchain_assets_have_no_onchain_readiness_error(monkeypatch):
+def test_production_xlayer_bindings_are_configured_and_qqq_remains_offchain(monkeypatch):
     from valtide_api.routes.assets import list_assets
 
+    settings = Settings(
+        _env_file=None,
+        deployment_manifest_path=REPO_ROOT / "deployments" / "xlayer-testnet.json",
+    )
     monkeypatch.setattr(
-        "valtide_api.routes.assets.get_settings", lambda: Settings(_env_file=None)
+        "valtide_api.routes.assets.get_settings", lambda: settings
     )
     monkeypatch.setattr(
         "valtide_api.routes.assets.get_runtime_store", lambda: RuntimeStore(":memory:")
@@ -244,10 +249,11 @@ def test_intentionally_offchain_assets_have_no_onchain_readiness_error(monkeypat
 
     assets = {item.asset: item for item in list_assets()}
     assert set(assets) == {"NVDAx", "SPYx", "AAPLx"}
-    for asset in ("SPYx", "AAPLx"):
-        assert assets[asset].onchain_binding_configured is False
+    for asset in ("NVDAx", "SPYx", "AAPLx"):
+        assert assets[asset].onchain_binding_configured is True
         assert "ONCHAIN_NOT_CONFIGURED" not in assets[asset].readiness_error_codes
         assert "ONCHAIN_BINDING_UNAVAILABLE" not in assets[asset].readiness_error_codes
+    assert resolve_asset_config("QQQx", Settings(_env_file=None)).capabilities.onchain is False
 
 
 def test_qqqx_production_http_routes_are_not_exposed(monkeypatch):
@@ -429,18 +435,9 @@ def test_golden_nvdax_quant_to_runtime_boundary_remains_p1ac():
     assert result.model_version == "0.2.0"
     assert result.reference_under_test_source == "okx_xperp_index"
     assert state.last_ts == snapshot.observation_ts
-    # The deployed legacy binding remains readable, but is not authorized for
-    # the new evidence semantics without an explicit manifest compatibility
-    # declaration. Positive payload construction is covered by publisher tests
-    # using a test-only compatible deployment binding.
-    with pytest.raises(PublicationSemanticMismatchError):
-        build_attestation(
-            result,
-            config=config,
-            validity_seconds=900,
-            current_chain_timestamp=int(snapshot.observation_ts.timestamp()) + 1,
-            settings=Settings(_env_file=None, publish_validity_seconds=900),
-        )
+    assert config.publication_compatibility is not None
+    assert config.publication_compatibility.asset == "NVDAx"
+    assert config.publication_compatibility.model_version == "0.2.0"
 
 
 # Frozen from the accepted P1a-C 0.2.0 artifact on the deterministic four-step

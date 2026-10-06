@@ -39,9 +39,9 @@ REPO_ROOT = Path(__file__).resolve().parents[3]
 
 def _compatible_manifest(tmp_path):
     manifest = json.loads((REPO_ROOT / "deployments" / "xlayer-testnet.json").read_text())
-    manifest["demo"]["publicationCompatibility"] = {
+    manifest["assets"]["NVDAx"]["publicationCompatibility"] = {
         "asset": "NVDAx",
-        "referenceId": manifest["demo"]["referenceId"],
+        "referenceId": manifest["assets"]["NVDAx"]["referenceId"],
         "referenceProfile": "unified_xstock_p1ac_xperp_evidence_v1",
         "evidenceSemantics": "p1a_xstock_band_with_xperp_review_corroboration_v2",
         "modelId": "P1a-C",
@@ -52,12 +52,21 @@ def _compatible_manifest(tmp_path):
     return path
 
 
+def _legacy_nvdax_manifest():
+    manifest = json.loads((REPO_ROOT / "deployments" / "xlayer-testnet.json").read_text())
+    nvda = manifest["assets"]["NVDAx"]
+    manifest["demo"] = {
+        key: nvda[key] for key in ("assetId", "referenceId", "modelVersion")
+    }
+    manifest["contracts"]["DemoCollateralVault"] = nvda["demoVault"]
+    manifest.pop("assets")
+    manifest.pop("deploymentReceipts", None)
+    manifest["deployment"] = manifest.pop("initialDeployment")
+    return manifest
+
+
 def _multi_asset_manifest(tmp_path):
     source = json.loads((REPO_ROOT / "deployments" / "xlayer-testnet.json").read_text())
-    nvda = source.pop("demo")
-    source["assets"] = {
-        "NVDAx": {**nvda, "demoVault": source["contracts"]["DemoCollateralVault"]}
-    }
     for index, asset in enumerate(("SPYx", "AAPLx"), start=2):
         asset_config = resolve_asset_config(asset)
         runtime = resolve_quant_runtime(asset_config)
@@ -147,12 +156,24 @@ def test_attestation_maps_enums_hashes_and_units(result, deployment_config):
     assert len(attestation["evidenceHash"]) == 66
 
 
-def test_future_asset_map_manifest_parses_same_nvdax_binding(tmp_path, deployment_config):
-    source = json.loads(deployment_config.manifest_path.read_text())
-    source["assets"] = {
-        "NVDAx": {**source.pop("demo"), "demoVault": source["contracts"]["DemoCollateralVault"]}
-    }
-    path = tmp_path / "multi-asset-shape.json"
+def test_legacy_single_nvdax_and_asset_map_manifests_resolve_same_binding(
+    tmp_path, deployment_config
+):
+    source = _legacy_nvdax_manifest()
+    legacy_path = tmp_path / "legacy-nvdax-manifest.json"
+    legacy_path.write_text(json.dumps(source), encoding="utf-8")
+    legacy = load_deployment_config(
+        Settings(_env_file=None, deployment_manifest_path=legacy_path)
+    )
+    assert legacy.asset_id == deployment_config.asset_id
+    assert legacy.reference_id == deployment_config.reference_id
+    assert legacy.model_version == deployment_config.model_version
+    assert legacy.demo_vault_address == deployment_config.demo_vault_address
+
+    nvda = source.pop("demo")
+    vault = source["contracts"].pop("DemoCollateralVault")
+    source["assets"] = {"NVDAx": {**nvda, "demoVault": vault}}
+    path = tmp_path / "asset-map-shape.json"
     path.write_text(json.dumps(source))
     resolved = load_deployment_config(Settings(_env_file=None, deployment_manifest_path=path))
     assert resolved.asset_id == deployment_config.asset_id
@@ -640,23 +661,6 @@ def test_read_only_preflight_rejects_unconfigured_asset_policy(publisher_setting
         publisher_module._verify_deployment(w3, config)
 
 
-def test_unprovisioned_spy_manifest_can_be_resolved_but_not_published(tmp_path, result):
-    path, _manifest = _multi_asset_manifest(tmp_path)
-    settings = Settings(
-        _env_file=None,
-        deployment_manifest_path=path,
-        xlayer_rpc_url="http://must-not-be-used",
-        publisher_private_key="test-private-key",
-        publish_enabled=True,
-    )
-    spy_result = result.model_copy(update={"asset": "SPYx", "model_version": "0.3.0"})
-    resolved = resolve_asset_deployment("SPYx", settings)
-    assert resolved.demo_vault_address == _manifest["assets"]["SPYx"]["demoVault"]
-
-    with pytest.raises(publisher_module.PublisherNotConfigured, match="publication is disabled"):
-        publish(spy_result, settings=settings, web3_client=object(), asset="SPYx")
-
-
 def test_publish_rejects_result_asset_different_from_requested_asset(
     result, publisher_settings, fake_chain
 ):
@@ -673,13 +677,13 @@ def test_publish_rejects_result_asset_different_from_requested_asset(
 
 
 def test_legacy_binding_is_readable_but_not_publish_compatible(
-    result, publisher_settings, fake_chain
+    tmp_path, result, publisher_settings, fake_chain
 ):
     _config, w3 = fake_chain
+    legacy_path = tmp_path / "legacy-nvdax-manifest.json"
+    legacy_path.write_text(json.dumps(_legacy_nvdax_manifest()), encoding="utf-8")
     legacy_settings = publisher_settings.model_copy(
-        update={
-            "deployment_manifest_path": REPO_ROOT / "deployments" / "xlayer-testnet.json"
-        }
+        update={"deployment_manifest_path": legacy_path}
     )
 
     class NoRpcAccess:

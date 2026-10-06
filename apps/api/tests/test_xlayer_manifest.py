@@ -17,6 +17,24 @@ from valtide_api.xlayer_manifest import (
 REPO_ROOT = Path(__file__).resolve().parents[3]
 
 
+def _legacy_base_manifest():
+    current = json.loads((REPO_ROOT / "deployments" / "xlayer-testnet.json").read_text())
+    nvda = current["assets"]["NVDAx"]
+    return {
+        "network": current["network"],
+        "chainId": current["chainId"],
+        "deployer": current["deployer"],
+        "publisher": current["publisher"],
+        "contracts": {
+            "ValtideValidationRegistry": current["contracts"]["ValtideValidationRegistry"],
+            "ValtideRiskGuard": current["contracts"]["ValtideRiskGuard"],
+            "DemoCollateralVault": nvda["demoVault"],
+        },
+        "demo": {key: nvda[key] for key in ("assetId", "referenceId", "modelVersion")},
+        "deployment": current["initialDeployment"],
+    }
+
+
 def _verified_receipt():
     assets = {}
     for index, asset in enumerate(("SPYx", "AAPLx"), start=1):
@@ -55,7 +73,7 @@ def _verified_receipt():
 
 
 def test_builder_makes_assets_map_canonical_and_keeps_shared_contracts():
-    base = json.loads((REPO_ROOT / "deployments" / "xlayer-testnet.json").read_text())
+    base = _legacy_base_manifest()
 
     manifest = build_multi_asset_manifest(base, _verified_receipt())
 
@@ -79,7 +97,7 @@ def test_builder_makes_assets_map_canonical_and_keeps_shared_contracts():
 
 
 def test_built_canonical_manifest_resolves_all_three_asset_bindings(tmp_path):
-    base = json.loads((REPO_ROOT / "deployments" / "xlayer-testnet.json").read_text())
+    base = _legacy_base_manifest()
     manifest = build_multi_asset_manifest(base, _verified_receipt())
     path = tmp_path / "canonical-manifest.json"
     path.write_text(json.dumps(manifest), encoding="utf-8")
@@ -122,7 +140,7 @@ def test_built_canonical_manifest_resolves_all_three_asset_bindings(tmp_path):
     ],
 )
 def test_builder_rejects_unverified_or_inconsistent_deployment_data(mutate):
-    base = json.loads((REPO_ROOT / "deployments" / "xlayer-testnet.json").read_text())
+    base = _legacy_base_manifest()
     receipt = _verified_receipt()
     mutate(receipt)
 
@@ -131,9 +149,52 @@ def test_builder_rejects_unverified_or_inconsistent_deployment_data(mutate):
 
 
 def test_builder_never_fabricates_missing_new_asset_receipts():
-    base = json.loads((REPO_ROOT / "deployments" / "xlayer-testnet.json").read_text())
+    base = _legacy_base_manifest()
     receipt = _verified_receipt()
     del receipt["assets"]["AAPLx"]
 
     with pytest.raises(ManifestBuildError, match="exactly SPYx and AAPLx"):
         build_multi_asset_manifest(base, receipt)
+
+
+def test_committed_manifest_matches_verified_three_asset_receipt():
+    manifest = json.loads((REPO_ROOT / "deployments" / "xlayer-testnet.json").read_text())
+    receipt = json.loads(
+        (REPO_ROOT / "deployments" / "xlayer-testnet-provisioning-receipt.json").read_text()
+    )
+
+    assert receipt["verified"] is True
+    assert receipt["chainId"] == manifest["chainId"] == 1952
+    assert set(manifest["assets"]) == {"NVDAx", "SPYx", "AAPLx"}
+    assert manifest["contracts"] == {
+        "ValtideValidationRegistry": SHARED_REGISTRY,
+        "ValtideRiskGuard": SHARED_RISK_GUARD,
+    }
+    assert manifest["assets"]["NVDAx"]["demoVault"] == (
+        "0x4beC6Bc1DF651f36758216cA02db62b5603349ce"
+    )
+    for asset in ("SPYx", "AAPLx"):
+        binding = manifest["assets"][asset]
+        verified = receipt["assets"][asset]
+        assert binding["demoVault"].lower() == verified["demoVault"].lower()
+        assert binding["assetId"] == verified["assetId"]
+        assert binding["referenceId"] == verified["referenceId"]
+        assert binding["modelVersion"] == verified["modelVersion"]
+        assert binding["deploymentReceipt"]["deploymentTxHash"] == verified[
+            "deploymentTxHash"
+        ]
+        assert binding["deploymentReceipt"]["policyConfigurationTxHash"] == verified[
+            "policyConfigurationTxHash"
+        ]
+        assert verified["policyVerified"] is True
+        compatibility = binding["publicationCompatibility"]
+        assert compatibility["asset"] == asset
+        assert compatibility["referenceId"] == binding["referenceId"]
+        assert compatibility["referenceProfile"] == (
+            "unified_xstock_p1ac_xperp_evidence_v1"
+        )
+        assert compatibility["evidenceSemantics"] == (
+            "p1a_xstock_band_with_xperp_review_corroboration_v2"
+        )
+        assert compatibility["modelId"] == "P1a-C"
+        assert compatibility["modelVersion"] == "0.3.0"
