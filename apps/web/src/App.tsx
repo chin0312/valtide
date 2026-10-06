@@ -305,7 +305,6 @@ function DecisionSummary({ current, action }: { current: ValuationResult; action
 }
 
 function MetricGrid({ current, isDemo, observationCount }: { current: ValuationResult; isDemo: boolean; observationCount: number }) {
-  const unified = current.validation_target === "xstock_observed_price" || current.reference_profile === "unified_xstock_p1ac_xperp_evidence_v1";
   return (
     <section aria-label={`${observationCount} observations in the selected window; classification count, not performance`} className="grid grid-cols-2 overflow-hidden rounded-[10px] md:grid-cols-3 xl:grid-cols-6" style={{ background: "var(--color-panel)", border: "1px solid var(--color-line-subtle)" }}>
       <Metric label="Observed xStock" value={money(current.token_price)} sub={current.token_source ? sourceLabel(current.token_source) : isDemo ? "Demo Scenario" : "Source unavailable"} />

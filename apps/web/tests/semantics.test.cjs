@@ -728,8 +728,9 @@ test("Decision summary uses concise current language and preserves old recorded 
   assert.match(xstock, /Evidence Assessment/);
   assert.doesNotMatch(xstock, /Current finding · Operational/);
 
-  const legacy = appWith({result: {...fixture[0], reference_profile:"legacy_xperp_vs_p1ac"}});
-  assert.match(legacy, /This earlier observation is shown with its recorded reference/);
+  const legacy = appWith({result: {...fixture[0], reference_profile:"legacy_xperp_vs_p1ac", validation_target:"reference_under_test", evidence_semantics:"legacy_reference_under_test_v1"}});
+  assert.match(legacy, /Recorded supported evidence/);
+  assert.match(legacy, /has not been reclassified by the current Console/);
 });
 
 test("Observation and delivery audit survives unavailable X Layer reads", () => {

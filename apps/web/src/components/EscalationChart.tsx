@@ -148,7 +148,6 @@ export function wheelGestureIntent(deltaX: number, deltaY: number): "pan" | "zoo
 
 export function EscalationChart({ results, index, playhead = index, onSelect, resetKey }: { results: ValuationResult[]; index: number; playhead?: number; onSelect: (i: number) => void; resetKey?: string | number }) {
   const data = useMemo(() => buildChartData(results), [results]);
-  const unified = results[index]?.validation_target === "xstock_observed_price" || results[index]?.reference_profile === "unified_xstock_p1ac_xperp_evidence_v1";
   const realPoints = useMemo(() => data.filter((point) => point.sourceIndex != null), [data]);
   const timestamps = useMemo(() => realPoints.map((point) => point.ts), [realPoints]);
   const fullDomain = useMemo(() => chartDomain(timestamps), [timestamps]);
