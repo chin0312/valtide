@@ -20,7 +20,11 @@ from valtide_api.assets import (
 from valtide_api.config import Settings
 from valtide_api.main import app
 from valtide_api.models import MarketSnapshot, MarketState
-from valtide_api.publisher import build_attestation, load_deployment_config
+from valtide_api.publisher import (
+    PublicationSemanticMismatchError,
+    build_attestation,
+    load_deployment_config,
+)
 from valtide_api.quant_runtime import estimate, get_quant_service, resolve_quant_runtime
 from valtide_api.replay import run_inference
 from valtide_api.runtime_store import RuntimeStateIntegrityError, RuntimeStore
@@ -326,23 +330,23 @@ def test_golden_nvdax_quant_to_runtime_boundary_remains_p1ac():
             deployment_manifest_path=REPO_ROOT / "deployments" / "xlayer-testnet.json",
         )
     )
-    payload = build_attestation(
-        result,
-        config=config,
-        validity_seconds=900,
-        current_chain_timestamp=int(snapshot.observation_ts.timestamp()) + 1,
-        settings=Settings(_env_file=None, publish_validity_seconds=900),
-    )
-
     assert result.asset == "NVDAx"
     assert result.model_id == "P1a-C"
     assert result.model_version == "0.2.0"
     assert result.reference_under_test_source == "okx_xperp_index"
     assert state.last_ts == snapshot.observation_ts
-    assert payload["assetId"] == config.asset_id
-    assert payload["referenceId"] == config.reference_id
-    assert payload["modelVersion"] == config.model_version
-    assert payload["observedAt"] == int(snapshot.observation_ts.timestamp())
+    # The deployed legacy binding remains readable, but is not authorized for
+    # the new evidence semantics without an explicit manifest compatibility
+    # declaration. Positive payload construction is covered by publisher tests
+    # using a test-only compatible deployment binding.
+    with pytest.raises(PublicationSemanticMismatchError):
+        build_attestation(
+            result,
+            config=config,
+            validity_seconds=900,
+            current_chain_timestamp=int(snapshot.observation_ts.timestamp()) + 1,
+            settings=Settings(_env_file=None, publish_validity_seconds=900),
+        )
 
 
 # Frozen from the accepted P1a-C 0.2.0 artifact on the deterministic four-step
@@ -354,23 +358,26 @@ _GOLDEN_STEPS = [
      4.790024043932874, 7.594589496003624e-07, 4.790024043932874,
      7.594589496003624e-07, 0.0012894491675961993, "INCONCLUSIVE",
      ["XPERP_RESIDUAL_CALIBRATION_UNVERIFIED", "CALIBRATION_GLOBAL_FALLBACK",
-      "TOKEN_AND_CHALLENGER_AGREE"],
+      "TOKEN_AND_CHALLENGER_AGREE", "P1A_XSTOCK_DETECTOR_NOT_PROMOTED"],
      0.16270311791053427, None, 1.2607778877130742),
     (120.77006066778506, 120.56538715557272, 120.97508163665631,
      4.793888412628675, 6.871443270832543e-07, 4.794710261865752,
      3.9025181196678715e-07, 0.0012610965598626551, "INCONCLUSIVE",
-     ["XPERP_RESIDUAL_CALIBRATION_UNVERIFIED", "CALIBRATION_GLOBAL_FALLBACK"],
+     ["XPERP_RESIDUAL_CALIBRATION_UNVERIFIED", "CALIBRATION_GLOBAL_FALLBACK",
+      "P1A_XSTOCK_DETECTOR_NOT_PROMOTED"],
      3.502473468031675, None, 27.297929254026027),
     (120.86935624741585, 120.6715292493172, 121.06750755996896,
      4.794710261865752, 5.799993071374501e-07, 4.794710261865752,
      5.799993071374501e-07, 0.0012178749990666609, "INCONCLUSIVE",
      ["TOKEN_DATA_UNAVAILABLE", "XPERP_RESIDUAL_CALIBRATION_UNVERIFIED",
-      "CALIBRATION_GLOBAL_FALLBACK"], 2.5901054243854915, None, 20.99665709443221),
+      "CALIBRATION_GLOBAL_FALLBACK", "P1A_XSTOCK_DETECTOR_NOT_PROMOTED"],
+     2.5901054243854915, None, 20.99665709443221),
     (120.78200566266659, 120.58379501185405, 120.98054212394223,
      4.793987314658972, 5.879187755101473e-07, 4.788126881881963,
      3.561171186333003e-07, 0.0012211220175413742, "INCONCLUSIVE",
      ["XPERP_RESIDUAL_CALIBRATION_UNVERIFIED", "CALIBRATION_GLOBAL_FALLBACK",
-      "TOKEN_AND_CHALLENGER_AGREE"], -1.0614210747974528, None, -8.738638018247864),
+      "TOKEN_AND_CHALLENGER_AGREE", "P1A_XSTOCK_DETECTOR_NOT_PROMOTED"],
+     -1.0614210747974528, None, -8.738638018247864),
 ]
 
 
@@ -428,18 +435,23 @@ def test_frozen_nvdax_numerical_causal_sequence_and_publication_identity():
             anchor, anchor_ts = underlying, ts
 
     config = load_deployment_config(Settings(_env_file=None))
-    payload = build_attestation(
-        final_result, config=config, validity_seconds=900,
-        current_chain_timestamp=int(final_result.timestamp.timestamp()) + 1,
-        settings=Settings(_env_file=None),
-    )
-    assert payload["assetId"] == (
+    assert config.asset_id == (
         "0xd475b7977c1c808b1faa8fbe092d3f952b6007a6ec418a58f877a69a3945440c"
     )
-    assert payload["referenceId"] == (
+    assert config.reference_id == (
         "0x53d122bd54a2ebc11b119ef6d5f1bbb7fca155dac4c7cfc997edd3182646850d"
     )
-    assert payload["modelVersion"] == (
+    assert config.model_version == (
         "0x177d57055bb57caacc5f72e04f893f984b95e26f8749bff5b374a6d1548ea727"
     )
-    assert payload["observedAt"] == int((start + timedelta(minutes=15)).timestamp())
+    assert int(final_result.timestamp.timestamp()) == int(
+        (start + timedelta(minutes=15)).timestamp()
+    )
+    with pytest.raises(PublicationSemanticMismatchError):
+        build_attestation(
+            final_result,
+            config=config,
+            validity_seconds=900,
+            current_chain_timestamp=int(final_result.timestamp.timestamp()) + 1,
+            settings=Settings(_env_file=None),
+        )

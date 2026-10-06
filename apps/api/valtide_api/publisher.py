@@ -45,6 +45,7 @@ _POLICY_ACTION_BY_CODE = {
 }
 _POLICY_ACTION_CODE = {value: key for key, value in _POLICY_ACTION_BY_CODE.items()}
 _EVIDENCE_SCHEMA = "valtide-evidence-v1"
+_CURRENT_EVIDENCE_SEMANTICS = "p1a_xstock_challenger_xperp_second_market_v1"
 _READBACK_ATTEMPTS = 5
 _READBACK_RETRY_DELAY_SECONDS = 1.0
 
@@ -59,6 +60,10 @@ class PublisherNotConfigured(PublisherError):
 
 class PublishabilityError(PublisherError):
     """Raised when a result is not safe to publish."""
+
+
+class PublicationSemanticMismatchError(PublishabilityError):
+    """Raised when a deployed binding has not opted into current result semantics."""
 
 
 class StaleResultError(PublishabilityError):
@@ -82,6 +87,18 @@ class EnforcementVerificationError(ChainPreflightError):
 
 
 @dataclass(frozen=True)
+class PublicationCompatibility:
+    """Explicit deployment declaration for the evidence semantics a binding accepts."""
+
+    asset: str
+    reference_id: str
+    reference_profile: str
+    evidence_semantics: str
+    model_id: str
+    model_version: str
+
+
+@dataclass(frozen=True)
 class DeploymentConfig:
     """Public deployment metadata resolved from the manifest and env overrides."""
 
@@ -97,6 +114,7 @@ class DeploymentConfig:
     model_version: str
     manifest_publisher: str | None
     rpc_url: str | None
+    publication_compatibility: PublicationCompatibility | None = None
 
 
 @dataclass
@@ -161,6 +179,40 @@ def _validate_bytes32(value: str, label: str) -> str:
     if not isinstance(value, str) or not _BYTES32_RE.fullmatch(value):
         raise PublisherNotConfigured(f"deployment manifest contains an invalid {label}")
     return value.lower()
+
+
+def _publication_compatibility(value: Any) -> PublicationCompatibility | None:
+    """Parse an optional, explicit manifest write-compatibility declaration.
+
+    Legacy manifests intentionally resolve for read-only access, but their
+    absence of this declaration is not interpreted as write compatibility.
+    """
+    if not isinstance(value, dict):
+        return None
+    try:
+        asset = value["asset"]
+        reference_id = value["referenceId"]
+        reference_profile = value["referenceProfile"]
+        evidence_semantics = value["evidenceSemantics"]
+        model_id = value["modelId"]
+        model_version = value["modelVersion"]
+    except KeyError:
+        return None
+    fields = (asset, reference_profile, evidence_semantics, model_id, model_version)
+    if not all(isinstance(field, str) and field.strip() for field in fields):
+        return None
+    try:
+        normalized_reference_id = _validate_bytes32(reference_id, "publication reference ID")
+    except PublisherNotConfigured:
+        return None
+    return PublicationCompatibility(
+        asset=asset,
+        reference_id=normalized_reference_id,
+        reference_profile=reference_profile,
+        evidence_semantics=evidence_semantics,
+        model_id=model_id,
+        model_version=model_version,
+    )
 
 
 def _keccak_bytes(data: bytes) -> str:
@@ -282,6 +334,9 @@ def resolve_asset_deployment(
         model_version=model_version,
         manifest_publisher=manifest_publisher,
         rpc_url=_normalize_rpc_url(settings.xlayer_rpc_url),
+        publication_compatibility=_publication_compatibility(
+            demo.get("publicationCompatibility")
+        ),
     )
 
 
@@ -342,6 +397,92 @@ def _validate_deployment_binding(
         raise PublishabilityError(
             "deployment model version does not match the requested asset"
         )
+
+
+def _publication_semantics_compatible(
+    config: DeploymentConfig,
+    asset_config: AssetConfig,
+    *,
+    result: ValuationResult | None = None,
+) -> bool:
+    """Check explicit deployment opt-in against the registered runtime and result."""
+    declaration = config.publication_compatibility
+    if declaration is None:
+        return False
+    try:
+        runtime_spec = resolve_quant_runtime(asset_config)
+    except AssetConfigurationError:
+        return False
+    expected = (
+        asset_config.asset,
+        config.reference_id,
+        asset_config.reference_profile,
+        _CURRENT_EVIDENCE_SEMANTICS,
+        runtime_spec.model_id,
+        runtime_spec.model_version,
+    )
+    declared = (
+        declaration.asset,
+        declaration.reference_id,
+        declaration.reference_profile,
+        declaration.evidence_semantics,
+        declaration.model_id,
+        declaration.model_version,
+    )
+    if declared != expected:
+        return False
+    if result is None:
+        return True
+    return (
+        result.asset == asset_config.asset
+        and result.reference_profile == asset_config.reference_profile
+        and result.model_id == runtime_spec.model_id
+        and result.model_version == runtime_spec.model_version
+        and result.reference_under_test_source == asset_config.reference_under_test_source
+    )
+
+
+def assert_publication_compatible(
+    result: ValuationResult,
+    settings: Settings | None = None,
+    *,
+    asset: str | None = None,
+    config: DeploymentConfig | None = None,
+) -> DeploymentConfig:
+    """Fail closed before credentials, RPC, signing, or transaction work."""
+    settings = settings or get_settings()
+    requested_asset = asset or result.asset
+    if result.asset != requested_asset:
+        raise PublishabilityError("result asset does not match the requested asset")
+    try:
+        asset_config = resolve_asset_config(requested_asset, settings)
+    except (UnsupportedAssetError, AssetConfigurationError) as exc:
+        raise PublishabilityError(f"asset '{requested_asset}' is not publishable") from exc
+    resolved = config or load_deployment_config(settings, asset=requested_asset)
+    _validate_deployment_binding(
+        resolved,
+        asset_config,
+        requested_asset=requested_asset,
+    )
+    if not _publication_semantics_compatible(resolved, asset_config, result=result):
+        raise PublicationSemanticMismatchError(
+            "deployed binding does not declare compatible evidence semantics"
+        )
+    return resolved
+
+
+def publication_compatibility_status(
+    config: DeploymentConfig,
+    asset_config: AssetConfig,
+) -> str:
+    """Describe write compatibility without affecting read-only control-plane checks."""
+    if config.publication_compatibility is None:
+        return "not_declared"
+    return (
+        "compatible"
+        if _publication_semantics_compatible(config, asset_config)
+        else "semantic_mismatch"
+    )
 
 
 def canonical_evidence_bytes(result: ValuationResult, config: DeploymentConfig) -> bytes:
@@ -411,6 +552,10 @@ def build_attestation(
         asset_config,
         requested_asset=requested_asset,
     )
+    if not _publication_semantics_compatible(config, asset_config, result=result):
+        raise PublicationSemanticMismatchError(
+            "deployed binding does not declare compatible evidence semantics"
+        )
     validity_seconds = (
         settings.publish_validity_seconds if validity_seconds is None else validity_seconds
     )
@@ -736,6 +881,7 @@ def read_control_plane(
     """Read deployment, linkage, policy, and current evaluation state."""
     settings = settings or get_settings()
     config = load_deployment_config(settings, asset=asset)
+    asset_config = resolve_asset_config(asset, settings)
     w3 = web3_client or connect_web3(config)
     registry, guard, _vault, policy = _verify_deployment(w3, config)
     latest = _read_latest(registry, config)
@@ -752,6 +898,12 @@ def read_control_plane(
         "asset_id": config.asset_id,
         "reference_id": config.reference_id,
         "model_version": config.model_version,
+        "publication_compatible": (
+            publication_compatibility_status(config, asset_config) == "compatible"
+        ),
+        "publication_compatibility_status": publication_compatibility_status(
+            config, asset_config
+        ),
         "policy": policy,
         "attestation": latest if latest["exists"] else None,
         "registry_fresh": bool(
@@ -873,14 +1025,20 @@ def publish(
     requested_asset = asset or result.asset
     if result.asset != requested_asset:
         raise PublishabilityError("result asset does not match the requested asset")
-    if not settings.xlayer_rpc_url or not settings.publisher_private_key:
-        raise PublisherNotConfigured(
-            "set XLAYER_RPC_URL and PUBLISHER_PRIVATE_KEY for X Layer publication"
-        )
     try:
         config = load_deployment_config(settings, asset=requested_asset)
     except UnsupportedAssetError as exc:
         raise PublishabilityError(f"asset '{requested_asset}' is not publishable") from exc
+    assert_publication_compatible(
+        result,
+        settings,
+        asset=requested_asset,
+        config=config,
+    )
+    if not settings.xlayer_rpc_url or not settings.publisher_private_key:
+        raise PublisherNotConfigured(
+            "set XLAYER_RPC_URL and PUBLISHER_PRIVATE_KEY for X Layer publication"
+        )
     w3 = web3_client or connect_web3(config)
     registry, _guard, _vault, _policy = _verify_deployment(w3, config)
     try:

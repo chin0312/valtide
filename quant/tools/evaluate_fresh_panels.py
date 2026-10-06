@@ -22,17 +22,25 @@ import hashlib
 import json
 import math
 import sys
-from collections import Counter
+from collections import Counter, defaultdict
 from pathlib import Path
 from statistics import mean, median
 from typing import Any
+from importlib import resources
 
 from valtide_api.assets import resolve_asset_config, supported_asset_names
+from valtide_api.challenger_detector import (
+    detector_band,
+    detector_score,
+    detector_artifact,
+    resolve_challenger_detector,
+)
 from valtide_api.config import Settings
-from valtide_api.models import ValuationResult
+from valtide_api.models import ChallengerEstimate, ValuationResult
 from valtide_api.panel import inspect_panel_readiness, load_panel_snapshots
 from valtide_api.quant_runtime import estimate, get_quant_service, resolve_quant_runtime
-from valtide_api.replay import replay
+from valtide_api.replay import _warm_state_to_first_observation, replay
+from valtide_api.state_store import KalmanState
 
 _EXPECTED_ASSETS = ("NVDAx", "SPYx", "QQQx", "AAPLx")
 _PRICE_FIELDS = (
@@ -153,6 +161,254 @@ def _token_update_weight(asset: str, snapshots: list[Any]) -> dict[str, Any]:
     }
 
 
+def _challenger_estimate_sequence(
+    snapshots: list[Any],
+) -> list[ChallengerEstimate]:
+    """Return P1a-C estimates with exactly the replay's causal warm state."""
+    if not snapshots:
+        return []
+    state = _warm_state_to_first_observation(snapshots[0])
+    estimates: list[ChallengerEstimate] = []
+    for snapshot in snapshots:
+        result = estimate(
+            snapshot,
+            state.m if state else None,
+            state.P if state else None,
+            state.last_ts if state else None,
+        )
+        estimates.append(result)
+        state = KalmanState(
+            m=result.state_m_after_nvda,
+            P=result.state_P_after_nvda,
+            last_ts=snapshot.observation_ts,
+        )
+    return estimates
+
+
+def _average_precision(scores: list[float], labels: list[bool]) -> float | None:
+    pairs = sorted(enumerate(zip(scores, labels, strict=True)), key=lambda pair: -pair[1][0])
+    positive_count = sum(labels)
+    if positive_count == 0:
+        return None
+    true_positives = 0
+    accumulated_precision = 0.0
+    for rank, (_index, (_score, label)) in enumerate(pairs, start=1):
+        if label:
+            true_positives += 1
+            accumulated_precision += true_positives / rank
+    return accumulated_precision / positive_count
+
+
+def _confusion(predicted: list[bool], actual: list[bool]) -> dict[str, Any]:
+    tp = sum(pred and truth for pred, truth in zip(predicted, actual, strict=True))
+    fp = sum(pred and not truth for pred, truth in zip(predicted, actual, strict=True))
+    fn = sum(not pred and truth for pred, truth in zip(predicted, actual, strict=True))
+    tn = sum(not pred and not truth for pred, truth in zip(predicted, actual, strict=True))
+    return {
+        "tp": tp,
+        "fp": fp,
+        "fn": fn,
+        "tn": tn,
+        "precision": tp / (tp + fp) if tp + fp else None,
+        "recall": tp / (tp + fn) if tp + fn else None,
+        "false_challenge_rate": fp / (fp + tn) if fp + tn else None,
+        "missed_tail_rate": fn / (tp + fn) if tp + fn else None,
+    }
+
+
+def _quantile(values: list[float], probability: float) -> float | None:
+    if not values:
+        return None
+    ordered = sorted(values)
+    location = (len(ordered) - 1) * probability
+    lower = math.floor(location)
+    upper = math.ceil(location)
+    if lower == upper:
+        return ordered[lower]
+    fraction = location - lower
+    return ordered[lower] * (1 - fraction) + ordered[upper] * fraction
+
+
+def _frozen_detector_metrics(
+    asset: str,
+    snapshots: list[Any],
+    estimates: list[ChallengerEstimate],
+) -> dict[str, Any]:
+    spec = resolve_challenger_detector(asset)
+    if spec is None:
+        raise ValueError(f"no frozen challenger detector is registered for {asset}")
+    artifact = detector_artifact()
+    artifact_entry = artifact["assets"][asset]
+    detector_rows: list[dict[str, Any]] = []
+    session_rows: dict[str, list[dict[str, Any]]] = defaultdict(list)
+    corroboration = Counter()
+
+    for snapshot, p1a in zip(snapshots, estimates, strict=True):
+        score = detector_score(spec, snapshot.token_price, p1a)
+        if score is None:
+            continue
+        band = detector_band(spec, score)
+        contemporaneous_underlying = (
+            snapshot.underlying_reference
+            if snapshot.underlying_reference_ts == snapshot.observation_ts
+            else None
+        )
+        token_log = math.log(snapshot.token_price) if snapshot.token_price else None
+        p1a_row: dict[str, Any] = {
+            "score": score,
+            "band": band,
+            "session": snapshot.market_state.value,
+            "token_log": token_log,
+            "p1a_log": p1a.state_m,
+            "truth_log": (
+                math.log(contemporaneous_underlying)
+                if contemporaneous_underlying is not None
+                else None
+            ),
+            "xperp_log": None,
+            "tail_event": None,
+        }
+        xperp = snapshot.xperp_index_price
+        xperp_ts = snapshot.xperp_index_ts
+        if (
+            xperp is None
+            and snapshot.reference_under_test_source == "okx_xperp_index"
+        ):
+            xperp = snapshot.reference_under_test
+            xperp_ts = snapshot.reference_under_test_ts
+        if xperp is not None and xperp_ts == snapshot.observation_ts and xperp > 0:
+            p1a_row["xperp_log"] = math.log(xperp)
+
+        if p1a_row["truth_log"] is not None and token_log is not None:
+            raw_error_bps = abs(token_log - p1a_row["truth_log"]) * 10_000
+            p1a_error_bps = abs(p1a.state_m - p1a_row["truth_log"]) * 10_000
+            p1a_row.update(
+                {
+                    "raw_error_bps": raw_error_bps,
+                    "p1a_error_bps": p1a_error_bps,
+                    "p1a_better": p1a_error_bps < raw_error_bps,
+                    "tail_event": raw_error_bps >= spec.tail_event_threshold_bps,
+                }
+            )
+        detector_rows.append(p1a_row)
+        session_rows[p1a_row["session"]].append(p1a_row)
+
+        if band == "review":
+            if p1a_row["xperp_log"] is None:
+                corroboration["review_without_exact_xperp"] += 1
+            else:
+                corroboration["review_with_exact_xperp"] += 1
+                challenger_gap = abs(p1a_row["xperp_log"] - p1a.state_m)
+                xstock_gap = abs(p1a_row["xperp_log"] - token_log)
+                if challenger_gap < xstock_gap:
+                    corroboration["review_xperp_closer_to_p1a"] += 1
+                elif xstock_gap < challenger_gap:
+                    corroboration["review_xperp_closer_to_xstock"] += 1
+                else:
+                    corroboration["review_equal_distance"] += 1
+        if p1a_row["truth_log"] is not None and p1a_row["xperp_log"] is not None:
+            truth_log = p1a_row["truth_log"]
+            token_error = abs(token_log - truth_log)
+            xperp_error = abs(p1a_row["xperp_log"] - truth_log)
+            corroboration[
+                "xperp_closer_to_underlying_than_xstock"
+                if xperp_error < token_error
+                else "xperp_not_closer_to_underlying_than_xstock"
+            ] += 1
+
+    eligible = [row for row in detector_rows if row["tail_event"] is not None]
+    labels = [bool(row["tail_event"]) for row in eligible]
+    scores = [float(row["score"]) for row in eligible]
+    q95_flags = [row["score"] >= spec.threshold_challenge for row in eligible]
+    all_scores = [float(row["score"]) for row in detector_rows]
+    all_bands = Counter(row["band"] for row in detector_rows)
+
+    def session_summary(rows: list[dict[str, Any]]) -> dict[str, Any]:
+        evaluated = [row for row in rows if row["tail_event"] is not None]
+        labels_by_session = [bool(row["tail_event"]) for row in evaluated]
+        scores_by_session = [float(row["score"]) for row in evaluated]
+        q95_by_session = [row["score"] >= spec.threshold_challenge for row in evaluated]
+        counts = Counter(row["band"] for row in rows)
+        return {
+            "score_rows": len(rows),
+            "underlying_evaluable_rows": len(evaluated),
+            "research_band_counts": dict(sorted(counts.items())),
+            "tail_event_count": sum(labels_by_session),
+            "tail_event_prevalence": (
+                sum(labels_by_session) / len(labels_by_session) if labels_by_session else None
+            ),
+            "q95_detection": _confusion(q95_by_session, labels_by_session),
+            "continuous_score_average_precision": _average_precision(
+                scores_by_session, labels_by_session
+            ),
+        }
+
+    return {
+        "artifact_version": spec.artifact_version,
+        "artifact_sha256": hashlib.sha256(
+            resources.files("valtide_api.detectors")
+            .joinpath("challenger_tail_v1.json")
+            .read_bytes()
+        ).hexdigest(),
+        "promotion_status": spec.promotion_status,
+        "score_name": spec.score_name,
+        "score_definition": artifact["score_definitions"][spec.score_name],
+        "threshold_review_q80": spec.threshold_review,
+        "threshold_challenge_q95": spec.threshold_challenge,
+        "training_tail_event_threshold_bps": spec.tail_event_threshold_bps,
+        "original_oof_training_rows": artifact_entry["training_rows"],
+        "research_status_mapping": artifact["research_bands"],
+        "canonical_rows": len(snapshots),
+        "rows_with_token": sum(snapshot.token_price is not None for snapshot in snapshots),
+        "rows_with_contemporaneous_underlying": sum(
+            snapshot.underlying_reference is not None
+            and snapshot.underlying_reference_ts == snapshot.observation_ts
+            for snapshot in snapshots
+        ),
+        "rows_with_p1a_output": len(estimates),
+        "rows_eligible_for_score": len(detector_rows),
+        "research_band_counts": dict(sorted(all_bands.items())),
+        "research_band_rates": {
+            band: all_bands.get(band, 0) / len(detector_rows) if detector_rows else None
+            for band in ("support", "watch", "review")
+        },
+        "score_distribution": {
+            "n": len(all_scores),
+            "min": min(all_scores) if all_scores else None,
+            "q50": _quantile(all_scores, 0.50),
+            "q90": _quantile(all_scores, 0.90),
+            "q95": _quantile(all_scores, 0.95),
+            "max": max(all_scores) if all_scores else None,
+        },
+        "underlying_tail_event": {
+            "definition": artifact["tail_event_definition"],
+            "evaluable_rows": len(eligible),
+            "event_count": sum(labels),
+            "prevalence": sum(labels) / len(labels) if labels else None,
+            "q95_threshold_detection": _confusion(q95_flags, labels),
+            "continuous_score_average_precision": _average_precision(scores, labels),
+            "p1a_closer_rate": (
+                sum(bool(row["p1a_better"]) for row in eligible)
+                / len(eligible)
+                if eligible
+                else None
+            ),
+        },
+        "xperp_diagnostics": {
+            "definition": (
+                "Descriptive exact-timestamp distance comparisons only; no X-Perp residual "
+                "z-score or fitted threshold is used."
+            ),
+            "counts": dict(sorted(corroboration.items())),
+        },
+        "session_breakdown": {
+            session: session_summary(rows)
+            for session, rows in sorted(session_rows.items())
+        },
+        "decision_limitations": artifact_entry["promotion_rationale"],
+    }
+
+
 def evaluate_panel(asset: str, path: str | Path) -> dict[str, Any]:
     """Verify one panel and replay it using the registered frozen runtime."""
     if asset not in _EXPECTED_ASSETS or asset not in supported_asset_names():
@@ -172,6 +428,8 @@ def evaluate_panel(asset: str, path: str | Path) -> dict[str, Any]:
     results = replay(snapshots)
     if len(results) != len(snapshots):
         raise RuntimeError("replay result count does not match validated observations")
+    challenger_estimates = _challenger_estimate_sequence(snapshots)
+    frozen_detector = _frozen_detector_metrics(asset, snapshots, challenger_estimates)
 
     config = resolve_asset_config(asset, settings)
     runtime = resolve_quant_runtime(config)
@@ -292,6 +550,7 @@ def evaluate_panel(asset: str, path: str | Path) -> dict[str, Any]:
         "evidence_state_counts": dict(sorted(states.items())),
         "reason_code_counts": dict(sorted(reasons.items())),
         "pairwise_diagnostics": _pairwise_diagnostics(snapshots, results),
+        "frozen_challenger_detector": frozen_detector,
         "interpretation": {
             "evidence_states": (
                 "Current backend abstains with INCONCLUSIVE for the registered OKX X-Perp/index "

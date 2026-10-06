@@ -4,6 +4,7 @@ import asyncio
 import json
 import threading
 from datetime import UTC, datetime, timedelta
+from pathlib import Path
 from types import SimpleNamespace
 
 import valtide_api.scheduler as scheduler_module
@@ -642,15 +643,26 @@ def _scheduler_with_publisher(
     enabled=True,
     tick=run_live_tick,
 ):
-    monkeypatch.setattr(
-        scheduler_module,
-        "get_settings",
-        lambda: SimpleNamespace(
-            auto_publish_enabled=enabled,
-            publish_enabled=False,
-            live_scheduler_asset="NVDAx",
-        ),
+    repo_root = Path(__file__).resolve().parents[3]
+    manifest = json.loads((repo_root / "deployments" / "xlayer-testnet.json").read_text())
+    manifest["demo"]["publicationCompatibility"] = {
+        "asset": "NVDAx",
+        "referenceId": manifest["demo"]["referenceId"],
+        "referenceProfile": "unified_xstock_p1ac_xperp_evidence_v1",
+        "evidenceSemantics": "p1a_xstock_challenger_xperp_second_market_v1",
+        "modelId": "P1a-C",
+        "modelVersion": "0.2.0",
+    }
+    manifest_path = Path(store.path).with_name("compatible-xlayer-manifest.json")
+    manifest_path.write_text(json.dumps(manifest), encoding="utf-8")
+    settings = Settings(
+        _env_file=None,
+        auto_publish_enabled=enabled,
+        live_scheduler_enabled=True,
+        live_scheduler_asset="NVDAx",
+        deployment_manifest_path=manifest_path,
     )
+    monkeypatch.setattr(scheduler_module, "get_settings", lambda: settings)
     return LiveScheduler(
         asset="NVDAx",
         store=store,
@@ -711,6 +723,39 @@ def test_auto_publish_disabled_does_not_call_publisher(tmp_path, monkeypatch):
 
     assert calls == []
     assert store.load_publication("NVDAx") is None
+
+
+def test_auto_publish_is_blocked_before_publisher_for_legacy_binding(tmp_path, monkeypatch):
+    timestamp = _ANCHOR + timedelta(minutes=5)
+    builder, _ = _builder_for([_snapshot(timestamp)])
+    store = RuntimeStore(tmp_path / "runtime.sqlite3")
+    tick = run_live_tick("NVDAx", timestamp, store=store, snapshot_builder=builder)
+    calls = []
+    settings = Settings(
+        _env_file=None,
+        auto_publish_enabled=True,
+        live_scheduler_enabled=True,
+        deployment_manifest_path=(
+            Path(__file__).resolve().parents[3] / "deployments" / "xlayer-testnet.json"
+        ),
+    )
+    monkeypatch.setattr(scheduler_module, "get_settings", lambda: settings)
+    scheduler = LiveScheduler(
+        asset="NVDAx",
+        store=store,
+        publisher_fn=lambda *args, **kwargs: calls.append((args, kwargs)),
+    )
+
+    scheduler._publish_if_enabled(tick)
+
+    publication = store.load_publication("NVDAx")
+    assert calls == []
+    assert scheduler._pending_publication is None
+    assert publication is not None
+    assert publication.last_publish_status == "publication_blocked_semantic_mismatch"
+    assert publication.last_publish_error == "deployed_binding_semantics_unverified"
+    assert publication.last_publish_observation_ts == timestamp
+    assert store.load_runtime("NVDAx").latest_result == tick.result
 
 
 def test_auto_publish_persists_tick_before_publishing_and_records_success(tmp_path, monkeypatch):
@@ -1176,6 +1221,23 @@ def test_publication_status_persists_across_runtime_store_restart(tmp_path):
     assert publication.last_publish_observation_ts == timestamp
     assert publication.last_published_at == 1_800_000_003
     assert publication.last_publish_tx_hash == "0x" + "33" * 32
+
+
+def test_semantic_publication_block_status_survives_restart(tmp_path):
+    timestamp = _ANCHOR + timedelta(minutes=5)
+    path = tmp_path / "runtime.sqlite3"
+    store = RuntimeStore(path)
+    store.record_publication_blocked_semantic_mismatch("NVDAx", timestamp)
+    store.close()
+
+    restarted = RuntimeStore(path)
+    publication = restarted.load_publication("NVDAx")
+
+    assert publication is not None
+    assert publication.last_publish_status == "publication_blocked_semantic_mismatch"
+    assert publication.last_publish_error == "deployed_binding_semantics_unverified"
+    assert publication.last_publish_observation_ts == timestamp
+    assert publication.last_published_observation_ts is None
 
 
 def test_legacy_result_payload_without_new_provenance_fields_still_loads(tmp_path):

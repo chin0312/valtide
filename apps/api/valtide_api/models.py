@@ -124,6 +124,18 @@ class ChallengerEstimate(BaseModel):
     interval_semantics: str
 
 
+class ChallengerDetectorEvidence(BaseModel):
+    """Frozen research score band kept separate from canonical Evidence State."""
+
+    artifact_version: str
+    score_name: str
+    score: float | None
+    review_threshold: float
+    challenge_threshold: float
+    research_band: str
+    promotion_status: str
+
+
 class ValuationResult(BaseModel):
     """The public asset-scoped result served to clients and optional publisher.
 
@@ -170,6 +182,7 @@ class ValuationResult(BaseModel):
     xstock_vs_xperp_deviation_pct: float | None = None
     xperp_deviation_scaled_by_model_predictive_sd: float | None = None
     evidence_state_basis: str = "selected_reference_under_test"
+    challenger_detector: ChallengerDetectorEvidence | None = None
 
     evidence_state: EvidenceState
     reason_codes: list[str] = Field(default_factory=list)

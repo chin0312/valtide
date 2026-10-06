@@ -5,7 +5,12 @@ from __future__ import annotations
 import math
 from dataclasses import dataclass
 
+from valtide_api.challenger_detector import (
+    detector_evidence,
+    resolve_challenger_detector,
+)
 from valtide_api.models import (
+    ChallengerDetectorEvidence,
     ChallengerEstimate,
     EvidenceState,
     MarketSnapshot,
@@ -166,6 +171,62 @@ def validate(
     if token is not None and abs(token - fair) / fair < th.agree_tolerance:
         reason_codes.append("TOKEN_AND_CHALLENGER_AGREE")
 
+    detector_spec = resolve_challenger_detector(snapshot.asset)
+    detector_result: ChallengerDetectorEvidence | None = None
+    if detector_spec is not None:
+        detector_result = detector_evidence(detector_spec, token, estimate)
+        band = detector_result.research_band
+        if detector_spec.promotion_status != "CHALLENGER_DETECTOR_PROMOTABLE":
+            reason_codes.append("P1A_XSTOCK_DETECTOR_NOT_PROMOTED")
+        elif band == "watch":
+            reason_codes.append("P1A_XSTOCK_REVIEW_THRESHOLD")
+        elif band == "review":
+            reason_codes.append("P1A_XSTOCK_CHALLENGE_THRESHOLD")
+            current_underlying = (
+                snapshot.underlying_reference is not None
+                and snapshot.underlying_reference_ts == snapshot.observation_ts
+            )
+            quality_abstentions = {
+                "TOKEN_DATA_UNAVAILABLE",
+                "UNDERLYING_REFERENCE_STALE",
+                "REFERENCE_UNDER_TEST_STALE",
+                "TOKEN_MARKET_QUALITY_LOW",
+                "TOKEN_UNIT_SUSPECT",
+                "MODEL_UNCERTAINTY_INVALID",
+                "MODEL_UNCERTAINTY_HIGH",
+            }
+            if not current_underlying:
+                reason_codes.append("UNDERLYING_REFERENCE_NOT_CONTEMPORANEOUS")
+            elif quality_abstentions.intersection(reason_codes):
+                # Existing quality reasons remain authoritative; the detector
+                # cannot override any of these abstentions.
+                pass
+            elif (
+                xperp_price is None
+                or xperp_ts != snapshot.observation_ts
+                or (
+                    snapshot.reference_under_test_age_seconds is not None
+                    and snapshot.reference_under_test_age_seconds > 0
+                )
+            ):
+                reason_codes.append("XPERP_EVIDENCE_UNCALIBRATED")
+            else:
+                assert token is not None
+                xperp_log = math.log(xperp_price)
+                challenger_gap = abs(xperp_log - estimate.state_m)
+                xstock_gap = abs(xperp_log - math.log(token))
+                if challenger_gap < xstock_gap:
+                    state = EvidenceState.CHALLENGED
+                    evidence_state_basis = (
+                        "frozen_p1a_xstock_tail_detector_with_xperp_directional_corroboration"
+                    )
+                    reason_codes.append("XPERP_CORROBORATES_CHALLENGE")
+                elif xstock_gap < challenger_gap:
+                    state = EvidenceState.INCONCLUSIVE
+                    reason_codes.append("XPERP_CONTRADICTS_MODEL_CHALLENGE")
+                else:
+                    reason_codes.append("XPERP_EVIDENCE_UNCALIBRATED")
+
     return ValuationResult(
         asset=snapshot.asset,
         timestamp=snapshot.observation_ts,
@@ -204,6 +265,7 @@ def validate(
         xstock_vs_xperp_deviation_pct=xstock_vs_xperp,
         xperp_deviation_scaled_by_model_predictive_sd=xperp_scaled_deviation,
         evidence_state_basis=evidence_state_basis,
+        challenger_detector=detector_result,
         evidence_state=state,
         reason_codes=reason_codes,
         confidence=None,

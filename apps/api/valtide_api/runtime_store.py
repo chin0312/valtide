@@ -489,6 +489,38 @@ class RuntimeStore:
                 ),
             )
 
+    def record_publication_blocked_semantic_mismatch(
+        self,
+        asset: str,
+        observation_ts: datetime,
+        *,
+        attempt_at: datetime | None = None,
+    ) -> None:
+        """Record a safe, pre-transaction semantic incompatibility decision."""
+        observation_ts = self._publication_timestamp(observation_ts, "observation_ts")
+        attempt_at = attempt_at or datetime.now(UTC)
+        with self._lock, self._connection:
+            self._connection.execute(
+                """
+                INSERT INTO publication_state (
+                    asset, last_publish_status, last_publish_error,
+                    last_publish_attempt_at, last_publish_observation_ts
+                ) VALUES (?, ?, ?, ?, ?)
+                ON CONFLICT(asset) DO UPDATE SET
+                    last_publish_status = excluded.last_publish_status,
+                    last_publish_error = excluded.last_publish_error,
+                    last_publish_attempt_at = excluded.last_publish_attempt_at,
+                    last_publish_observation_ts = excluded.last_publish_observation_ts
+                """,
+                (
+                    asset,
+                    "publication_blocked_semantic_mismatch",
+                    "deployed_binding_semantics_unverified",
+                    attempt_at.astimezone(UTC).isoformat(),
+                    observation_ts.isoformat(),
+                ),
+            )
+
     @staticmethod
     def _validated_runtime_values(
         state: KalmanState,

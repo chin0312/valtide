@@ -370,6 +370,28 @@ class LiveScheduler:
         if tick.asset != self.asset or result.asset != self.asset:
             logger.error("auto-publish rejected mismatched scheduler asset=%s", self.asset)
             return
+        try:
+            publisher_module.assert_publication_compatible(
+                result,
+                self._settings,
+                asset=self.asset,
+            )
+        except publisher_module.PublicationSemanticMismatchError:
+            self.store.record_publication_blocked_semantic_mismatch(
+                self.asset,
+                result.timestamp,
+            )
+            logger.warning(
+                "auto-publish asset=%s observed_at=%s "
+                "status=publication_blocked_semantic_mismatch",
+                self.asset,
+                result.timestamp.isoformat(),
+            )
+            return
+        except publisher_module.PublisherNotConfigured:
+            # Let the serialized worker persist the established unavailable-
+            # configuration failure path; valuation cadence remains unaffected.
+            pass
         pending = self._pending_publication
         if pending is None or result.timestamp > pending.timestamp:
             self._pending_publication = result
@@ -389,6 +411,18 @@ class LiveScheduler:
                 self._publish_serialized,
                 result,
             )
+        except publisher_module.PublicationSemanticMismatchError:
+            self.store.record_publication_blocked_semantic_mismatch(
+                self.asset,
+                result.timestamp,
+            )
+            logger.warning(
+                "auto-publish asset=%s observed_at=%s "
+                "status=publication_blocked_semantic_mismatch",
+                self.asset,
+                result.timestamp.isoformat(),
+            )
+            return
         except publisher_module.PublisherError as exc:
             error = self._safe_publication_error(exc)
             self.store.record_publication_failure(

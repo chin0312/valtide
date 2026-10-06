@@ -1,4 +1,7 @@
+import hashlib
+import json
 from datetime import UTC, datetime, timedelta
+from pathlib import Path
 
 import pytest
 from quant.tools.evaluate_fresh_panels import evaluate_panel
@@ -69,6 +72,43 @@ def test_fresh_panel_evaluator_uses_verified_asset_runtime_and_real_replay(tmp_p
     assert "not create a newly calibrated combined" in result["interpretation"][
         "evidence_states"
     ]
+    detector = result["frozen_challenger_detector"]
+    assert detector["promotion_status"] == "CHALLENGER_DETECTOR_PROMOTABLE"
+    assert detector["canonical_rows"] == 4
+    assert detector["rows_eligible_for_score"] == 4
+    assert sum(detector["research_band_counts"].values()) == 4
+    assert detector["threshold_challenge_q95"] > detector["threshold_review_q80"]
+    repeated = evaluate_panel("SPYx", panel)
+    assert repeated["frozen_challenger_detector"] == detector
+
+
+def test_frozen_detector_config_matches_retained_research_hashes_and_thresholds():
+    repo_root = Path(__file__).resolve().parents[3]
+    artifact_path = (
+        repo_root
+        / "apps/api/valtide_api/detectors/challenger_tail_v1.json"
+    )
+    artifact = json.loads(artifact_path.read_text(encoding="utf-8"))
+
+    for asset, checksums in artifact["source_checksums"].items():
+        entry = artifact["assets"][asset]
+        slug = asset.lower()
+        report = json.loads(
+            (repo_root / "quant/research/challenger/results" / slug / "challenger_tail_report.json")
+            .read_text(encoding="utf-8")
+        )
+        assert entry["score_name"] == report["selected_score"]
+        assert entry["threshold_review_q80"] == report["score_q80_from_crossfit"]
+        assert entry["threshold_challenge_q95"] == report["score_q95_from_crossfit"]
+        assert entry["tail_event_threshold_bps"] == report[
+            "relative_tail_threshold_bps_from_crossfit"
+        ]
+        for source_path, expected_hash in checksums.items():
+            actual_hash = hashlib.sha256((repo_root / source_path).read_bytes()).hexdigest()
+            assert actual_hash == expected_hash
+
+    assert artifact["fresh_validation"]["period_start_utc"] == "2026-09-21T00:00:00Z"
+    assert artifact["fresh_validation"]["period_end_utc"] == "2026-10-05T06:25:00Z"
 
 
 def test_fresh_panel_evaluator_rejects_cross_asset_panel(tmp_path):
