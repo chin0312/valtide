@@ -358,7 +358,7 @@ export function EscalationChart({ results, index, playhead = index, onSelect, re
             }}
           />
           <Area dataKey="band" stroke="var(--color-series-valtide)" strokeWidth={1} fill="var(--color-band-fill)" connectNulls={false} isAnimationActive={false} name={intervalName} />
-          <Line dataKey="fair" stroke="var(--color-series-valtide)" strokeWidth={1.75} dot={false} connectNulls={false} isAnimationActive={false} name="Fair Value" />
+          <Line dataKey="fair" stroke="var(--color-series-valtide)" strokeWidth={1.75} dot={false} connectNulls={false} isAnimationActive={false} name="Fair value" />
           <Line
             dataKey="rut"
             stroke="var(--color-series-reference)"

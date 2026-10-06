@@ -201,7 +201,7 @@ function ValidationConsole() {
               enforced={isOperational && !reviewing ? controlPlane : undefined}
             />
             {context === "Demo" && <details className="rounded-[10px]" style={{ background: "var(--color-panel)", border: "1px solid var(--color-line-subtle)" }}>
-              <summary className="cursor-pointer px-5 py-3 text-sm font-medium text-ink">Advanced demo · precomputed policy proposal</summary>
+              <summary className="cursor-pointer px-5 py-3 text-sm font-medium text-ink">Advanced: policy proposal</summary>
               <div className="border-t p-3" style={{ borderColor: "var(--color-line-subtle)" }}><PolicyFoundry /></div>
             </details>}
           </div>
@@ -220,7 +220,7 @@ function ValidationConsole() {
         <ObservationAudit result={current} context={context} runtime={runtime.isError ? undefined : runtime.data} controlPlane={controlPlane} />
 
         {context === "Demo" && <details className="rounded-[10px]" style={{ background: "var(--color-panel)", border: "1px solid var(--color-line-subtle)" }}>
-          <summary className="cursor-pointer px-5 py-3 text-sm font-medium text-ink">Optional demo · token-rights metadata fixture</summary>
+          <summary className="cursor-pointer px-5 py-3 text-sm font-medium text-ink">Demo: token-rights metadata</summary>
           <div className="border-t p-3" style={{ borderColor: "var(--color-line-subtle)" }}><InstrumentPassport /></div>
         </details>}
 

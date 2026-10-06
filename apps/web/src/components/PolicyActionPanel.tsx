@@ -100,7 +100,7 @@ export function PolicyActionPanel({ current, policy, evaluation, policySource, s
       {currentOperational && sync && (
         <div className="mt-3 rounded-lg px-3 py-2 text-xs" style={{ background: "var(--color-panel-2)", border: "1px solid var(--color-line)", color: "var(--color-ink-dim)" }}>
           <div className="flex items-center justify-between gap-3">
-            <span>Operational ↔ Registry</span>
+            <span>Operational → Registry</span>
             <strong className="text-ink">{sync.state}</strong>
           </div>
           <div className="mt-1">{sync.detail}</div>

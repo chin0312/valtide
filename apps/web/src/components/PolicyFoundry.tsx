@@ -4,14 +4,14 @@ import { Panel } from "./ui";
 export function PolicyFoundry() {
   return (
     <Panel
-      title="Precomputed Policy Proposal"
+      title="Precomputed policy proposal"
       subtitle="Deterministic demo fixture · shown for review, not generated live."
       right={<span className="rounded px-2 py-1 text-[10px] uppercase tracking-[0.05em] text-muted" style={{ border: "1px solid var(--color-line)" }}>Not deployed</span>}
     >
       <div className="policy-terminal technical-mono rounded p-4 text-sm">
         <div className="flex flex-wrap items-center justify-between gap-2 border-b pb-3" style={{ borderColor: "rgba(184,199,194,.18)" }}>
           <span style={{ color: "var(--color-accent)" }}>$ valtide policy-proposal --fixture nvda-weekend</span>
-          <span className="text-[10px] uppercase tracking-[0.06em]" style={{ color: "var(--color-muted)" }}>Read only</span>
+          <span className="text-[10px] uppercase tracking-[0.06em]" style={{ color: "var(--color-muted)" }}>Read-only</span>
         </div>
         <div className="mt-3 grid grid-cols-[minmax(92px,.65fr)_minmax(0,1fr)_18px_minmax(0,1fr)] gap-x-2 border-b pb-2 text-[10px] uppercase tracking-[0.05em]" style={{ color: "var(--color-muted)", borderColor: "rgba(184,199,194,.12)" }}>
           <span>Rule</span><span>Current</span><span /><span>Proposed</span>
@@ -21,7 +21,7 @@ export function PolicyFoundry() {
         </div>
 
         <div className="mt-4">
-          <div className="mb-2 flex items-center justify-between gap-3"><span className="text-[10px] uppercase tracking-[0.05em]" style={{ color: "var(--color-muted)" }}>Unsigned Calldata</span><span className="text-[10px] text-muted">Checked-in ABI fixture</span></div>
+          <div className="mb-2 flex items-center justify-between gap-3"><span className="text-[10px] uppercase tracking-[0.05em]" style={{ color: "var(--color-muted)" }}>Unsigned calldata</span><span className="text-[10px] text-muted">Checked-in ABI fixture</span></div>
           <code className="block max-h-28 overflow-auto break-all rounded p-3 text-xs leading-5" style={{ color: "var(--color-series-valtide)", background: "#030506", border: "1px solid rgba(145,185,202,.25)" }}>{POLICY_PROPOSAL.calldata}</code>
         </div>
         <p className="mt-3 text-[11px] leading-5" style={{ color: "var(--color-muted)" }}>The calldata format matches the checked-in ABI fixture. It has not been simulated, signed, or submitted. The browser has no publisher key, vault-owner key, signing capability, or transaction-submission tool.</p>

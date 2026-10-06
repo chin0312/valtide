@@ -382,14 +382,14 @@ test("Instrument Passport validates addresses and resolves only the labelled fix
   assert.match(unknown, /No verified passport fixture/);
   assert.doesNotMatch(unknown, /SHAREHOLDER RIGHTS/);
   const resolved = render(InstrumentPassport, { initialAddress: DEMO_PASSPORT_ADDRESS });
-  for (const value of ["PRICE EXPOSURE", "VERIFIED", "FIXTURE ASSERTION", "SHAREHOLDER RIGHTS", "NONE", "BALANCE ADJUSTMENT", "xSTOCKS WITHDRAWAL", "RIGHTS PROFILE", "DIFFERS FROM A SHARE"]) assert.match(resolved, new RegExp(value));
+  for (const value of ["Price exposure", "VERIFIED", "FIXTURE ASSERTION", "Shareholder rights", "NONE", "BALANCE ADJUSTMENT", "xSTOCKS WITHDRAWAL", "Rights profile", "differs from a share"]) assert.match(resolved, new RegExp(value, "i"));
   assert.match(resolved, /not live address resolution/i);
   assert.match(resolved, /type="submit"/);
 });
 
 test("Policy Foundry renders a deterministic diff and read-only approval boundary", () => {
   const html = render(PolicyFoundry);
-  for (const value of ["Precomputed Policy Proposal", "not generated live", "900s", "600s", "REQUIRE_REVIEW", "MONITOR", "RESTRICT_NEW_RISK", "Unsigned Calldata", "No transaction capability in this prototype"]) assert.match(html, new RegExp(value, "i"));
+  for (const value of ["Precomputed policy proposal", "not generated live", "900s", "600s", "REQUIRE_REVIEW", "MONITOR", "RESTRICT_NEW_RISK", "Unsigned calldata", "No transaction capability in this prototype"]) assert.match(html, new RegExp(value, "i"));
   assert.doesNotMatch(html, /Agent Council|ABI SHAPE VERIFIED|Human Approval Required/);
   assert.match(html, /Not deployed/i);
   assert.match(POLICY_PROPOSAL.calldata, /^0xf5b39423[0-9a-f]{320}$/);

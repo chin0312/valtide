@@ -27,7 +27,7 @@ export function RegistryPanel({ controlPlane, enforcement, runtime, sync, mode =
   const modeNote = mode === "demo" ? "Live deployed state — not driven by this scenario." : mode === "historical" ? "Current deployed state — not historical chain state for the selected observation." : null;
 
   return (
-    <Panel title="X Layer Testnet" icon="chain" subtitle="X Layer · attestation delivery and collateral enforcement">
+    <Panel title="X Layer testnet" icon="chain" subtitle="Attestation delivery and collateral policy enforcement">
       <div className="flex flex-wrap items-center justify-between gap-3 pb-4 text-xs">
       <div><span className="font-semibold" style={{ color: "var(--color-accent)" }}>{controlPlane.network}</span><span className="technical-mono ml-2 text-sm" style={{ color: "var(--color-muted)" }}>Chain {controlPlane.chain_id} · DEPLOYED</span></div>
         {modeNote && <span style={{ color: "var(--color-ink-dim)" }}>{modeNote}</span>}
@@ -36,15 +36,15 @@ export function RegistryPanel({ controlPlane, enforcement, runtime, sync, mode =
       <div className="grid overflow-hidden rounded-lg md:grid-cols-5" style={{ border: "1px solid var(--color-line)" }}>
         <PipelineStep index="01" label="Publisher" value={pipelineStatusLabel(runtime?.last_publish_status ?? (runtime?.auto_publish_enabled ? "READY" : "READ ONLY"))} />
         <PipelineStep index="02" label="Registry" value={controlPlane.exists ? controlPlane.evidence_state : "NO ATTESTATION"} />
-        <PipelineStep index="03" label="Curator Policy" value={controlPlane.policy_action} />
+        <PipelineStep index="03" label="Curator policy" value={controlPlane.policy_action} />
         <PipelineStep index="04" label="RiskGuard" value={controlPlane.fresh ? "FRESH" : "STALE"} />
         <PipelineStep index="05" label="DemoVault" value={enforcement ? (enforcement.passed ? "POLICY CHECK PASSED" : "CHECK FAILED") : "UNAVAILABLE"} last />
       </div>
 
-      {sync && <div className="mt-3 flex flex-wrap items-center justify-between gap-2 rounded-lg px-3 py-2 text-xs" style={{ background: "var(--color-panel-2)", border: "1px solid var(--color-line)", color: "var(--color-ink-dim)" }}><span><strong className="text-ink">Operational ↔ Registry · {sync.state}</strong> — {sync.detail}</span><span className="technical-mono text-sm">{unixDateTimeUTC(sync.operationalObservedAt)} / {unixDateTimeUTC(sync.registryObservedAt)}</span></div>}
+      {sync && <div className="mt-3 flex flex-wrap items-center justify-between gap-2 rounded-lg px-3 py-2 text-xs" style={{ background: "var(--color-panel-2)", border: "1px solid var(--color-line)", color: "var(--color-ink-dim)" }}><span><strong className="text-ink">Operational → Registry · {sync.state}</strong> — {sync.detail}</span><span className="technical-mono text-sm">{unixDateTimeUTC(sync.operationalObservedAt)} / {unixDateTimeUTC(sync.registryObservedAt)}</span></div>}
 
       <details className="mt-4 rounded-lg" style={{ border: "1px solid var(--color-line)" }}>
-        <summary className="flex items-center justify-between px-3 py-2.5 text-xs" style={{ background: "var(--color-panel-2)", color: "var(--color-ink-dim)" }}><span>Contract addresses, attestation and delivery details</span><span aria-hidden style={{ color: "var(--color-accent)" }}>＋</span></summary>
+        <summary className="flex items-center justify-between px-3 py-2.5 text-xs" style={{ background: "var(--color-panel-2)", color: "var(--color-ink-dim)" }}><span>Technical details</span><span aria-hidden style={{ color: "var(--color-accent)" }}>＋</span></summary>
         <div className="grid gap-5 p-4 lg:grid-cols-3">
           <DetailGroup title="Contracts">
             <Detail label="Registry" value={shortHex(controlPlane.registry)} />
@@ -52,14 +52,14 @@ export function RegistryPanel({ controlPlane, enforcement, runtime, sync, mode =
             <Detail label="DemoVault" value={shortHex(controlPlane.demo_vault)} />
             <Detail label="Reference ID" value={shortHex(controlPlane.reference_id)} />
           </DetailGroup>
-          <DetailGroup title="Registry Attestation">
-            <Detail label="Exists / Fresh" value={`${controlPlane.exists ? "YES" : "NO"} / ${controlPlane.registry_fresh ? "FRESH" : "STALE"}`} />
+          <DetailGroup title="Registry attestation">
+            <Detail label="Available / up to date" value={`${controlPlane.exists ? "YES" : "NO"} / ${controlPlane.registry_fresh ? "FRESH" : "STALE"}`} />
             <Detail label="Observed" value={unixDateTimeUTC(attestation?.observedAt)} />
             <Detail label="Published" value={unixDateTimeUTC(attestation?.publishedAt)} />
-            <Detail label="Valid Until" value={unixDateTimeUTC(attestation?.validUntil)} />
+            <Detail label="Valid until" value={unixDateTimeUTC(attestation?.validUntil)} />
           </DetailGroup>
-          <DetailGroup title="Curator And Delivery">
-            <Detail label="Max Age" value={`${controlPlane.policy.max_age}s`} />
+          <DetailGroup title="Policy and delivery">
+            <Detail label="Maximum age" value={`${controlPlane.policy.max_age}s`} />
             <Detail label="SUPPORTED" value={controlPlane.policy.on_supported} />
             <Detail label="INCONCLUSIVE" value={controlPlane.policy.on_inconclusive} />
             <Detail label="CHALLENGED" value={controlPlane.policy.on_challenged} />
@@ -69,18 +69,18 @@ export function RegistryPanel({ controlPlane, enforcement, runtime, sync, mode =
         {runtime?.last_publish_error && <p className="border-t px-4 py-3 text-xs" style={{ borderColor: "var(--color-line)", color: "var(--color-inconclusive)" }}>Publication error: {runtime.last_publish_error}</p>}
       </details>
       <PublicationDetails runtime={runtime} />
-      <p className="mt-3 text-[11px]" style={{ color: "var(--color-muted)" }}>Publication is backend-controlled. The browser reads deployed state but never signs or initiates a transaction.</p>
+      <p className="mt-3 text-[11px]" style={{ color: "var(--color-muted)" }}>Publishing is handled by the backend. This browser can only read onchain data.</p>
     </Panel>
   );
 }
 
 function UnavailableRegistryPanel({ status, detail, runtime }: { status: string; detail: string; runtime?: RuntimeStatus }) {
   return (
-    <Panel title="X Layer Testnet" icon="chain" subtitle="X Layer · Publisher → Registry → Policy → RiskGuard → Vault" right={<span className="rounded px-2 py-1 font-mono text-[10px] uppercase tracking-[0.05em]" style={{ color: "var(--color-muted)", background: "var(--color-panel-2)", border: "1px solid var(--color-line)" }}>{status}</span>}>
+    <Panel title="X Layer testnet" icon="chain" subtitle="X Layer · Publisher → Registry → Policy → RiskGuard → Vault" right={<span className="rounded px-2 py-1 font-mono text-[10px] uppercase tracking-[0.05em]" style={{ color: "var(--color-muted)", background: "var(--color-panel-2)", border: "1px solid var(--color-line)" }}>{status}</span>}>
       <div className="grid overflow-hidden rounded-lg sm:grid-cols-5" style={{ border: "1px solid var(--color-line)" }}>
         <PipelineStep index="01" label="Publisher" value="API REQUIRED" />
         <PipelineStep index="02" label="Registry" value="UNREAD" />
-        <PipelineStep index="03" label="Curator Policy" value="UNREAD" />
+        <PipelineStep index="03" label="Curator policy" value="UNREAD" />
         <PipelineStep index="04" label="RiskGuard" value="UNREAD" />
         <PipelineStep index="05" label="DemoVault" value="UNREAD" last />
       </div>
@@ -92,16 +92,16 @@ function UnavailableRegistryPanel({ status, detail, runtime }: { status: string;
 
 function PublicationDetails({ runtime }: { runtime?: RuntimeStatus }) {
   return <details className="mt-3 rounded-lg" style={{ border: "1px solid var(--color-line)" }}>
-    <summary className="cursor-pointer px-3 py-2.5 text-xs text-ink-dim">Publication Delivery · Current Backend</summary>
+    <summary className="cursor-pointer px-3 py-2.5 text-xs text-ink-dim">Publication status</summary>
     <dl className="grid gap-3 p-4 text-xs sm:grid-cols-2">
-      <Detail label="Auto-Publish" value={runtime ? runtime.auto_publish_enabled ? "ENABLED" : "DISABLED" : "UNAVAILABLE"} />
-      <Detail label="Delivery Status" value={deliveryStatusLabel(runtime?.last_publish_status)} />
-      <Detail label="Last Attempt (UTC)" value={runtime?.last_publish_attempt_at ?? "—"} />
-      <Detail label="Attempted Observation" value={runtime?.last_publish_observation_ts ?? "—"} />
-      <Detail label="Last Published Observation" value={runtime?.last_published_observation_ts ?? "—"} />
-      <Detail label="Last Published Time" value={unixDateTimeUTC(runtime?.last_published_at)} />
-      <div className="sm:col-span-2"><dt className="text-muted">Transaction Hash</dt><dd className="technical-mono select-text break-all text-sm text-ink">{runtime?.last_publish_tx_hash ?? "—"}</dd></div>
-      <div className="sm:col-span-2"><dt className="text-muted">Delivery Error</dt><dd className="break-words text-ink">{runtime?.last_publish_error ?? (runtime ? "None" : "UNAVAILABLE")}</dd></div>
+      <Detail label="Automatic publishing" value={runtime ? runtime.auto_publish_enabled ? "ENABLED" : "DISABLED" : "UNAVAILABLE"} />
+      <Detail label="Delivery status" value={deliveryStatusLabel(runtime?.last_publish_status)} />
+      <Detail label="Last attempt (UTC)" value={runtime?.last_publish_attempt_at ?? "—"} />
+      <Detail label="Attempted observation" value={runtime?.last_publish_observation_ts ?? "—"} />
+      <Detail label="Last published observation" value={runtime?.last_published_observation_ts ?? "—"} />
+      <Detail label="Published at" value={unixDateTimeUTC(runtime?.last_published_at)} />
+      <div className="sm:col-span-2"><dt className="text-muted">Transaction hash</dt><dd className="technical-mono select-text break-all text-sm text-ink">{runtime?.last_publish_tx_hash ?? "—"}</dd></div>
+      <div className="sm:col-span-2"><dt className="text-muted">Delivery error</dt><dd className="break-words text-ink">{runtime?.last_publish_error ?? (runtime ? "None" : "UNAVAILABLE")}</dd></div>
     </dl>
   </details>;
 }
