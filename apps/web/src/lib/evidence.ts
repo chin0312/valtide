@@ -17,9 +17,9 @@ export interface EvidenceStyle {
 export const EVIDENCE: Record<EvidenceState, EvidenceStyle> = {
   SUPPORTED: {
     label: "SUPPORTED",
-    headline: "Reference under test is supported",
+    headline: "Validation target is supported",
     description:
-      "Available evidence provides no material reason to challenge the reference under test; source dependence is defined by the active reference profile.",
+      "The active, asset-authorized evidence rule supports the validation target; this is not proof that the observed price is objectively correct.",
     icon: "✓",
     fg: "var(--color-supported)",
     soft: "var(--color-supported-soft)",
@@ -29,7 +29,7 @@ export const EVIDENCE: Record<EvidenceState, EvidenceStyle> = {
     label: "INCONCLUSIVE",
     headline: "Evidence is inconclusive",
     description:
-      "The evidence is not strong enough to support or materially challenge the reference under test.",
+      "The evidence is unavailable, watch-band, ambiguous, stale, or quality-gated, so the backend deliberately abstains.",
     icon: "?",
     fg: "var(--color-inconclusive)",
     soft: "var(--color-inconclusive-soft)",
@@ -37,9 +37,9 @@ export const EVIDENCE: Record<EvidenceState, EvidenceStyle> = {
   },
   CHALLENGED: {
     label: "CHALLENGED",
-    headline: "Reference under test is challenged",
+    headline: "Validation target is challenged",
     description:
-      "The reference under test is materially inconsistent with sufficiently strong evidence; that is not proof it is objectively wrong.",
+      "The active, asset-authorized evidence rule challenges the validation target; that is not proof it is objectively wrong.",
     icon: "!",
     fg: "var(--color-challenged)",
     soft: "var(--color-challenged-soft)",

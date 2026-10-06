@@ -34,8 +34,10 @@ export function priceToFraction(price: number, r: ValuationResult): number {
   return unitsToFraction(toBandUnits(price, r));
 }
 
-/** Is the reference under test outside the actual calibrated interval bounds? */
+/** Is the active validation target outside the actual calibrated interval bounds? */
 export function referenceOutsideBand(r: ValuationResult): boolean {
-  if (r.reference_under_test == null) return false;
-  return r.reference_under_test < r.fair_value_lower || r.reference_under_test > r.fair_value_upper;
+  const unified = r.validation_target === "xstock_observed_price" || r.reference_profile === "unified_xstock_p1ac_xperp_evidence_v1";
+  const target = unified ? r.token_price : r.reference_under_test;
+  if (target == null) return false;
+  return target < r.fair_value_lower || target > r.fair_value_upper;
 }

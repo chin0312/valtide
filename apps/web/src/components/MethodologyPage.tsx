@@ -3,14 +3,14 @@ import { MarketingHeader } from "./Hero";
 import { MarketingFooter } from "./LandingPage";
 
 const readerLenses = [
-  { label: "New to Valtide", title: "Start with the decision boundary", body: "Understand what a reference under test is, why the answer is a range, and why evidence is not an instruction to liquidate." },
+  { label: "New to Valtide", title: "Start with the decision boundary", body: "Understand the observed xStock validation target, why the answer is a range, and why evidence is not an instruction to liquidate." },
   { label: "Curators and risk teams", title: "Focus on abstention and provenance", body: "Review freshness, quality gates, reason codes, source dependence, and the policy boundary before changing exposure." },
   { label: "Developers and integrators", title: "Preserve the result intact", body: "Consume the backend state, interval, timestamps, model identity, and attestation without reclassifying evidence in the client." },
   { label: "Researchers", title: "Interrogate the model and evaluation", body: "Inspect causal update order, calibration, reference profiles, baselines, exposed evaluation data, and known limitations." },
 ] as const;
 
 const pipeline = [
-  { number: "01", title: "Observe", body: "Collect a point-in-time market snapshot. Keep the xStock observation, trusted underlying anchor, reference under test, market state, source times, and liquidity fields distinct." },
+  { number: "01", title: "Observe", body: "Collect a point-in-time market snapshot. Keep the observed xStock validation target, trusted underlying anchor, exact-time X-Perp evidence, market state, source times, and liquidity fields distinct." },
   { number: "02", title: "Estimate", body: "Advance the P1a-C state-space challenger and return a fair-value center with calibrated predictive bounds. The interval is part of the answer, not decoration." },
   { number: "03", title: "Validate", body: "Apply the declared reference profile, quality gates, asset-specific evidence rules, and reason codes. Weak or unresolved evidence must be allowed to abstain." },
   { number: "04", title: "Deliver", body: "Publish an authorized attestation. Curator-owned policy maps the Evidence State to an action; the consuming application decides how that action is enforced." },
@@ -34,7 +34,7 @@ export function MethodologyPage() {
           <div>
             <p className="marketing-kicker">Public research methodology · v0.3</p>
             <h1>How Valtide tests a price without pretending to know the “true” price.</h1>
-            <p>Valtide produces independent valuation evidence for an explicitly named reference under test. It preserves uncertainty, source dependence, and the boundary between quantitative evidence and protocol policy.</p>
+            <p>Valtide produces source-aware valuation evidence for an explicitly named validation target. The current production profile evaluates the observed xStock using a model-based P1a-C challenger and separately sourced X-Perp evidence while preserving uncertainty and the boundary between evidence and protocol policy.</p>
             <div className="methodology-hero__actions">
               <a className="primary-link" href="/?view=console&context=demo">Inspect the demo <span aria-hidden="true">↗</span></a>
               <a className="text-link" href="https://github.com/chin0312/valtide/blob/main/docs/METHODOLOGY.md" target="_blank" rel="noreferrer">Read the research specification <span aria-hidden="true">↗</span></a>
@@ -43,7 +43,8 @@ export function MethodologyPage() {
           <aside aria-label="Methodology status">
             <span>METHOD STATUS</span>
             <dl>
-              <div><dt>Operational slice</dt><dd>NVDAx / NVDA</dd></div>
+              <div><dt>Operational validation</dt><dd>NVDAx · SPYx · AAPLx</dd></div>
+              <div><dt>Onchain binding</dt><dd>NVDAx only</dd></div>
               <div><dt>Challenger</dt><dd>{MODEL_EVIDENCE_SUMMARY.model}</dd></div>
               <div><dt>Interval target</dt><dd>{(MODEL_EVIDENCE_SUMMARY.coverageTarget * 100).toFixed(0)}%</dd></div>
               <div><dt>Network</dt><dd>X Layer testnet</dd></div>
@@ -76,8 +77,8 @@ export function MethodologyPage() {
           <div className="methodology-heading"><span>04</span><div><p className="marketing-kicker">Information set and source dependence</p><h2>A result only means what its reference profile permits.</h2><p>The profile names the price being evaluated and its relationship to the challenger inputs. Comparisons with shared inputs must not be described as independent votes.</p></div></div>
           <div className="profile-table" role="table" aria-label="Current reference profiles">
             <div className="profile-table__head" role="row"><span role="columnheader">Profile</span><span role="columnheader">What is compared</span><span role="columnheader">Interpretation</span></div>
-            <div role="row"><strong role="cell">Legacy X-Perp profile</strong><p role="cell">P1a-C uses the xStock observation and trusted underlying state; the OKX X-Perp index is a separately sourced reference under test.</p><p role="cell">The X-Perp residual is not calibrated by the underlying-target predictive variance. Current validation therefore abstains rather than presenting that scale as a valid z-score.</p></div>
-            <div role="row"><strong role="cell">Unified xStock profile</strong><p role="cell">The observed xStock is tested against P1a-C after that same xStock observation has been assimilated; exact-time X-Perp may provide separate directional corroboration.</p><p role="cell">xStock and P1a-C are model-based challenger evidence, not two independent observations. A challenge requires an asset-specific promoted detector and eligible corroboration.</p></div>
+            <div role="row"><strong role="cell">Production unified profile</strong><p role="cell">The observed xStock is the validation target. P1a-C has assimilated that same observation, while exact-time X-Perp is preserved as a separately sourced second-market challenger.</p><p role="cell">xStock-versus-P1a is model-based evidence, not two independent observations. Asset-bound tri-source capability determines whether support and challenge states are authorized.</p></div>
+            <div role="row"><strong role="cell">Legacy persisted results</strong><p role="cell">Older records and fixtures may identify X-Perp as the reference under test under <code>legacy_xperp_vs_p1ac</code>.</p><p role="cell">These rows remain readable for provenance but are not the current operational classifier and must not be blended with v2 Evidence States.</p></div>
           </div>
           <div className="source-grid">
             <article><span>Observed token market</span><h3>Confirmed OKX OnchainOS xStock candles</h3><p>Canonical five-minute observations carry source identity, observation time, volume, and available liquidity metadata.</p></article>
@@ -88,7 +89,7 @@ export function MethodologyPage() {
         </section>
 
         <section className="methodology-section methodology-section--model">
-          <div className="methodology-heading"><span>05</span><div><p className="marketing-kicker">Implemented challenger</p><h2>P1a-C is a causal state-space estimate with calibrated uncertainty.</h2><p>The deployed NVDAx artifact uses log prices, session-specific process variance, separate observation noise for NVDA and NVDAx, and empirical session-aware calibration.</p></div></div>
+          <div className="methodology-heading"><span>05</span><div><p className="marketing-kicker">Implemented challenger</p><h2>P1a-C is a causal state-space estimate with calibrated uncertainty.</h2><p>Asset-specific P1a-C bundles are operational for NVDAx, SPYx, and AAPLx. The published interval study below describes the NVDAx artifact, which uses log prices, session-specific process variance, separate observation noise, and empirical session-aware calibration.</p></div></div>
           <div className="model-layout">
             <div className="equation-stack" aria-label="P1a-C calculation summary">
               <div><span>Predict uncertainty</span><code>P⁻ₜ = Pₜ₋₁ + Q(session)</code></div>
@@ -108,7 +109,7 @@ export function MethodologyPage() {
         <section className="methodology-section methodology-section--states">
           <div className="methodology-heading"><span>06</span><div><p className="marketing-kicker">Evidence State</p><h2>Quality gates can override an apparent price signal.</h2><p>The backend—not the browser—applies the active decision rule. Missing token data, stale sources, suspected unit errors, invalid or high uncertainty, unavailable comparators, and unverified calibration can force an abstention.</p></div></div>
           <div className="methodology-states">{states.map((state) => <article className={state.tone} key={state.name}><span>{state.name}</span><p>{state.body}</p></article>)}</div>
-          <div className="methodology-rule"><span>CURRENT RULE BOUNDARY</span><p>The unified xStock profile begins at <strong>INCONCLUSIVE</strong>. It may emit <strong>CHALLENGED</strong> only when a promoted asset-specific detector reaches its review band, data-quality checks pass, and an eligible exact-time X-Perp observation directionally corroborates the challenger. Lack of a challenge is not silently converted into <strong>SUPPORTED</strong>.</p></div>
+          <div className="methodology-rule"><span>CURRENT V2 RULE BOUNDARY</span><p>The unified profile begins at <strong>INCONCLUSIVE</strong>. It emits <strong>SUPPORTED</strong> when the asset-authorized support band applies, exact-time X-Perp is available, and quality gates pass. It emits <strong>CHALLENGED</strong> only when the authorized review-band rule applies and exact-time X-Perp is closer to P1a-C than to xStock. Watch-band, missing, stale, ambiguous, or quality-gated evidence remains <strong>INCONCLUSIVE</strong>. State authority comes from the asset-bound tri-source capability artifact, not the detector promotion label alone.</p></div>
         </section>
 
         <section className="methodology-section methodology-section--evaluation">
@@ -119,7 +120,8 @@ export function MethodologyPage() {
             <article><span>MEAN INTERVAL WIDTH</span><strong>{MODEL_EVIDENCE_SUMMARY.meanIntervalWidthBps.toFixed(2)} bps</strong><p>{widthReduction}% narrower than the conventional Gaussian interval using the same centers.</p></article>
             <article><span>POINT MAE</span><strong>{MODEL_EVIDENCE_SUMMARY.maeBps.toFixed(3)} bps</strong><p>Shared point-estimate error reported for this evaluation.</p></article>
           </div>
-          <div className="evaluation-caveats"><strong>How to read these results</strong><ul><li>Coverage above target is not automatically better; width and interval score must be considered with it.</li><li>Closed and overnight intervals use a global calibration fallback because contemporaneous underlying labels are unavailable there.</li><li>The exposed test window is no longer an untouched lockbox and must not be reused for future model selection claims.</li><li>These results do not establish production performance, oracle-provider superiority, manipulation resistance, or Evidence State precision and recall.</li></ul></div>
+          <div className="evaluation-caveats"><strong>How to read these results</strong><ul><li>Coverage above target is not automatically better; width and interval score must be considered with it.</li><li>Closed and overnight intervals use a global calibration fallback because contemporaneous underlying labels are unavailable there.</li><li>The exposed test window is no longer an untouched lockbox and must not be reused for future model selection claims.</li><li>These interval results do not establish production performance, oracle-provider superiority, manipulation resistance, or Evidence State precision and recall.</li></ul></div>
+          <div className="methodology-note"><strong>Separate v2 classification evidence</strong><p>The current support/challenge authority is bound per asset to a frozen detector and a 2026-09-21 through 2026-10-05 retrospective tri-source diagnostic. It supports a selective risk signal, not a prospective guarantee: NVDAx challenge candidates produced 5 true and 1 false positive among six truth-evaluable cases; SPYx produced 20 true and 0 false positives among 20; AAPLx had only four truth-labelled exact-time candidates, all tail events. Small samples and low recall remain explicit limitations.</p></div>
         </section>
 
         <section className="methodology-section methodology-section--audit">

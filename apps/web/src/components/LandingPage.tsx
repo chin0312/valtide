@@ -6,9 +6,12 @@ import { Hero } from "./Hero";
 
 const SCENARIO = weekendDivergence as unknown as ValuationResult[];
 const REASON_LABELS: Record<string, string> = {
-  REFERENCE_UNDER_TEST_OUTSIDE_INTERVAL: "Reference outside interval",
   CALIBRATION_GLOBAL_FALLBACK: "Global fallback calibration",
   TOKEN_AND_CHALLENGER_AGREE: "Token and challenger agree",
+  P1A_XSTOCK_SUPPORT_BAND: "P1a/xStock support band",
+  P1A_XSTOCK_WATCH_BAND: "P1a/xStock watch band",
+  P1A_XSTOCK_REVIEW_BAND: "P1a/xStock review band",
+  XPERP_CORROBORATES_P1A: "X-Perp corroborates P1a",
 };
 
 function money(value: number | null) {
@@ -26,9 +29,9 @@ function scaleTop(value: number | null) {
 }
 
 const storySteps = [
-  { number: "01", label: "Observe", title: "A reference separates from the market evidence.", body: "Valtide keeps the reference under test, tokenized-market price, trusted anchor, market state, and timestamps visibly separate." },
-  { number: "02", label: "Estimate", title: "Uncertainty remains part of the answer.", body: "The independent challenger produces a fair-value estimate with calibrated interval bounds—not a single price presented as truth." },
-  { number: "03", label: "Validate", title: "Disagreement becomes an explainable Evidence State.", body: "The backend returns SUPPORTED, INCONCLUSIVE, or CHALLENGED together with reason codes and model provenance." },
+  { number: "01", label: "Observe", title: "An xStock price separates from its model-based challenger.", body: "Valtide keeps the observed xStock, P1a-C estimate, exact-time X-Perp evidence, trusted anchor, market state, and source timestamps visibly separate." },
+  { number: "02", label: "Estimate", title: "Uncertainty remains part of the answer.", body: "P1a-C produces a fair-value estimate with calibrated interval bounds after assimilating the same xStock observation—not a fully independent vote or a single price presented as truth." },
+  { number: "03", label: "Validate", title: "Tri-source evidence becomes an explainable state.", body: "Asset-specific support, watch, and review bands combine with exact-time X-Perp availability or directional corroboration to return SUPPORTED, INCONCLUSIVE, or CHALLENGED." },
   { number: "04", label: "Respond", title: "The protocol keeps control of policy.", body: "A curator-owned mapping turns evidence into a Policy Action. The consuming application decides how that action is enforced." },
 ] as const;
 
@@ -78,8 +81,8 @@ export function LandingPage() {
           <div className="section-index"><span>01</span><span>DETERMINISTIC DEMO</span></div>
           <div className="story-heading">
             <p className="marketing-kicker">One incident, fully traced</p>
-            <h2>A reference is only useful while the evidence can support it.</h2>
-            <p>This six-step synthetic incident shows what happens as a collateral reference separates from independent market evidence. It is demonstration data—not live or historical performance.</p>
+            <h2>An on-chain price is only useful while the evidence can support it.</h2>
+            <p>This six-step synthetic incident shows what happens as the observed NVDAx price separates from its model-based challenger while exact-time X-Perp provides a second market view. It is demonstration data—not live or historical performance.</p>
           </div>
 
           <div className="incident-frame" aria-label="Canonical Valtide demo scenario">
@@ -90,15 +93,15 @@ export function LandingPage() {
             </div>
             <div className="incident-grid">
               <div className="incident-question">
-                <span className="marketing-kicker">Reference under test</span>
-                <strong>{money(demo.reference_under_test)}</strong>
-                <p>OKX X-Perp NVDA index</p>
+                <span className="marketing-kicker">Validation target</span>
+                <strong>{money(demo.token_price)}</strong>
+                <p>Observed NVDAx market price</p>
               </div>
               <div className="incident-chart" aria-hidden="true">
                 <div className="incident-band" style={{ top: `${intervalTop}%`, height: `${Math.max(4, intervalBottom - intervalTop)}%` }}><span>Valtide interval</span></div>
-                <div className="incident-marker incident-marker--reference" style={{ top: `${scaleTop(demo.reference_under_test)}%` }}><i />Reference {money(demo.reference_under_test)}</div>
-                <div className="incident-marker incident-marker--fair" style={{ top: `${scaleTop(demo.valtide_fair_value)}%` }}><i />Fair value {money(demo.valtide_fair_value)}</div>
-                <div className="incident-marker incident-marker--token" style={{ top: `${scaleTop(demo.token_price)}%` }}><i />Token {money(demo.token_price)}</div>
+                <div className="incident-marker incident-marker--reference" style={{ top: `${scaleTop(demo.xperp_index_price)}%` }}><i />X-Perp {money(demo.xperp_index_price)}</div>
+                <div className="incident-marker incident-marker--fair" style={{ top: `${scaleTop(demo.valtide_fair_value)}%` }}><i />P1a-C {money(demo.valtide_fair_value)}</div>
+                <div className="incident-marker incident-marker--token" style={{ top: `${scaleTop(demo.token_price)}%` }}><i />xStock {money(demo.token_price)}</div>
               </div>
               <div className={`incident-result is-${demo.evidence_state.toLowerCase()}`}>
                 <span className="marketing-kicker">Evidence State</span>
@@ -107,9 +110,9 @@ export function LandingPage() {
               </div>
             </div>
             <div className="incident-metrics">
-              <div><span>Valtide fair value</span><strong>{money(demo.valtide_fair_value)}</strong></div>
+              <div><span>P1a-C fair value</span><strong>{money(demo.valtide_fair_value)}</strong></div>
               <div><span>Expected range · 90% coverage target</span><strong>{money(demo.fair_value_lower)}–{money(demo.fair_value_upper)}</strong></div>
-              <div><span>Reference vs. estimate</span><strong>{signedPct(demo.reference_deviation_pct)}</strong></div>
+              <div><span>xStock vs. P1a-C</span><strong>{signedPct(demo.xstock_vs_p1ac_deviation_pct)}</strong></div>
             </div>
             <div className="incident-timeline" aria-label="Choose a demo observation">
               {SCENARIO.map((observation, index) => <button type="button" key={observation.timestamp} onClick={() => setDemoFrame(index)} aria-pressed={index === demoFrame} className={`is-${observation.evidence_state.toLowerCase()} ${index === demoFrame ? "is-active" : ""}`}>
@@ -124,8 +127,8 @@ export function LandingPage() {
         <section id="method" className="story-section story-section--reasoning">
           <div className="section-index"><span>02</span><span>THE REASONING CHAIN</span></div>
           <div className="story-heading story-heading--split">
-            <h2>Not another price.<br />A test of the price already in use.</h2>
-            <p>Valtide preserves the disagreement rather than averaging every source into one opaque number. The relationship depends on the reference profile: in the xStock profile P1a assimilates the same token observation, so the comparison is model-based challenger evidence—not two fully independent observations.</p>
+            <h2>Not another price.<br />A structured test of the on-chain price.</h2>
+            <p>Valtide preserves the disagreement rather than averaging every source into one opaque number. P1a assimilates the same xStock observation, so xStock-versus-P1a is model-based challenger evidence—not two fully independent observations. Exact-time X-Perp remains a separate second-market signal.</p>
           </div>
           <div className="reasoning-grid" aria-label="Valtide reasoning chain">
             {storySteps.map((step) => <article key={step.number}><div><span>{step.number}</span><span>{step.label}</span></div><h3>{step.title}</h3><p>{step.body}</p></article>)}
@@ -145,8 +148,8 @@ export function LandingPage() {
             <div className="range-track">
               <div className="range-band"><span>Expected range · 90% coverage target</span></div>
               <i className="range-point range-point--token"><span>Token<br />$178.20</span></i>
-              <i className="range-point range-point--fair"><span>Valtide<br />$179.11</span></i>
-              <i className="range-point range-point--reference"><span>Reference<br />$180.00</span></i>
+              <i className="range-point range-point--fair"><span>P1a-C<br />$179.13</span></i>
+              <i className="range-point range-point--reference"><span>X-Perp<br />$180.00</span></i>
             </div>
             <p>Canonical demo observation · 2026-09-19 14:25 UTC · values rounded for display</p>
           </div>
@@ -170,7 +173,7 @@ export function LandingPage() {
           <div className="section-index"><span>05</span><span>AUDITABLE DELIVERY</span></div>
           <div className="story-heading story-heading--split">
             <h2>Every conclusion leaves a trail.</h2>
-            <p>The human interface explains the evidence. The machine interface carries an authorized attestation through the deployed X Layer testnet control plane.</p>
+            <p>The human interface explains the evidence. For NVDAx, the machine interface can publish an authorized attestation to the deployed X Layer testnet control plane; consuming applications remain responsible for enforcement.</p>
           </div>
           <div className="trail-flow" aria-label="Attestation delivery path">
             {deliverySteps.map((step) => <div key={step.number}><span>{step.number}</span><strong>{step.title}</strong><small>{step.body}</small></div>)}
@@ -180,7 +183,7 @@ export function LandingPage() {
           <div className="prototype-scope">
             <div>
               <p className="marketing-kicker">Current prototype scope</p>
-              <dl><div><dt>Available asset</dt><dd>NVDAx</dd></div><div><dt>Reference under test</dt><dd>OKX X-Perp NVDA index</dd></div><div><dt>Network</dt><dd>X Layer testnet · Chain ID 1952</dd></div><div><dt>Evidence contexts</dt><dd>Operational · Historical · Demo</dd></div><div><dt>Status</dt><dd>Research / hackathon prototype</dd></div></dl>
+              <dl><div><dt>Operational validation</dt><dd>NVDAx · SPYx · AAPLx</dd></div><div><dt>Validation target</dt><dd>Observed xStock price, with P1a-C and exact-time X-Perp evidence</dd></div><div><dt>Onchain binding</dt><dd>NVDAx only · X Layer testnet · Chain ID 1952</dd></div><div><dt>Research-only asset</dt><dd>QQQx · not exposed through production HTTP</dd></div><div><dt>Status</dt><dd>Research / hackathon prototype</dd></div></dl>
             </div>
             <div>
               <p className="marketing-kicker">Deliberate boundaries</p>

@@ -3,9 +3,10 @@ import { money } from "../lib/format";
 import { priceToFraction, unitsToFraction } from "../lib/scale";
 
 export function ReferenceNumberLine({ r }: { r: ValuationResult }) {
+  const unified = r.validation_target === "xstock_observed_price" || r.reference_profile === "unified_xstock_p1ac_xperp_evidence_v1";
   const candidates = [
-    { label: "Reference", price: r.reference_under_test, color: "var(--color-series-reference)", shape: "diamond" },
-    { label: "Token market", price: r.token_price, color: "var(--color-series-token)", shape: "circle" },
+    { label: unified ? "X-Perp evidence" : "Reference", price: unified ? r.xperp_index_price : r.reference_under_test, color: "var(--color-series-reference)", shape: "diamond" },
+    { label: unified ? "xStock target" : "Token market", price: r.token_price, color: "var(--color-series-token)", shape: "circle" },
     { label: "Last trusted price", price: r.last_trusted_reference, color: "var(--color-series-trusted)", shape: "square" },
     { label: "Constructed", price: r.external_constructed_reference, color: "var(--color-series-valtide)", shape: "circle" },
   ];

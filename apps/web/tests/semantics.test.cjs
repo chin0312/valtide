@@ -29,6 +29,13 @@ const h = React.createElement;
 const render = (component, props) => renderToStaticMarkup(h(component, props));
 
 test("Demo returns only the six original backend observations, including original reasons", async () => {
+  for (const row of fixture) {
+    assert.equal(row.reference_profile, "unified_xstock_p1ac_xperp_evidence_v1");
+    assert.equal(row.validation_target, "xstock_observed_price");
+    assert.equal(row.evidence_semantics, "p1a_xstock_band_with_xperp_review_corroboration_v2");
+    assert.equal(row.xperp_role, "second_market_challenger");
+    assert.ok(row.challenger_detector);
+  }
   const original = global.fetch;
   const unusual = fixture.map(row => ({...row, evidence_state: "INCONCLUSIVE", reason_codes: ["CUSTOM_BACKEND_REASON"]}));
   try {
@@ -172,15 +179,15 @@ function appWith({result, rows, chain, error, assetList, profile = "legacy_xperp
 test("Clean divergence hero restores the product framing and opens the validation console", () => {
   const html = render(Hero);
   assert.match(html, /Independent valuation evidence for tokenized collateral/);
-  assert.match(html, /When markets disagree/);
-  assert.match(html, /evidence supports/);
-  assert.match(html, /Valtide protects DeFi from oracle failures/);
-  assert.match(html, /independent, cryptographically verified collateral valuation/);
+  assert.match(html, /Take control of your protocol&#x27;s/);
+  assert.match(html, /collateral risk/);
+  assert.match(html, /Continuously verify whether on-chain equity prices are supported by off-chain evidence/);
+  assert.match(html, /let consuming protocols enforce their own risk rules when markets disagree/);
   assert.match(html, /Open validation console/);
   assert.match(html, /See how it works/);
   assert.match(html, /Animated market divergence/);
-  assert.match(html, /Independent estimate/);
-  assert.match(html, /Token market/);
+  assert.match(html, /P1a-C estimate/);
+  assert.match(html, /xStock target/);
   assert.doesNotMatch(html, /Run the risk demo|From evidence to protocol response|POSITION (?:OPENED|BLOCKED)/);
   assert.doesNotMatch(html, /RESTRICT_NEW_RISK|NEW EXPOSURE (?:OPEN|REVERTED)/);
   assert.match(html, /11,828/);
@@ -204,11 +211,12 @@ test("Clean divergence hero restores the product framing and opens the validatio
 
 test("Prototype landing uses canonical demo values and preserves product boundaries", () => {
   const html = render(LandingPage);
-  for (const value of ["$180.00", "$178.20", "$179.11"]) assert.match(html, new RegExp(value.replace("$", "\\$")));
+  for (const value of ["$180.00", "$178.20", "$179.13"]) assert.match(html, new RegExp(value.replace("$", "\\$")));
   assert.match(html, /six-step synthetic incident/);
   assert.match(html, /demonstration data—not live or historical performance/);
   assert.match(html, /Valtide preserves the disagreement/);
-  assert.match(html, /A reference separates from the market evidence/);
+  assert.match(html, /An xStock price separates from its model-based challenger/);
+  assert.match(html, /exact-time X-Perp provides a second market view/);
   assert.match(html, /Valtide says what the evidence supports/);
   assert.match(html, /CURATOR \/ PROTOCOL/);
   assert.match(html, /RESTRICT_NEW_RISK/);
@@ -220,7 +228,7 @@ test("Prototype landing uses canonical demo values and preserves product boundar
   assert.match(html, /does not custody assets, lend, trade, calculate LTV, or liquidate/);
   assert.match(html, /href="\/methodology"/);
   assert.doesNotMatch(html, /step-explorer|explorer-signal/);
-  assert.doesNotMatch(html, /weekend_divergence|P1a-C|Standardized deviation/);
+  assert.doesNotMatch(html, /weekend_divergence|Standardized deviation/);
   assert.doesNotMatch(html, /Always-on assets need always-on evidence|Tokenization 2030|\$5\.5T|\$2\.6T/);
   for (const label of ["New to Valtide", "Curators and risk teams", "Developers and integrators", "Researchers"]) assert.match(html, new RegExp(label));
   assert.match(html, /\/docs\?profile=everyone#role-guide/);
@@ -242,7 +250,7 @@ test("Landing model proof stays synchronized with the checked-in evaluation repo
 
 test("Documentation adapts by role and keeps evidence, policy and scope separate", () => {
   const html = render(DocsPage);
-  for (const value of ["SUPPORTED", "INCONCLUSIVE", "CHALLENGED", "Operational", "Historical", "Demo", "NVDAx / NVDA", "SPYx · not operationally onboarded"]) assert.match(html, new RegExp(value));
+  for (const value of ["SUPPORTED", "INCONCLUSIVE", "CHALLENGED", "Operational", "Historical", "Demo", "NVDAx / NVDA", "SPYx / SPY", "AAPLx / AAPL", "QQQx retains offline quant"]) assert.match(html, new RegExp(value));
   assert.match(html, /Evidence describes\. Policy decides\./);
   assert.match(html, /A curator maps that state to a Policy Action/);
   assert.match(html, /complete guide below updates/);
@@ -259,7 +267,9 @@ test("Documentation adapts by role and keeps evidence, policy and scope separate
   assert.match(html, /role="tabpanel"/);
   assert.match(html, /Open the demo result/);
   assert.match(html, /href="\/\?view=console&amp;context=demo"/);
-  assert.match(html, /NVDAx uses the OKX X-Perp NVDA index/);
+  assert.match(html, /production unified profile this is the observed xStock price/);
+  assert.match(html, /P1A_XSTOCK_REVIEW_BAND/);
+  assert.match(html, /XPERP_CORROBORATES_P1A/);
   assert.match(html, /Whether an attestation remains valid under both its valid-until time and the policy owner’s maximum age/);
   assert.match(html, /Structured backend explanations for an Evidence State, preserved by the frontend without recomputation/);
   for (const term of ["Evidence context", "Trusted anchor", "Market state"]) assert.match(html, new RegExp(term));
@@ -285,7 +295,9 @@ test("Methodology is a first-class, source-grounded page with one canonical meth
     "X Layer testnet",
   ]) assert.match(html, new RegExp(value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")));
   assert.match(html, /interval quality—not production oracle accuracy/);
-  assert.match(html, /xStock and P1a-C are model-based challenger evidence, not two independent observations/);
+  assert.match(html, /xStock-versus-P1a is model-based evidence, not two independent observations/);
+  assert.match(html, /CURRENT V2 RULE BOUNDARY/);
+  assert.match(html, /emits <strong>SUPPORTED<\/strong> when the asset-authorized support band applies/);
   assert.match(html, /does not observe an exact true price|does not observe an exact “true” price/);
   assert.match(html, /href="\/docs\?profile=developers#role-guide"/);
   assert.match(html, /docs\/METHODOLOGY\.md/);
@@ -321,7 +333,7 @@ test("Cold Operational stays unavailable even when Demo is cached", () => {
   assert.doesNotMatch(html,/Demo Fixture · 6 Observations|Scenario policy|Example demo policy/);
 });
 
-test("Validation Console exposes the four catalog identities without implying readiness", () => {
+test("Validation Console exposes the three production catalog identities without implying readiness", () => {
   const base = {
     token_source:"okx_onchainos",underlying_source:"alpaca",registered:true,
     api_exposed:true,model_available:false,quant_artifact_ready:false,
@@ -332,10 +344,9 @@ test("Validation Console exposes the four catalog identities without implying re
     readiness_error_codes:["MODEL_FIT_BLOCKED"],
   };
   const catalog = [
-    ["NVDAx","legacy_xperp_vs_p1ac"],
-    ["SPYx","xstock_vs_p1ac_challenger"],
-    ["QQQx","xstock_vs_p1ac_challenger"],
-    ["AAPLx","xstock_vs_p1ac_challenger"],
+    ["NVDAx","unified_xstock_p1ac_xperp_evidence_v1"],
+    ["SPYx","unified_xstock_p1ac_xperp_evidence_v1"],
+    ["AAPLx","unified_xstock_p1ac_xperp_evidence_v1"],
   ].map(([asset,reference_profile]) => ({...base,asset,reference_profile}));
   const html = appWith({assetList:catalog});
   assert.match(html,/aria-haspopup="listbox"/);
@@ -343,9 +354,10 @@ test("Validation Console exposes the four catalog identities without implying re
   assert.match(html,/asset-picker__chevron/);
   assert.match(html,/viewBox="0 0 16 16"/);
   assert.doesNotMatch(html,/⌄/);
-  for (const asset of ["NVDAx","SPYx","QQQx","AAPLx"]) {
+  for (const asset of ["NVDAx","SPYx","AAPLx"]) {
     assert.match(html,new RegExp(`>${asset}<`));
   }
+  assert.doesNotMatch(html,/>QQQx</);
   assert.match(html,/NVIDIA Tokenized Equity/);
   assert.match(html,/S&amp;P 500 Tokenized ETF/);
   assert.match(html,/Coming soon/);
@@ -383,7 +395,7 @@ test("Current evidence mapping and stale RiskGuard enforcement remain separate",
   const html = appWith({result:fixture[0],chain});
   assert.match(html,/Current evidence → policy action/);
   assert.match(html,/Reason/);
-  assert.match(html,/Evidence supports the reference/);
+  assert.match(html,/Evidence supports the validation target/);
   assert.match(html,/RiskGuard data · Stale/);
   assert.match(html,/Last updated 2h ago/);
   assert.match(html,/Technical details/);
@@ -415,32 +427,28 @@ test("Null reference, all reasons and unavailable policy remain truthful", () =>
   assert.match(render(ReasonCodes,{codes:result.reason_codes,evidenceState:result.evidence_state}),/Global fallback calibration/);
 });
 
-test("xStock comparison is labelled model-based evidence, not independent observations", () => {
-  const xstock = render(ReferenceComparison, {
-    r: {...fixture[0], reference_profile:"xstock_vs_p1ac_challenger"},
-  });
-  assert.match(xstock, /Model-based challenger evidence/);
-  assert.match(xstock, /P1a assimilates this same xStock observation/);
-  assert.match(xstock, /not two fully independent observations/);
+test("unified comparison labels the validation target and source dependence", () => {
+  const xstock = render(ReferenceComparison, { r: fixture[0] });
+  assert.match(xstock, /Unified v2 evidence/);
+  assert.match(xstock, /xStock is the validation target/);
+  assert.match(xstock, /P1a-C is a model-based challenger that has assimilated xStock/);
+  assert.match(xstock, /exact-time X-Perp is a separate second-market signal/);
 
   const legacy = render(ReferenceComparison, {
-    r: {...fixture[0], reference_profile:"legacy_xperp_vs_p1ac"},
+    r: {...fixture[0], reference_profile:"legacy_xperp_vs_p1ac", validation_target:"reference_under_test", evidence_semantics:"legacy_reference_under_test_v1"},
   });
   assert.match(legacy, /separate OKX X-Perp index/);
   assert.doesNotMatch(legacy, /xStock observation/);
 });
 
-test("Decision summary explains xStock dependence while retaining the legacy profile", () => {
-  const xstock = appWith({
-    result: {...fixture[0], reference_profile:"xstock_vs_p1ac_challenger"},
-    profile:"xstock_vs_p1ac_challenger",
-  });
-  assert.match(xstock, /Model-based challenger evidence supports the observed xStock price/);
-  assert.match(xstock, /not two fully independent observations/);
+test("Decision summary explains unified tri-source evidence while retaining legacy compatibility", () => {
+  const xstock = appWith({ result: fixture[0], profile:fixture[0].reference_profile });
+  assert.match(xstock, /Tri-source evidence supports the observed xStock price/);
+  assert.match(xstock, /not proof from two independent votes/);
   assert.match(xstock, /Current finding/);
   assert.doesNotMatch(xstock, /Current finding · Operational/);
 
-  const legacy = appWith({result: {...fixture[0], reference_profile:"legacy_xperp_vs_p1ac"}});
+  const legacy = appWith({result: {...fixture[0], reference_profile:"legacy_xperp_vs_p1ac", validation_target:"reference_under_test", evidence_semantics:"legacy_reference_under_test_v1"}});
   assert.match(legacy, /Available independent evidence/);
 });
 

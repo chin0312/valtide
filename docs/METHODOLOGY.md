@@ -10,16 +10,17 @@ Valtide is designed to validate tokenized-equity collateral valuations using an 
 The methodology has two layers:
 
 1. **Challenger valuation** — estimate a latent current equity value and uncertainty using point-in-time market information;
-2. **Reference validation** — test whether the reference under test is consistent with the challenger estimate and other evidence, with source dependence declared by the active reference profile.
+2. **Target validation** — test whether the observed xStock validation target is supported by the challenger estimate and exact-time X-Perp evidence, with source dependence declared by the active profile.
 
-The reference under test is the explicit price or valuation methodology
-Valtide evaluates. For the deployed NVDAx vertical slice, the live reference
-under test is the separate OKX X-Perp NVDA index. The
-`xstock_vs_p1ac_challenger` profile instead compares the observed xStock price
-with model-based challenger evidence after P1a has assimilated that same token
-observation. That profile is not a comparison of two fully independent
-observations and does not prove which price is correct. Evidence and historical
-results must remain identified by their reference profile.
+The current production profile is
+`unified_xstock_p1ac_xperp_evidence_v1`. It treats the observed xStock as the
+validation target, P1a-C as a model-based challenger that has assimilated that
+same xStock observation, and exact-time X-Perp as a separately sourced
+second-market signal. This is not a comparison of three fully independent
+observations and does not prove which price is correct. Older
+`legacy_xperp_vs_p1ac` rows remain readable for provenance but are not the
+current operational classifier. Evidence and historical results must remain
+identified by their profile and `evidence_semantics`.
 
 The product is therefore not asking only:
 
@@ -27,7 +28,7 @@ The product is therefore not asking only:
 
 It is asking:
 
-> **“Is the price methodology currently used for collateral valuation supported by the evidence available under its declared reference profile?”**
+> **“Is the observed tokenized-equity price supported by the model-based challenger and separate market evidence available under its declared profile?”**
 
 This is a nowcasting and model-validation problem, not a long-horizon equity forecast.
 
@@ -451,26 +452,23 @@ CHALLENGED
 
 ### SUPPORTED
 
-Available evidence under the declared profile does not provide a material reason to challenge the reference under test.
+Under the current unified v2 profile, the asset-authorized P1a/xStock support band applies, an exact-time X-Perp observation is available, and all source/model quality gates pass.
 
 This does **not** mean that the reference is proven correct.
 
-Reasonable methodological conditions include:
-
-- the reference lies within an acceptable calibrated evidence range;
-- required evidence-quality conditions are satisfied; and
-- no material independent contradiction is present.
+X-Perp direction is descriptive within this low-disagreement band; the method does not require an unvalidated preference between nearby prices.
 
 ### INCONCLUSIVE
 
-Valtide does not currently have sufficiently strong or consistent evidence to either support or materially challenge the reference under test.
+Valtide does not currently have sufficiently strong or consistent evidence to either support or materially challenge the observed xStock validation target.
 
 Use this state when, for example:
 
 - model uncertainty is too high;
 - token-market quality is poor;
 - required comparator data are unavailable;
-- independent references disagree materially;
+- the P1a/xStock score is in the watch band;
+- exact-time X-Perp evidence is missing, stale or ambiguous;
 - data are stale; or
 - the observation is near an unresolved decision boundary.
 
@@ -478,13 +476,13 @@ The ability to abstain is an important property of a credible validation system.
 
 ### CHALLENGED
 
-The reference under test is materially inconsistent with sufficiently strong evidence under the declared profile.
+Under the current unified v2 profile, the asset-authorized P1a/xStock review band applies, quality gates pass, and exact-time X-Perp is closer to P1a-C than to the observed xStock target.
 
 This does **not** mean that the reference is definitely wrong. It means the evidence is strong enough to justify challenge and downstream investigation under a curator-defined policy.
 
 ### Evidence State versus Policy Action
 
-Standardized deviation remains an input, but no single arbitrary z-score threshold should determine the result by itself. Evidence quality, uncertainty, source dependence, staleness and comparator availability also matter.
+The frozen asset-specific detector selects support, watch and review bands. A separate asset-bound tri-source capability artifact authorizes which canonical states those bands may produce. The detector promotion label alone is not state authority. Evidence quality, uncertainty, source dependence, staleness and X-Perp availability also matter.
 
 The quant methodology determines the Evidence State. A curator or consuming protocol maps that state to its own Policy Action, such as `ALLOW`, `MONITOR`, `REQUIRE_REVIEW` or `RESTRICT_NEW_RISK`. Valtide does not prescribe one universal mapping.
 
@@ -493,10 +491,15 @@ The quant methodology determines the Evidence State. A curator or consuming prot
 Examples:
 
 ```text
-REFERENCE_UNDER_TEST_OUTSIDE_INTERVAL
 TOKEN_AND_CHALLENGER_AGREE
-EXTERNAL_REFERENCES_AGREE
-EXTERNAL_REFERENCES_DISAGREE
+P1A_XSTOCK_SUPPORT_BAND
+P1A_XSTOCK_WATCH_BAND
+P1A_XSTOCK_REVIEW_BAND
+XPERP_EVIDENCE_UNAVAILABLE
+XPERP_EVIDENCE_STALE
+XPERP_EVIDENCE_AMBIGUOUS
+XPERP_CORROBORATES_XSTOCK
+XPERP_CORROBORATES_P1A
 UNDERLYING_REFERENCE_STALE
 MODEL_UNCERTAINTY_HIGH
 TOKEN_MARKET_QUALITY_LOW

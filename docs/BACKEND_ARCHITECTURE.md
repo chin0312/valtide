@@ -27,8 +27,9 @@ API / frontend and scheduler-owned X Layer publisher
 ```
 
 The quant package owns fair value, calibrated intervals, uncertainty metadata,
-and carried state. The backend selects the reference under test, performs data
-quality checks, determines Evidence State, and exposes reason codes.
+and carried state. The backend selects the validation target, preserves the
+separate X-Perp signal, performs data-quality checks, determines Evidence State,
+and exposes reason codes.
 
 ## 2. The sequential check
 
@@ -41,7 +42,7 @@ read challenger fair value and interval
       ↓
 assimilate current underlying only for the next timestamp
       ↓
-backend validates the selected reference under test
+backend validates the observed xStock target with P1a-C and X-Perp evidence
 ```
 
 The quant runtime requires exact 5-minute state progression. A canonical panel
@@ -49,20 +50,22 @@ row with no token observation is retained as `token_price=None`; the quant state
 advances without a fabricated measurement and backend validation returns
 `INCONCLUSIVE` with `TOKEN_DATA_UNAVAILABLE`.
 
-## 3. Reference-under-test semantics
+## 3. Validation-target semantics
 
-The reference under test is an explicitly named profile, not a fallback slot.
-NVDAx retains the legacy `legacy_xperp_vs_p1ac` profile using the confirmed
-OKX X-Perp index. The four-asset catalog declares
-`xstock_vs_p1ac_challenger`, where the observed token candle is compared with a
-P1a challenger that has already assimilated that same token observation. This
-should be described as **model-based challenger evidence**, not as two fully
-independent observations. Disagreement is not proof of which price is correct.
-The separate NVDAx `legacy_xperp_vs_p1ac` identity compares against the OKX
-X-Perp index and must not be blended with xStock-profile historical Evidence
-States. Each result carries its `reference_profile` and source provenance. A
-missing configured reference is not replaced with another asset or another
-source.
+The production assets use
+`unified_xstock_p1ac_xperp_evidence_v1`. The observed xStock is the validation
+target, P1a-C is a model-based challenger that has already assimilated that same
+xStock observation, and exact-time OKX X-Perp/index is a separately sourced
+second-market signal. This is **model-based challenger evidence with separate
+market corroboration**, not three independent votes. Disagreement is not proof
+of which price is correct.
+
+`reference_under_test` remains in the API and onchain identity for compatibility
+and currently carries the X-Perp observation. New consumers must use
+`validation_target`, `evidence_semantics`, and `xperp_role` to interpret the
+result. Older `legacy_xperp_vs_p1ac` rows remain readable for provenance but are
+not the operational classifier and must not be blended with v2 Evidence States.
+A missing configured source is never replaced with another asset or fallback.
 
 Historical replay may explicitly use `stale_nvda` or a scenario reference; the
 identity is then part of the snapshot and is valid for that replay.
@@ -73,10 +76,22 @@ selection remain known limitations of the current adapter.
 
 ## 4. Evidence State
 
-Validation is deterministic and threshold-driven, with quality and abstention
-gates. It uses the log-space standardized deviation, calibrated interval,
-underlying-reference freshness, reference-under-test freshness, token
-availability/quality, and model uncertainty.
+Validation is deterministic, asset-bound, and fail-closed. The unified v2
+classifier starts at `INCONCLUSIVE`, applies source/model quality and freshness
+gates, then interprets the frozen P1a/xStock disagreement band together with
+exact-time X-Perp evidence:
+
+- an authorized support band plus exact-time X-Perp availability may emit
+  `SUPPORTED`;
+- a watch band remains `INCONCLUSIVE`;
+- an authorized review band may emit `CHALLENGED` only when X-Perp is closer to
+  P1a-C than to xStock; and
+- missing, stale, ambiguous, or quality-gated evidence remains `INCONCLUSIVE`.
+
+Support and challenge authority comes from the asset-bound
+`tri_source_capabilities_v2.json` artifact, not from the detector promotion
+label alone. The current underlying observation is an ex-post truth proxy for
+research evaluation, not a same-time Evidence State voter.
 
 ```text
 SUPPORTED      available evidence provides no material reason to challenge
@@ -95,7 +110,7 @@ must remain visible rather than being described as directly observed coverage.
 
 ```text
 config.py        settings, backward-compatible NVDA env names, worker selection
-assets.py        four-asset API catalog, readiness capabilities, panel-key resolution
+assets.py        asset registry, public catalog, readiness capabilities, panel-key resolution
 token_market.py  token candle adapter registry and exact-candle dispatch
 market_sources.py underlying/reference adapter registry
 models.py        MarketSnapshot, ChallengerEstimate, ValuationResult, enums
@@ -103,7 +118,7 @@ models.py        MarketSnapshot, ChallengerEstimate, ValuationResult, enums
 adapters/
   okx.py         configured OnchainOS token candles (NVDAx compatibility wrappers)
   equity.py      latest available trusted configured underlying bar
-  reference.py   OKX X-Perp reference under test
+  reference.py   OKX X-Perp second-market evidence
   dexscreener.py optional NVDAx diagnostic quote
 
 session.py       timestamp → market session
@@ -152,18 +167,19 @@ and `502` for a chain, transaction, or read-back failure.
   boundary.
 - The scripted scenario and canonical 5-minute panel are replayed through the
   same inference path.
-- The warmed live scheduler is disabled by default, runs one asset in this
-  process on canonical UTC five-minute boundaries, and persists carried state,
-  latest result, gap steps, and last tick status in SQLite. It advances elapsed
-  gaps with hidden no-measurement steps; those steps never become public replay
-  or API observations.
+- The warmed live scheduler is disabled by default. When enabled, it runs one
+  isolated worker per explicitly selected, ready asset in the same process on
+  canonical UTC five-minute boundaries and persists carried state, latest
+  result, gap steps, and last tick status in SQLite. It advances elapsed gaps
+  with hidden no-measurement steps; those steps never become public replay or
+  API observations.
 - Historical-panel backtests report metrics only for rows with a real
   contemporaneous underlying observation. Scenario backtests report evidence
   counts only and deliberately keep empirical metrics null.
 - The canonical live token input is the exact confirmed OKX OnchainOS candle
   for the selected asset at the settled five-minute observation. DexScreener is
-  not a fallback. NVDAx remains on its original X-Perp profile; the other
-  catalog assets use the explicitly labelled xStock-versus-challenger profile.
+  not a fallback. NVDAx, SPYx, and AAPLx use the same unified xStock-target,
+  P1a-C-challenger, and X-Perp-evidence profile with asset-bound capabilities.
 - Operational history is the chronological sequence of successful warmed
   scheduler validations. It is distinct from scenario replay and historical
   backtest metrics.
@@ -184,14 +200,13 @@ and `502` for a chain, transaction, or read-back failure.
   delivery while leaving the manual route disabled. A successful write is
   followed by Registry and RiskGuard read-back verification.
 
-Asset identity and public catalog exposure are registry-backed. The API
-catalog lists `NVDAx`, `SPYx`, `QQQx`, and `AAPLx`; `TSLAx` remains a hidden
-candidate. `/api/assets` reports live, quant, historical, scheduler, and
-onchain readiness independently. Only NVDAx currently has a complete
-registered P1a-C runtime and X Layer binding. SPYx/QQQx/AAPLx have pinned
-Solana token identities and source-adapter seams but no verified compatible
-P1a-C bundles or matching restored canonical panels, so valuation/replay do
-not fabricate results or fall back to NVDAx. Legacy single-worker
+Asset identity and public catalog exposure are registry-backed. The production
+API catalog lists `NVDAx`, `SPYx`, and `AAPLx`; `QQQx` remains offline
+research-only and `TSLAx` remains a hidden candidate. `/api/assets` reports
+live, quant, historical, detector/state authority, scheduler, and onchain
+readiness independently. NVDAx, SPYx, and AAPLx have asset-specific P1a-C
+bundles, canonical historical panels, and independently selectable live
+runtimes. Only NVDAx currently has an X Layer binding. Legacy single-worker
 `LIVE_SCHEDULER_ASSET` configuration remains supported; an explicit
 `LIVE_SCHEDULER_ASSETS` list may select multiple independently ready workers.
 Unready known assets are not started. Unknown assets and cross-asset identities
