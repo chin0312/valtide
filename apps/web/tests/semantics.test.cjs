@@ -291,6 +291,14 @@ test("Methodology is a first-class, source-grounded page with one canonical meth
   assert.match(html, /docs\/METHODOLOGY\.md/);
 });
 
+test("Vercel serves first-class documentation routes through the SPA entry point", () => {
+  const config = JSON.parse(fs.readFileSync(path.join(__dirname, "../vercel.json"), "utf8"));
+  const rewrites = new Map(config.rewrites.map(({ source, destination }) => [source, destination]));
+  for (const route of ["/docs", "/docs/:path*", "/methodology", "/methodology/:path*"]) {
+    assert.equal(rewrites.get(route), "/index.html");
+  }
+});
+
 test("Market Basis is visible without an advanced diagnostics disclosure", () => {
   const html = appWith({ result: fixture[0] });
   assert.match(html, /Market Basis/);
