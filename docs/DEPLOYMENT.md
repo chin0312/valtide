@@ -180,6 +180,92 @@ deployed control plane is:
 These are ordinary EVM-compatible testnet contracts. They are not audited
 production lending infrastructure, and no mainnet deployment is claimed.
 
+### Multi-asset control-plane preparation
+
+The Registry and RiskGuard are shared across NVDAx, SPYx, and AAPLx: Registry
+attestations are namespaced by `assetId × referenceId`, while RiskGuard policy
+is namespaced by `policy owner × assetId × referenceId`. Each asset/reference
+pair therefore receives its own `DemoCollateralVault`; do not deploy another
+Registry/RiskGuard pair. The existing NVDAx vault remains unchanged. The
+committed manifest stays on the legacy NVDAx layout until SPYx and AAPLx have
+actually been deployed and their receipts verified; no placeholder addresses
+belong in the manifest.
+
+`contracts/script/ProvisionValtideAssets.s.sol` attaches to the pinned existing
+testnet Registry/RiskGuard and creates only the SPYx and AAPLx DemoVaults with
+the common 900-second policy. It refuses any chain other than 1952, checks
+both shared bytecodes, and verifies `RiskGuard.registry()` before reading the
+signer key. Foundry requires `REGISTRY_ADDRESS`, `RISK_GUARD_ADDRESS`, and
+`DEPLOYER_PRIVATE_KEY`; supply the exact shared addresses above. For simulation,
+use only a disposable local key (not a funded or production signer). A later
+authorized deployment phase may simulate it with:
+
+```bash
+cd contracts
+forge script script/ProvisionValtideAssets.s.sol:ProvisionValtideAssets \
+  --rpc-url "$XLAYER_RPC_URL"
+```
+
+Do not add `--broadcast` to a dry run. Broadcasting is a separate owner-approved
+deployment action and is intentionally not performed by this change.
+
+After an authorized broadcast, create a non-secret input file containing only
+the confirmed transaction hashes:
+
+```json
+{
+  "chainId": 1952,
+  "registry": "0x1A53C85C66EA212693d36bF842574643C4d9B635",
+  "riskGuard": "0x8e17a4eB93074ea74d05D9bc316d85AD3B540CE7",
+  "deployer": "<confirmed deployer address>",
+  "assets": {
+    "SPYx": {
+      "deploymentTxHash": "<confirmed vault creation tx>",
+      "policyConfigurationTxHash": "<confirmed policy tx>"
+    },
+    "AAPLx": {
+      "deploymentTxHash": "<confirmed vault creation tx>",
+      "policyConfigurationTxHash": "<confirmed policy tx>"
+    }
+  }
+}
+```
+
+The read-only capture helper fetches those receipts and verifies chain, sender,
+deployment address, shared contract linkage, immutable asset/reference IDs,
+deployed bytecode, and the exact common policy. Then the manifest builder
+creates one canonical `assets` map with the existing NVDAx vault and the two
+verified new vaults:
+
+```bash
+python scripts/capture_xlayer_provisioning_receipt.py \
+  --input xlayer-provisioning-tx-hashes.json \
+  --output xlayer-provisioning-receipts.json \
+  --rpc-url "$XLAYER_RPC_URL"
+python scripts/build_xlayer_manifest.py \
+  --receipt xlayer-provisioning-receipts.json \
+  --output /tmp/xlayer-testnet-multi-asset-candidate.json
+```
+
+Review the generated manifest before committing it. Its active source of truth
+is `assets.NVDAx`, `assets.SPYx`, and `assets.AAPLx`; legacy `demo` and singular
+`contracts.DemoCollateralVault` entries are removed. The original NVDA
+deployment history is retained under `initialDeployment`, separate from the
+active per-asset bindings.
+
+The deployment can be checked without a publisher key or write operation:
+
+```bash
+XLAYER_RPC_URL="$XLAYER_RPC_URL" python scripts/verify_xlayer_asset.py --asset NVDAx
+XLAYER_RPC_URL="$XLAYER_RPC_URL" python scripts/verify_xlayer_asset.py --asset SPYx
+XLAYER_RPC_URL="$XLAYER_RPC_URL" python scripts/verify_xlayer_asset.py --asset AAPLx
+```
+
+This PR prepares deployment tooling only. SPYx/AAPLx remain statically
+`onchain=false` until their actual binding is committed and a later backend
+deployment explicitly enables those capabilities. Publication flags remain
+off by default.
+
 ## Reproducing the Backend Deployment
 
 Use the existing Railway project and service rather than creating duplicate
