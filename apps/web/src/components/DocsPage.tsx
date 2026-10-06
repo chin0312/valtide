@@ -1,9 +1,10 @@
 import { useEffect, useState } from "react";
 import { MarketingFooter } from "./LandingPage";
 import { MarketingHeader } from "./Hero";
+import { documentationProfiles, type DocumentationProfileId } from "./documentationProfiles";
 
 type VisualKind = "context" | "finding" | "boundary" | "triage" | "freshness" | "policy" | "payload" | "contracts" | "guard" | "signals" | "interval" | "evaluation";
-type GuideId = "everyone" | "curators" | "developers" | "researchers";
+type GuideId = DocumentationProfileId;
 
 type Guide = {
   id: GuideId;
@@ -20,10 +21,10 @@ type Guide = {
 
 const guides: readonly Guide[] = [
   {
-    id: "everyone", label: "New to Valtide", eyebrow: "A two-minute orientation", title: "Read the result without guessing what it means.",
+    id: "everyone", label: documentationProfiles.everyone.label, eyebrow: "A two-minute orientation", title: "Read the result without guessing what it means.",
     summary: "Start with the product language, then follow one result from its evidence context to the response configured by the curator.",
     outcome: "You will know what Valtide validates, what the three Evidence States mean, and where evidence stops and policy begins.",
-    cta: "Open the demo result", href: "/?view=console",
+    cta: "Open the demo result", href: "/?view=console&context=demo",
     walkthrough: [
       { eyebrow: "Begin with context", title: "Know what kind of evidence you are looking at.", body: "Operational, Historical, and Demo are different evidence lanes. The selected lane appears in the console header and is never silently substituted.", tip: "For your first visit, choose Demo. It contains six synthetic observations designed to explain the workflow.", visual: "context" },
       { eyebrow: "Read the finding", title: "Read the range and state together.", body: "Compare the reference under test with Valtide fair value and its calibrated range. Then use the Evidence State as the plain-language interpretation—not as proof of a true price.", tip: "A point estimate without its uncertainty range is incomplete.", visual: "finding" },
@@ -32,7 +33,7 @@ const guides: readonly Guide[] = [
     checks: [["SUPPORTED", "No material reason to challenge the reference from the available evidence."], ["INCONCLUSIVE", "The evidence is too weak or inconsistent to make a strong call."], ["CHALLENGED", "The reference is materially inconsistent with sufficiently strong evidence; source dependence follows the named profile."]],
   },
   {
-    id: "curators", label: "Curators and risk teams", eyebrow: "Investigation and governance", title: "Move from an evidence exception to a defensible response.",
+    id: "curators", label: documentationProfiles.curators.label, eyebrow: "Investigation and governance", title: "Move from an evidence exception to a defensible response.",
     summary: "Triage the finding, verify freshness and provenance, then apply the response rules owned by your protocol.",
     outcome: "You will be able to investigate a challenged result without treating the model as a policy engine.",
     cta: "Inspect the policy view", href: "/?view=console",
@@ -44,7 +45,7 @@ const guides: readonly Guide[] = [
     checks: [["Before escalation", "Confirm context, timestamp, market state, and source availability."], ["Before changing policy", "Separate a one-off data issue from a persistent evidence pattern."], ["Before enforcement", "Verify that the operational result and onchain attestation are synchronized."]],
   },
   {
-    id: "developers", label: "Developers and integrators", eyebrow: "Integration path", title: "Consume evidence without moving the trust boundary.",
+    id: "developers", label: documentationProfiles.developers.label, eyebrow: "Integration path", title: "Consume evidence without moving the trust boundary.",
     summary: "Treat the API result and onchain attestation as authoritative inputs, preserve their provenance, and let the deployed guard enforce configured policy.",
     outcome: "You will know which fields to consume, how publication reaches X Layer, and which checks belong in an integration.",
     cta: "Open the API reference", href: "https://valtide-api-production.up.railway.app/docs",
@@ -56,7 +57,7 @@ const guides: readonly Guide[] = [
     checks: [["Current asset", "NVDAx / NVDA is the only operational vertical slice; SPYx, QQQx, and AAPLx are catalog-visible but not operationally onboarded."], ["Current network", "ValidationRegistry and RiskGuard are deployed on X Layer testnet for NVDAx."], ["Current status", "Research prototype—not audited production lending infrastructure."]],
   },
   {
-    id: "researchers", label: "Researchers", eyebrow: "Model and evaluation review", title: "Audit the challenger without overstating the evidence.",
+    id: "researchers", label: documentationProfiles.researchers.label, eyebrow: "Model and evaluation review", title: "Audit the challenger without overstating the evidence.",
     summary: "Inspect the point-in-time inputs, uncertainty construction, and evaluation design before drawing conclusions from coverage or interval width.",
     outcome: "You will understand what the challenger estimates, how its range is evaluated, and which claims the evidence cannot support.",
     cta: "Read the methodology", href: "/methodology",
@@ -138,11 +139,11 @@ export function DocsPage() {
   return <div className="marketing-shell docs-page">
     <MarketingHeader page />
     <main>
-      <section className="docs-hero"><div><p className="marketing-kicker">Valtide documentation</p><h1>One product. A guide for what you need to do.</h1><p>Choose your profile and the documentation below will adapt—from the language and workflow to the product views worth paying attention to.</p><div className="docs-hero__actions"><a className="primary-link" href="#start">Choose your guide ↓</a><a className="text-link" href="#glossary">Use the glossary →</a></div></div><aside><span>THE BOUNDARY TO REMEMBER</span><p><strong>Valtide</strong> determines the Evidence State.</p><p><strong>Curators</strong> define the Policy Action.</p><p><strong>Consumers</strong> enforce the resulting action.</p><small>The browser is a read-only observer.</small></aside></section>
+      <section className="docs-hero"><div><p className="marketing-kicker">Valtide documentation</p><h1>One product. A guide for what you need to do.</h1><p>Choose the guide that matches your task: understand a result, investigate risk, integrate Valtide, or review the methodology.</p><div className="docs-hero__actions"><a className="primary-link" href="#start">Choose your guide ↓</a><a className="text-link" href="#glossary">Use the glossary →</a></div></div></section>
       <section id="start" className="docs-section docs-section--roles"><div className="docs-section__lead"><p className="marketing-kicker">Choose your profile</p><h2>What brings you to Valtide?</h2><p>Switch profiles at any time. The complete guide below updates with the concepts, tasks, and interface views most useful to that role.</p></div><div className="role-selector"><div className="role-selector__tabs" role="tablist" aria-label="Choose your Valtide role">{guides.map((role, index) => <button type="button" role="tab" id={`role-tab-${role.id}`} aria-controls="role-guide-panel" aria-selected={selectedRole === index} key={role.id} onClick={() => setSelectedRole(index)}><small>For</small>{role.label}</button>)}</div></div></section>
       <div id="role-guide-panel" className="role-guide" role="tabpanel" aria-labelledby={`role-tab-${guide.id}`} key={guide.id}>
         <section id="role-guide" className="docs-section role-guide__intro"><div><p className="marketing-kicker">{guide.eyebrow}</p><h2>{guide.title}</h2><p>{guide.summary}</p></div><aside><span>AFTER THIS GUIDE</span><p>{guide.outcome}</p></aside></section>
-        <section className="docs-section docs-section--walkthrough"><div className="docs-section__lead docs-section__lead--compact"><p className="marketing-kicker">Follow the interface</p><h2>See what matters, in the order it matters.</h2><p>Every part of the walkthrough is visible—no stepper, no hidden instructions.</p></div><div className="guide-walkthrough">{guide.walkthrough.map((item, index) => <article className="guide-walkthrough__row" key={item.title}><div className="guide-walkthrough__copy"><p className="marketing-kicker">{item.eyebrow}</p><h3>{item.title}</h3><p>{item.body}</p><div className="guide-tip"><span>KEEP IN MIND</span>{item.tip}</div></div><GuideVisual kind={item.visual} />{index < guide.walkthrough.length - 1 && <span className="guide-walkthrough__connector" aria-hidden="true">↓</span>}</article>)}</div></section>
+        <section className="docs-section docs-section--walkthrough"><div className="guide-walkthrough">{guide.walkthrough.map((item, index) => <article className="guide-walkthrough__row" key={item.title}><div className="guide-walkthrough__copy"><p className="marketing-kicker">{item.eyebrow}</p><h3>{item.title}</h3><p>{item.body}</p><div className="guide-tip"><span>KEEP IN MIND</span>{item.tip}</div></div><GuideVisual kind={item.visual} />{index < guide.walkthrough.length - 1 && <span className="guide-walkthrough__connector" aria-hidden="true">↓</span>}</article>)}</div></section>
         <section className="docs-section role-checks"><div className="docs-section__lead docs-section__lead--compact"><p className="marketing-kicker">Working reference</p><h2>{guide.id === "everyone" ? "Three states, with no hidden policy instruction." : "What to verify before you move on."}</h2></div><div className="role-checks__grid">{guide.checks.map(([label, copy]) => <article key={label}><span>{label}</span><p>{copy}</p></article>)}</div><a className="role-guide__cta" href={guide.href} target={guide.href.startsWith("http") ? "_blank" : undefined} rel={guide.href.startsWith("http") ? "noreferrer" : undefined}>{guide.cta} <span aria-hidden="true">↗</span></a></section>
       </div>
       <section id="glossary" className="docs-section docs-section--glossary"><div className="docs-section__lead docs-section__lead--compact"><p className="marketing-kicker">Shared vocabulary</p><h2>Use the product’s terms precisely.</h2><p>These definitions stay constant across every profile. Short examples show how each term appears in the current product.</p></div><dl className="glossary-grid">{glossary.map(({ term, definition, example }) => <div key={term}><dt>{term}</dt><dd>{definition}<small className="glossary-example"><span>EXAMPLE</span>{example}</small></dd></div>)}</dl><div className="role-glossary"><div className="role-glossary__heading"><p className="marketing-kicker">Also useful for</p><h3>{guide.label}</h3><p>These supporting concepts change with your selected profile, so the glossary stays focused on the decisions and questions you are most likely to encounter.</p></div><dl className="role-glossary__grid">{supplementaryTerms.map(({ term, definition, example }) => <div key={term}><dt>{term}</dt><dd>{definition}<small>{example}</small></dd></div>)}</dl></div></section>

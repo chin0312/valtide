@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import type { ValuationResult } from "../api/types";
 import weekendDivergence from "../fixtures/weekend_divergence.json";
+import { documentationProfileList } from "./documentationProfiles";
 import { Hero } from "./Hero";
 
 const SCENARIO = weekendDivergence as unknown as ValuationResult[];
@@ -40,23 +41,17 @@ const deliverySteps = [
 
 const auditFields = ["Observed at", "Model / version", "Interval bounds", "Evidence State", "Reason codes", "Evidence hash", "Valid until", "Transaction / block"] as const;
 
-const audienceGuides = [
-  { label: "Read a result", title: "Understand a validation result", body: "Follow the reference, interval, Evidence State, reasons, policy, and freshness in the right order.", href: "/docs?profile=everyone#role-guide", action: "Open reader guide" },
-  { label: "Risk teams", title: "Investigate and govern", body: "Separate evidence from policy, review divergence, and understand freshness before changing exposure.", href: "/docs?profile=curators#role-guide", action: "Open curator guide" },
-  { label: "Developers", title: "Consume Valtide evidence", body: "Work with the API, ValidationRegistry, RiskGuard, and read-only attestation concepts.", href: "/docs?profile=developers#role-guide", action: "Open developer guide" },
-] as const;
-
 function GuideExplorer() {
   const [active, setActive] = useState(0);
-  const selected = audienceGuides[active];
-  return <div className="guide-explorer">
-    <div className="guide-explorer__tabs" aria-label="Documentation by audience">
-      {audienceGuides.map((guide, index) => <button type="button" key={guide.label} aria-pressed={active === index} onClick={() => setActive(index)}>{guide.label}</button>)}
+  const selected = documentationProfileList[active];
+  return <div className="guide-explorer role-selector">
+    <div className="guide-explorer__tabs role-selector__tabs" role="tablist" aria-label="Documentation by audience">
+      {documentationProfileList.map((guide, index) => <button type="button" role="tab" id={`landing-role-tab-${guide.id}`} aria-controls="landing-role-panel" key={guide.id} aria-selected={active === index} onClick={() => setActive(index)}><small>For</small>{guide.label}</button>)}
     </div>
-    <div className="guide-explorer__panel" aria-live="polite">
+    <div id="landing-role-panel" className="guide-explorer__panel" role="tabpanel" aria-labelledby={`landing-role-tab-${selected.id}`} aria-live="polite">
       <span>0{active + 1}</span>
-      <div><h3>{selected.title}</h3><p>{selected.body}</p></div>
-      <a href={selected.href}>{selected.action} <span aria-hidden="true">→</span></a>
+      <div><h3>{selected.previewTitle}</h3><p>{selected.previewBody}</p></div>
+      <a href={`/docs?profile=${selected.id}#role-guide`}>{selected.action} <span aria-hidden="true">→</span></a>
     </div>
   </div>;
 }

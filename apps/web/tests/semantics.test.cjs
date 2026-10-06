@@ -14,6 +14,7 @@ const { ReasonCodes } = load("../src/components/ReasonCodes.tsx");
 const { RegistryPanel } = load("../src/components/RegistryPanel.tsx");
 const { ReferenceComparison } = load("../src/views/ReferenceComparison.tsx");
 const { ObservationAudit } = load("../src/components/ObservationAudit.tsx");
+const { assetAvailabilityLabel, assetDisplayName } = load("../src/components/AssetPicker.tsx");
 const { Hero } = load("../src/components/Hero.tsx");
 const { LandingPage } = load("../src/components/LandingPage.tsx");
 const { DocsPage } = load("../src/components/DocsPage.tsx");
@@ -21,7 +22,7 @@ const { MethodologyPage } = load("../src/components/MethodologyPage.tsx");
 const { InstrumentPassport, passportStatusFor } = load("../src/components/InstrumentPassport.tsx");
 const { PolicyFoundry } = load("../src/components/PolicyFoundry.tsx");
 const { DEMO_PASSPORT_ADDRESS, MODEL_EVIDENCE_SUMMARY, POLICY_PROPOSAL } = load("../src/fixtures/prototypeData.ts");
-const { default: App } = load("../src/App.tsx");
+const { default: App, consoleContextFromSearch } = load("../src/App.tsx");
 const { deliveryStatusLabel, pipelineStatusLabel } = load("../src/lib/format.ts");
 const { chartDomain, clampViewport, lowerBoundTimestamp, minimumViewportWidth, panViewport, shouldRenderStateDots, sliceChartDataForViewport, upperBoundTimestamp, wheelGestureIntent, wheelZoomScale, zoomSensitivity, zoomViewport } = load("../src/components/EscalationChart.tsx");
 const h = React.createElement;
@@ -221,6 +222,10 @@ test("Prototype landing uses canonical demo values and preserves product boundar
   assert.doesNotMatch(html, /step-explorer|explorer-signal/);
   assert.doesNotMatch(html, /weekend_divergence|P1a-C|Standardized deviation/);
   assert.doesNotMatch(html, /Always-on assets need always-on evidence|Tokenization 2030|\$5\.5T|\$2\.6T/);
+  for (const label of ["New to Valtide", "Curators and risk teams", "Developers and integrators", "Researchers"]) assert.match(html, new RegExp(label));
+  assert.match(html, /\/docs\?profile=everyone#role-guide/);
+  assert.match(html, /aria-label="Documentation by audience"/);
+  assert.match(html, /role="tabpanel"/);
 });
 
 test("Landing model proof stays synchronized with the checked-in evaluation report", () => {
@@ -238,11 +243,12 @@ test("Landing model proof stays synchronized with the checked-in evaluation repo
 test("Documentation adapts by role and keeps evidence, policy and scope separate", () => {
   const html = render(DocsPage);
   for (const value of ["SUPPORTED", "INCONCLUSIVE", "CHALLENGED", "Operational", "Historical", "Demo", "NVDAx / NVDA", "SPYx · not operationally onboarded"]) assert.match(html, new RegExp(value));
-  assert.match(html, /Valtide.*determines the Evidence State/);
-  assert.match(html, /Curators.*define the Policy Action/);
+  assert.match(html, /Evidence describes\. Policy decides\./);
+  assert.match(html, /A curator maps that state to a Policy Action/);
   assert.match(html, /complete guide below updates/);
   assert.match(html, /six synthetic observations/);
-  assert.match(html, /Every part of the walkthrough is visible/);
+  assert.doesNotMatch(html, /Follow the interface|See what matters, in the order it matters|Every part of the walkthrough is visible/);
+  assert.doesNotMatch(html, /THE BOUNDARY TO REMEMBER|The browser is a read-only observer/);
   assert.match(html, /context product interface example/);
   assert.match(html, /finding product interface example/);
   assert.match(html, /boundary product interface example/);
@@ -252,14 +258,15 @@ test("Documentation adapts by role and keeps evidence, policy and scope separate
   assert.match(html, /aria-selected="true"/);
   assert.match(html, /role="tabpanel"/);
   assert.match(html, /Open the demo result/);
+  assert.match(html, /href="\/\?view=console&amp;context=demo"/);
   assert.match(html, /NVDAx uses the OKX X-Perp NVDA index/);
   assert.match(html, /Whether an attestation remains valid under both its valid-until time and the policy owner’s maximum age/);
   assert.match(html, /Structured backend explanations for an Evidence State, preserved by the frontend without recomputation/);
   for (const term of ["Evidence context", "Trusted anchor", "Market state"]) assert.match(html, new RegExp(term));
   assert.match(html, /Short examples show how each term appears/);
   assert.match(html, /Also useful for/);
-  const landingSource = fs.readFileSync(path.join(__dirname, "../src/components/LandingPage.tsx"), "utf8");
-  for (const profile of ["everyone", "curators", "developers"]) assert.match(landingSource, new RegExp(`/docs\\?profile=${profile}#role-guide`));
+  const profileSource = fs.readFileSync(path.join(__dirname, "../src/components/documentationProfiles.ts"), "utf8");
+  for (const profile of ["everyone", "curators", "developers", "researchers"]) assert.match(profileSource, new RegExp(`${profile}:`));
   assert.match(fs.readFileSync(path.join(__dirname, "../src/components/DocsPage.tsx"), "utf8"), /cta: "Read the methodology", href: "\/methodology"/);
 });
 
@@ -292,6 +299,14 @@ test("Market Basis is visible without an advanced diagnostics disclosure", () =>
   assert.doesNotMatch(source, /<summary[^>]*>Advanced market diagnostics<\/summary>/);
 });
 
+test("Console deep links select a known evidence context and fail closed to Operational", () => {
+  assert.equal(consoleContextFromSearch("?view=console&context=demo"), "Demo");
+  assert.equal(consoleContextFromSearch("?view=console&context=historical"), "Historical");
+  assert.equal(consoleContextFromSearch("?view=console&context=DEMO"), "Demo");
+  assert.equal(consoleContextFromSearch("?view=console"), "Operational");
+  assert.equal(consoleContextFromSearch("?view=console&context=unknown"), "Operational");
+});
+
 test("Cold Operational stays unavailable even when Demo is cached", () => {
   const html = appWith({error:"503 data_unavailable"});
   assert.match(html,/Operational unavailable/);
@@ -315,12 +330,24 @@ test("Validation Console exposes the four catalog identities without implying re
     ["AAPLx","xstock_vs_p1ac_challenger"],
   ].map(([asset,reference_profile]) => ({...base,asset,reference_profile}));
   const html = appWith({assetList:catalog});
-  assert.match(html,/aria-label="Selected asset"/);
+  assert.match(html,/aria-haspopup="listbox"/);
+  assert.match(html,/aria-label="Search assets"/);
   for (const asset of ["NVDAx","SPYx","QQQx","AAPLx"]) {
-    assert.match(html,new RegExp(`<option[^>]*>${asset}<\\/option>`));
+    assert.match(html,new RegExp(`>${asset}<`));
   }
+  assert.match(html,/NVIDIA Tokenized Equity/);
+  assert.match(html,/S&amp;P 500 Tokenized ETF/);
+  assert.match(html,/Coming soon/);
   assert.match(html,/MODEL_FIT_BLOCKED/);
   assert.match(html,/No other asset/);
+});
+
+test("Asset picker derives readable names and honest availability labels", () => {
+  assert.equal(assetDisplayName("NVDAx"), "NVIDIA Tokenized Equity");
+  assert.equal(assetDisplayName("UNKNOWNx"), "Tokenized equity");
+  assert.equal(assetAvailabilityLabel(true), "Available");
+  assert.equal(assetAvailabilityLabel(false), "Coming soon");
+  assert.equal(assetAvailabilityLabel(undefined), "Checking");
 });
 
 test("Operational failure preserves cached evidence with a degraded label", () => {
