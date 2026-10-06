@@ -1,5 +1,6 @@
 """API smoke tests for computed-result and explicit data-unavailable paths."""
 
+import json
 from datetime import UTC, datetime
 from pathlib import Path
 from types import SimpleNamespace
@@ -90,14 +91,24 @@ def test_weekend_demo_uses_v2_classifier_and_naturally_exercises_all_states():
 
 
 def test_manual_publish_route_rejects_unverified_legacy_semantics_before_rpc(
-    runtime_store, monkeypatch
+    runtime_store, tmp_path, monkeypatch
 ):
+    repo_root = Path(__file__).resolve().parents[3]
+    manifest = json.loads((repo_root / "deployments" / "xlayer-testnet.json").read_text())
+    nvda = manifest["assets"]["NVDAx"]
+    manifest["demo"] = {
+        key: nvda[key] for key in ("assetId", "referenceId", "modelVersion")
+    }
+    manifest["contracts"]["DemoCollateralVault"] = nvda["demoVault"]
+    manifest.pop("assets")
+    manifest.pop("deploymentReceipts", None)
+    manifest["deployment"] = manifest.pop("initialDeployment")
+    legacy_manifest = tmp_path / "legacy-nvdax-manifest.json"
+    legacy_manifest.write_text(json.dumps(manifest), encoding="utf-8")
     settings = Settings(
         _env_file=None,
         publish_enabled=True,
-        deployment_manifest_path=Path(__file__).resolve().parents[3]
-        / "deployments"
-        / "xlayer-testnet.json",
+        deployment_manifest_path=legacy_manifest,
     )
     monkeypatch.setattr(config_module, "get_settings", lambda: settings)
     monkeypatch.setattr(publish_route, "get_settings", lambda: settings)

@@ -1,0 +1,53 @@
+{
+  "schemaVersion": 1,
+  "verified": true,
+  "verifiedAt": "2026-10-06T18:42:39.145424Z",
+  "chainId": 1952,
+  "registry": "0x1A53C85C66EA212693d36bF842574643C4d9B635",
+  "riskGuard": "0x8e17a4eB93074ea74d05D9bc316d85AD3B540CE7",
+  "deployer": "0xBb341F8AE72146CEE60Ca0cCFE8C3Db5c90fC30C",
+  "assets": {
+    "SPYx": {
+      "demoVault": "0x260884c5a8977E47aabB6FF9EDE62B2Ce4E027bb",
+      "assetId": "0xaf04793c233863045871a76899a5440030494b19b70c35c6d126b27bc21989db",
+      "referenceId": "0x6a3bf3487a81cf63ae9c04c10594e7a5ceb8429b738b2c61f9c6da373a840cbc",
+      "modelVersion": "0x831db8657ab7ff15c62e55404c7cff05a6121dc231070ffe5977eb8f59f547e2",
+      "deployer": "0xBb341F8AE72146CEE60Ca0cCFE8C3Db5c90fC30C",
+      "deploymentTxHash": "0xb9c53fbf1d364b77739e6d29557d12b4b10964783eebe90f3fc0cac2bb9170cd",
+      "deploymentBlockNumber": 42853174,
+      "deploymentTimestamp": "2026-10-06T18:40:11Z",
+      "policyConfigurationTxHash": "0xf92a17044adaf42c1b39efd34c8fb0cf90a97eec1ca6830d16f5973c9026aae3",
+      "policyBlockNumber": 42853176,
+      "policyTimestamp": "2026-10-06T18:40:13Z",
+      "policyVerified": true,
+      "policy": {
+        "maxAge": 900,
+        "onSupported": 0,
+        "onInconclusive": 2,
+        "onChallenged": 3,
+        "onStale": 2
+      }
+    },
+    "AAPLx": {
+      "demoVault": "0xb15eB7cB90C203A84E520b70Dde1d2553D3bac6e",
+      "assetId": "0x22f7f20b17cce0ebc78d2e836afd9f50ffe3cc72c10627261ce8d356eeb69b63",
+      "referenceId": "0x958bdf57ce98d5281b3f326d279a1e1bebc4006c8dbc8592fc7aedbf0a4cc59d",
+      "modelVersion": "0x831db8657ab7ff15c62e55404c7cff05a6121dc231070ffe5977eb8f59f547e2",
+      "deployer": "0xBb341F8AE72146CEE60Ca0cCFE8C3Db5c90fC30C",
+      "deploymentTxHash": "0xff4e771deda4f98eab1b4ae92e75a0a91ee003ea82f3f5af043cd5caf53d2483",
+      "deploymentBlockNumber": 42853178,
+      "deploymentTimestamp": "2026-10-06T18:40:15Z",
+      "policyConfigurationTxHash": "0x2f35b92edafb1261d18841854562f54d6fe5b73fe367a913fb1ddb816286ac66",
+      "policyBlockNumber": 42853180,
+      "policyTimestamp": "2026-10-06T18:40:17Z",
+      "policyVerified": true,
+      "policy": {
+        "maxAge": 900,
+        "onSupported": 0,
+        "onInconclusive": 2,
+        "onChallenged": 3,
+        "onStale": 2
+      }
+    }
+  }
+}
