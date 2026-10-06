@@ -69,13 +69,14 @@ def test_fresh_panel_evaluator_uses_verified_asset_runtime_and_real_replay(tmp_p
     assert 0 <= result["token_update_weight"]["max_gain"] <= 1
     assert result["n_evaluable"] == 4
     assert sum(result["evidence_state_counts"].values()) == 4
-    assert "not create a newly calibrated combined" in result["interpretation"][
-        "evidence_states"
-    ]
+    assert "not Gaussian-calibrated" in result["interpretation"]["evidence_states"]
+    assert "not independent-market proof" in result["interpretation"]["evidence_states"]
     detector = result["frozen_challenger_detector"]
     assert detector["promotion_status"] == "CHALLENGER_DETECTOR_PROMOTABLE"
     assert detector["canonical_rows"] == 4
     assert detector["rows_eligible_for_score"] == 4
+    assert detector["rows_with_contemporaneous_underlying"] == 4
+    assert detector["underlying_tail_event"]["evaluable_rows"] == 4
     assert sum(detector["research_band_counts"].values()) == 4
     assert detector["threshold_challenge_q95"] > detector["threshold_review_q80"]
     repeated = evaluate_panel("SPYx", panel)
@@ -109,6 +110,46 @@ def test_frozen_detector_config_matches_retained_research_hashes_and_thresholds(
 
     assert artifact["fresh_validation"]["period_start_utc"] == "2026-09-21T00:00:00Z"
     assert artifact["fresh_validation"]["period_end_utc"] == "2026-10-05T06:25:00Z"
+
+
+def test_committed_fresh_detector_evidence_is_machine_readable_and_asset_bound():
+    repo_root = Path(__file__).resolve().parents[3]
+    manifest = json.loads(
+        (repo_root / "quant/data_manifest/fresh_validation_20261005.json").read_text(
+            encoding="utf-8"
+        )
+    )
+    assert manifest["period_start_utc"] == "2026-09-21T00:00:00Z"
+    assert manifest["period_end_utc"] == "2026-10-05T06:25:00Z"
+    for asset in ("NVDAx", "SPYx", "QQQx", "AAPLx"):
+        record = manifest["assets"][asset]
+        assert len(record["panel_sha256"]) == 64
+        detector = record["frozen_challenger_detector"]
+        assert detector["canonical_rows"] == manifest["row_count_per_asset"]
+        assert detector["threshold_review_q80"] < detector["threshold_challenge_q95"]
+        assert detector["underlying_tail_event"]["evaluable_rows"] == record[
+            "underlying_evaluable_rows"
+        ]
+        assert "q95_threshold_detection" in detector["underlying_tail_event"]
+        assert "session_breakdown" in detector
+        assert "xperp_diagnostics" in detector
+
+    spy = manifest["assets"]["SPYx"]
+    confusion = spy["frozen_challenger_detector"]["underlying_tail_event"][
+        "q95_threshold_detection"
+    ]
+    assert (confusion["tp"], confusion["fp"], confusion["fn"], confusion["tn"]) == (
+        20,
+        0,
+        1,
+        812,
+    )
+    assert confusion["precision"] == 1.0
+    assert confusion["recall"] == pytest.approx(20 / 21)
+    assert spy["evidence_state_counts"] == {"CHALLENGED": 71, "INCONCLUSIVE": 4039}
+    assert spy["frozen_challenger_detector"]["xperp_diagnostics"]["counts"][
+        "review_xperp_closer_to_p1a"
+    ] == 71
 
 
 def test_fresh_panel_evaluator_rejects_cross_asset_panel(tmp_path):

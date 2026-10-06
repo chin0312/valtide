@@ -147,6 +147,9 @@ def test_valuation_shape_from_computed_scenario_result(monkeypatch, runtime_stor
         "standardized_deviation",
         "evidence_state",
         "reason_codes",
+        "validation_target",
+        "evidence_semantics",
+        "xperp_role",
     ):
         assert key in body
     assert body["evidence_state"] in ("SUPPORTED", "INCONCLUSIVE", "CHALLENGED")
@@ -164,6 +167,10 @@ def test_assets_list():
     assert resp.json()[0]["token_source"] == "okx_onchainos"
     assert resp.json()[0]["underlying_source"] == "alpaca"
     assert resp.json()[0]["model_available"] is True
+    assert resp.json()[0]["challenger_detector_status"] == (
+        "CHALLENGER_DETECTOR_NOT_PROMOTABLE"
+    )
+    assert resp.json()[0]["evidence_state_capability"] == "ABSTAIN_ONLY"
 
 
 def test_runtime_status_is_explicit_when_live_runtime_is_empty(monkeypatch, tmp_path):

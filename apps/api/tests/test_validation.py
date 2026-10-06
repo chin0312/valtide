@@ -10,7 +10,13 @@ from datetime import UTC, datetime, timedelta
 import pytest
 
 from valtide_api.challenger_detector import resolve_challenger_detector
-from valtide_api.models import ChallengerEstimate, EvidenceState, MarketSnapshot, MarketState
+from valtide_api.models import (
+    ChallengerEstimate,
+    EvidenceState,
+    MarketSnapshot,
+    MarketState,
+    ValuationResult,
+)
 from valtide_api.validation import Thresholds, validate
 
 
@@ -177,7 +183,7 @@ def _detector_snapshot(asset: str, score_bps: float, *, xperp_matches_challenger
     return _snapshot(xperp, **values)
 
 
-def test_promoted_spy_tail_detector_requires_xperp_directional_corroboration():
+def test_promoted_spy_tail_detector_works_without_same_time_underlying():
     spec = resolve_challenger_detector("SPYx")
     assert spec is not None
     estimate = _estimate().model_copy(update={"model_version": "0.3.0"})
@@ -185,6 +191,9 @@ def test_promoted_spy_tail_detector_requires_xperp_directional_corroboration():
         "SPYx",
         spec.threshold_challenge + 1,
         xperp_matches_challenger=True,
+        underlying_reference=None,
+        underlying_reference_ts=datetime(2026, 9, 20, 13, 55, tzinfo=UTC),
+        market_state=MarketState.CLOSED,
     )
 
     result = validate(snapshot, estimate)
@@ -195,9 +204,40 @@ def test_promoted_spy_tail_detector_requires_xperp_directional_corroboration():
     assert "P1A_XSTOCK_CHALLENGE_THRESHOLD" in result.reason_codes
     assert "XPERP_CORROBORATES_CHALLENGE" in result.reason_codes
     assert result.standardized_deviation is None
+    assert result.validation_target == "xstock_observed_price"
+    assert result.evidence_semantics == "p1a_xstock_challenger_xperp_second_market_v1"
+    assert result.xperp_role == "second_market_challenger"
+    assert "UNDERLYING_REFERENCE_NOT_CONTEMPORANEOUS" not in result.reason_codes
 
 
-def test_xperp_contradiction_abstains_from_promoted_detector_challenge():
+def test_unified_evidence_does_not_vote_on_contemporaneous_underlying_value():
+    spec = resolve_challenger_detector("SPYx")
+    assert spec is not None
+    estimate = _estimate().model_copy(update={"model_version": "0.3.0"})
+    snapshot = _detector_snapshot(
+        "SPYx",
+        spec.threshold_challenge + 1,
+        xperp_matches_challenger=True,
+        underlying_reference=None,
+        underlying_reference_ts=None,
+    )
+    no_current_underlying = validate(snapshot, estimate)
+    with_unrelated_current_underlying = validate(
+        snapshot.model_copy(
+            update={
+                "underlying_reference": 900.0,
+                "underlying_reference_ts": snapshot.observation_ts,
+            }
+        ),
+        estimate,
+    )
+
+    assert no_current_underlying.evidence_state == EvidenceState.CHALLENGED
+    assert with_unrelated_current_underlying.evidence_state == EvidenceState.CHALLENGED
+    assert "TOKEN_UNIT_SUSPECT" not in with_unrelated_current_underlying.reason_codes
+
+
+def test_xperp_contradiction_abstains_without_same_time_underlying():
     spec = resolve_challenger_detector("SPYx")
     assert spec is not None
     estimate = _estimate().model_copy(update={"model_version": "0.3.0"})
@@ -205,6 +245,9 @@ def test_xperp_contradiction_abstains_from_promoted_detector_challenge():
         "SPYx",
         spec.threshold_challenge + 1,
         xperp_matches_challenger=False,
+        underlying_reference=None,
+        underlying_reference_ts=datetime(2026, 9, 20, 13, 55, tzinfo=UTC),
+        market_state=MarketState.OVERNIGHT,
     )
 
     result = validate(snapshot, estimate)
@@ -230,7 +273,7 @@ def test_detector_review_band_does_not_become_a_canonical_state():
     assert "P1A_XSTOCK_REVIEW_THRESHOLD" in result.reason_codes
 
 
-def test_detector_requires_contemporaneous_underlying_and_does_not_promote_qqq():
+def test_spy_detector_does_not_require_contemporaneous_underlying_and_qqq_is_not_promoted():
     spy_spec = resolve_challenger_detector("SPYx")
     qqq_spec = resolve_challenger_detector("QQQx")
     assert spy_spec is not None and qqq_spec is not None
@@ -253,8 +296,9 @@ def test_detector_requires_contemporaneous_underlying_and_does_not_promote_qqq()
         estimate,
     )
 
-    assert no_truth.evidence_state == EvidenceState.INCONCLUSIVE
-    assert "UNDERLYING_REFERENCE_NOT_CONTEMPORANEOUS" in no_truth.reason_codes
+    assert no_truth.evidence_state == EvidenceState.CHALLENGED
+    assert "UNDERLYING_REFERENCE_NOT_CONTEMPORANEOUS" not in no_truth.reason_codes
+    assert "XPERP_CORROBORATES_CHALLENGE" in no_truth.reason_codes
     assert qqq.evidence_state == EvidenceState.INCONCLUSIVE
     assert "P1A_XSTOCK_DETECTOR_NOT_PROMOTED" in qqq.reason_codes
 
@@ -283,9 +327,100 @@ def test_promoted_detector_abstains_for_missing_xperp_or_token():
     )
 
     assert missing_xperp.evidence_state == EvidenceState.INCONCLUSIVE
-    assert "XPERP_EVIDENCE_UNCALIBRATED" in missing_xperp.reason_codes
+    assert "XPERP_EVIDENCE_UNAVAILABLE" in missing_xperp.reason_codes
+    assert "XPERP_EVIDENCE_UNCALIBRATED" not in missing_xperp.reason_codes
     assert missing_token.evidence_state == EvidenceState.INCONCLUSIVE
     assert "TOKEN_DATA_UNAVAILABLE" in missing_token.reason_codes
+
+
+def test_promoted_detector_abstains_for_stale_or_ambiguous_xperp():
+    spec = resolve_challenger_detector("SPYx")
+    assert spec is not None
+    timestamp = datetime(2026, 9, 20, 14, 0, tzinfo=UTC)
+    estimate = _estimate().model_copy(update={"model_version": "0.3.0"})
+    base = _detector_snapshot("SPYx", spec.threshold_challenge + 1)
+
+    stale = validate(
+        base.model_copy(
+            update={
+                "xperp_index_ts": timestamp - timedelta(minutes=5),
+                "reference_under_test_ts": timestamp - timedelta(minutes=5),
+                "reference_under_test_age_seconds": 300,
+            }
+        ),
+        estimate,
+    )
+    assert stale.evidence_state == EvidenceState.INCONCLUSIVE
+    assert "XPERP_EVIDENCE_STALE" in stale.reason_codes
+
+    midpoint = math.exp(
+        (estimate.state_m + math.log(base.token_price)) / 2
+    )
+    ambiguous = validate(
+        base.model_copy(
+            update={
+                "reference_under_test": midpoint,
+                "xperp_index_price": midpoint,
+            }
+        ),
+        estimate,
+    )
+    assert ambiguous.evidence_state == EvidenceState.INCONCLUSIVE
+    assert "XPERP_EVIDENCE_AMBIGUOUS" in ambiguous.reason_codes
+
+
+@pytest.mark.parametrize("asset", ["NVDAx", "QQQx", "AAPLx"])
+def test_non_spy_detector_cannot_escalate_canonical_evidence(asset):
+    estimate = _estimate().model_copy(update={"model_version": "0.3.0"})
+    result = validate(
+        _detector_snapshot(
+            asset,
+            500,
+            underlying_reference=None,
+            underlying_reference_ts=datetime(2026, 9, 20, 13, 55, tzinfo=UTC),
+        ),
+        estimate,
+    )
+
+    assert result.evidence_state == EvidenceState.INCONCLUSIVE
+    assert "P1A_XSTOCK_DETECTOR_NOT_PROMOTED" in result.reason_codes
+    assert "XPERP_CORROBORATES_CHALLENGE" not in result.reason_codes
+
+
+@pytest.mark.parametrize("asset", ["NVDAx", "SPYx", "QQQx", "AAPLx"])
+def test_unified_detector_low_score_never_implies_supported(asset):
+    estimate = _estimate().model_copy(update={"model_version": "0.3.0"})
+    result = validate(_detector_snapshot(asset, 0), estimate)
+
+    assert result.evidence_state == EvidenceState.INCONCLUSIVE
+    assert result.evidence_semantics == "p1a_xstock_challenger_xperp_second_market_v1"
+
+
+def test_unified_xperp_source_mismatch_is_unavailable_not_a_reference_vote():
+    spec = resolve_challenger_detector("SPYx")
+    assert spec is not None
+    snapshot = _detector_snapshot("SPYx", spec.threshold_challenge + 1)
+    snapshot = snapshot.model_copy(
+        update={"xperp_index_source": "other_source", "reference_under_test_source": "other_source"}
+    )
+
+    result = validate(snapshot, _estimate().model_copy(update={"model_version": "0.3.0"}))
+
+    assert result.evidence_state == EvidenceState.INCONCLUSIVE
+    assert "XPERP_EVIDENCE_UNAVAILABLE" in result.reason_codes
+
+
+def test_legacy_valuation_json_gets_compatible_semantic_defaults():
+    payload = validate(_snapshot(185.70), _estimate()).model_dump()
+    payload.pop("validation_target")
+    payload.pop("evidence_semantics")
+    payload.pop("xperp_role")
+
+    restored = ValuationResult.model_validate(payload)
+
+    assert restored.validation_target == "reference_under_test"
+    assert restored.evidence_semantics == "legacy_reference_under_test_v1"
+    assert restored.xperp_role == "reference_under_test"
 
 
 def test_custom_thresholds_respected():

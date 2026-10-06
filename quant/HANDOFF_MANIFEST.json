@@ -2092,8 +2092,8 @@
     },
     {
       "path": "data_manifest/fresh_validation_20261005.json",
-      "bytes": 12160,
-      "sha256": "78cddc51a8a79d4c15cd559b8d545e3594f5c7c8bd1b97ebc9040d537c0db94e"
+      "bytes": 38689,
+      "sha256": "47b488b50d55918844ca17f96aee95e62c9d4d1d1dd81f0960d83ae7445ef327"
     }
   ],
   "model_verdicts": [

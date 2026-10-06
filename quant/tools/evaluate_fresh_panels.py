@@ -553,11 +553,12 @@ def evaluate_panel(asset: str, path: str | Path) -> dict[str, Any]:
         "frozen_challenger_detector": frozen_detector,
         "interpretation": {
             "evidence_states": (
-                "Current backend abstains with INCONCLUSIVE for the registered OKX X-Perp/index "
-                "because P1a-C predictive uncertainty is not calibrated for X-Perp residuals. "
-                "Pairwise xStock/P1a-C and xStock/X-Perp diagnostics are descriptive and do not "
-                "create a newly calibrated combined three-source decision. P1a-C assimilates "
-                "xStock, so xStock-vs-model is model-based challenger evidence, not independent-market proof."
+                "X-Perp residuals are not Gaussian-calibrated by P1a-C. For an asset with a promoted "
+                "frozen P1a-xStock tail detector, the backend may emit CHALLENGED only when the frozen "
+                "challenge threshold is crossed and exact-time X-Perp evidence directionally corroborates "
+                "the model challenge; otherwise the unified profile remains INCONCLUSIVE. Pairwise "
+                "diagnostics do not create a calibrated X-Perp z-score. P1a-C assimilates xStock, so "
+                "xStock-vs-model is model-based challenger evidence, not independent-market proof."
             ),
             "evaluation": (
                 "Retrospective out-of-fit-period diagnostics only; not prospective validation, "

@@ -187,6 +187,19 @@ def test_quant_runtime_metadata_is_artifact_owned_and_registry_drives_api(monkey
     assert all(item.model_available for item in listed)
     assert all(item.reference_profile == "unified_xstock_p1ac_xperp_evidence_v1" for item in listed)
     assert all(not item.live_market_data_available for item in listed[1:])
+    capability_by_asset = {
+        item.asset: (item.challenger_detector_status, item.evidence_state_capability)
+        for item in listed
+    }
+    assert capability_by_asset == {
+        "NVDAx": ("CHALLENGER_DETECTOR_NOT_PROMOTABLE", "ABSTAIN_ONLY"),
+        "SPYx": ("CHALLENGER_DETECTOR_PROMOTABLE", "CHALLENGED_ONLY"),
+        "QQQx": ("CHALLENGER_DETECTOR_NOT_PROMOTABLE", "ABSTAIN_ONLY"),
+        "AAPLx": (
+            "CHALLENGER_DETECTOR_REVIEW_ONLY",
+            "ABSTAIN_WITH_REVIEW_DIAGNOSTICS",
+        ),
+    }
     monkeypatch.setattr(quant_runtime, "_QUANT_RUNTIME_FACTORIES", MappingProxyType({}))
     assert list_assets()[0].model_available is False
     assert TestClient(app).get("/api/valuation/NVDAx/live").status_code == 503
@@ -351,8 +364,8 @@ def test_golden_nvdax_quant_to_runtime_boundary_remains_p1ac():
 
 # Frozen from the accepted P1a-C 0.2.0 artifact on the deterministic four-step
 # sequence below. Literal quant values protect causal token-first / underlying-
-# after ordering; X-Perp Evidence State is the current conservative abstention
-# because its target-specific residual calibration is unavailable.
+# after ordering. This unspecified-profile fixture intentionally retains the
+# legacy conservative X-Perp abstention; the unified profile is tested separately.
 _GOLDEN_STEPS = [
     (120.3042612160223, 120.09579726009031, 120.51308702658963,
      4.790024043932874, 7.594589496003624e-07, 4.790024043932874,

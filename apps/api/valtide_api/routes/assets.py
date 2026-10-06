@@ -11,6 +11,7 @@ from valtide_api.assets import (
     api_asset_configs,
     inspect_historical_panel,
 )
+from valtide_api.challenger_detector import resolve_challenger_detector
 from valtide_api.config import get_settings, scheduler_asset_enabled
 from valtide_api.quant_runtime import quant_runtime_available
 from valtide_api.runtime_store import (
@@ -37,6 +38,8 @@ class AssetInfo(BaseModel):
     historical_replay_ready: bool
     historical_replay_mode: str | None = None
     historical_panel_error_code: str | None = None
+    challenger_detector_status: str
+    evidence_state_capability: str
     live_data_configured: bool
     live_market_data_available: bool
     runtime_ready: bool
@@ -74,12 +77,35 @@ def _onchain_binding_configured(config, settings) -> bool:
     return True
 
 
+def _evidence_state_capability(asset: str) -> tuple[str, str, bool]:
+    """Expose detector strength separately from live/runtime readiness."""
+    try:
+        detector = resolve_challenger_detector(asset)
+    except (KeyError, TypeError, ValueError):
+        return "DETECTOR_ARTIFACT_INVALID", "ABSTAIN_ONLY", False
+    if detector is None:
+        return "DETECTOR_UNAVAILABLE", "ABSTAIN_ONLY", False
+    status = detector.promotion_status
+    if status == "CHALLENGER_DETECTOR_PROMOTABLE" and asset == "SPYx":
+        return status, "CHALLENGED_ONLY", True
+    if status == "CHALLENGER_DETECTOR_REVIEW_ONLY":
+        return status, "ABSTAIN_WITH_REVIEW_DIAGNOSTICS", True
+    if status == "CHALLENGER_DETECTOR_NOT_PROMOTABLE":
+        return status, "ABSTAIN_ONLY", True
+    # A newly marked promotable asset is not implicitly granted canonical
+    # challenge authority; that requires an explicit backend review.
+    return status, "ABSTAIN_ONLY", False
+
+
 @router.get("/assets", response_model=list[AssetInfo])
 def list_assets() -> list[AssetInfo]:
     settings = get_settings()
     store = get_runtime_store()
     items: list[AssetInfo] = []
     for config in api_asset_configs():
+        detector_status, evidence_capability, detector_ready = (
+            _evidence_state_capability(config.asset)
+        )
         quant_ready = quant_runtime_available(config)
         panel_status = inspect_historical_panel(config, settings)
         panel_file_available = panel_status.file_available
@@ -147,6 +173,8 @@ def list_assets() -> list[AssetInfo]:
             readiness_errors.append("MODEL_FIT_BLOCKED")
         elif not quant_ready:
             readiness_errors.append("QUANT_ARTIFACT_UNAVAILABLE")
+        if not detector_ready:
+            readiness_errors.append("CHALLENGER_DETECTOR_UNAVAILABLE")
         if panel_status.error_code:
             readiness_errors.append(panel_status.error_code)
         if not historical_replay_ready:
@@ -179,6 +207,8 @@ def list_assets() -> list[AssetInfo]:
                 historical_replay_ready=historical_replay_ready,
                 historical_replay_mode=historical_replay_mode,
                 historical_panel_error_code=panel_status.error_code,
+                challenger_detector_status=detector_status,
+                evidence_state_capability=evidence_capability,
                 live_data_configured=live_configured,
                 live_market_data_available=live_observation_available,
                 runtime_ready=runtime_ready,

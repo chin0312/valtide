@@ -71,18 +71,18 @@ class MarketSnapshot(BaseModel):
     last_trusted_reference_ts: datetime
     reference_age_seconds: int
 
-    # The reference under test (Pt) — what we validate. Sourced explicitly; never
-    # implicitly derived. See docs/BACKEND_ARCHITECTURE.md.
+    # Compatibility comparator retained for existing API consumers. In the
+    # unified profile the validation target is xStock; OKX X-Perp is separate
+    # market evidence, not the primary reference-under-test.
     reference_under_test: float | None
     reference_under_test_source: str = Field(examples=["nvda_live", "okx_xperp_index"])
     reference_profile: str = "unspecified"
     reference_under_test_ts: datetime | None = None
     reference_under_test_age_seconds: int | None = None
 
-    # Preserve the separately sourced OKX X-Perp/index as an explicit evidence
-    # component. ``reference_under_test`` remains the compatibility comparator
-    # consumed by today's Evidence State rules; these fields do not silently
-    # broaden those rules or imply a calibrated three-source decision.
+    # Preserve separately sourced OKX X-Perp/index evidence explicitly. It is a
+    # second market challenger in the unified profile; no Gaussian residual
+    # calibration is implied.
     xperp_index_price: float | None = None
     xperp_index_source: str | None = None
     xperp_index_ts: datetime | None = None
@@ -182,6 +182,11 @@ class ValuationResult(BaseModel):
     xstock_vs_xperp_deviation_pct: float | None = None
     xperp_deviation_scaled_by_model_predictive_sd: float | None = None
     evidence_state_basis: str = "selected_reference_under_test"
+    # Additive semantic identity. Defaults keep old persisted result JSON
+    # readable while new unified-profile results identify their actual target.
+    validation_target: str = "reference_under_test"
+    evidence_semantics: str = "legacy_reference_under_test_v1"
+    xperp_role: str = "reference_under_test"
     challenger_detector: ChallengerDetectorEvidence | None = None
 
     evidence_state: EvidenceState
