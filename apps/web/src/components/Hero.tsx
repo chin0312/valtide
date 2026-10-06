@@ -214,8 +214,8 @@ export function Hero() {
 
       <div className="valtide-hero__copy">
         <p className="valtide-hero__eyebrow">Independent valuation evidence for tokenized collateral</p>
-        <h1 id="valtide-hero-title">When markets disagree,<br />know what the <span className="valtide-hero__title-accent">evidence supports.</span></h1>
-        <p className="valtide-hero__lede">Valtide protects DeFi from oracle failures with independent, cryptographically verified collateral valuation.</p>
+        <h1 id="valtide-hero-title">Take control of your protocol's<br /><span className="valtide-hero__title-accent">collateral risk.</span></h1>
+        <p className="valtide-hero__lede">Continuously verify whether on-chain equity prices are supported by off-chain evidence, then let consuming protocols enforce their own risk rules when markets disagree.</p>
         <div className="valtide-hero__actions">
           <a className="valtide-hero__action" href="?view=console">Open validation console <span aria-hidden="true">↗</span></a>
           <a className="valtide-hero__secondary" href="#incident">See how it works <span aria-hidden="true">↓</span></a>
@@ -224,9 +224,9 @@ export function Hero() {
 
       <div className="valtide-hero__motion" aria-label="Animated market divergence">
         <canvas ref={canvasRef} aria-hidden="true" />
-        <div ref={referenceLabelRef} className="valtide-hero__label valtide-hero__label--reference" aria-hidden="true"><i /><span>Reference</span></div>
-        <div ref={valtideLabelRef} className="valtide-hero__label valtide-hero__label--valtide" aria-hidden="true"><i /><span>Independent estimate</span></div>
-        <div ref={tokenLabelRef} className="valtide-hero__label valtide-hero__label--token" aria-hidden="true"><i /><span>Token market</span></div>
+        <div ref={referenceLabelRef} className="valtide-hero__label valtide-hero__label--reference" aria-hidden="true"><i /><span>X-Perp evidence</span></div>
+        <div ref={valtideLabelRef} className="valtide-hero__label valtide-hero__label--valtide" aria-hidden="true"><i /><span>P1a-C estimate</span></div>
+        <div ref={tokenLabelRef} className="valtide-hero__label valtide-hero__label--token" aria-hidden="true"><i /><span>xStock target</span></div>
       </div>
 
       <div className="valtide-hero__proof" aria-label="Historical model evidence">

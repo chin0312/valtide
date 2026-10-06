@@ -147,6 +147,7 @@ export function wheelGestureIntent(deltaX: number, deltaY: number): "pan" | "zoo
 
 export function EscalationChart({ results, index, playhead = index, onSelect, resetKey }: { results: ValuationResult[]; index: number; playhead?: number; onSelect: (i: number) => void; resetKey?: string | number }) {
   const data = useMemo(() => buildChartData(results), [results]);
+  const unified = results[index]?.validation_target === "xstock_observed_price" || results[index]?.reference_profile === "unified_xstock_p1ac_xperp_evidence_v1";
   const realPoints = useMemo(() => data.filter((point) => point.sourceIndex != null), [data]);
   const timestamps = useMemo(() => realPoints.map((point) => point.ts), [realPoints]);
   const fullDomain = useMemo(() => chartDomain(timestamps), [timestamps]);
@@ -371,9 +372,9 @@ export function EscalationChart({ results, index, playhead = index, onSelect, re
             activeDot={false}
             connectNulls={false}
             isAnimationActive={false}
-            name="Reference under test"
+            name={unified ? "X-Perp evidence" : "Reference under test"}
           />
-          <Line dataKey="token" stroke="var(--color-series-token)" strokeWidth={1.25} strokeOpacity={0.72} dot={false} connectNulls={false} isAnimationActive={false} name="Tokenized Market" />
+          <Line dataKey="token" stroke="var(--color-series-token)" strokeWidth={1.25} strokeOpacity={0.72} dot={false} connectNulls={false} isAnimationActive={false} name={unified ? "xStock validation target" : "Tokenized Market"} />
           <ReferenceLine x={cursorTimestamp} stroke="var(--color-accent)" strokeOpacity={0.65} strokeDasharray="2 3" />
         </ComposedChart>
       </ResponsiveContainer>

@@ -55,9 +55,10 @@ SUPPORTED / INCONCLUSIVE / CHALLENGED
 ```
 
 The quant package owns challenger fair value, calibrated uncertainty, and
-carried state. The backend selects the reference under test and owns Evidence
-State and reason codes. The backend does not duplicate model equations or
-silently substitute a different reference.
+carried state. The backend identifies the observed xStock validation target,
+preserves the separate X-Perp signal, and owns Evidence State and reason codes.
+The backend does not duplicate model equations or silently substitute a
+different asset or source.
 
 Replay and backtest are explicit scenario or historical-panel paths. They do
 not seed the live cache. A cold `/api/valuation/{asset}` cache returns `503
@@ -86,29 +87,28 @@ Solana candle for the selected asset, its configured underlying, and a separate
 asset-matched OKX X-Perp/index observation when available. DexScreener remains
 diagnostic-only. NVDAx, SPYx, QQQx, and AAPLx each have explicit Solana pins and
 asset-specific P1a-C bundles; the three newer bundles were exported from
-checksum-verified frozen fits without retraining. Their original canonical
-panel bytes were not supplied, so their declared training dataset hashes have
-not been independently recomputed. A separate 2026-09-21 through 2026-10-05
-provider-history window was collected and replayed locally for all four assets;
-it is a short retrospective diagnostic, not production readiness evidence.
-Those panels are not committed or provisioned on a persistent production
-volume. Only NVDAx has an X Layer binding, and the multi-asset scheduler has not
-been activated in production. P1a assimilates the same xStock observation being
+checksum-verified frozen fits without retraining. Their original training panel
+bytes were not supplied, so their declared training dataset hashes have not
+been independently recomputed. Separate canonical 2026-09-21 through
+2026-10-05 provider-history panels are manifest-bound and persistently
+provisioned for NVDAx, SPYx, and AAPLx; QQQx remains offline research-only.
+The production API and live scheduler expose NVDAx, SPYx, and AAPLx. Only NVDAx
+has an X Layer binding. P1a assimilates the same xStock observation being
 modeled, so xStock-versus-challenger is model-based evidence rather than an
 independent-observation comparison; the X-Perp/index is separate market
 evidence. `GET /api/history/{asset}` remains limited to successful warmed
 scheduler results, not historical replay or scenario data.
 
-The current `ValuationResult` also retains xStock, P1a-C, and X-Perp/index
-pairwise diagnostics explicitly. These diagnostics do not alter Evidence State:
-the xStock-versus-model and xStock-versus-X-Perp differences are descriptive.
-For the currently registered X-Perp/index comparator, Evidence State now
-abstains as `INCONCLUSIVE` with `XPERP_RESIDUAL_CALIBRATION_UNVERIFIED`: the
-existing P1a-C predictive uncertainty is calibrated for its underlying target,
-not for X-Perp residuals. A research-backed validation rule that jointly
-interprets xStock, the model-based challenger, and the separately sourced
-X-Perp/index remains a product/quant follow-up. Because P1a assimilates the
-current xStock input, xStock-versus-P1a-C is not an independent-observation test.
+The current `ValuationResult` retains xStock, P1a-C, and X-Perp/index pairwise
+diagnostics explicitly. Under
+`p1a_xstock_band_with_xperp_review_corroboration_v2`, the observed xStock is the
+validation target. An asset-authorized support band can emit `SUPPORTED` when
+exact-time X-Perp is available and quality gates pass. An authorized review band
+can emit `CHALLENGED` only when exact-time X-Perp is closer to P1a-C than to
+xStock. Watch-band, missing, stale, ambiguous, or quality-gated evidence remains
+`INCONCLUSIVE`. X-Perp direction is descriptive within the support band, and no
+Gaussian X-Perp residual z-score is claimed. Because P1a assimilates the current
+xStock input, xStock-versus-P1a-C is not an independent-observation test.
 
 ## Layout
 

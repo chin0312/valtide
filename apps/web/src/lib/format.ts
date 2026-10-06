@@ -134,6 +134,17 @@ const REASON_LABELS: Record<string, string> = {
   TOKEN_UNIT_SUSPECT: "Possible token/underlying unit mismatch",
   MODEL_UNCERTAINTY_HIGH: "Model uncertainty is high",
   CALIBRATION_GLOBAL_FALLBACK: "Global fallback calibration",
+  P1A_XSTOCK_DETECTOR_UNAVAILABLE: "P1a/xStock detector unavailable",
+  P1A_XSTOCK_SUPPORT_BAND: "P1a/xStock disagreement is in the support band",
+  P1A_XSTOCK_WATCH_BAND: "P1a/xStock disagreement is in the watch band",
+  P1A_XSTOCK_REVIEW_BAND: "P1a/xStock disagreement is in the review band",
+  P1A_XSTOCK_SUPPORT_NOT_PROMOTED: "Support state is not enabled for this asset",
+  P1A_XSTOCK_CHALLENGE_NOT_PROMOTED: "Challenge state is not enabled for this asset",
+  XPERP_EVIDENCE_UNAVAILABLE: "Exact-time X-Perp evidence unavailable",
+  XPERP_EVIDENCE_STALE: "X-Perp evidence is stale or not exact-time",
+  XPERP_EVIDENCE_AMBIGUOUS: "X-Perp does not clearly favor xStock or P1a",
+  XPERP_CORROBORATES_XSTOCK: "X-Perp is closer to the observed xStock price",
+  XPERP_CORROBORATES_P1A: "X-Perp directionally corroborates P1a",
 };
 
 export function reasonLabel(code: string): string {

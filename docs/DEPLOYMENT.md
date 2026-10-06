@@ -106,6 +106,7 @@ OKX_XPERP_INDEX_ID
 
 LIVE_SCHEDULER_ENABLED
 LIVE_SCHEDULER_ASSET
+LIVE_SCHEDULER_ASSETS
 LIVE_SETTLEMENT_GRACE_SECONDS
 LIVE_SETTLEMENT_MAX_ATTEMPTS
 LIVE_SETTLEMENT_RETRY_DELAY_SECONDS
@@ -137,12 +138,14 @@ or deployment metadata.
 
 ## Live Runtime and Publication
 
-The scheduler waits for the configured settlement grace, fetches the exact
-confirmed five-minute OKX OnchainOS NVDAx candle, and persists a successful
-valuation before optional publication is queued. Publication is serialized by
-one in-process worker and coalesces pending work to the newest observation. A
-delivery failure is recorded separately and does not invalidate the warmed
-valuation or stop future scheduler ticks.
+Each explicitly enabled asset worker waits for its configured settlement grace,
+fetches the exact confirmed five-minute OKX OnchainOS candle, and persists a
+successful valuation before optional publication is considered. NVDAx is the
+only current asset with an onchain binding, so SPYx and AAPLx remain read-only
+operational validations. Publication is serialized by one in-process worker
+and coalesces pending work to the newest observation. A delivery failure is
+recorded separately and does not invalidate the warmed valuation or stop future
+scheduler ticks.
 
 The backend publishes to the testnet Registry only through its publisher
 boundary. API reads, replay, cold diagnostics, and frontend reads do not

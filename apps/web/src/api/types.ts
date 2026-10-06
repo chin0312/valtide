@@ -3,6 +3,16 @@
 export type EvidenceState = "SUPPORTED" | "INCONCLUSIVE" | "CHALLENGED";
 export type PolicyAction = "ALLOW" | "MONITOR" | "REQUIRE_REVIEW" | "RESTRICT_NEW_RISK";
 
+export interface ChallengerDetectorEvidence {
+  artifact_version: string;
+  score_name: string;
+  score: number | null;
+  review_threshold: number;
+  challenge_threshold: number;
+  research_band: "support" | "watch" | "review" | "unavailable";
+  promotion_status: string;
+}
+
 export interface ValuationResult {
   asset: string;
   timestamp: string; // ISO UTC
@@ -33,6 +43,18 @@ export interface ValuationResult {
   reference_under_test_age_seconds: number | null;
   reference_deviation_pct: number | null;
   standardized_deviation: number | null;
+  xperp_index_price: number | null;
+  xperp_index_source: string | null;
+  xperp_index_ts: string | null;
+  xstock_vs_p1ac_deviation_pct: number | null;
+  xperp_vs_p1ac_deviation_pct: number | null;
+  xstock_vs_xperp_deviation_pct: number | null;
+  xperp_deviation_scaled_by_model_predictive_sd: number | null;
+  evidence_state_basis: string;
+  validation_target: string;
+  evidence_semantics: string;
+  xperp_role: string;
+  challenger_detector: ChallengerDetectorEvidence | null;
 
   evidence_state: EvidenceState;
   reason_codes: string[];
@@ -57,6 +79,13 @@ export interface AssetInfo {
   model_available: boolean;
   quant_artifact_ready: boolean;
   historical_data_available: boolean;
+  historical_panel_file_available: boolean;
+  canonical_panel_verified: boolean;
+  historical_replay_ready: boolean;
+  historical_replay_mode: "canonical" | "legacy_diagnostic" | null;
+  historical_panel_error_code: string | null;
+  challenger_detector_status: string;
+  evidence_state_capability: string;
   live_data_configured: boolean;
   live_market_data_available: boolean;
   runtime_ready: boolean;

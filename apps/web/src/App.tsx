@@ -291,10 +291,11 @@ function ConnectionLabel({ active, activeText, inactiveText }: { active: boolean
 }
 
 function DecisionSummary({ current, action }: { current: ValuationResult; action: PolicyAction | null }) {
-  const findings: Record<EvidenceState, { title: string; detail: string }> = current.reference_profile === "xstock_vs_p1ac_challenger" ? {
-    SUPPORTED: { title: "Model-based challenger evidence supports the observed xStock price", detail: "P1a has assimilated this same xStock observation before the comparison. This is model-based challenger evidence, not two fully independent observations; disagreement alone does not establish which price is correct." },
-    INCONCLUSIVE: { title: "Model-based challenger evidence needs review", detail: "P1a has assimilated this same xStock observation before the comparison. The model-based evidence is not strong or consistent enough for a confident conclusion." },
-    CHALLENGED: { title: "Model-based challenger evidence challenges the observed xStock price", detail: "P1a has assimilated this same xStock observation before the comparison. This is not an independent-source test and does not prove which price is correct." },
+  const unified = current.validation_target === "xstock_observed_price" || current.reference_profile === "unified_xstock_p1ac_xperp_evidence_v1";
+  const findings: Record<EvidenceState, { title: string; detail: string }> = unified ? {
+    SUPPORTED: { title: "Tri-source evidence supports the observed xStock price", detail: "The P1a/xStock support band applies, exact-time X-Perp is available, and quality gates passed. P1a has assimilated this xStock observation, so this is source-aware model evidence—not proof from two independent votes." },
+    INCONCLUSIVE: { title: "Tri-source evidence is inconclusive", detail: "The result remains in a watch band or an availability, freshness, ambiguity, or quality condition prevents a supported or challenged state." },
+    CHALLENGED: { title: "Tri-source evidence challenges the observed xStock price", detail: "The P1a/xStock review band applies and exact-time X-Perp is closer to P1a-C. This selective risk signal warrants review; it does not prove the observed xStock price is objectively wrong." },
   } : {
     SUPPORTED: { title: "Evidence supports the reference", detail: "Available independent evidence does not provide a material reason to challenge the price being tested." },
     INCONCLUSIVE: { title: "Evidence needs review", detail: "The available evidence is not strong enough for a confident conclusion." },
@@ -308,13 +309,14 @@ function DecisionSummary({ current, action }: { current: ValuationResult; action
 }
 
 function MetricGrid({ current, isDemo, observationCount }: { current: ValuationResult; isDemo: boolean; observationCount: number }) {
+  const unified = current.validation_target === "xstock_observed_price" || current.reference_profile === "unified_xstock_p1ac_xperp_evidence_v1";
   return (
     <section aria-label={`${observationCount} observations in the selected window; classification count, not performance`} className="grid grid-cols-2 overflow-hidden rounded-[10px] md:grid-cols-3 xl:grid-cols-6" style={{ background: "var(--color-panel)", border: "1px solid var(--color-line-subtle)" }}>
-      <Metric label="Reference under test" value={money(current.reference_under_test)} sub="Under test" />
-      <Metric label="Valtide fair value" value={money(current.valtide_fair_value)} sub={`${money(current.fair_value_lower)}–${money(current.fair_value_upper)}`} />
-      <Metric label="Token market" value={money(current.token_price)} sub={current.token_source ? sourceLabel(current.token_source) : isDemo ? "Demo scenario" : "Source unavailable"} />
-      <Metric label="Deviation" value={pct(current.reference_deviation_pct)} sub={current.evidence_state} accent={EVIDENCE[current.evidence_state].fg} />
-      <Metric label="Model distance" value={sigma(current.standardized_deviation)} sub="Technical diagnostic" />
+      <Metric label={unified ? "xStock target" : "Reference under test"} value={money(unified ? current.token_price : current.reference_under_test)} sub={unified ? (current.token_source ? sourceLabel(current.token_source) : isDemo ? "Demo scenario" : "Source unavailable") : "Under test"} />
+      <Metric label="P1a-C fair value" value={money(current.valtide_fair_value)} sub={`${money(current.fair_value_lower)}–${money(current.fair_value_upper)}`} />
+      <Metric label={unified ? "X-Perp evidence" : "Token market"} value={money(unified ? current.xperp_index_price : current.token_price)} sub={unified ? "Second-market challenger" : current.token_source ? sourceLabel(current.token_source) : isDemo ? "Demo scenario" : "Source unavailable"} />
+      <Metric label={unified ? "xStock vs. P1a-C" : "Deviation"} value={pct(unified ? current.xstock_vs_p1ac_deviation_pct : current.reference_deviation_pct)} sub={current.evidence_state} accent={EVIDENCE[current.evidence_state].fg} />
+      <Metric label={unified ? "Research band" : "Model distance"} value={unified ? (current.challenger_detector?.research_band.toUpperCase() ?? "UNAVAILABLE") : sigma(current.standardized_deviation)} sub={unified ? "Asset-specific frozen detector" : "Technical diagnostic"} />
       <Metric label="Last trusted price" value={money(current.last_trusted_reference)} sub={`${ageLabel(current.reference_age_seconds)} old`} />
     </section>
   );
@@ -326,12 +328,13 @@ function Metric({ label, value, sub, accent }: { label: string; value: string; s
 
 function EvidenceCard({ result }: { result: ValuationResult }) {
   const state = EVIDENCE[result.evidence_state];
-  const detail = result.reference_profile === "xstock_vs_p1ac_challenger"
+  const unified = result.validation_target === "xstock_observed_price" || result.reference_profile === "unified_xstock_p1ac_xperp_evidence_v1";
+  const detail = unified
     ? result.evidence_state === "SUPPORTED"
-      ? "Model-based challenger evidence does not materially challenge the observed xStock price. P1a has assimilated this same observation; these are not two fully independent observations."
+      ? "The support-band rule passed with exact-time X-Perp available and no quality abstention. P1a has assimilated this same xStock observation, so this is not a two-independent-source test."
       : result.evidence_state === "CHALLENGED"
-        ? "Model-based challenger evidence is materially inconsistent with the observed xStock price. P1a has assimilated this same observation; disagreement does not prove which price is correct."
-        : "The model-based challenger evidence is too weak or mixed for a confident conclusion. P1a has assimilated this same xStock observation."
+        ? "The review-band rule passed and exact-time X-Perp directionally corroborates P1a-C. This selective signal does not prove which price is objectively correct."
+        : "The tri-source evidence is watch-band, unavailable, stale, ambiguous, or quality-gated, so the backend deliberately abstains."
     : result.evidence_state === "SUPPORTED"
       ? "The reference is not materially challenged by the available independent evidence."
       : result.evidence_state === "CHALLENGED"
@@ -375,9 +378,9 @@ function TechnicalPolicyValue({ label, value }: { label: string; value: string }
 }
 
 function plainEvidenceReason(state?: EvidenceState): string {
-  if (state === "SUPPORTED") return "Evidence supports the reference";
+  if (state === "SUPPORTED") return "Evidence supports the validation target";
   if (state === "INCONCLUSIVE") return "Evidence is inconclusive";
-  if (state === "CHALLENGED") return "Evidence challenges the reference";
+  if (state === "CHALLENGED") return "Evidence challenges the validation target";
   return "Evidence is unavailable";
 }
 
