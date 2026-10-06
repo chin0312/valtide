@@ -27,9 +27,9 @@ const { InstrumentPassport, passportStatusFor } = load("../src/components/Instru
 const { PolicyFoundry } = load("../src/components/PolicyFoundry.tsx");
 const { DEMO_PASSPORT_ADDRESS, MODEL_EVIDENCE_SUMMARY, POLICY_PROPOSAL } = load("../src/fixtures/prototypeData.ts");
 const { default: App, consoleContextFromSearch, effectiveContextAsset } = load("../src/App.tsx");
-const { dateTimeUTC, deliveryStatusLabel, lastUpdatedLabel, modelDisplayName, pipelineStatusLabel, sessionLabel } = load("../src/lib/format.ts");
+const { coverageLabel, dateTimeUTC, deliveryStatusLabel, lastUpdatedLabel, modelDisplayName, pipelineStatusLabel, sessionLabel } = load("../src/lib/format.ts");
 const { modelDistanceLabel, peakModelDistance, evidenceCopy, EVIDENCE_SEMANTICS_V2 } = load("../src/lib/semantics.ts");
-const { buildChartData, chartDomain, clampViewport, lowerBoundTimestamp, minimumViewportWidth, panViewport, shouldRenderStateDots, sliceChartDataForViewport, upperBoundTimestamp, wheelGestureIntent, wheelZoomScale, zoomSensitivity, zoomViewport } = load("../src/components/EscalationChart.tsx");
+const { buildChartData, chartDomain, chartIntervalLabel, clampViewport, lowerBoundTimestamp, minimumViewportWidth, panViewport, shouldRenderStateDots, sliceChartDataForViewport, upperBoundTimestamp, VALUATION_CHART_LABELS, wheelGestureIntent, wheelZoomScale, zoomSensitivity, zoomViewport } = load("../src/components/EscalationChart.tsx");
 const h = React.createElement;
 const render = (component, props) => renderToStaticMarkup(h(component, props));
 
@@ -414,7 +414,7 @@ test("Peak Model Distance uses the largest compatible detector score and keeps t
 test("Console metrics and interval markers use human-facing model labels and xStock/X-Perp v2 fields", () => {
   const v2 = consoleV2Fixture[4];
   const html = appWith({result:v2, profile:v2.reference_profile});
-  for (const label of ["Observed xStock", "Valtide Fair Value", "X-Perp", "xStock Vs Model", "Model Distance", "Last Trusted Underlying"]) assert.match(html, new RegExp(label));
+  for (const label of ["Observed xStock", "Valtide Fair Value", "X-Perp", "xStock Vs Model", "Model Distance", "Underlying Anchor"]) assert.match(html, new RegExp(label));
   assert.match(html, /2\.9σ/);
   assert.match(html, /xStock ↔ Valtide Model/);
   assert.match(html, /Model Move/);
@@ -422,12 +422,38 @@ test("Console metrics and interval markers use human-facing model labels and xSt
   assert.doesNotMatch(html, /P1a-C/);
   assert.doesNotMatch(html, /Reference under test|Technical diagnostic/);
   const numberLine = render(ReferenceNumberLine,{r:v2});
-  for (const marker of ["Observed xStock", "X-Perp", "Last Trusted Underlying", "90% Valuation Range"]) assert.match(numberLine,new RegExp(marker));
+  for (const marker of ["Observed xStock", "X-Perp", "Valtide Fair Value", "90% Valuation Range"]) assert.match(numberLine,new RegExp(marker));
+  assert.doesNotMatch(numberLine,/Last Trusted Underlying|Underlying Anchor/);
+  assert.equal((numberLine.match(/data-price-marker=/g) ?? []).length,2);
+  assert.doesNotMatch(numberLine,/data-price-marker="Valtide Fair Value"/);
+  const summary = numberLine.slice(numberLine.indexOf("grid-cols-3"));
+  for (const [label,value] of [["Observed xStock",v2.token_price],["Valtide Fair Value",v2.valtide_fair_value],["X-Perp",v2.xperp_index_price]]) {
+    assert.match(summary,new RegExp(`${label}[\\s\\S]*?\\$${value.toFixed(2)}`));
+  }
+  assert.equal((summary.match(/class="min-w-0"/g) ?? []).length,3);
+  assert.match(numberLine,/aria-label="Observed xStock[\s\S]*Valtide Fair Value[\s\S]*X-Perp[\s\S]*90% Valuation Range/);
+  assert.match(render(ReferenceNumberLine,{r:{...v2,interval_coverage_target:0.95}}),/95% Valuation Range/);
+  assert.equal(coverageLabel(0.9),"90% Valuation Range");
+  assert.equal(coverageLabel(0.95),"95% Valuation Range");
   assert.doesNotMatch(numberLine,/X-Perp \/ index|Calibrated Interval/);
   assert.doesNotMatch(numberLine,/Constructed/);
   const chart = buildChartData([v2]);
   assert.equal(chart[0].token,v2.token_price);
+  assert.equal(chart[0].fair,v2.valtide_fair_value);
   assert.equal(chart[0].xperp,v2.xperp_index_price);
+  assert.deepEqual(chart[0].band,[v2.fair_value_lower,v2.fair_value_upper]);
+  assert.equal(Object.hasOwn(chart[0],"last_trusted_reference"),false);
+  assert.deepEqual(VALUATION_CHART_LABELS,{fair:"Valtide Fair Value",token:"Observed xStock",xperp:"X-Perp"});
+  assert.equal(chartIntervalLabel([v2]),"90% Valuation Range");
+  assert.equal(chartIntervalLabel([{...v2,interval_coverage_target:0.95}]),"95% Valuation Range");
+  assert.equal(chartIntervalLabel([v2,{...v2,interval_coverage_target:0.95}]),"Valuation Range");
+  assert.equal(buildChartData([{...v2,xperp_index_price:null,reference_under_test:999}])[0].xperp,null);
+  assert.equal(buildChartData([{...v2,evidence_semantics:"legacy_v1",xperp_index_price:null,reference_under_test:201.25}])[0].xperp,201.25);
+  const missingCurrentXperp = {...v2,xperp_index_price:null,xperp_index_source:null,reference_under_test:999,reference_under_test_source:"legacy_alias"};
+  assert.doesNotMatch(render(ReferenceNumberLine,{r:missingCurrentXperp}),/\$999\.00/);
+  const missingCurrentXperpApp = appWith({result:missingCurrentXperp,profile:v2.reference_profile});
+  assert.doesNotMatch(missingCurrentXperpApp,/\$999\.00/);
+  assert.match(missingCurrentXperpApp,/X-Perp<\/div><div[^>]*>—<\/div><div[^>]*>—<\/div>/);
 
   const xstockInside = render(ReferenceComparison,{r:{...v2,token_price:100,xperp_index_price:120, fair_value_lower:99,fair_value_upper:101}});
   assert.match(xstockInside,/Observed xStock is within the valuation range/);
@@ -631,11 +657,20 @@ test("Observation Details humanizes current timestamps and separates operational
   const controlPlane = {fresh:true};
   const operational = render(ObservationAudit,{result,context:"Operational",runtime,controlPlane});
   assert.match(operational,/Observation Details · Operational · 2026-10-06 17:20 UTC/);
-  for (const label of ["Observation Time","xStock Source","xStock Observed","X-Perp Source","X-Perp Observed","X-Perp Age","Underlying Price Age","Observation Age","Model","Current RiskGuard Status","Feed Status","Latest Observation","Token Source","Underlying Source","Scenario"]) assert.match(operational,new RegExp(label));
+  for (const label of ["Observation Time","xStock Source","xStock Observed","X-Perp Source","X-Perp Observed","X-Perp Age","Underlying Anchor","Underlying Source","Anchor Age","Observation Age","Model","Current RiskGuard Status","Feed Status","Latest Observation","Token Source","Scenario"]) assert.match(operational,new RegExp(label));
   assert.match(operational,/Valtide Model · v0\.2\.0/);
   assert.match(operational,/2026-10-06 17:20 UTC/);
   assert.match(operational,/weekend_divergence/);
   assert.doesNotMatch(operational,/2026-10-06T17:20:00Z|P1a-C|Calibration|Evidence Rule|Last Update Attempt|Feed Error/);
+  assert.match(operational,/Underlying Anchor[\s\S]*\$180\.00/);
+  assert.match(operational,/Underlying Source[\s\S]*alpaca/);
+  assert.match(operational,/Anchor Age[\s\S]*18h/);
+
+  const withoutUnderlyingSource = render(ObservationAudit,{result:{...result,source_provenance:{scenario:"weekend_divergence"}},context:"Historical"});
+  assert.match(withoutUnderlyingSource,/Underlying Source[\s\S]*—/);
+  const missingCurrentXperp = render(ObservationAudit,{result:{...result,xperp_index_source:null,xperp_index_ts:null,reference_under_test_source:"legacy_alias",reference_under_test_ts:"2026-10-05T00:00:00Z"},context:"Historical"});
+  assert.match(missingCurrentXperp,/X-Perp Source[\s\S]*—/);
+  assert.doesNotMatch(missingCurrentXperp,/legacy_alias|2026-10-05 00:00 UTC/);
 
   const failedRuntime = {...runtime,last_tick_status:"failure",last_error:"feed timeout"};
   const failed = render(ObservationAudit,{result,context:"Operational",runtime:failedRuntime});
@@ -736,7 +771,7 @@ test("Decision summary uses concise current language and preserves old recorded 
 test("Observation and delivery audit survives unavailable X Layer reads", () => {
   const runtime = {scheduler_enabled:true,last_tick_status:"failure",last_tick_attempt_at:"2026-09-25T10:01:00Z",last_error:"source missing",auto_publish_enabled:true,last_publish_status:"failed",last_publish_attempt_at:"2026-09-25T10:02:00Z",last_publish_observation_ts:"2026-09-25T09:55:00Z",last_published_observation_ts:"2026-09-25T09:50:00Z",last_published_at:1790325969,last_publish_tx_hash:"0xFULL_TRANSACTION_HASH",last_publish_error:"delivery failed"};
   const audit = render(ObservationAudit,{result:fixture[0],context:"Operational",runtime});
-  for (const label of ["Observation Details · Operational · 2026-09-19 14:00 UTC", "X-Perp Age", "Underlying Price Age", "Source Provenance", "Model", "Last Update Attempt", "Feed Status", "Latest Observation"]) assert.ok(audit.includes(label));
+  for (const label of ["Observation Details · Operational · 2026-09-19 14:00 UTC", "X-Perp Age", "Underlying Anchor", "Underlying Source", "Anchor Age", "Source Provenance", "Model", "Last Update Attempt", "Feed Status", "Latest Observation"]) assert.ok(audit.includes(label));
   assert.match(audit,/source missing/);
   assert.match(audit,/2026-09-25 10:01 UTC/);
   assert.doesNotMatch(audit,/2026-09-19T14:00:00Z|Calibration|Evidence Rule|Operational Feed Error/);

@@ -31,6 +31,12 @@ const DOMINANT_AXIS_THRESHOLD = 1.2;
 const CHART_MARGIN = { top: 10, right: 18, bottom: 4, left: 2 } as const;
 const Y_AXIS_WIDTH = 50;
 
+export const VALUATION_CHART_LABELS = {
+  fair: "Valtide Fair Value",
+  token: "Observed xStock",
+  xperp: "X-Perp",
+} as const;
+
 export type ChartDomain = [number, number];
 
 export function lowerBoundTimestamp(points: ChartPoint[], timestamp: number): number {
@@ -76,6 +82,11 @@ export function chartDomain(timestamps: number[]): ChartDomain {
   if (valid.length === 0) return [0, CANONICAL_STEP_MS];
   if (valid.length === 1) return [valid[0] - CANONICAL_STEP_MS / 2, valid[0] + CANONICAL_STEP_MS / 2];
   return [valid[0], valid[valid.length - 1]];
+}
+
+export function chartIntervalLabel(results: ValuationResult[]): string {
+  const targets = [...new Set(results.map((result) => result.interval_coverage_target))];
+  return targets.length === 1 ? coverageLabel(targets[0]) : "Valuation Range";
 }
 
 export function minimumViewportWidth(timestamps: number[]): number {
@@ -201,8 +212,7 @@ export function EscalationChart({ results, index, playhead = index, onSelect, re
   const minTimestamp = viewportDomain[0];
   const maxTimestamp = viewportDomain[1];
   const multiDay = new Date(minTimestamp).toISOString().slice(0, 10) !== new Date(maxTimestamp).toISOString().slice(0, 10);
-  const coverageTargets = useMemo(() => [...new Set(results.map((result) => result.interval_coverage_target))], [results]);
-  const intervalName = coverageTargets.length === 1 ? coverageLabel(coverageTargets[0]) : "Calibrated interval";
+  const intervalName = useMemo(() => chartIntervalLabel(results), [results]);
   const min = prices.length ? Math.min(...prices) : 0;
   const max = prices.length ? Math.max(...prices) : 1;
   const span = max - min;
@@ -359,7 +369,7 @@ export function EscalationChart({ results, index, playhead = index, onSelect, re
             }}
           />
           <Area dataKey="band" stroke="var(--color-series-valtide)" strokeWidth={1} fill="var(--color-band-fill)" connectNulls={false} isAnimationActive={false} name={intervalName} />
-          <Line dataKey="fair" stroke="var(--color-series-valtide)" strokeWidth={1.75} dot={false} connectNulls={false} isAnimationActive={false} name="Valtide Fair Value" />
+          <Line dataKey="fair" stroke="var(--color-series-valtide)" strokeWidth={1.75} dot={false} connectNulls={false} isAnimationActive={false} name={VALUATION_CHART_LABELS.fair} />
           <Line
             dataKey="xperp"
             stroke="var(--color-series-reference)"
@@ -372,9 +382,9 @@ export function EscalationChart({ results, index, playhead = index, onSelect, re
             activeDot={false}
             connectNulls={false}
             isAnimationActive={false}
-            name={realPoints.some((point) => point.sourceIndex != null && isEvidenceStateV2(results[point.sourceIndex])) ? "X-Perp" : "Reference under test"}
+            name={realPoints.some((point) => point.sourceIndex != null && isEvidenceStateV2(results[point.sourceIndex])) ? VALUATION_CHART_LABELS.xperp : "Reference under test"}
           />
-          <Line dataKey="token" stroke="var(--color-series-token)" strokeWidth={1.25} strokeOpacity={0.72} dot={false} connectNulls={false} isAnimationActive={false} name="Observed xStock" />
+          <Line dataKey="token" stroke="var(--color-series-token)" strokeWidth={1.25} strokeOpacity={0.72} dot={false} connectNulls={false} isAnimationActive={false} name={VALUATION_CHART_LABELS.token} />
           <ReferenceLine x={cursorTimestamp} stroke="var(--color-accent)" strokeOpacity={0.65} strokeDasharray="2 3" />
         </ComposedChart>
       </ResponsiveContainer>

@@ -1,5 +1,6 @@
 import type { OnchainControlPlane, RuntimeStatus, ValuationResult } from "../api/types";
-import { ageLabel, dateTimeUTC, modelDisplayName, sourceLabel, timeUTC } from "../lib/format";
+import { ageLabel, dateTimeUTC, modelDisplayName, money, sourceLabel, timeUTC } from "../lib/format";
+import { isEvidenceStateV2 } from "../lib/semantics";
 
 const EVIDENCE_STATE_V2 = "p1a_xstock_band_with_xperp_review_corroboration_v2";
 
@@ -19,6 +20,8 @@ export function ObservationAudit({ result, context, runtime, controlPlane }: {
       : runtime.last_tick_status === "success" ? "Ready" : "Starting";
   const titleTime = context === "Demo" ? timeUTC(observed) : dateTimeUTC(observed);
   const olderRule = !!result?.evidence_semantics && result.evidence_semantics !== EVIDENCE_STATE_V2;
+  const xperpSource = result && (isEvidenceStateV2(result) ? result.xperp_index_source : result.xperp_index_source ?? result.reference_under_test_source);
+  const xperpObservedAt = result && (isEvidenceStateV2(result) ? result.xperp_index_ts : result.xperp_index_ts ?? result.reference_under_test_ts);
 
   return (
     <details className="rounded-[10px] text-xs" style={{ background: "var(--color-panel)", border: "1px solid var(--color-line-subtle)" }}>
@@ -28,12 +31,14 @@ export function ObservationAudit({ result, context, runtime, controlPlane }: {
           <Field label="Observation Time" value={dateTimeUTC(observed)} />
           <Field label="xStock Source" value={sourceLabel(result?.token_source)} />
           <Field label="xStock Observed" value={dateTimeUTC(result?.token_observed_at)} />
-          <Field label="X-Perp Source" value={sourceLabel(result?.xperp_index_source ?? result?.reference_under_test_source)} />
-          <Field label="X-Perp Observed" value={dateTimeUTC(result?.xperp_index_ts ?? result?.reference_under_test_ts)} />
+          <Field label="X-Perp Source" value={sourceLabel(xperpSource)} />
+          <Field label="X-Perp Observed" value={dateTimeUTC(xperpObservedAt)} />
         </dl>
         <dl className="space-y-2">
           <Field label="X-Perp Age" value={ageLabel(result?.reference_under_test_age_seconds)} />
-          <Field label="Underlying Price Age" value={ageLabel(result?.reference_age_seconds)} />
+          <Field label="Underlying Anchor" value={result ? money(result.last_trusted_reference) : null} />
+          <Field label="Underlying Source" value={result?.source_provenance?.underlying_source ?? null} />
+          <Field label="Anchor Age" value={ageLabel(result?.reference_age_seconds)} />
           {operational && <Field label="Observation Age" value={ageLabel(recency)} />}
           <Field label="Model" value={result ? modelDisplayName(result.model_version) : null} />
           {olderRule && <Field label="Classification Version" value="Earlier Rule" />}

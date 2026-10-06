@@ -25,7 +25,7 @@ import { EVIDENCE } from "./lib/evidence";
 import { ageLabel, compactUsd, money, pct, reasonLabel, sourceLabel } from "./lib/format";
 import { deriveOnchainSync } from "./lib/onchain";
 import { clampPosition, mergeObservations, rebasePosition } from "./lib/playback";
-import { evidenceCopy, modelDistanceLabel } from "./lib/semantics";
+import { evidenceCopy, isEvidenceStateV2, modelDistanceLabel } from "./lib/semantics";
 import { HistoricalReplay } from "./views/HistoricalReplay";
 import { ObservationRecord } from "./views/ObservationRecord";
 import { ReferenceComparison } from "./views/ReferenceComparison";
@@ -305,14 +305,16 @@ function DecisionSummary({ current, action }: { current: ValuationResult; action
 }
 
 function MetricGrid({ current, isDemo, observationCount }: { current: ValuationResult; isDemo: boolean; observationCount: number }) {
+  const xperpPrice = isEvidenceStateV2(current) ? current.xperp_index_price : current.xperp_index_price ?? current.reference_under_test;
+  const xperpSource = isEvidenceStateV2(current) ? current.xperp_index_source : current.xperp_index_source ?? current.reference_under_test_source;
   return (
     <section aria-label={`${observationCount} observations in the selected window; classification count, not performance`} className="grid grid-cols-2 overflow-hidden rounded-[10px] md:grid-cols-3 xl:grid-cols-6" style={{ background: "var(--color-panel)", border: "1px solid var(--color-line-subtle)" }}>
       <Metric label="Observed xStock" value={money(current.token_price)} sub={current.token_source ? sourceLabel(current.token_source) : isDemo ? "Demo Scenario" : "Source unavailable"} />
       <Metric label="Valtide Fair Value" value={money(current.valtide_fair_value)} sub={`${money(current.fair_value_lower)}–${money(current.fair_value_upper)} · ${Math.round(current.interval_coverage_target * 100)}% Valuation Range`} />
-      <Metric label="X-Perp" value={money(current.xperp_index_price ?? current.reference_under_test)} sub={sourceLabel(current.xperp_index_source ?? current.reference_under_test_source)} />
+      <Metric label="X-Perp" value={money(xperpPrice)} sub={sourceLabel(xperpSource)} />
       <Metric label="xStock Vs Model" value={pct(current.xstock_vs_p1ac_deviation_pct ?? current.residual_premium_discount_pct)} sub={current.evidence_state} accent={EVIDENCE[current.evidence_state].fg} />
       <Metric label="Model Distance" value={modelDistanceLabel(current.challenger_detector?.score_name, current.challenger_detector?.score)} sub="xStock ↔ Valtide Model" />
-      <Metric label="Last Trusted Underlying" value={money(current.last_trusted_reference)} sub={ageLabel(current.reference_age_seconds) === "—" ? "—" : `Updated ${ageLabel(current.reference_age_seconds)} Ago`} />
+      <Metric label="Underlying Anchor" value={money(current.last_trusted_reference)} sub={ageLabel(current.reference_age_seconds) === "—" ? "—" : `Updated ${ageLabel(current.reference_age_seconds)} Ago`} />
     </section>
   );
 }
