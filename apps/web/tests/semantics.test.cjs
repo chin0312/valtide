@@ -332,6 +332,9 @@ test("Validation Console exposes the four catalog identities without implying re
   const html = appWith({assetList:catalog});
   assert.match(html,/aria-haspopup="listbox"/);
   assert.match(html,/aria-label="Search assets"/);
+  assert.match(html,/asset-picker__chevron/);
+  assert.match(html,/viewBox="0 0 16 16"/);
+  assert.doesNotMatch(html,/⌄/);
   for (const asset of ["NVDAx","SPYx","QQQx","AAPLx"]) {
     assert.match(html,new RegExp(`>${asset}<`));
   }

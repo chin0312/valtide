@@ -96,7 +96,12 @@ export function AssetPicker({ assets, selectedAsset, onChange }: {
       aria-controls="asset-picker-listbox"
       onClick={() => open ? close() : setOpen(true)}
     >
-      <span>{selectedAsset}</span><span className="asset-picker__chevron" aria-hidden="true">⌄</span>
+      <span>{selectedAsset}</span>
+      <span className="asset-picker__chevron" aria-hidden="true">
+        <svg viewBox="0 0 16 16" focusable="false">
+          <path d="m4 6 4 4 4-4" />
+        </svg>
+      </span>
     </button>
     <div className="asset-picker__popover" hidden={!open}>
       <input
