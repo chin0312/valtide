@@ -44,7 +44,7 @@ export function MethodologyPage() {
             <span>METHOD STATUS</span>
             <dl>
               <div><dt>Operational validation</dt><dd>NVDAx · SPYx · AAPLx</dd></div>
-              <div><dt>Onchain binding</dt><dd>NVDAx only</dd></div>
+              <div><dt>Onchain binding</dt><dd>NVDAx · SPYx · AAPLx</dd></div>
               <div><dt>Challenger</dt><dd>{MODEL_EVIDENCE_SUMMARY.model}</dd></div>
               <div><dt>Interval target</dt><dd>{(MODEL_EVIDENCE_SUMMARY.coverageTarget * 100).toFixed(0)}%</dd></div>
               <div><dt>Network</dt><dd>X Layer testnet</dd></div>

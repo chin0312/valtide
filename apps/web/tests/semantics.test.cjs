@@ -143,6 +143,49 @@ test("legacy NVDAx responses are normalized only at the explicit migration bound
   } finally { global.fetch = original; }
 });
 
+test("explicit X Layer binding metadata enables all production assets and missing metadata fails closed", async () => {
+  const original = global.fetch;
+  const assets = ["NVDAx", "SPYx", "AAPLx"].map(asset => ({
+    asset,token_source:"okx_onchainos",underlying_source:"alpaca",
+    reference_profile:"unified_xstock_p1ac_xperp_evidence_v1",model_available:true,
+    api_exposed:true,onchain_binding_configured:true,
+  }));
+  try {
+    global.fetch = async () => new Response(JSON.stringify(assets));
+    const normalized = await client.fetchAssets();
+    assert.deepEqual(normalized.map(item => item.asset), ["NVDAx", "SPYx", "AAPLx"]);
+    assert.ok(normalized.every(item => item.onchain_binding_configured));
+
+    global.fetch = async () => new Response(JSON.stringify(assets.map(({onchain_binding_configured, ...item}) => item)));
+    const withoutBindingMetadata = await client.fetchAssets();
+    assert.deepEqual(withoutBindingMetadata.map(item => item.onchain_binding_configured), [false, false, false]);
+  } finally { global.fetch = original; }
+});
+
+test("onchain and enforcement requests are scoped to each explicitly bound asset", async () => {
+  const original = global.fetch;
+  const requested = [];
+  try {
+    global.fetch = async url => {
+      const path = new URL(String(url)).pathname;
+      requested.push(path);
+      const asset = path.match(/\/api\/onchain\/(NVDAx|SPYx|AAPLx)(?:\/enforcement)?$/)?.[1];
+      return new Response(JSON.stringify({asset}));
+    };
+    for (const asset of ["NVDAx", "SPYx", "AAPLx"]) {
+      assert.equal((await client.fetchOnchain(asset)).asset, asset);
+      assert.equal((await client.fetchOnchainEnforcement(asset)).asset, asset);
+      assert.deepEqual(client.assetQueryKeys.onchain(asset), ["onchain", asset]);
+      assert.deepEqual(client.assetQueryKeys.enforcement(asset), ["onchain", asset, "enforcement"]);
+    }
+    assert.deepEqual(requested, [
+      "/api/onchain/NVDAx", "/api/onchain/NVDAx/enforcement",
+      "/api/onchain/SPYx", "/api/onchain/SPYx/enforcement",
+      "/api/onchain/AAPLx", "/api/onchain/AAPLx/enforcement",
+    ]);
+  } finally { global.fetch = original; }
+});
+
 test("Operational windows use timestamps, exclude the boundary and preserve gaps", () => {
   const latest = Date.parse("2026-09-25T12:00:00Z");
   const row = hours => ({...fixture[0], timestamp:new Date(latest-hours*3600000).toISOString()});
@@ -297,6 +340,21 @@ test("Documentation adapts by role and keeps evidence, policy and scope separate
   assert.match(fs.readFileSync(path.join(__dirname, "../src/components/DocsPage.tsx"), "utf8"), /cta: "Read the methodology", href: "\/methodology"/);
 });
 
+test("Current public X Layer scope names all three bound assets without implying backend publication is browser-driven", () => {
+  const landing = render(LandingPage);
+  const docs = render(DocsPage);
+  const methodology = render(MethodologyPage);
+  const docsSource = fs.readFileSync(path.join(__dirname,"../src/components/DocsPage.tsx"),"utf8");
+  assert.match(landing,/For NVDAx, SPYx, and AAPLx, the machine interface can publish authorized attestations to the deployed X Layer testnet control plane/);
+  assert.match(docsSource,/shared ValidationRegistry and RiskGuard are deployed on X Layer testnet with asset-specific bindings for NVDAx, SPYx, and AAPLx/);
+  assert.match(docs,/NVDAx · SPYx · AAPLx · X Layer testnet/);
+  for (const html of [landing, docs, methodology]) {
+    assert.match(html,/NVDAx · SPYx · AAPLx/);
+    assert.doesNotMatch(html,/NVDAx only|Only NVDAx has an X Layer binding/i);
+  }
+  assert.match(landing,/browser is read-only:[\s\S]*?sign, or submit transactions/);
+});
+
 test("Methodology is a first-class, source-grounded page with one canonical method", () => {
   const html = render(MethodologyPage);
   for (const value of [
@@ -360,8 +418,34 @@ test("Demo uses canonical NVDAx data, hides selection, and preserves each operat
     assert.match(html, /Demo Backup · 6 Synthetic Steps/);
     assert.match(html, /Demo Policy/);
     assert.match(html, /Policy Proposal/);
+    assert.equal((html.match(/Advanced: Policy Proposal/g) ?? []).length,1);
     assert.doesNotMatch(html, /Evidence State v2|X Layer Not Configured/);
     assert.doesNotMatch(html, /Research prototype|No transaction capability in this prototype|Demo fixture|backend|fixture/i);
+  } finally {
+    if (originalWindow === undefined) delete global.window;
+    else global.window = originalWindow;
+  }
+});
+
+test("Advanced Policy Proposal is one Demo-only full-width row after the primary grid", () => {
+  const appSource = fs.readFileSync(path.join(__dirname,"../src/App.tsx"),"utf8");
+  assert.equal((appSource.match(/Advanced: Policy Proposal/g) ?? []).length,1);
+  assert.match(appSource,/<div className="grid items-start gap-4 xl:grid-cols-\[minmax\(0,1\.3fr\)_minmax\(0,1fr\)\]">[\s\S]*?<ReferenceComparison r=\{current\} \/>[\s\S]*?<PolicyCard[\s\S]*?<\/div>\s*<\/div>\s*\{context === "Demo" && <details[\s\S]*?Advanced: Policy Proposal[\s\S]*?<PolicyFoundry \/>[\s\S]*?<\/details>\}\s*<div className="grid gap-4 md:grid-cols-2">/);
+  assert.doesNotMatch(appSource,/asset\s*===\s*["'](?:NVDAx|SPYx|AAPLx)["']/);
+  assert.match(appSource,/assetQueryKeys\.onchain\(contextAsset\), queryFn: \(\) => fetchOnchain\(contextAsset\)[\s\S]*?enabled: backendUp && !!selectedAssetInfo\?\.onchain_binding_configured/);
+  assert.match(appSource,/assetQueryKeys\.enforcement\(contextAsset\), queryFn: \(\) => fetchOnchainEnforcement\(contextAsset\)[\s\S]*?enabled: backendUp && !!selectedAssetInfo\?\.onchain_binding_configured/);
+
+  const originalWindow = global.window;
+  try {
+    global.window = {location:{search:"?view=console&context=operational",pathname:"/"}};
+    const operational = appWith({result:fixture[0]});
+    assert.doesNotMatch(operational,/Advanced: Policy Proposal/);
+    global.window = {location:{search:"?view=console&context=historical",pathname:"/"}};
+    const historical = appWith({result:fixture[0]});
+    assert.doesNotMatch(historical,/Advanced: Policy Proposal/);
+    global.window = {location:{search:"?view=console&context=demo",pathname:"/"}};
+    const demo = appWith({});
+    assert.equal((demo.match(/Advanced: Policy Proposal/g) ?? []).length,1);
   } finally {
     if (originalWindow === undefined) delete global.window;
     else global.window = originalWindow;
@@ -790,17 +874,32 @@ test("Policy Action exposes its core rows without a disclosure and keeps missing
   assert.equal(render(RegistryPanel,{bindingConfigured:false}),"");
 });
 
-test("Bound NVDA keeps its read-only X Layer connection and registry panel", () => {
+test("RegistryPanel is asset-agnostic across the three API-bound production assets", () => {
   const policy = {on_supported:"ALLOW",on_inconclusive:"REQUIRE_REVIEW",on_challenged:"RESTRICT_NEW_RISK",on_stale:"REQUIRE_REVIEW",max_age:900};
-  const chain = {policy,policy_action:"ALLOW",evidence_state:"SUPPORTED",exists:true,fresh:true,network:"X Layer Testnet",chain_id:1952,attestation:null,publication_compatible:false};
-  const html = appWith({result:consoleV2Fixture[0],profile:consoleV2Fixture[0].reference_profile,chain});
-  assert.match(html,/X Layer Connected/);
-  assert.match(html,/X Layer Testnet/);
-  assert.match(html,/ValidationRegistry/);
-  assert.match(html,/RiskGuard/);
-  assert.match(html,/DemoVault/);
-  assert.match(html,/Read Only/);
-  assert.doesNotMatch(html,/Not Declared · Read Only/);
+  const vaults = {
+    NVDAx:"0x1111111111111111111111111111111111111111",
+    SPYx:"0x2222222222222222222222222222222222222222",
+    AAPLx:"0x3333333333333333333333333333333333333333",
+  };
+  for (const [asset,demo_vault] of Object.entries(vaults)) {
+    const controlPlane = {
+      asset,policy,policy_action:"ALLOW",evidence_state:"SUPPORTED",exists:true,fresh:true,
+      network:"X Layer Testnet",chain_id:1952,attestation:null,publication_compatible:true,
+      configured:true,deployed:true,registry:`registry-${asset}`,risk_guard:`guard-${asset}`,
+      demo_vault,asset_id:`id-${asset}`,reference_id:`reference-${asset}`,model_version:"0.3.0",registry_fresh:true,
+    };
+    const runtime = {asset,auto_publish_enabled:true,last_publish_status:"published",last_publish_error:null};
+    const enforcement = {asset,exists:true,fresh:true,expected_revert:false,reverted:false,returned_action_code:0,passed:true};
+    const html = render(RegistryPanel,{controlPlane,runtime,enforcement,bindingConfigured:true});
+    for (const label of ["X Layer Testnet","ValidationRegistry","RiskGuard","DemoVault","Automatic Publishing","Publication Compatibility","Delivery Status","Enabled","Compatible","Published"]) assert.ok(html.includes(label),`${asset} panel missing ${label}`);
+    const ownVault = `${demo_vault.slice(0,8)}…${demo_vault.slice(-6)}`;
+    assert.ok(html.includes(ownVault),`${asset} panel should show its API-provided DemoVault`);
+    for (const [otherAsset,otherVault] of Object.entries(vaults)) {
+      if (otherAsset === asset) continue;
+      assert.ok(!html.includes(`${otherVault.slice(0,8)}…${otherVault.slice(-6)}`),`${asset} panel must not show ${otherAsset}'s DemoVault`);
+    }
+    assert.doesNotMatch(html,/Read Only/);
+  }
 });
 
 test("Observation Details humanizes current timestamps and separates operational health from history", () => {

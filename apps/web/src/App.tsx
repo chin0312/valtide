@@ -219,12 +219,13 @@ function ValidationConsole() {
               source={context === "Demo" ? "Demo policy only; it is not a deployed policy or action" : context === "Historical" || reviewing ? "Selected evidence under today's policy; not a historical onchain decision" : "Curator mapping for this evidence; current RiskGuard action is shown separately"}
               enforced={isOperational && !reviewing ? controlPlane : undefined}
             />
-            {context === "Demo" && <details className="rounded-[10px]" style={{ background: "var(--color-panel)", border: "1px solid var(--color-line-subtle)" }}>
-              <summary className="cursor-pointer px-5 py-3 text-sm font-medium text-ink">Advanced: Policy Proposal</summary>
-              <div className="border-t p-3" style={{ borderColor: "var(--color-line-subtle)" }}><PolicyFoundry /></div>
-            </details>}
           </div>
         </div>
+
+        {context === "Demo" && <details className="rounded-[10px]" style={{ background: "var(--color-panel)", border: "1px solid var(--color-line-subtle)" }}>
+          <summary className="cursor-pointer px-5 py-3 text-sm font-medium text-ink">Advanced: Policy Proposal</summary>
+          <div className="border-t p-3" style={{ borderColor: "var(--color-line-subtle)" }}><PolicyFoundry /></div>
+        </details>}
 
         <div className="grid gap-4 md:grid-cols-2">
           <EvidenceCard result={current} />

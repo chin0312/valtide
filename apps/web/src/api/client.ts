@@ -114,8 +114,8 @@ function normalizeAssetInfo(value: unknown): AssetInfo {
     latest_observation_timestamp: item.latest_observation_timestamp ?? null,
     latest_observation_age_seconds: item.latest_observation_age_seconds ?? null,
     latest_observation_freshness: item.latest_observation_freshness ?? "unavailable",
-    // Only the legacy NVDAx deployment is known to expose these routes without
-    // readiness metadata. Missing metadata never enables another asset.
+    // Preserve the pre-registry NVDAx migration seam only. Explicit metadata
+    // enables any bound asset; missing metadata fails closed for SPYx/AAPLx.
     onchain_binding_configured: item.onchain_binding_configured ?? legacyNvda,
     readiness_error_codes: Array.isArray(item.readiness_error_codes)
       ? item.readiness_error_codes

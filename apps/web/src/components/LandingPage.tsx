@@ -166,14 +166,14 @@ export function LandingPage() {
             <article><span>CURATOR / PROTOCOL</span><h3>Policy mapping</h3><div><b>ALLOW</b><b>MONITOR</b><b>REQUIRE_REVIEW</b><b>RESTRICT_NEW_RISK</b></div></article>
             <article><span>CONSUMER</span><h3>Enforcement</h3><p>The consuming application defines what the returned action does.</p></article>
           </div>
-          <p className="ownership-note">The browser is read-only: it observes and explains. It does not calculate Evidence State, edit policy, hold the publisher signer, or publish attestations.</p>
+          <p className="ownership-note">The browser is read-only: it observes and explains. It does not calculate Evidence State, edit policy, hold the publisher signer, sign, or submit transactions.</p>
         </section>
 
         <section className="story-section story-section--trail">
           <div className="section-index"><span>05</span><span>AUDITABLE DELIVERY</span></div>
           <div className="story-heading story-heading--split">
             <h2>Every conclusion leaves a trail.</h2>
-            <p>The human interface explains the evidence. For NVDAx, the machine interface can publish an authorized attestation to the deployed X Layer testnet control plane; consuming applications remain responsible for enforcement.</p>
+            <p>The human interface explains the evidence. For NVDAx, SPYx, and AAPLx, the machine interface can publish authorized attestations to the deployed X Layer testnet control plane; consuming applications remain responsible for enforcement.</p>
           </div>
           <div className="trail-flow" aria-label="Attestation delivery path">
             {deliverySteps.map((step) => <div key={step.number}><span>{step.number}</span><strong>{step.title}</strong><small>{step.body}</small></div>)}
@@ -183,7 +183,7 @@ export function LandingPage() {
           <div className="prototype-scope">
             <div>
               <p className="marketing-kicker">Current prototype scope</p>
-              <dl><div><dt>Operational validation</dt><dd>NVDAx · SPYx · AAPLx</dd></div><div><dt>Validation target</dt><dd>Observed xStock price, with P1a-C and exact-time X-Perp evidence</dd></div><div><dt>Onchain binding</dt><dd>NVDAx only · X Layer testnet · Chain ID 1952</dd></div><div><dt>Research-only asset</dt><dd>QQQx · not exposed through production HTTP</dd></div><div><dt>Status</dt><dd>Research / hackathon prototype</dd></div></dl>
+              <dl><div><dt>Operational validation</dt><dd>NVDAx · SPYx · AAPLx</dd></div><div><dt>Validation target</dt><dd>Observed xStock price, with P1a-C and exact-time X-Perp evidence</dd></div><div><dt>Onchain binding</dt><dd>NVDAx · SPYx · AAPLx · X Layer testnet · Chain ID 1952</dd></div><div><dt>Research-only asset</dt><dd>QQQx · not exposed through production HTTP</dd></div><div><dt>Status</dt><dd>Research / hackathon prototype</dd></div></dl>
             </div>
             <div>
               <p className="marketing-kicker">Deliberate boundaries</p>
