@@ -1,7 +1,7 @@
 import type { ReactNode } from "react";
 import type { OnchainControlPlane, OnchainEnforcement, RuntimeStatus } from "../api/types";
 import type { OnchainSyncStatus } from "../lib/onchain";
-import { deliveryStatusLabel, pipelineStatusLabel, unixDateTimeUTC } from "../lib/format";
+import { dateTimeUTC, deliveryStatusLabel, pipelineStatusLabel, unixDateTimeUTC } from "../lib/format";
 import { Panel } from "./ui";
 
 interface RegistryPanelProps {
@@ -18,9 +18,7 @@ interface RegistryPanelProps {
 
 export function RegistryPanel({ controlPlane, enforcement, runtime, sync, mode = "operational", bindingConfigured = true, isLoading, isError, errorDetail }: RegistryPanelProps) {
   if (!bindingConfigured) {
-    return <Panel title="X Layer" icon="chain" subtitle="Optional protocol deployment" right={<span className="rounded px-2 py-1 font-mono text-[10px] uppercase tracking-[0.05em]" style={{ color: "var(--color-muted)", background: "var(--color-panel-2)", border: "1px solid var(--color-line)" }}>Not Configured</span>}>
-      <p className="text-sm text-ink-dim">This asset is not bound to an X Layer deployment. Offchain market validation and historical replay remain available.</p>
-    </Panel>;
+    return null;
   }
   if (isLoading) return <UnavailableRegistryPanel status="Reading X Layer" detail="Fetching the deployed attestation and policy state…" runtime={runtime} />;
 
@@ -75,7 +73,6 @@ export function RegistryPanel({ controlPlane, enforcement, runtime, sync, mode =
         {runtime?.last_publish_error && <p className="border-t px-4 py-3 text-xs" style={{ borderColor: "var(--color-line)", color: "var(--color-inconclusive)" }}>Publication Error: {runtime.last_publish_error}</p>}
       </details>
       <PublicationDetails runtime={runtime} controlPlane={controlPlane} />
-      <p className="mt-3 text-[11px]" style={{ color: "var(--color-muted)" }}>This panel reports the current deployed control plane; it does not change the selected market evidence.</p>
     </Panel>
   );
 }
@@ -101,11 +98,11 @@ function PublicationDetails({ runtime, controlPlane }: { runtime?: RuntimeStatus
     <summary className="cursor-pointer px-3 py-2.5 text-xs text-ink-dim">Publication Status</summary>
     <dl className="grid gap-3 p-4 text-xs sm:grid-cols-2">
       <Detail label="Automatic Publishing" value={runtime ? runtime.auto_publish_enabled ? "Enabled" : "Disabled" : "Unavailable"} />
-      <Detail label="Publication Compatibility" value={controlPlane?.publication_compatible === true ? "Compatible" : controlPlane?.publication_compatibility_status ? deliveryStatusLabel(controlPlane.publication_compatibility_status) : "Not Declared · Read Only"} />
+      <Detail label="Publication Compatibility" value={controlPlane?.publication_compatible === true ? "Compatible" : "Read Only"} />
       <Detail label="Delivery Status" value={deliveryStatusLabel(runtime?.last_publish_status)} />
-      <Detail label="Last Attempt (UTC)" value={runtime?.last_publish_attempt_at ?? "—"} />
-      <Detail label="Attempted Observation" value={runtime?.last_publish_observation_ts ?? "—"} />
-      <Detail label="Last Published Observation" value={runtime?.last_published_observation_ts ?? "—"} />
+      <Detail label="Last Attempt (UTC)" value={dateTimeUTC(runtime?.last_publish_attempt_at)} />
+      <Detail label="Attempted Observation" value={dateTimeUTC(runtime?.last_publish_observation_ts)} />
+      <Detail label="Last Published Observation" value={dateTimeUTC(runtime?.last_published_observation_ts)} />
       <Detail label="Published At" value={unixDateTimeUTC(runtime?.last_published_at)} />
       <div className="sm:col-span-2"><dt className="text-muted">Transaction Hash</dt><dd className="technical-mono select-text break-all text-sm text-ink">{runtime?.last_publish_tx_hash ?? "—"}</dd></div>
       <div className="sm:col-span-2"><dt className="text-muted">Delivery Error</dt><dd className="break-words text-ink">{runtime?.last_publish_error ?? (runtime ? "None" : "Unavailable")}</dd></div>

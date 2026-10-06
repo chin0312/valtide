@@ -26,30 +26,30 @@ export interface EvidenceCopy {
 const V2_COPY: Record<EvidenceState, EvidenceCopy> = {
   SUPPORTED: {
     title: "Observed xStock Is Supported",
-    detail: "P1a-C places the observed xStock in the SUPPORT band. Required market sources are available and quality checks pass.",
+    detail: "Model disagreement is low and required market data passes quality checks.",
   },
   INCONCLUSIVE: {
     title: "Evidence Is Inconclusive",
-    detail: "The signal is in the WATCH band, evidence conflicts, or a required source or quality check prevents a directional conclusion.",
+    detail: "Model disagreement is elevated, evidence conflicts, or a required market check is unavailable.",
   },
   CHALLENGED: {
     title: "Observed xStock Is Challenged",
-    detail: "P1a-C shows REVIEW-level disagreement and exact-time X-Perp corroborates the challenger direction. This does not prove the observed xStock price is wrong.",
+    detail: "Model disagreement is high and X-Perp independently supports the model-side challenge. This does not prove the xStock price is wrong.",
   },
 };
 
 const LEGACY_XSTOCK_COPY: Record<EvidenceState, EvidenceCopy> = {
   SUPPORTED: {
     title: "Model-Based Challenger Evidence Supports the Observed xStock",
-    detail: "P1a-C assimilates this same xStock observation before comparison. This is model-based challenger evidence, not two fully independent observations; disagreement alone does not establish which price is correct.",
+    detail: "This earlier model-based result is shown as recorded and has not been reclassified.",
   },
   INCONCLUSIVE: {
     title: "Model-Based Challenger Evidence Needs Review",
-    detail: "P1a-C assimilates this same xStock observation before comparison. The model-based evidence is not strong or consistent enough for a confident conclusion.",
+    detail: "This earlier model-based result is shown as recorded and has not been reclassified.",
   },
   CHALLENGED: {
     title: "Model-Based Challenger Evidence Challenges the Observed xStock",
-    detail: "P1a-C assimilates this same xStock observation before comparison. This is not an independent-source test and does not prove which price is correct.",
+    detail: "This earlier model-based result is shown as recorded and has not been reclassified.",
   },
 };
 

@@ -1,7 +1,7 @@
 import type { EvidenceState, ValuationResult } from "../api/types";
 import { Panel } from "../components/ui";
 import { EVIDENCE } from "../lib/evidence";
-import { pct, sourceLabel, timeUTC } from "../lib/format";
+import { dateTimeUTC, modelDisplayName, pct, sessionLabel, sourceLabel, timeUTC } from "../lib/format";
 import { isXStockValidation, modelDistanceLabel, peakModelDistance } from "../lib/semantics";
 
 const STATES: EvidenceState[] = ["SUPPORTED", "INCONCLUSIVE", "CHALLENGED"];
@@ -60,10 +60,10 @@ export function ObservationRecord({ results, currentIndex, sourceLabelText }: { 
         <div className="grid grid-cols-2 gap-x-5 gap-y-3 border-t pt-4 lg:border-l lg:border-t-0 lg:pl-5 lg:pt-0" style={{ borderColor: "var(--color-line-subtle)" }}>
           <SourceFact label="xStock Source" value={current?.token_source ? sourceLabel(current.token_source) : current?.token_price != null ? "Demo Scenario" : "—"} />
           <SourceFact label="X-Perp Source" value={sourceLabel(current?.xperp_index_source ?? current?.reference_under_test_source)} />
-          <SourceFact label="Model" value={current ? `${current.model_id} ${current.model_version}` : "—"} />
-          <SourceFact label="Market State" value={current?.market_state?.toUpperCase() ?? "—"} />
-          <SourceFact label="xStock Vs P1a-C" value={pct(current?.xstock_vs_p1ac_deviation_pct ?? current?.residual_premium_discount_pct)} />
-          <SourceFact label="First Signal" value={events[0] ? `${timeUTC(events[0].timestamp)} · ${events[0].evidence_state}` : "—"} />
+          <SourceFact label="Model" value={current ? modelDisplayName(current.model_version) : "—"} />
+          <SourceFact label="Market State" value={current ? sessionLabel(current.market_state) : "—"} />
+          <SourceFact label="xStock Vs Model" value={pct(current?.xstock_vs_p1ac_deviation_pct ?? current?.residual_premium_discount_pct)} />
+          <SourceFact label="First Signal" value={events[0] ? `${dateTimeUTC(events[0].timestamp)} · ${events[0].evidence_state}` : "—"} />
         </div>
       </div>
     </Panel>

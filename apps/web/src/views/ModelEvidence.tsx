@@ -3,7 +3,7 @@ import type { EvidenceState } from "../api/types";
 import { assetQueryKeys, fetchHistoricalBacktest } from "../api/client";
 import { Panel } from "../components/ui";
 import { EVIDENCE } from "../lib/evidence";
-import { dateTimeUTC } from "../lib/format";
+import { dateTimeUTC, modelDisplayName } from "../lib/format";
 
 const STATES: EvidenceState[] = ["SUPPORTED", "INCONCLUSIVE", "CHALLENGED"];
 
@@ -36,7 +36,7 @@ export function ModelEvidence({ asset, profile }: { asset: string; profile: stri
           </div>
           <div className="mb-3 grid gap-x-4 gap-y-1 text-xs sm:grid-cols-2" style={{ color: "var(--color-ink-dim)" }}>
             <span>Historical window: <strong className="text-ink">{dateTimeUTC(data.window_start)} → {dateTimeUTC(data.window_end)}</strong></span>
-            <span>Model runtime: <strong className="text-ink">{data.model_id ?? "—"} {data.model_version ?? ""}</strong></span>
+            <span>Model: <strong className="text-ink">{modelDisplayName(data.model_version)}</strong></span>
           </div>
           <div className="flex h-3 overflow-hidden rounded-full" style={{ border: "1px solid var(--color-line)" }}>
             {STATES.map((s) => {

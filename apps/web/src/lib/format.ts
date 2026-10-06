@@ -33,6 +33,11 @@ export function dateTimeUTC(iso: string | null | undefined): string {
   return `${d.toISOString().slice(0, 16).replace("T", " ")} UTC`;
 }
 
+export function modelDisplayName(version: string | null | undefined): string {
+  if (!version) return "Valtide Model";
+  return `Valtide Model · ${version.startsWith("v") ? version : `v${version}`}`;
+}
+
 export function unixTimeUTC(seconds: number | null | undefined): string {
   if (seconds == null || Number.isNaN(seconds) || seconds <= 0) return DASH;
   return timeUTC(new Date(seconds * 1000).toISOString());
@@ -85,14 +90,14 @@ export function timeAxisUTC(timestampMs: number, multiDay: boolean): string {
 export function sessionLabel(state: string): string {
   switch (state) {
     case "regular":
-      return "Regular session";
+      return "Regular Session";
     case "premarket":
     case "afterhours":
-      return "Extended hours";
+      return "Extended Hours";
     case "overnight":
       return "Overnight";
     case "closed":
-      return "Market closed";
+      return "Market Closed";
     default:
       return state;
   }
@@ -131,19 +136,19 @@ const REASON_LABELS: Record<string, string> = {
   TOKEN_AND_CHALLENGER_AGREE: "Tokenized market and model agree",
   TOKEN_UNIT_SUSPECT: "Possible token/underlying unit mismatch",
   MODEL_UNCERTAINTY_HIGH: "Model uncertainty is high",
-  CALIBRATION_GLOBAL_FALLBACK: "Global fallback calibration",
-  P1A_XSTOCK_SUPPORT_BAND: "P1a-C / xStock Support Band",
-  P1A_XSTOCK_WATCH_BAND: "P1a-C / xStock Watch Band",
-  P1A_XSTOCK_REVIEW_BAND: "P1a-C / xStock Review Band",
+  CALIBRATION_GLOBAL_FALLBACK: "Global Calibration Applied",
+  P1A_XSTOCK_SUPPORT_BAND: "Low Model Disagreement",
+  P1A_XSTOCK_WATCH_BAND: "Moderate Model Disagreement",
+  P1A_XSTOCK_REVIEW_BAND: "High Model Disagreement",
   XPERP_CORROBORATES_XSTOCK: "X-Perp Supports xStock",
-  XPERP_CORROBORATES_P1A: "X-Perp Supports P1a-C",
+  XPERP_CORROBORATES_P1A: "X-Perp Supports Model Challenge",
   XPERP_EVIDENCE_AMBIGUOUS: "X-Perp Evidence Is Ambiguous",
   XPERP_EVIDENCE_UNAVAILABLE: "X-Perp Evidence Is Unavailable",
   XPERP_EVIDENCE_STALE: "X-Perp Evidence Is Stale",
   XPERP_EVIDENCE_WRONG_SOURCE: "X-Perp Source Is Not Verified",
-  P1A_XSTOCK_DETECTOR_UNAVAILABLE: "P1a-C / xStock Detector Is Unavailable",
-  P1A_XSTOCK_SUPPORT_NOT_PROMOTED: "P1a-C / xStock Support Is Not Promoted",
-  P1A_XSTOCK_CHALLENGE_NOT_PROMOTED: "P1a-C / xStock Challenge Is Not Promoted",
+  P1A_XSTOCK_DETECTOR_UNAVAILABLE: "Model Disagreement Signal Unavailable",
+  P1A_XSTOCK_SUPPORT_NOT_PROMOTED: "Support Signal Not Enabled",
+  P1A_XSTOCK_CHALLENGE_NOT_PROMOTED: "Challenge Signal Not Enabled",
 };
 
 export function reasonLabel(code: string): string {

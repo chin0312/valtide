@@ -8,7 +8,7 @@ export function ReferenceNumberLine({ r }: { r: ValuationResult }) {
   const candidates = [
     ...(xstockProduct ? [
       { label: "Observed xStock", price: r.token_price, color: "var(--color-series-token)", shape: "circle" },
-      { label: "X-Perp / index", price: r.xperp_index_price ?? r.reference_under_test, color: "var(--color-series-reference)", shape: "diamond" },
+      { label: "X-Perp", price: r.xperp_index_price ?? r.reference_under_test, color: "var(--color-series-reference)", shape: "diamond" },
     ] : [
       { label: "Reference under test", price: r.reference_under_test, color: "var(--color-series-reference)", shape: "diamond" },
     ]),
@@ -22,7 +22,7 @@ export function ReferenceNumberLine({ r }: { r: ValuationResult }) {
     <div>
       <div className="mb-5 flex flex-wrap items-baseline justify-between gap-2">
         <span className="tnum text-xl font-medium tracking-tight text-ink">{money(r.fair_value_lower)} – {money(r.fair_value_upper)}</span>
-        <span className="text-[11px]" style={{ color: "var(--color-series-valtide)" }}>{Math.round(r.interval_coverage_target * 100)}% Calibrated Interval</span>
+        <span className="text-[11px]" style={{ color: "var(--color-series-valtide)" }}>{Math.round(r.interval_coverage_target * 100)}% Valuation Range</span>
       </div>
 
       <div className="relative mx-2 h-[130px]" role="img" aria-label={`Fair value ${money(r.valtide_fair_value)}, interval ${money(r.fair_value_lower)} to ${money(r.fair_value_upper)}`}>

@@ -4,7 +4,7 @@ import { EscalationChart } from "../components/EscalationChart";
 import { EvidenceChip } from "../components/EvidenceChip";
 import { Panel } from "../components/ui";
 import { Icon } from "../components/Icon";
-import { coverageLabel, money, dateTimeUTC } from "../lib/format";
+import { money, dateTimeUTC } from "../lib/format";
 import { advancePosition, clampPosition } from "../lib/playback";
 import { isEvidenceStateV2 } from "../lib/semantics";
 
@@ -70,7 +70,7 @@ export function HistoricalReplay({
   const v2 = results.some(isEvidenceStateV2);
   const atEnd = position >= results.length - 1;
   const targets = [...new Set(results.map((result) => result.interval_coverage_target))];
-  const intervalLabel = targets.length === 1 ? coverageLabel(targets[0]) : "Calibrated interval";
+  const intervalLabel = targets.length === 1 ? `${Math.round(targets[0] * 100)}% Valuation Range` : "Valuation Range";
   const gaps = results.slice(1).filter((result, i) => Date.parse(result.timestamp) - Date.parse(results[i].timestamp) > 5 * 60_000).length;
 
   return (
@@ -95,7 +95,7 @@ export function HistoricalReplay({
           <LegendItem color="var(--color-series-valtide)" label="Valtide Fair Value" />
           <LegendItem color="var(--color-series-reference)" label={v2 ? "X-Perp" : "Reference Under Test"} dashed />
           <LegendItem color="var(--color-series-token)" label={v2 ? "Observed xStock" : "Token Market"} />
-          <span title="The translucent area around fair value"><i className="mr-1.5 inline-block h-2.5 w-4 rounded-sm" style={{ background: "var(--color-band-fill)", border: "1px solid var(--color-series-valtide)" }} />{intervalLabel === "Calibrated interval" ? "Calibrated Interval" : intervalLabel}</span>
+          <span title="The translucent area around fair value"><i className="mr-1.5 inline-block h-2.5 w-4 rounded-sm" style={{ background: "var(--color-band-fill)", border: "1px solid var(--color-series-valtide)" }} />{intervalLabel}</span>
           {gaps > 0 && <span tabIndex={0} title="No recorded observations in these intervals. Missing prices are not filled in." aria-label={`${gaps} data gaps: no recorded observations; missing prices are not filled in.`}>{gaps} data gaps</span>}
       </div>
 

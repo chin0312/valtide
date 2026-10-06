@@ -27,7 +27,7 @@ const { InstrumentPassport, passportStatusFor } = load("../src/components/Instru
 const { PolicyFoundry } = load("../src/components/PolicyFoundry.tsx");
 const { DEMO_PASSPORT_ADDRESS, MODEL_EVIDENCE_SUMMARY, POLICY_PROPOSAL } = load("../src/fixtures/prototypeData.ts");
 const { default: App, consoleContextFromSearch, effectiveContextAsset } = load("../src/App.tsx");
-const { deliveryStatusLabel, lastUpdatedLabel, pipelineStatusLabel } = load("../src/lib/format.ts");
+const { dateTimeUTC, deliveryStatusLabel, lastUpdatedLabel, modelDisplayName, pipelineStatusLabel, sessionLabel } = load("../src/lib/format.ts");
 const { modelDistanceLabel, peakModelDistance, evidenceCopy, EVIDENCE_SEMANTICS_V2 } = load("../src/lib/semantics.ts");
 const { buildChartData, chartDomain, clampViewport, lowerBoundTimestamp, minimumViewportWidth, panViewport, shouldRenderStateDots, sliceChartDataForViewport, upperBoundTimestamp, wheelGestureIntent, wheelZoomScale, zoomSensitivity, zoomViewport } = load("../src/components/EscalationChart.tsx");
 const h = React.createElement;
@@ -357,9 +357,9 @@ test("Demo uses canonical NVDAx data, hides selection, and preserves each operat
     assert.doesNotMatch(html, /asset-picker/);
     assert.match(html, /NVDAx Validation Timeline/);
     assert.match(html, /Demo Backup · 6 Synthetic Steps/);
-    assert.match(html, /Demo Evidence → Demo Policy/);
+    assert.match(html, /Demo Policy/);
     assert.match(html, /Policy Proposal/);
-    assert.match(html, /Evidence State v2/);
+    assert.doesNotMatch(html, /Evidence State v2|X Layer Not Configured/);
     assert.doesNotMatch(html, /Research prototype|No transaction capability in this prototype|Demo fixture|backend|fixture/i);
   } finally {
     if (originalWindow === undefined) delete global.window;
@@ -411,15 +411,19 @@ test("Peak Model Distance uses the largest compatible detector score and keeps t
   assert.match(html,/Peak Model Distance[\s\S]*?37\.2 bps/);
 });
 
-test("Console metrics and interval markers use observed xStock, P1a-C and X-Perp v2 fields", () => {
+test("Console metrics and interval markers use human-facing model labels and xStock/X-Perp v2 fields", () => {
   const v2 = consoleV2Fixture[4];
   const html = appWith({result:v2, profile:v2.reference_profile});
-  for (const label of ["Observed xStock", "Valtide Fair Value", "X-Perp", "xStock Vs P1a-C", "Model Distance", "Last Trusted Underlying"]) assert.match(html, new RegExp(label));
+  for (const label of ["Observed xStock", "Valtide Fair Value", "X-Perp", "xStock Vs Model", "Model Distance", "Last Trusted Underlying"]) assert.match(html, new RegExp(label));
   assert.match(html, /2\.9σ/);
-  assert.match(html, /xStock ↔ P1a-C/);
+  assert.match(html, /xStock ↔ Valtide Model/);
+  assert.match(html, /Model Move/);
+  assert.match(html, /Valtide Model · v0\.2\.0/);
+  assert.doesNotMatch(html, /P1a-C/);
   assert.doesNotMatch(html, /Reference under test|Technical diagnostic/);
   const numberLine = render(ReferenceNumberLine,{r:v2});
-  for (const marker of ["Observed xStock", "X-Perp / index", "Last Trusted Underlying"]) assert.match(numberLine,new RegExp(marker));
+  for (const marker of ["Observed xStock", "X-Perp", "Last Trusted Underlying", "90% Valuation Range"]) assert.match(numberLine,new RegExp(marker));
+  assert.doesNotMatch(numberLine,/X-Perp \/ index|Calibrated Interval/);
   assert.doesNotMatch(numberLine,/Constructed/);
   const chart = buildChartData([v2]);
   assert.equal(chart[0].token,v2.token_price);
@@ -429,12 +433,17 @@ test("Console metrics and interval markers use observed xStock, P1a-C and X-Perp
   assert.match(xstockInside,/Observed xStock is within the valuation range/);
   const xstockOutside = render(ReferenceComparison,{r:{...v2,token_price:102,xperp_index_price:100, fair_value_lower:99,fair_value_upper:101}});
   assert.match(xstockOutside,/Observed xStock is outside the valuation range/);
+  assert.match(xstockInside,/Range View/);
+  assert.equal((xstockInside.match(/Evidence State also considers model disagreement, data quality, and X-Perp confirmation\./g) ?? []).length,1);
+  assert.doesNotMatch(xstockInside,/P1a-C|SUPPORT|WATCH|REVIEW|not two fully independent observations/);
 });
 
 test("Current semantic copy is shared and old explicit rule generations stay recorded", () => {
   const current = evidenceCopy(consoleV2Fixture[0]);
   assert.equal(current.title,"Observed xStock Is Supported");
-  assert.match(current.detail,/SUPPORT band/);
+  assert.equal(current.detail,"Model disagreement is low and required market data passes quality checks.");
+  assert.equal(evidenceCopy(consoleV2Fixture[3]).detail,"Model disagreement is elevated, evidence conflicts, or a required market check is unavailable.");
+  assert.equal(evidenceCopy(consoleV2Fixture[4]).detail,"Model disagreement is high and X-Perp independently supports the model-side challenge. This does not prove the xStock price is wrong.");
   const oldRecord = {...consoleV2Fixture[0], evidence_state:"CHALLENGED", reason_codes:["OLD_RECORDED_REASON"], evidence_semantics:"p1a_xstock_challenger_xperp_second_market_v1"};
   const old = evidenceCopy(oldRecord);
   assert.match(old.title,/Recorded challenged evidence/);
@@ -529,7 +538,7 @@ test("Prior evidence is not paired with current enforcement", () => {
   const policy = {on_supported:"ALLOW",on_inconclusive:"REQUIRE_REVIEW",on_challenged:"RESTRICT_NEW_RISK",on_stale:"REQUIRE_REVIEW",max_age:900};
   const chain = {policy,policy_action:"RESTRICT_NEW_RISK",evidence_state:"CHALLENGED",exists:true,fresh:true,network:"Testnet",chain_id:1952,attestation:null};
   const html = appWith({result:fixture[1],rows:fixture.slice(0,2),chain});
-  assert.match(html,/Prior Operational Record → Current Policy/);
+  assert.match(html,/Current Policy Mapping/);
   assert.match(html,/Current deployed state — not historical chain state/);
   assert.doesNotMatch(html,/Current RiskGuard ·/);
 });
@@ -538,16 +547,17 @@ test("Current evidence mapping and stale RiskGuard enforcement remain separate",
   const policy = {on_supported:"ALLOW",on_inconclusive:"REQUIRE_REVIEW",on_challenged:"RESTRICT_NEW_RISK",on_stale:"REQUIRE_REVIEW",max_age:900};
   const chain = {policy,policy_action:"REQUIRE_REVIEW",evidence_state:"SUPPORTED",exists:true,fresh:false,network:"Testnet",chain_id:1952,attestation:{publishedAt:Math.floor(Date.now()/1000)-7200}};
   const html = appWith({result:fixture[0],chain});
-  assert.match(html,/Operational Current Evidence → Policy Action/);
+  assert.match(html,/Current Policy Mapping/);
   assert.match(html,/Reason/);
   assert.match(html,/Observed xStock Is Supported/);
-  assert.match(html,/RiskGuard data · Stale/);
-  assert.match(html,/Last updated 2h ago/);
-  assert.match(html,/Technical Details/);
+  assert.match(html,/RiskGuard Status/);
   assert.match(html,/Evidence State/);
-  assert.match(html,/Mapped Policy Action/);
-  assert.match(html,/RiskGuard State/);
-  assert.match(html,/Current RiskGuard Action/);
+  assert.match(html,/Policy Mapping/);
+  assert.match(html,/Enforced Action/);
+  const policyStart = html.indexOf(">Policy Action</h2>");
+  const policyEnd = html.indexOf("</section>", policyStart);
+  assert.ok(policyStart >= 0 && policyEnd > policyStart);
+  assert.doesNotMatch(html.slice(policyStart, policyEnd),/Technical Details/);
   assert.match(html,/ALLOW/);
   assert.match(html,/REQUIRE_REVIEW/);
   assert.doesNotMatch(html,/Raw policy value/);
@@ -567,7 +577,110 @@ test("Short Console labels and policy actions use consistent title case", () => 
     assert.match(html,/Policy Action/);
   }
   const html = appWith({result:fixture[0],chain});
-  for (const phrase of ["Technical Details","Publication Status","Valuation Range","Peak Model Distance","Observation Details","Source Provenance","Market State"]) assert.ok(html.includes(phrase), `missing ${phrase}`);
+  for (const phrase of ["Publication Status","Valuation Range","Range View","Peak Model Distance","Observation Details","Source Provenance","Market State"]) assert.ok(html.includes(phrase), `missing ${phrase}`);
+});
+
+test("Policy Action exposes its core rows without a disclosure and keeps missing policy non-alarming", () => {
+  const policy = {on_supported:"ALLOW",on_inconclusive:"REQUIRE_REVIEW",on_challenged:"RESTRICT_NEW_RISK",on_stale:"REQUIRE_REVIEW",max_age:900};
+  const chain = {policy,policy_action:"REQUIRE_REVIEW",evidence_state:"SUPPORTED",exists:true,fresh:true,network:"Testnet",chain_id:1952,attestation:null};
+  const bound = appWith({result:consoleV2Fixture[0],profile:consoleV2Fixture[0].reference_profile,chain});
+  for (const row of ["Evidence State", "Policy Mapping", "RiskGuard Status", "Enforced Action"]) assert.match(bound, new RegExp(row));
+  const policyStart = bound.indexOf(">Policy Action</h2>");
+  const policyEnd = bound.indexOf("</section>", policyStart);
+  assert.ok(policyStart >= 0 && policyEnd > policyStart);
+  assert.doesNotMatch(bound.slice(policyStart, policyEnd),/Technical Details/);
+
+  const noBindingAsset = {
+    asset:"NVDAx",token_source:"okx_onchainos",underlying_source:"alpaca",
+    reference_profile:consoleV2Fixture[0].reference_profile,registered:true,api_exposed:true,
+    model_available:true,quant_artifact_ready:true,historical_data_available:true,
+    live_data_configured:true,runtime_ready:true,operational_ready:true,
+    operational_scheduler_enabled:true,latest_observation_timestamp:consoleV2Fixture[0].timestamp,
+    latest_observation_age_seconds:0,latest_observation_freshness:"fresh",
+    onchain_binding_configured:false,readiness_error_codes:[],
+  };
+  const unbound = appWith({result:consoleV2Fixture[0],profile:consoleV2Fixture[0].reference_profile,assetList:[noBindingAsset]});
+  assert.match(unbound,/No Policy Connected/);
+  assert.match(unbound,/No curator policy is connected for this asset\./);
+  assert.doesNotMatch(unbound,/X Layer Connected|X Layer Unavailable|X Layer Not Configured|Optional Protocol Deployment|Not Configured|Registry Attestation/);
+  assert.equal(render(RegistryPanel,{bindingConfigured:false}),"");
+});
+
+test("Bound NVDA keeps its read-only X Layer connection and registry panel", () => {
+  const policy = {on_supported:"ALLOW",on_inconclusive:"REQUIRE_REVIEW",on_challenged:"RESTRICT_NEW_RISK",on_stale:"REQUIRE_REVIEW",max_age:900};
+  const chain = {policy,policy_action:"ALLOW",evidence_state:"SUPPORTED",exists:true,fresh:true,network:"X Layer Testnet",chain_id:1952,attestation:null,publication_compatible:false};
+  const html = appWith({result:consoleV2Fixture[0],profile:consoleV2Fixture[0].reference_profile,chain});
+  assert.match(html,/X Layer Connected/);
+  assert.match(html,/X Layer Testnet/);
+  assert.match(html,/ValidationRegistry/);
+  assert.match(html,/RiskGuard/);
+  assert.match(html,/DemoVault/);
+  assert.match(html,/Read Only/);
+  assert.doesNotMatch(html,/Not Declared · Read Only/);
+});
+
+test("Observation Details humanizes current timestamps and separates operational health from history", () => {
+  const result = {
+    ...consoleV2Fixture[0],
+    timestamp:"2026-10-06T17:20:00Z",
+    token_observed_at:"2026-10-06T17:20:00Z",
+    xperp_index_ts:"2026-10-06T17:20:00Z",
+    source_provenance:{token_source:"okx_onchainos",underlying_source:"alpaca",scenario:"weekend_divergence"},
+  };
+  const runtime = {scheduler_enabled:true,last_tick_status:"success",last_tick_attempt_at:"2026-10-06T17:20:05Z",last_result_timestamp:"2026-10-06T17:20:00Z",last_error:null};
+  const controlPlane = {fresh:true};
+  const operational = render(ObservationAudit,{result,context:"Operational",runtime,controlPlane});
+  assert.match(operational,/Observation Details · Operational · 2026-10-06 17:20 UTC/);
+  for (const label of ["Observation Time","xStock Source","xStock Observed","X-Perp Source","X-Perp Observed","X-Perp Age","Underlying Price Age","Observation Age","Model","Current RiskGuard Status","Feed Status","Latest Observation","Token Source","Underlying Source","Scenario"]) assert.match(operational,new RegExp(label));
+  assert.match(operational,/Valtide Model · v0\.2\.0/);
+  assert.match(operational,/2026-10-06 17:20 UTC/);
+  assert.match(operational,/weekend_divergence/);
+  assert.doesNotMatch(operational,/2026-10-06T17:20:00Z|P1a-C|Calibration|Evidence Rule|Last Update Attempt|Feed Error/);
+
+  const failedRuntime = {...runtime,last_tick_status:"failure",last_error:"feed timeout"};
+  const failed = render(ObservationAudit,{result,context:"Operational",runtime:failedRuntime});
+  assert.match(failed,/Last Update Attempt/);
+  assert.match(failed,/Feed Error/);
+  assert.match(failed,/feed timeout/);
+
+  const historical = render(ObservationAudit,{result,context:"Historical",runtime,controlPlane});
+  const demo = render(ObservationAudit,{result,context:"Demo",runtime,controlPlane});
+  assert.match(historical,/Observation Details · Historical · 2026-10-06 17:20 UTC/);
+  assert.match(demo,/Observation Details · Demo · 17:20 UTC/);
+  for (const view of [historical,demo]) assert.doesNotMatch(view,/Feed Status|Latest Observation|Current RiskGuard Status|Last Update Attempt|Feed Error/);
+
+  const oldV1 = render(ObservationAudit,{result:{...result,evidence_semantics:"p1a_xstock_challenger_xperp_second_market_v1"},context:"Historical"});
+  assert.match(oldV1,/Classification Version/);
+  assert.match(oldV1,/Earlier Rule/);
+  assert.doesNotMatch(oldV1,/p1a_xstock_challenger_xperp_second_market_v1|Evidence Rule|Calibration/);
+});
+
+test("Human model, session and reason labels preserve underlying identifiers", () => {
+  assert.equal(modelDisplayName("0.3.0"),"Valtide Model · v0.3.0");
+  assert.equal(modelDisplayName(null),"Valtide Model");
+  assert.equal(sessionLabel("regular"),"Regular Session");
+  assert.equal(sessionLabel("premarket"),"Extended Hours");
+  assert.equal(sessionLabel("afterhours"),"Extended Hours");
+  assert.equal(sessionLabel("overnight"),"Overnight");
+  assert.equal(sessionLabel("closed"),"Market Closed");
+  assert.equal(dateTimeUTC("2026-10-06T17:20:00Z"),"2026-10-06 17:20 UTC");
+
+  const cases = [
+    ["P1A_XSTOCK_SUPPORT_BAND","Low Model Disagreement"],
+    ["P1A_XSTOCK_WATCH_BAND","Moderate Model Disagreement"],
+    ["P1A_XSTOCK_REVIEW_BAND","High Model Disagreement"],
+    ["XPERP_CORROBORATES_XSTOCK","X-Perp Supports xStock"],
+    ["XPERP_CORROBORATES_P1A","X-Perp Supports Model Challenge"],
+    ["P1A_XSTOCK_DETECTOR_UNAVAILABLE","Model Disagreement Signal Unavailable"],
+    ["P1A_XSTOCK_SUPPORT_NOT_PROMOTED","Support Signal Not Enabled"],
+    ["P1A_XSTOCK_CHALLENGE_NOT_PROMOTED","Challenge Signal Not Enabled"],
+    ["CALIBRATION_GLOBAL_FALLBACK","Global Calibration Applied"],
+  ];
+  for (const [code,label] of cases) {
+    const html = render(ReasonCodes,{codes:[code],evidenceState:"INCONCLUSIVE"});
+    assert.match(html,new RegExp(`title="${code}"`));
+    assert.match(html,new RegExp(label));
+  }
 });
 
 test("RiskGuard recency uses its publication timestamp and omits unavailable values", () => {
@@ -585,32 +698,33 @@ test("Null reference, all reasons and unavailable policy remain truthful", () =>
   const html = appWith({result});
   assert.doesNotMatch(html,/NaN|challenge threshold not met|Example demo policy/);
   for (const code of result.reason_codes) assert.ok(html.includes(code));
-  assert.match(html,/UNAVAILABLE/);
-  assert.match(render(ReasonCodes,{codes:result.reason_codes,evidenceState:result.evidence_state}),/Global fallback calibration/);
+  assert.match(html,/No Policy Connected/);
+  assert.match(render(ReasonCodes,{codes:result.reason_codes,evidenceState:result.evidence_state}),/Global Calibration Applied/);
 });
 
-test("xStock comparison is labelled model-based evidence, not independent observations", () => {
+test("Valuation Range is concise and does not repeat model-dependence methodology", () => {
   const xstock = render(ReferenceComparison, {
     r: {...fixture[0], reference_profile:"xstock_vs_p1ac_challenger"},
   });
-  assert.match(xstock, /Model-based challenger evidence/i);
-  assert.match(xstock, /P1a-C assimilates the current xStock observation/);
-  assert.match(xstock, /not two fully independent observations/);
+  assert.match(xstock, /Observed xStock is within the valuation range/);
+  assert.match(xstock, /Evidence State also considers model disagreement, data quality, and X-Perp confirmation\./);
+  assert.doesNotMatch(xstock, /Model-based challenger evidence|P1a-C assimilates|not two fully independent observations|SUPPORT|WATCH|REVIEW/);
 
   const legacy = render(ReferenceComparison, {
     r: {...fixture[0], reference_profile:"legacy_xperp_vs_p1ac", validation_target:"reference_under_test", evidence_semantics:"legacy_reference_under_test_v1"},
   });
-  assert.match(legacy, /separate OKX X-Perp index/);
-  assert.doesNotMatch(legacy, /xStock observation/);
+  assert.match(legacy, /Reference is within the valuation range/);
+  assert.doesNotMatch(legacy, /Observed xStock/);
 });
 
-test("Decision summary explains xStock dependence while retaining the legacy profile", () => {
+test("Decision summary uses concise current language and preserves old recorded states", () => {
   const xstock = appWith({
-    result: {...fixture[0], reference_profile:"xstock_vs_p1ac_challenger"},
-    profile:"xstock_vs_p1ac_challenger",
+    result: {...consoleV2Fixture[0], reference_profile:"unified_xstock_p1ac_xperp_evidence_v1"},
+    profile:"unified_xstock_p1ac_xperp_evidence_v1",
   });
-  assert.match(xstock, /Model-Based Challenger Evidence Supports the Observed xStock/);
-  assert.match(xstock, /not two fully independent observations/);
+  assert.match(xstock, /Observed xStock Is Supported/);
+  assert.match(xstock, /Model disagreement is low and required market data passes quality checks\./);
+  assert.doesNotMatch(xstock, /P1a-C|SUPPORT band|not two fully independent observations/);
   assert.match(xstock, /Evidence Assessment/);
   assert.doesNotMatch(xstock, /Current finding · Operational/);
 
@@ -621,11 +735,13 @@ test("Decision summary explains xStock dependence while retaining the legacy pro
 test("Observation and delivery audit survives unavailable X Layer reads", () => {
   const runtime = {scheduler_enabled:true,last_tick_status:"failure",last_tick_attempt_at:"2026-09-25T10:01:00Z",last_error:"source missing",auto_publish_enabled:true,last_publish_status:"failed",last_publish_attempt_at:"2026-09-25T10:02:00Z",last_publish_observation_ts:"2026-09-25T09:55:00Z",last_published_observation_ts:"2026-09-25T09:50:00Z",last_published_at:1790325969,last_publish_tx_hash:"0xFULL_TRANSACTION_HASH",last_publish_error:"delivery failed"};
   const audit = render(ObservationAudit,{result:fixture[0],context:"Operational",runtime});
-  for (const label of ["5-Minute Operational Observation", "X-Perp Source Lag", "Trusted Anchor Age", "Source Provenance", "Model And Version", "Last Update Attempt"]) assert.ok(audit.includes(label));
+  for (const label of ["Observation Details · Operational · 2026-09-19 14:00 UTC", "X-Perp Age", "Underlying Price Age", "Source Provenance", "Model", "Last Update Attempt", "Feed Status", "Latest Observation"]) assert.ok(audit.includes(label));
   assert.match(audit,/source missing/);
+  assert.match(audit,/2026-09-25 10:01 UTC/);
+  assert.doesNotMatch(audit,/2026-09-19T14:00:00Z|Calibration|Evidence Rule|Operational Feed Error/);
   const chain = render(RegistryPanel,{isError:true,mode:"historical",runtime});
   assert.doesNotMatch(chain,/DEMO MAPPING/);
-  for (const value of [runtime.last_publish_attempt_at,runtime.last_published_observation_ts,runtime.last_publish_tx_hash,runtime.last_publish_error]) assert.ok(chain.includes(value));
+  for (const value of ["2026-09-25 10:02 UTC","2026-09-25 09:50 UTC",runtime.last_publish_tx_hash,runtime.last_publish_error,"Read Only"]) assert.ok(chain.includes(value));
 });
 
 test("Historical ranges use timestamps and Demo ranges never add observations", () => {
@@ -671,9 +787,9 @@ test("Machine publication statuses use the requested display casing", () => {
 });
 
 test("Historical observation audit is labelled as historical evidence", () => {
-  const audit = render(ObservationAudit, { result: fixture[0], context: "Historical" });
-  assert.match(audit, /Historical Observation/);
-  assert.doesNotMatch(audit, /5-Minute Operational Observation/);
+  const audit = render(ObservationAudit, { result: fixture[0], context: "Historical", runtime:{scheduler_enabled:true,last_tick_status:"success",last_result_timestamp:"2026-10-06T17:20:00Z"}, controlPlane:{fresh:true} });
+  assert.match(audit, /Observation Details · Historical · 2026-09-19 14:00 UTC/);
+  assert.doesNotMatch(audit, /Feed Status|Latest Operational Observation|Current RiskGuard Status|Last Update Attempt|Feed Error|2026-09-19T14:00:00Z/);
 });
 
 test("Chart viewport zooms around an anchor and pans within the full domain", () => {

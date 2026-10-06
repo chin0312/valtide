@@ -1,5 +1,7 @@
 import type { OnchainControlPlane, RuntimeStatus, ValuationResult } from "../api/types";
-import { ageLabel, sourceLabel } from "../lib/format";
+import { ageLabel, dateTimeUTC, modelDisplayName, sourceLabel, timeUTC } from "../lib/format";
+
+const EVIDENCE_STATE_V2 = "p1a_xstock_band_with_xperp_review_corroboration_v2";
 
 // Ages are backend measurements at the selected observation, not risk buckets.
 export function ObservationAudit({ result, context, runtime, controlPlane }: {
@@ -10,51 +12,56 @@ export function ObservationAudit({ result, context, runtime, controlPlane }: {
 }) {
   const observed = result?.timestamp;
   const recency = observed ? Math.max(0, Math.floor((Date.now() - Date.parse(observed)) / 1000)) : null;
-  const evidenceRule = result?.evidence_semantics === "p1a_xstock_band_with_xperp_review_corroboration_v2"
-    ? "Evidence State v2"
-    : result?.evidence_semantics === "p1a_xstock_challenger_xperp_second_market_v1"
-      ? "Earlier tri-source rule; recorded state and reasons are preserved"
-      : result?.evidence_semantics ?? null;
-  const feedStatus = runtime?.scheduler_enabled ? "Ready" : "Unavailable";
-  const latestUpdate = runtime?.last_tick_status === "success" ? "Ready"
-    : runtime?.last_tick_status === "failure" ? "Check Failed"
-    : runtime?.last_tick_status ? runtime.last_tick_status.replace(/[_-]+/g, " ").replace(/(^|\s)\w/g, (letter) => letter.toUpperCase())
-    : "Unavailable";
+  const operational = context === "Operational";
+  const runtimeHasError = operational && !!runtime && (runtime.last_tick_status === "failure" || !!runtime.last_error);
+  const feedStatus = !runtime?.scheduler_enabled ? "Unavailable"
+    : runtimeHasError ? "Check Required"
+      : runtime.last_tick_status === "success" ? "Ready" : "Starting";
+  const titleTime = context === "Demo" ? timeUTC(observed) : dateTimeUTC(observed);
+  const olderRule = !!result?.evidence_semantics && result.evidence_semantics !== EVIDENCE_STATE_V2;
+
   return (
     <details className="rounded-[10px] text-xs" style={{ background: "var(--color-panel)", border: "1px solid var(--color-line-subtle)" }}>
-      <summary className="cursor-pointer px-5 py-3 text-ink-dim">Observation Details · {context === "Demo" ? "Scenario Observation" : context === "Historical" ? "Historical Observation" : "5-Minute Operational Observation"} · {observed ?? "Unavailable"}</summary>
+      <summary className="cursor-pointer px-5 py-3 text-ink-dim">Observation Details · {context} · {titleTime}</summary>
       <div className="grid gap-5 border-t p-5 md:grid-cols-3" style={{ borderColor: "var(--color-line-subtle)" }}>
         <dl className="space-y-2">
-          <Field label="Observation Time (UTC)" value={observed} />
+          <Field label="Observation Time" value={dateTimeUTC(observed)} />
           <Field label="xStock Source" value={sourceLabel(result?.token_source)} />
-          <Field label="xStock Observed (UTC)" value={result?.token_observed_at} />
+          <Field label="xStock Observed" value={dateTimeUTC(result?.token_observed_at)} />
           <Field label="X-Perp Source" value={sourceLabel(result?.xperp_index_source ?? result?.reference_under_test_source)} />
-          <Field label="X-Perp Observed (UTC)" value={result?.xperp_index_ts ?? result?.reference_under_test_ts} />
+          <Field label="X-Perp Observed" value={dateTimeUTC(result?.xperp_index_ts ?? result?.reference_under_test_ts)} />
         </dl>
         <dl className="space-y-2">
-          <Field label="X-Perp Source Lag" value={ageLabel(result?.reference_under_test_age_seconds)} />
-          <Field label="Trusted Anchor Age" value={ageLabel(result?.reference_age_seconds)} />
-          {context === "Operational" && <Field label="Observation Age" value={ageLabel(recency)} />}
-          <Field label="Model And Version" value={result ? `${result.model_id} / ${result.model_version}` : null} />
-          <Field label="Calibration" value={result ? `${result.interval_calibration_type} · ${result.interval_calibration_source}` : null} />
-          <Field label="Evidence Rule" value={evidenceRule} />
-          <Field label="Current RiskGuard Status" value={controlPlane ? controlPlane.fresh ? "Fresh" : "Stale" : "Unavailable"} />
+          <Field label="X-Perp Age" value={ageLabel(result?.reference_under_test_age_seconds)} />
+          <Field label="Underlying Price Age" value={ageLabel(result?.reference_age_seconds)} />
+          {operational && <Field label="Observation Age" value={ageLabel(recency)} />}
+          <Field label="Model" value={result ? modelDisplayName(result.model_version) : null} />
+          {olderRule && <Field label="Classification Version" value="Earlier Rule" />}
+          {operational && controlPlane && <Field label="Current RiskGuard Status" value={controlPlane.fresh ? "Fresh" : "Stale"} />}
         </dl>
-        <dl className="space-y-2">
-          <Field label="Operational Feed" value={feedStatus} />
-          <Field label="Latest Update" value={latestUpdate} />
-          <Field label="Last Update Attempt (UTC)" value={runtime?.last_tick_attempt_at} />
-          <Field label="Latest Operational Observation (UTC)" value={runtime?.last_result_timestamp} />
-          <Field label="Operational Feed Error" value={runtime?.last_error ?? (runtime ? "None" : "Unavailable")} />
-        </dl>
+        {operational && <dl className="space-y-2">
+          <Field label="Feed Status" value={feedStatus} />
+          <Field label="Latest Observation" value={dateTimeUTC(runtime?.last_result_timestamp)} />
+          {runtimeHasError && <Field label="Last Update Attempt" value={dateTimeUTC(runtime?.last_tick_attempt_at)} />}
+          {runtimeHasError && <Field label="Feed Error" value={runtime?.last_error ?? "Latest update failed."} />}
+        </dl>}
         <div className="md:col-span-3">
           <div className="eyebrow mb-2 text-muted">Source Provenance</div>
-          <dl className="grid gap-2 md:grid-cols-3">{Object.entries(result?.source_provenance ?? {}).map(([key, value]) => <Field key={key} label={key} value={value} />)}</dl>
+          <dl className="grid gap-2 md:grid-cols-3">{Object.entries(result?.source_provenance ?? {}).map(([key, value]) => <Field key={key} label={provenanceLabel(key)} value={value} />)}</dl>
           {!Object.keys(result?.source_provenance ?? {}).length && <span className="text-muted">Not Supplied</span>}
         </div>
       </div>
     </details>
   );
+}
+
+function provenanceLabel(key: string): string {
+  const known: Record<string, string> = {
+    token_source: "Token Source",
+    underlying_source: "Underlying Source",
+    scenario: "Scenario",
+  };
+  return known[key] ?? key.replace(/[_-]+/g, " ").replace(/(^|\s)\w/g, (letter) => letter.toUpperCase());
 }
 
 function Field({ label, value }: { label: string; value?: string | null }) {
