@@ -834,6 +834,19 @@ def _read_evaluation(w3: Any, guard: Any, config: DeploymentConfig) -> dict[str,
     return decode_evaluation(values)
 
 
+def _next_publisher_nonce(w3: Any, publisher_address: str) -> int:
+    """Use the greater of confirmed and pending nonces from the RPC.
+
+    Some X Layer RPC responses have returned a pending nonce behind the latest
+    confirmed nonce. Never construct a transaction with a nonce already used
+    on-chain, while still respecting a higher pending nonce when present.
+    Publisher calls are serialized by the scheduler's shared transaction lock.
+    """
+    latest_nonce = int(w3.eth.get_transaction_count(publisher_address, "latest"))
+    pending_nonce = int(w3.eth.get_transaction_count(publisher_address, "pending"))
+    return max(latest_nonce, pending_nonce)
+
+
 def _verify_deployment(w3: Any, config: DeploymentConfig) -> tuple[Any, Any, Any, dict[str, Any]]:
     try:
         chain_id = int(w3.eth.chain_id)
@@ -1107,7 +1120,7 @@ def publish(
         int(candidate["validUntil"]),
     )
     try:
-        nonce = w3.eth.get_transaction_count(publisher_address, "pending")
+        nonce = _next_publisher_nonce(w3, publisher_address)
         gas_price = int(w3.eth.gas_price)
         transaction = registry.functions.publishValidation(
             _bytes32(candidate["assetId"]), input_tuple

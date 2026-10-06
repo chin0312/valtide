@@ -532,6 +532,7 @@ class _FakeEth:
         self.vault = _FakeVault(config)
         self.account = _FakeAccount(self)
         self.gas_price = 10
+        self.nonce_counts = {"latest": 4, "pending": 4}
         self.estimate_gas_calls = []
         self.sent_raw_transactions = []
         self.receipt_status = 1
@@ -551,8 +552,8 @@ class _FakeEth:
     def get_block(self, _block):
         return {"timestamp": self.block_timestamp}
 
-    def get_transaction_count(self, _address, _status):
-        return 4
+    def get_transaction_count(self, _address, status):
+        return self.nonce_counts[status]
 
     def estimate_gas(self, transaction):
         self.estimate_gas_calls.append(transaction)
@@ -826,6 +827,26 @@ def test_publish_success_exercises_signed_write_and_readback(
     assert actual["modelVersion"] == candidate["modelVersion"]
     assert actual["observedAt"] == candidate["observedAt"]
     assert actual["validUntil"] == candidate["validUntil"]
+
+
+@pytest.mark.parametrize(
+    ("latest_nonce", "pending_nonce", "expected_nonce"),
+    [(3320, 3316, 3320), (3320, 3324, 3324)],
+)
+def test_publish_nonce_never_falls_behind_latest_and_respects_higher_pending(
+    result,
+    publisher_settings,
+    fake_chain,
+    latest_nonce,
+    pending_nonce,
+    expected_nonce,
+):
+    _config, w3 = fake_chain
+    w3.eth.nonce_counts = {"latest": latest_nonce, "pending": pending_nonce}
+
+    publish(result, settings=publisher_settings, web3_client=w3)
+
+    assert w3.eth.registry.build_parameters["nonce"] == expected_nonce
 
 
 def test_publish_retries_transient_stale_readback(
