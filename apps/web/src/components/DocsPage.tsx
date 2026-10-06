@@ -1,9 +1,10 @@
 import { useEffect, useState } from "react";
 import { MarketingFooter } from "./LandingPage";
 import { MarketingHeader } from "./Hero";
+import { documentationProfiles, type DocumentationProfileId } from "./documentationProfiles";
 
 type VisualKind = "context" | "finding" | "boundary" | "triage" | "freshness" | "policy" | "payload" | "contracts" | "guard" | "signals" | "interval" | "evaluation";
-type GuideId = "everyone" | "curators" | "developers" | "researchers";
+type GuideId = DocumentationProfileId;
 
 type Guide = {
   id: GuideId;
@@ -20,7 +21,7 @@ type Guide = {
 
 const guides: readonly Guide[] = [
   {
-    id: "everyone", label: "New to Valtide", eyebrow: "A two-minute orientation", title: "Read the result without guessing what it means.",
+    id: "everyone", label: documentationProfiles.everyone.label, eyebrow: "A two-minute orientation", title: "Read the result without guessing what it means.",
     summary: "Start with the product language, then follow one result from its evidence context to the response configured by the curator.",
     outcome: "You will know what Valtide validates, what the three Evidence States mean, and where evidence stops and policy begins.",
     cta: "Open the demo result", href: "/?view=console",
@@ -32,7 +33,7 @@ const guides: readonly Guide[] = [
     checks: [["SUPPORTED", "No material reason to challenge the reference from the available evidence."], ["INCONCLUSIVE", "The evidence is too weak or inconsistent to make a strong call."], ["CHALLENGED", "The reference is materially inconsistent with sufficiently strong evidence; source dependence follows the named profile."]],
   },
   {
-    id: "curators", label: "Curators and risk teams", eyebrow: "Investigation and governance", title: "Move from an evidence exception to a defensible response.",
+    id: "curators", label: documentationProfiles.curators.label, eyebrow: "Investigation and governance", title: "Move from an evidence exception to a defensible response.",
     summary: "Triage the finding, verify freshness and provenance, then apply the response rules owned by your protocol.",
     outcome: "You will be able to investigate a challenged result without treating the model as a policy engine.",
     cta: "Inspect the policy view", href: "/?view=console",
@@ -44,7 +45,7 @@ const guides: readonly Guide[] = [
     checks: [["Before escalation", "Confirm context, timestamp, market state, and source availability."], ["Before changing policy", "Separate a one-off data issue from a persistent evidence pattern."], ["Before enforcement", "Verify that the operational result and onchain attestation are synchronized."]],
   },
   {
-    id: "developers", label: "Developers and integrators", eyebrow: "Integration path", title: "Consume evidence without moving the trust boundary.",
+    id: "developers", label: documentationProfiles.developers.label, eyebrow: "Integration path", title: "Consume evidence without moving the trust boundary.",
     summary: "Treat the API result and onchain attestation as authoritative inputs, preserve their provenance, and let the deployed guard enforce configured policy.",
     outcome: "You will know which fields to consume, how publication reaches X Layer, and which checks belong in an integration.",
     cta: "Open the API reference", href: "https://valtide-api-production.up.railway.app/docs",
@@ -56,7 +57,7 @@ const guides: readonly Guide[] = [
     checks: [["Current asset", "NVDAx / NVDA is the only operational vertical slice; SPYx, QQQx, and AAPLx are catalog-visible but not operationally onboarded."], ["Current network", "ValidationRegistry and RiskGuard are deployed on X Layer testnet for NVDAx."], ["Current status", "Research prototype—not audited production lending infrastructure."]],
   },
   {
-    id: "researchers", label: "Researchers", eyebrow: "Model and evaluation review", title: "Audit the challenger without overstating the evidence.",
+    id: "researchers", label: documentationProfiles.researchers.label, eyebrow: "Model and evaluation review", title: "Audit the challenger without overstating the evidence.",
     summary: "Inspect the point-in-time inputs, uncertainty construction, and evaluation design before drawing conclusions from coverage or interval width.",
     outcome: "You will understand what the challenger estimates, how its range is evaluated, and which claims the evidence cannot support.",
     cta: "Read the methodology", href: "https://github.com/chin0312/valtide/blob/main/docs/METHODOLOGY.md",

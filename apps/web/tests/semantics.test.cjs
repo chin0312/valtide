@@ -218,6 +218,10 @@ test("Prototype landing uses canonical demo values and preserves product boundar
   assert.doesNotMatch(html, /step-explorer|explorer-signal/);
   assert.doesNotMatch(html, /weekend_divergence|P1a-C|Standardized deviation/);
   assert.doesNotMatch(html, /Always-on assets need always-on evidence|Tokenization 2030|\$5\.5T|\$2\.6T/);
+  for (const label of ["New to Valtide", "Curators and risk teams", "Developers and integrators", "Researchers"]) assert.match(html, new RegExp(label));
+  assert.match(html, /\/docs\?profile=everyone#role-guide/);
+  assert.match(html, /aria-label="Documentation by audience"/);
+  assert.match(html, /role="tabpanel"/);
 });
 
 test("Landing model proof stays synchronized with the checked-in evaluation report", () => {
@@ -255,8 +259,8 @@ test("Documentation adapts by role and keeps evidence, policy and scope separate
   for (const term of ["Evidence context", "Trusted anchor", "Market state"]) assert.match(html, new RegExp(term));
   assert.match(html, /Short examples show how each term appears/);
   assert.match(html, /Also useful for/);
-  const landingSource = fs.readFileSync(path.join(__dirname, "../src/components/LandingPage.tsx"), "utf8");
-  for (const profile of ["everyone", "curators", "developers", "researchers"]) assert.match(landingSource, new RegExp(`/docs\\?profile=${profile}#role-guide`));
+  const profileSource = fs.readFileSync(path.join(__dirname, "../src/components/documentationProfiles.ts"), "utf8");
+  for (const profile of ["everyone", "curators", "developers", "researchers"]) assert.match(profileSource, new RegExp(`${profile}:`));
 });
 
 test("Cold Operational stays unavailable even when Demo is cached", () => {
