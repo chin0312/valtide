@@ -1,4 +1,3 @@
-#!/usr/bin/env python3
 """Reproduce out-of-fit-period diagnostics from externally stored canonical panels.
 
 This offline tool uses the production panel identity checks and the same
@@ -34,7 +33,6 @@ from valtide_api.models import ValuationResult
 from valtide_api.panel import inspect_panel_readiness, load_panel_snapshots
 from valtide_api.quant_runtime import estimate, get_quant_service, resolve_quant_runtime
 from valtide_api.replay import replay
-
 
 _EXPECTED_ASSETS = ("NVDAx", "SPYx", "QQQx", "AAPLx")
 _PRICE_FIELDS = (
