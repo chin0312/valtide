@@ -7,6 +7,7 @@
 // sits exactly on the interval boundary; beyond ±1 it is outside the interval.
 
 import type { ValuationResult } from "../api/types";
+import { validationTargetPrice } from "./semantics";
 
 /** Fixed viewport so the reference visibly travels outward across steps. */
 export const AXIS_MIN = -3.5;
@@ -36,8 +37,7 @@ export function priceToFraction(price: number, r: ValuationResult): number {
 
 /** Is the active validation target outside the actual calibrated interval bounds? */
 export function referenceOutsideBand(r: ValuationResult): boolean {
-  const unified = r.validation_target === "xstock_observed_price" || r.reference_profile === "unified_xstock_p1ac_xperp_evidence_v1";
-  const target = unified ? r.token_price : r.reference_under_test;
+  const target = validationTargetPrice(r);
   if (target == null) return false;
   return target < r.fair_value_lower || target > r.fair_value_upper;
 }

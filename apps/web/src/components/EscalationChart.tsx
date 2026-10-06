@@ -3,13 +3,14 @@ import { Area, ComposedChart, Line, ReferenceLine, ResponsiveContainer, Tooltip,
 import type { EvidenceState, ValuationResult } from "../api/types";
 import { EVIDENCE } from "../lib/evidence";
 import { coverageLabel, dateTimeUTC, timeAxisUTC } from "../lib/format";
+import { isEvidenceStateV2 } from "../lib/semantics";
 
 interface ChartPoint {
   sourceIndex: number | null;
   ts: number;
   band: [number, number] | null;
   fair: number | null;
-  rut: number | null;
+  xperp: number | null;
   token: number | null;
   state: EvidenceState | null;
 }
@@ -195,8 +196,8 @@ export function EscalationChart({ results, index, playhead = index, onSelect, re
     [renderData, viewportDomain[0], viewportDomain[1]],
   );
   const visibleRealPoints = useMemo(() => visibleData.filter((point) => point.sourceIndex != null), [visibleData]);
-  const allPrices = useMemo(() => data.flatMap((point) => [point.band?.[0], point.band?.[1], point.rut, point.token].filter((value): value is number => value != null)), [data]);
-  const visiblePrices = useMemo(() => visibleData.flatMap((point) => [point.band?.[0], point.band?.[1], point.rut, point.token].filter((value): value is number => value != null)), [visibleData]);
+  const allPrices = useMemo(() => data.flatMap((point) => [point.band?.[0], point.band?.[1], point.xperp, point.token].filter((value): value is number => value != null)), [data]);
+  const visiblePrices = useMemo(() => visibleData.flatMap((point) => [point.band?.[0], point.band?.[1], point.xperp, point.token].filter((value): value is number => value != null)), [visibleData]);
   const prices = visiblePrices.length ? visiblePrices : allPrices;
   const minTimestamp = viewportDomain[0];
   const maxTimestamp = viewportDomain[1];
@@ -359,9 +360,9 @@ export function EscalationChart({ results, index, playhead = index, onSelect, re
             }}
           />
           <Area dataKey="band" stroke="var(--color-series-valtide)" strokeWidth={1} fill="var(--color-band-fill)" connectNulls={false} isAnimationActive={false} name={intervalName} />
-          <Line dataKey="fair" stroke="var(--color-series-valtide)" strokeWidth={1.75} dot={false} connectNulls={false} isAnimationActive={false} name="Fair value" />
+          <Line dataKey="fair" stroke="var(--color-series-valtide)" strokeWidth={1.75} dot={false} connectNulls={false} isAnimationActive={false} name="Valtide Fair Value" />
           <Line
-            dataKey="rut"
+            dataKey="xperp"
             stroke="var(--color-series-reference)"
             strokeWidth={1.5}
             strokeDasharray="5 4"
@@ -372,9 +373,9 @@ export function EscalationChart({ results, index, playhead = index, onSelect, re
             activeDot={false}
             connectNulls={false}
             isAnimationActive={false}
-            name={unified ? "X-Perp evidence" : "Reference under test"}
+            name={realPoints.some((point) => point.sourceIndex != null && isEvidenceStateV2(results[point.sourceIndex])) ? "X-Perp" : "Reference under test"}
           />
-          <Line dataKey="token" stroke="var(--color-series-token)" strokeWidth={1.25} strokeOpacity={0.72} dot={false} connectNulls={false} isAnimationActive={false} name={unified ? "xStock validation target" : "Tokenized Market"} />
+          <Line dataKey="token" stroke="var(--color-series-token)" strokeWidth={1.25} strokeOpacity={0.72} dot={false} connectNulls={false} isAnimationActive={false} name="Observed xStock" />
           <ReferenceLine x={cursorTimestamp} stroke="var(--color-accent)" strokeOpacity={0.65} strokeDasharray="2 3" />
         </ComposedChart>
       </ResponsiveContainer>
@@ -408,7 +409,7 @@ function StateDot({ cx, cy, payload, selectedIndex }: DotProps & { selectedIndex
   );
 }
 
-function buildChartData(results: ValuationResult[]): ChartPoint[] {
+export function buildChartData(results: ValuationResult[]): ChartPoint[] {
   const points: ChartPoint[] = [];
   let previousTimestamp: number | null = null;
 
@@ -416,9 +417,9 @@ function buildChartData(results: ValuationResult[]): ChartPoint[] {
     const timestamp = Date.parse(result.timestamp);
     if (!Number.isFinite(timestamp)) return;
     if (previousTimestamp != null && timestamp - previousTimestamp > CANONICAL_STEP_MS) {
-      points.push({ sourceIndex: null, ts: previousTimestamp + Math.floor((timestamp - previousTimestamp) / 2), band: null, fair: null, rut: null, token: null, state: null });
+      points.push({ sourceIndex: null, ts: previousTimestamp + Math.floor((timestamp - previousTimestamp) / 2), band: null, fair: null, xperp: null, token: null, state: null });
     }
-    points.push({ sourceIndex, ts: timestamp, band: [result.fair_value_lower, result.fair_value_upper], fair: result.valtide_fair_value, rut: result.reference_under_test, token: result.token_price, state: result.evidence_state });
+    points.push({ sourceIndex, ts: timestamp, band: [result.fair_value_lower, result.fair_value_upper], fair: result.valtide_fair_value, xperp: isEvidenceStateV2(result) ? result.xperp_index_price ?? null : result.reference_under_test, token: result.token_price, state: result.evidence_state });
     previousTimestamp = timestamp;
   });
   return points;

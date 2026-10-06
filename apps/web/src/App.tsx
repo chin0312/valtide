@@ -2,6 +2,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import {
   ApiError,
+  DEMO_REPLAY_QUERY_KEY,
   assetQueryKeys,
   DEFAULT_ASSET,
   fetchDemoReplay,
@@ -21,9 +22,10 @@ import { RegistryPanel } from "./components/RegistryPanel";
 import { Panel } from "./components/ui";
 import { Icon } from "./components/Icon";
 import { EVIDENCE } from "./lib/evidence";
-import { ageLabel, compactUsd, lastUpdatedLabel, money, pct, sigma, sourceLabel } from "./lib/format";
+import { ageLabel, compactUsd, lastUpdatedLabel, money, pct, reasonLabel, sourceLabel } from "./lib/format";
 import { deriveOnchainSync } from "./lib/onchain";
 import { clampPosition, mergeObservations, rebasePosition } from "./lib/playback";
+import { evidenceCopy, modelDistanceLabel, modelDependenceNote } from "./lib/semantics";
 import { HistoricalReplay } from "./views/HistoricalReplay";
 import { ObservationRecord } from "./views/ObservationRecord";
 import { ReferenceComparison } from "./views/ReferenceComparison";
@@ -47,6 +49,10 @@ export function consoleContextFromSearch(search: string): Context {
   if (requested === "historical") return "Historical";
   if (requested === "demo") return "Demo";
   return "Operational";
+}
+
+export function effectiveContextAsset(context: Context, selectedAsset: string): string {
+  return context === "Demo" ? DEFAULT_ASSET : selectedAsset;
 }
 
 export default function App() {
@@ -79,18 +85,19 @@ function ValidationConsole() {
   const [historicalRange, setHistoricalRange] = useState<HistoricalRange>("ALL");
   const [demoRange, setDemoRange] = useState<DemoRange>("FULL");
   const isOperational = context === "Operational";
+  const contextAsset = effectiveContextAsset(context, selectedAsset);
   const health = useQuery({ queryKey: ["health"], queryFn: fetchHealth, refetchInterval: 30_000 });
   const backendUp = health.data === true;
   const assets = useQuery({ queryKey: assetQueryKeys.assets, queryFn: fetchAssets, refetchInterval: 60_000, retry: 0 });
-  const selectedAssetInfo = assets.data?.find((item) => item.asset === selectedAsset);
+  const selectedAssetInfo = assets.data?.find((item) => item.asset === contextAsset);
   const profile = selectedAssetInfo?.reference_profile ?? "profile-unresolved";
-  const operational = useQuery({ queryKey: assetQueryKeys.operational(selectedAsset, profile), queryFn: () => fetchOperationalValuation(selectedAsset), refetchInterval: 20_000, retry: 0, enabled: backendUp });
-  const history = useQuery({ queryKey: assetQueryKeys.history(selectedAsset, OPERATIONAL_HISTORY_MAX, profile), queryFn: () => fetchOperationalHistory(selectedAsset, OPERATIONAL_HISTORY_MAX), refetchInterval: 5 * 60_000, retry: 0, enabled: isOperational && !!operational.data });
-  const historical = useQuery({ queryKey: assetQueryKeys.historical(selectedAsset, profile), queryFn: () => fetchHistoricalReplay(selectedAsset), staleTime: Infinity, retry: 0, enabled: context === "Historical" && backendUp });
-  const demo = useQuery({ queryKey: ["demo-replay", selectedAsset, "canonical"], queryFn: () => fetchDemoReplay(selectedAsset), staleTime: Infinity, enabled: context === "Demo" && selectedAsset === DEFAULT_ASSET });
-  const runtime = useQuery({ queryKey: assetQueryKeys.runtime(selectedAsset), queryFn: () => fetchRuntime(selectedAsset), refetchInterval: 30_000, retry: 0, enabled: backendUp });
-  const onchain = useQuery({ queryKey: assetQueryKeys.onchain(selectedAsset), queryFn: () => fetchOnchain(selectedAsset), refetchInterval: 45_000, retry: 0, enabled: backendUp && !!selectedAssetInfo?.onchain_binding_configured });
-  const enforcement = useQuery({ queryKey: assetQueryKeys.enforcement(selectedAsset), queryFn: () => fetchOnchainEnforcement(selectedAsset), refetchInterval: 45_000, retry: 0, enabled: backendUp && !!selectedAssetInfo?.onchain_binding_configured });
+  const operational = useQuery({ queryKey: assetQueryKeys.operational(contextAsset, profile), queryFn: () => fetchOperationalValuation(contextAsset), refetchInterval: 20_000, retry: 0, enabled: isOperational && backendUp });
+  const history = useQuery({ queryKey: assetQueryKeys.history(contextAsset, OPERATIONAL_HISTORY_MAX, profile), queryFn: () => fetchOperationalHistory(contextAsset, OPERATIONAL_HISTORY_MAX), refetchInterval: 5 * 60_000, retry: 0, enabled: isOperational && !!operational.data });
+  const historical = useQuery({ queryKey: assetQueryKeys.historical(contextAsset, profile), queryFn: () => fetchHistoricalReplay(contextAsset), staleTime: Infinity, retry: 0, enabled: context === "Historical" && backendUp });
+  const demo = useQuery({ queryKey: DEMO_REPLAY_QUERY_KEY, queryFn: () => fetchDemoReplay(DEFAULT_ASSET), staleTime: Infinity, retry: 0, enabled: context === "Demo" });
+  const runtime = useQuery({ queryKey: assetQueryKeys.runtime(contextAsset), queryFn: () => fetchRuntime(contextAsset), refetchInterval: 30_000, retry: 0, enabled: backendUp });
+  const onchain = useQuery({ queryKey: assetQueryKeys.onchain(contextAsset), queryFn: () => fetchOnchain(contextAsset), refetchInterval: 45_000, retry: 0, enabled: backendUp && !!selectedAssetInfo?.onchain_binding_configured });
+  const enforcement = useQuery({ queryKey: assetQueryKeys.enforcement(contextAsset), queryFn: () => fetchOnchainEnforcement(contextAsset), refetchInterval: 45_000, retry: 0, enabled: backendUp && !!selectedAssetInfo?.onchain_binding_configured });
   const [position, setPosition] = useState(0);
   const [playing, setPlaying] = useState(false);
   const [followLatest, setFollowLatest] = useState(true);
@@ -127,11 +134,11 @@ function ValidationConsole() {
   const source = isOperational
     ? `Operational · ${results.length} observations`
     : context === "Historical" ? `Historical · ${results.length} observations`
-    : selectedAsset !== DEFAULT_ASSET ? "Demo · NVDAx synthetic fixture only" : !demo.data ? "Demo · Loading" : demo.data.source === "backend-scenario"
-      ? `Demo scenario · ${demo.data.results.length} synthetic steps`
-      : `Demo fixture · ${demo.data.results.length} synthetic steps`;
+    : !demo.data ? "Demo · Loading" : demo.data.source === "backend-scenario"
+      ? `Demo Scenario · ${demo.data.results.length} Synthetic Steps`
+      : `Demo Backup · ${demo.data.results.length} Synthetic Steps`;
   const controlPlane = onchain.isError ? undefined : onchain.data;
-  const policy = controlPlane?.policy ?? (context === "Demo" ? EXAMPLE_DEMO_POLICY : undefined);
+  const policy = context === "Demo" ? EXAMPLE_DEMO_POLICY : controlPlane?.policy ?? null;
   const policyAction = policy && current ? actionFor(policy, current.evidence_state) : null;
   const sync = isOperational ? deriveOnchainSync(operational.data, controlPlane) : undefined;
   const activeQuery = isOperational ? operational : context === "Historical" ? historical : demo;
@@ -139,7 +146,7 @@ function ValidationConsole() {
   const statusMessage = activeQuery.error instanceof Error ? activeQuery.error.message : "Data unavailable";
   const runtimeNotWarmed = isOperational && (runtime.data?.has_live_result === false || (operational.error instanceof ApiError && operational.error.status === 503));
   const chainError = !selectedAssetInfo?.onchain_binding_configured
-    ? `No X Layer deployment is configured for ${selectedAsset}.`
+    ? `X Layer is not configured for ${contextAsset}. Offchain validation remains available.`
     : backendUp
     ? onchain.error instanceof Error ? onchain.error.message : "The deployed contracts could not be read."
     : "Backend unavailable. Showing the last available data.";
@@ -149,11 +156,12 @@ function ValidationConsole() {
       <AppHeader
         backendUp={backendUp}
         chainUp={!!controlPlane}
+        chainConfigured={!!selectedAssetInfo?.onchain_binding_configured}
         source={source}
         context={context}
         onContextChange={setContext}
         assets={assets.data ?? []}
-        selectedAsset={selectedAsset}
+        selectedAsset={contextAsset}
         onAssetChange={(asset) => {
           setSelectedAsset(asset);
           setPosition(0);
@@ -161,20 +169,19 @@ function ValidationConsole() {
           setFollowLatest(true);
         }}
       />
-      <div role="note" className="mb-4 rounded px-3 py-2 text-[11px] font-medium uppercase tracking-[0.06em]" style={{ color: "var(--color-ink-dim)", background: "var(--color-panel)", border: "1px solid var(--color-line-subtle)" }}>Research prototype · X Layer testnet · Not for production use</div>
       {selectedAssetInfo && selectedAssetInfo.readiness_error_codes.length > 0 && <div role="status" className="mb-4 rounded px-3 py-2 text-xs" style={{ color: "var(--color-ink-dim)", background: "var(--color-inconclusive-soft)", border: "1px solid var(--color-line-subtle)" }}>
-        {selectedAsset} readiness is partial: {selectedAssetInfo.readiness_error_codes.join(" · ")}. No other asset's prices, model, history, or X Layer binding are substituted.
+        Operational Readiness Issue: {selectedAssetInfo.readiness_error_codes.map(reasonLabel).join(" · ")}
       </div>}
 
       <main className="space-y-4">
         {isDegraded && current && <div role="status" className="rounded px-4 py-3 text-xs text-ink-dim" style={{ background: "var(--color-inconclusive-soft)" }}>{context} degraded · showing last available observations. {history.isError && isOperational ? "History unavailable. " : ""}{activeQuery.isError ? statusMessage : runtime.data?.last_error}</div>}
-        {!current ? <Panel title={`${context} ${activeQuery.isLoading ? "loading" : "unavailable"}`}><p role="status" className="text-xs text-ink-dim">{activeQuery.isLoading ? `Loading ${selectedAsset} ${context.toLowerCase()} observations…` : context === "Demo" && selectedAsset !== DEFAULT_ASSET ? "The deterministic Demo fixture is synthetic NVDAx-only. It is not relabeled as another asset." : runtimeNotWarmed ? "Runtime not warmed yet." : statusMessage}</p></Panel> : <>
+        {!current ? <Panel title={`${context} ${activeQuery.isLoading ? "Loading" : "Unavailable"}`}><p role="status" className="text-xs text-ink-dim">{activeQuery.isLoading ? `Loading ${contextAsset} ${context.toLowerCase()} observations…` : runtimeNotWarmed ? "Runtime not warmed yet." : statusMessage}</p></Panel> : <>
         <DecisionSummary current={current} action={policyAction} />
         <MetricGrid current={current} isDemo={context === "Demo"} observationCount={results.length} />
 
         <div className="grid items-stretch gap-4 xl:grid-cols-[minmax(0,1.3fr)_minmax(0,1fr)]">
           <HistoricalReplay
-            asset={selectedAsset}
+            asset={contextAsset}
             results={results}
             position={position}
             setPosition={setPosition}
@@ -184,7 +191,7 @@ function ValidationConsole() {
             onReview={() => setFollowLatest(false)}
             followingLatest={isOperational && followLatest}
             onLatest={isOperational ? () => { setPlaying(false); setFollowLatest(true); setPosition(results.length - 1); } : undefined}
-            viewportKey={`${selectedAsset}:${profile}:${context}:${activeRange}`}
+            viewportKey={`${contextAsset}:${profile}:${context}:${activeRange}`}
             periodMs={context === "Demo" ? 600 : 120}
             coverageNotice={isOperational ? operationalCoverageNotice(allOperationalResults, range) : undefined}
             onReset={() => {
@@ -208,12 +215,12 @@ function ValidationConsole() {
             <PolicyCard
               state={current.evidence_state}
               action={policyAction}
-              label={context === "Demo" ? controlPlane ? "Scenario → deployed policy" : "Example demo policy · not deployed" : context === "Historical" ? "Historical evidence → current policy" : reviewing ? "Prior evidence → current policy" : "Current evidence → policy action"}
-              source={context === "Demo" ? "Scenario projection only; does not represent deployed state" : context === "Historical" || reviewing ? "Selected evidence under today's policy; not a historical on-chain decision" : "Curator mapping for this evidence; current RiskGuard action is shown separately"}
+              label={context === "Demo" ? "Demo Evidence → Demo Policy" : context === "Historical" ? "Historical Evidence → Current Policy" : reviewing ? "Prior Operational Record → Current Policy" : "Operational Current Evidence → Policy Action"}
+              source={context === "Demo" ? "Demo policy only; it is not a deployed policy or action" : context === "Historical" || reviewing ? "Selected evidence under today's policy; not a historical onchain decision" : "Curator mapping for this evidence; current RiskGuard action is shown separately"}
               enforced={isOperational && !reviewing ? controlPlane : undefined}
             />
             {context === "Demo" && <details className="rounded-[10px]" style={{ background: "var(--color-panel)", border: "1px solid var(--color-line-subtle)" }}>
-              <summary className="cursor-pointer px-5 py-3 text-sm font-medium text-ink">Advanced: policy proposal</summary>
+              <summary className="cursor-pointer px-5 py-3 text-sm font-medium text-ink">Advanced: Policy Proposal</summary>
               <div className="border-t p-3" style={{ borderColor: "var(--color-line-subtle)" }}><PolicyFoundry /></div>
             </details>}
           </div>
@@ -229,34 +236,33 @@ function ValidationConsole() {
         <ObservationAudit result={current} context={context} runtime={runtime.isError ? undefined : runtime.data} controlPlane={controlPlane} />
 
         {context === "Demo" && <details className="rounded-[10px]" style={{ background: "var(--color-panel)", border: "1px solid var(--color-line-subtle)" }}>
-          <summary className="cursor-pointer px-5 py-3 text-sm font-medium text-ink">Demo: token-rights metadata</summary>
+          <summary className="cursor-pointer px-5 py-3 text-sm font-medium text-ink">Demo: Token Rights Metadata</summary>
           <div className="border-t p-3" style={{ borderColor: "var(--color-line-subtle)" }}><InstrumentPassport /></div>
         </details>}
 
-        {context === "Historical" && <ModelEvidence asset={selectedAsset} profile={profile} />}
+        {context === "Historical" && <ModelEvidence asset={contextAsset} profile={profile} />}
 
         <RegistryPanel
           controlPlane={controlPlane}
           enforcement={enforcement.isError ? undefined : enforcement.data}
           runtime={runtime.isError ? undefined : runtime.data}
           sync={sync}
+          bindingConfigured={!!selectedAssetInfo?.onchain_binding_configured}
           mode={context === "Demo" ? "demo" : context === "Historical" || reviewing ? "historical" : "operational"}
           isLoading={backendUp && onchain.isLoading}
           isError={!controlPlane}
           errorDetail={chainError}
         />
 
-        <footer className="border-t pt-3 font-mono text-[10px] tracking-[0.05em]" style={{ borderColor: "var(--color-line-subtle)", color: "var(--color-muted)" }}>
-          {current ? `Model ${current.model_id} · v${current.model_version}` : ""}
-        </footer>
       </main>
     </div>
   );
 }
 
-function AppHeader({ backendUp, chainUp, source, context, onContextChange, assets, selectedAsset, onAssetChange }: {
+function AppHeader({ backendUp, chainUp, chainConfigured, source, context, onContextChange, assets, selectedAsset, onAssetChange }: {
   backendUp: boolean;
   chainUp: boolean;
+  chainConfigured: boolean;
   source: string;
   context: Context;
   onContextChange: (context: Context) => void;
@@ -272,10 +278,10 @@ function AppHeader({ backendUp, chainUp, source, context, onContextChange, asset
         <nav aria-label="Evidence context" className="flex gap-1 rounded p-1" style={{ border: "1px solid var(--color-line)" }}>{(["Operational", "Historical", "Demo"] as Context[]).map((option) => <button key={option} aria-pressed={context === option} onClick={() => onContextChange(option)} className="rounded px-2.5 py-1.5 text-xs font-medium" style={{ background: context === option ? "var(--color-panel-2)" : undefined, color: context === option ? "var(--color-ink)" : "var(--color-muted)" }}>{option}</button>)}</nav>
       </div>
       <div className="flex flex-wrap items-center gap-3 text-[11px]">
-        <AssetPicker assets={assetOptions} selectedAsset={selectedAsset} onChange={onAssetChange} />
+        {context !== "Demo" && assetOptions.length > 0 && <AssetPicker assets={assetOptions} selectedAsset={selectedAsset} onChange={onAssetChange} />}
         <span className="rounded px-2 py-1 font-mono" style={{ color: "var(--color-accent)", background: "var(--color-accent-soft)" }}>{source}</span>
-        <ConnectionLabel active={backendUp} activeText="API connected" inactiveText="API unavailable" />
-        <ConnectionLabel active={chainUp} activeText="X Layer connected" inactiveText="X Layer unavailable" />
+        <ConnectionLabel active={backendUp} activeText="API Connected" inactiveText="API Unavailable" />
+        <ConnectionLabel active={chainUp} activeText="X Layer Connected" inactiveText={chainConfigured ? "X Layer Unavailable" : "X Layer Not Configured"} />
       </div>
     </header>
   );
@@ -291,20 +297,10 @@ function ConnectionLabel({ active, activeText, inactiveText }: { active: boolean
 }
 
 function DecisionSummary({ current, action }: { current: ValuationResult; action: PolicyAction | null }) {
-  const unified = current.validation_target === "xstock_observed_price" || current.reference_profile === "unified_xstock_p1ac_xperp_evidence_v1";
-  const findings: Record<EvidenceState, { title: string; detail: string }> = unified ? {
-    SUPPORTED: { title: "Tri-source evidence supports the observed xStock price", detail: "The P1a/xStock support band applies, exact-time X-Perp is available, and quality gates passed. P1a has assimilated this xStock observation, so this is source-aware model evidence—not proof from two independent votes." },
-    INCONCLUSIVE: { title: "Tri-source evidence is inconclusive", detail: "The result remains in a watch band or an availability, freshness, ambiguity, or quality condition prevents a supported or challenged state." },
-    CHALLENGED: { title: "Tri-source evidence challenges the observed xStock price", detail: "The P1a/xStock review band applies and exact-time X-Perp is closer to P1a-C. This selective risk signal warrants review; it does not prove the observed xStock price is objectively wrong." },
-  } : {
-    SUPPORTED: { title: "Evidence supports the reference", detail: "Available independent evidence does not provide a material reason to challenge the price being tested." },
-    INCONCLUSIVE: { title: "Evidence needs review", detail: "The available evidence is not strong enough for a confident conclusion." },
-    CHALLENGED: { title: "Evidence challenges the reference", detail: "Available evidence materially challenges the tested price." },
-  };
-  const finding = findings[current.evidence_state];
+  const finding = evidenceCopy(current);
   return <section className="grid gap-4 rounded-[10px] p-5 md:grid-cols-[minmax(0,1fr)_minmax(220px,.45fr)]" style={{ background: "var(--color-panel)", border: "1px solid var(--color-line-subtle)", borderLeft: `3px solid ${EVIDENCE[current.evidence_state].fg}` }}>
-    <div><div className="eyebrow" style={{ color: "var(--color-muted)" }}>Current finding</div><h2 className="mt-2 text-2xl font-semibold tracking-[-0.03em] text-ink">{finding.title}</h2><p className="mt-2 max-w-3xl text-sm leading-6 text-ink-dim">{finding.detail}</p></div>
-    <div className="md:border-l md:pl-4" style={{ borderColor: "var(--color-line-subtle)" }}><div className="eyebrow" style={{ color: "var(--color-muted)" }}>Policy action</div><div className="mt-2 text-lg font-semibold text-ink">{plainAction(action)}</div></div>
+    <div><div className="eyebrow" style={{ color: "var(--color-muted)" }}>Current Finding</div><h2 className="mt-2 text-2xl font-semibold tracking-[-0.03em] text-ink">{finding.title}</h2><p title={modelDependenceNote(current)} className="mt-2 max-w-3xl text-sm leading-6 text-ink-dim">{finding.detail}</p></div>
+    <div className="md:border-l md:pl-4" style={{ borderColor: "var(--color-line-subtle)" }}><div className="eyebrow" style={{ color: "var(--color-muted)" }}>Policy Action</div><div className="mt-2 text-lg font-semibold text-ink">{plainAction(action)}</div></div>
   </section>;
 }
 
@@ -312,12 +308,12 @@ function MetricGrid({ current, isDemo, observationCount }: { current: ValuationR
   const unified = current.validation_target === "xstock_observed_price" || current.reference_profile === "unified_xstock_p1ac_xperp_evidence_v1";
   return (
     <section aria-label={`${observationCount} observations in the selected window; classification count, not performance`} className="grid grid-cols-2 overflow-hidden rounded-[10px] md:grid-cols-3 xl:grid-cols-6" style={{ background: "var(--color-panel)", border: "1px solid var(--color-line-subtle)" }}>
-      <Metric label={unified ? "xStock target" : "Reference under test"} value={money(unified ? current.token_price : current.reference_under_test)} sub={unified ? (current.token_source ? sourceLabel(current.token_source) : isDemo ? "Demo scenario" : "Source unavailable") : "Under test"} />
-      <Metric label="P1a-C fair value" value={money(current.valtide_fair_value)} sub={`${money(current.fair_value_lower)}–${money(current.fair_value_upper)}`} />
-      <Metric label={unified ? "X-Perp evidence" : "Token market"} value={money(unified ? current.xperp_index_price : current.token_price)} sub={unified ? "Second-market challenger" : current.token_source ? sourceLabel(current.token_source) : isDemo ? "Demo scenario" : "Source unavailable"} />
-      <Metric label={unified ? "xStock vs. P1a-C" : "Deviation"} value={pct(unified ? current.xstock_vs_p1ac_deviation_pct : current.reference_deviation_pct)} sub={current.evidence_state} accent={EVIDENCE[current.evidence_state].fg} />
-      <Metric label={unified ? "Research band" : "Model distance"} value={unified ? (current.challenger_detector?.research_band.toUpperCase() ?? "UNAVAILABLE") : sigma(current.standardized_deviation)} sub={unified ? "Asset-specific frozen detector" : "Technical diagnostic"} />
-      <Metric label="Last trusted price" value={money(current.last_trusted_reference)} sub={`${ageLabel(current.reference_age_seconds)} old`} />
+      <Metric label="Observed xStock" value={money(current.token_price)} sub={current.token_source ? sourceLabel(current.token_source) : isDemo ? "Demo Scenario" : "Source unavailable"} />
+      <Metric label="Valtide Fair Value" value={money(current.valtide_fair_value)} sub={`${money(current.fair_value_lower)}–${money(current.fair_value_upper)} calibrated interval`} />
+      <Metric label="X-Perp" value={money(current.xperp_index_price ?? current.reference_under_test)} sub={sourceLabel(current.xperp_index_source ?? current.reference_under_test_source)} />
+      <Metric label="xStock Vs P1a-C" value={pct(current.xstock_vs_p1ac_deviation_pct ?? current.residual_premium_discount_pct)} sub={current.evidence_state} accent={EVIDENCE[current.evidence_state].fg} />
+      <Metric label="Model Distance" value={modelDistanceLabel(current.challenger_detector?.score_name, current.challenger_detector?.score)} sub="xStock ↔ P1a-C" />
+      <Metric label="Last Trusted Underlying" value={money(current.last_trusted_reference)} sub={`${ageLabel(current.reference_age_seconds)} old · anchor`} />
     </section>
   );
 }
@@ -328,22 +324,11 @@ function Metric({ label, value, sub, accent }: { label: string; value: string; s
 
 function EvidenceCard({ result }: { result: ValuationResult }) {
   const state = EVIDENCE[result.evidence_state];
-  const unified = result.validation_target === "xstock_observed_price" || result.reference_profile === "unified_xstock_p1ac_xperp_evidence_v1";
-  const detail = unified
-    ? result.evidence_state === "SUPPORTED"
-      ? "The support-band rule passed with exact-time X-Perp available and no quality abstention. P1a has assimilated this same xStock observation, so this is not a two-independent-source test."
-      : result.evidence_state === "CHALLENGED"
-        ? "The review-band rule passed and exact-time X-Perp directionally corroborates P1a-C. This selective signal does not prove which price is objectively correct."
-        : "The tri-source evidence is watch-band, unavailable, stale, ambiguous, or quality-gated, so the backend deliberately abstains."
-    : result.evidence_state === "SUPPORTED"
-      ? "The reference is not materially challenged by the available independent evidence."
-      : result.evidence_state === "CHALLENGED"
-        ? "The reference is materially inconsistent with the available independent evidence."
-        : "The available evidence is not strong enough for a confident conclusion.";
+  const copy = evidenceCopy(result);
   return (
-    <Panel title="Evidence assessment" icon="evidence">
+    <Panel title="Evidence Assessment" icon="evidence">
       <div className="text-2xl font-semibold tracking-[-0.03em]" style={{ color: state.fg }}>{state.label}</div>
-      <p className="mt-2 text-sm leading-6 text-ink-dim">{detail}</p>
+      <p title={modelDependenceNote(result)} className="mt-2 text-sm leading-6 text-ink-dim">{copy.detail}</p>
       <div className="mt-4"><ReasonCodes codes={result.reason_codes} evidenceState={result.evidence_state} /></div>
     </Panel>
   );
@@ -353,7 +338,7 @@ function PolicyCard({ state, action, source, label, enforced }: { state?: Eviden
   const riskGuardState = enforced ? enforced.fresh ? "FRESH" : "STALE" : "UNAVAILABLE";
   const riskGuardUpdated = lastUpdatedLabel(enforced?.attestation?.publishedAt);
   return (
-    <Panel title="Policy action" icon="shield" right={<span title={source} className="inline-flex items-center gap-1.5 text-[10px] text-muted"><Icon name="chain" size={14} />{label}</span>}>
+    <Panel title="Policy Action" icon="shield" right={<span title={source} className="inline-flex items-center gap-1.5 text-[10px] text-muted"><Icon name="chain" size={14} />{label}</span>}>
       <div className="break-words text-xl font-semibold tracking-[-0.03em] text-ink">{plainAction(action)}</div>
       <div className="mt-3">
         <div className="eyebrow text-muted">Reason</div>
@@ -361,12 +346,12 @@ function PolicyCard({ state, action, source, label, enforced }: { state?: Eviden
       </div>
       {enforced && <div className="mt-3 text-xs text-ink-dim">RiskGuard data · {plainFreshness(enforced.fresh)}{riskGuardUpdated ? ` · ${riskGuardUpdated}` : ""}</div>}
       <details className="mt-3 overflow-hidden rounded" style={{ border: "1px solid var(--color-line)" }}>
-        <summary className="eyebrow flex items-center justify-between px-3 py-2.5" style={{ background: "var(--color-panel-2)", color: "var(--color-muted)" }}><span>Technical details</span><span aria-hidden style={{ color: "var(--color-accent)" }}>＋</span></summary>
+        <summary className="eyebrow flex items-center justify-between px-3 py-2.5" style={{ background: "var(--color-panel-2)", color: "var(--color-muted)" }}><span>Technical Details</span><span aria-hidden style={{ color: "var(--color-accent)" }}>＋</span></summary>
         <dl className="grid gap-2 px-3 py-3 text-xs">
-          <TechnicalPolicyValue label="Evidence state" value={state ?? "UNAVAILABLE"} />
-          <TechnicalPolicyValue label="Mapped policy action" value={action ?? "UNAVAILABLE"} />
-          <TechnicalPolicyValue label="RiskGuard state" value={riskGuardState} />
-          {enforced && <TechnicalPolicyValue label="Current RiskGuard action" value={enforced.policy_action} />}
+          <TechnicalPolicyValue label="Evidence State" value={state ?? "UNAVAILABLE"} />
+          <TechnicalPolicyValue label="Mapped Policy Action" value={action ?? "UNAVAILABLE"} />
+          <TechnicalPolicyValue label="RiskGuard State" value={riskGuardState} />
+          {enforced && <TechnicalPolicyValue label="Current RiskGuard Action" value={enforced.policy_action} />}
         </dl>
       </details>
     </Panel>
@@ -378,10 +363,10 @@ function TechnicalPolicyValue({ label, value }: { label: string; value: string }
 }
 
 function plainEvidenceReason(state?: EvidenceState): string {
-  if (state === "SUPPORTED") return "Evidence supports the validation target";
-  if (state === "INCONCLUSIVE") return "Evidence is inconclusive";
-  if (state === "CHALLENGED") return "Evidence challenges the validation target";
-  return "Evidence is unavailable";
+  if (state === "SUPPORTED") return "Observed xStock Is Supported";
+  if (state === "INCONCLUSIVE") return "Evidence Is Inconclusive";
+  if (state === "CHALLENGED") return "Observed xStock Is Challenged";
+  return "Evidence Is Unavailable";
 }
 
 function plainFreshness(fresh: boolean): string {
@@ -392,10 +377,10 @@ function BasisCard({ result }: { result: ValuationResult }) {
   return (
     <Panel title="Market Basis" icon="basis">
       <dl className="grid grid-cols-2 gap-x-5 gap-y-2 text-xs">
-        <StatusRow label="Token Move" value={pct(result.observed_token_move_pct)} icon="coin" />
-        <StatusRow label="Model Move" value={pct(result.model_implied_move_pct)} icon="model" />
-        <StatusRow label="Residual" value={pct(result.residual_premium_discount_pct)} icon="residual" />
-        <StatusRow label={result.token_liquidity_usd == null ? "5m Token Volume" : "Liquidity"} value={compactUsd(result.token_liquidity_usd ?? result.token_volume_usd)} icon="depth" />
+        <StatusRow label="xStock Move" value={pct(result.observed_token_move_pct)} icon="coin" />
+        <StatusRow label="P1a-C Move" value={pct(result.model_implied_move_pct)} icon="model" />
+        <StatusRow label="Premium / Discount" value={pct(result.residual_premium_discount_pct)} icon="residual" />
+        <StatusRow label={result.token_liquidity_usd == null ? "5m xStock Volume" : "Liquidity"} value={compactUsd(result.token_liquidity_usd ?? result.token_volume_usd)} icon="depth" />
       </dl>
     </Panel>
   );
@@ -412,9 +397,9 @@ function actionFor(policy: OnchainPolicy, state: EvidenceState): PolicyAction {
 }
 
 function plainAction(action: PolicyAction | null): string {
-  if (action === "ALLOW") return "Allow new borrowing";
-  if (action === "MONITOR") return "Continue monitoring";
-  if (action === "REQUIRE_REVIEW") return "Pause and review";
-  if (action === "RESTRICT_NEW_RISK") return "Restrict new borrowing";
-  return "Policy unavailable";
+  if (action === "ALLOW") return "Allow New Borrowing";
+  if (action === "MONITOR") return "Continue Monitoring";
+  if (action === "REQUIRE_REVIEW") return "Pause And Review";
+  if (action === "RESTRICT_NEW_RISK") return "Restrict New Borrowing";
+  return "Policy Unavailable";
 }

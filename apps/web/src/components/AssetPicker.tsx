@@ -8,17 +8,16 @@ type AssetPickerOption = {
 const ASSET_DISPLAY_NAMES: Record<string, string> = {
   NVDAx: "NVIDIA Tokenized Equity",
   SPYx: "S&P 500 Tokenized ETF",
-  QQQx: "Nasdaq-100 Tokenized ETF",
   AAPLx: "Apple Tokenized Equity",
 };
 
 export function assetDisplayName(asset: string): string {
-  return ASSET_DISPLAY_NAMES[asset] ?? "Tokenized equity";
+  return ASSET_DISPLAY_NAMES[asset] ?? "Tokenized Equity";
 }
 
 export function assetAvailabilityLabel(operationalReady: boolean | undefined): string {
   if (operationalReady === undefined) return "Checking";
-  return operationalReady ? "Available" : "Coming soon";
+  return operationalReady ? "Available" : "Coming Soon";
 }
 
 export function AssetPicker({ assets, selectedAsset, onChange }: {
@@ -110,16 +109,16 @@ export function AssetPicker({ assets, selectedAsset, onChange }: {
         type="search"
         role="combobox"
         value={query}
-        aria-label="Search assets"
+        aria-label="Search Assets"
         aria-autocomplete="list"
         aria-controls="asset-picker-listbox"
         aria-expanded="true"
         aria-activedescendant={filtered[highlighted] ? `asset-option-${filtered[highlighted].asset}` : undefined}
-        placeholder="Search assets…"
+        placeholder="Search Assets…"
         onChange={(event) => setQuery(event.target.value)}
         onKeyDown={handleSearchKeyDown}
       />
-      <div id="asset-picker-listbox" className="asset-picker__list" role="listbox" aria-label="Available assets">
+      <div id="asset-picker-listbox" className="asset-picker__list" role="listbox" aria-label="Available Assets">
         {filtered.map((option, index) => <button
           type="button"
           role="option"

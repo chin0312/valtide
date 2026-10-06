@@ -8,13 +8,17 @@ const { QueryClient, QueryClientProvider } = require("@tanstack/react-query");
 const { load } = require("./load-source.cjs");
 const client = load("../src/api/client.ts");
 const fixture = require("../src/fixtures/weekend_divergence.json");
+const consoleV2Fixture = require("../src/fixtures/console_weekend_divergence_v2.json");
 const { filterOperationalResults, filterHistoricalResults, filterDemoResults, operationalCoverageNotice, OPERATIONAL_HISTORY_MAX } = load("../src/views/OperationalTimeline.tsx");
 const { mergeObservations, rebasePosition } = load("../src/lib/playback.ts");
 const { ReasonCodes } = load("../src/components/ReasonCodes.tsx");
 const { RegistryPanel } = load("../src/components/RegistryPanel.tsx");
 const { ReferenceComparison } = load("../src/views/ReferenceComparison.tsx");
+const { ModelEvidence } = load("../src/views/ModelEvidence.tsx");
+const { ReferenceNumberLine } = load("../src/components/ReferenceNumberLine.tsx");
 const { ObservationAudit } = load("../src/components/ObservationAudit.tsx");
 const { assetAvailabilityLabel, assetDisplayName } = load("../src/components/AssetPicker.tsx");
+const { ObservationRecord } = load("../src/views/ObservationRecord.tsx");
 const { Hero } = load("../src/components/Hero.tsx");
 const { LandingPage } = load("../src/components/LandingPage.tsx");
 const { DocsPage } = load("../src/components/DocsPage.tsx");
@@ -22,13 +26,14 @@ const { MethodologyPage } = load("../src/components/MethodologyPage.tsx");
 const { InstrumentPassport, passportStatusFor } = load("../src/components/InstrumentPassport.tsx");
 const { PolicyFoundry } = load("../src/components/PolicyFoundry.tsx");
 const { DEMO_PASSPORT_ADDRESS, MODEL_EVIDENCE_SUMMARY, POLICY_PROPOSAL } = load("../src/fixtures/prototypeData.ts");
-const { default: App, consoleContextFromSearch } = load("../src/App.tsx");
+const { default: App, consoleContextFromSearch, effectiveContextAsset } = load("../src/App.tsx");
 const { deliveryStatusLabel, lastUpdatedLabel, pipelineStatusLabel } = load("../src/lib/format.ts");
-const { chartDomain, clampViewport, lowerBoundTimestamp, minimumViewportWidth, panViewport, shouldRenderStateDots, sliceChartDataForViewport, upperBoundTimestamp, wheelGestureIntent, wheelZoomScale, zoomSensitivity, zoomViewport } = load("../src/components/EscalationChart.tsx");
+const { modelDistanceLabel, peakModelDistance, evidenceCopy, EVIDENCE_SEMANTICS_V2 } = load("../src/lib/semantics.ts");
+const { buildChartData, chartDomain, clampViewport, lowerBoundTimestamp, minimumViewportWidth, panViewport, shouldRenderStateDots, sliceChartDataForViewport, upperBoundTimestamp, wheelGestureIntent, wheelZoomScale, zoomSensitivity, zoomViewport } = load("../src/components/EscalationChart.tsx");
 const h = React.createElement;
 const render = (component, props) => renderToStaticMarkup(h(component, props));
 
-test("Demo returns only the six original backend observations, including original reasons", async () => {
+test("Console Demo accepts only the six-row v2 scenario and uses its independent v2 backup", async () => {
   for (const row of fixture) {
     assert.equal(row.reference_profile, "unified_xstock_p1ac_xperp_evidence_v1");
     assert.equal(row.validation_target, "xstock_observed_price");
@@ -37,7 +42,15 @@ test("Demo returns only the six original backend observations, including origina
     assert.ok(row.challenger_detector);
   }
   const original = global.fetch;
-  const unusual = fixture.map(row => ({...row, evidence_state: "INCONCLUSIVE", reason_codes: ["CUSTOM_BACKEND_REASON"]}));
+  const unusual = consoleV2Fixture.map(row => ({...row, reason_codes: ["CUSTOM_BACKEND_REASON"]}));
+  assert.deepEqual(consoleV2Fixture.map(row => row.evidence_state), [
+    "SUPPORTED", "SUPPORTED", "SUPPORTED", "INCONCLUSIVE", "CHALLENGED", "CHALLENGED",
+  ]);
+  assert.ok(consoleV2Fixture.every(row => row.asset === "NVDAx"
+    && row.reference_profile === "unified_xstock_p1ac_xperp_evidence_v1"
+    && row.evidence_semantics === EVIDENCE_SEMANTICS_V2
+    && row.validation_target === "xstock_observed_price"
+    && row.xperp_role === "second_market_challenger"));
   try {
     global.fetch = async () => new Response(JSON.stringify(unusual));
     const response = await client.fetchDemoReplay();
@@ -46,8 +59,11 @@ test("Demo returns only the six original backend observations, including origina
     assert.deepEqual(response.results, unusual);
     global.fetch = async () => { throw new Error("offline"); };
     const fallback = await client.fetchDemoReplay();
-    assert.equal(fallback.source, "offline-fixture");
-    assert.deepEqual(fallback.results, fixture);
+    assert.equal(fallback.source, "console-backup");
+    assert.deepEqual(fallback.results, consoleV2Fixture);
+    assert.ok(fallback.results.every(row => row.evidence_semantics === EVIDENCE_SEMANTICS_V2));
+    await assert.rejects(client.fetchDemoReplay("SPYx"), /NVDAx-only/);
+    assert.deepEqual(client.DEMO_REPLAY_QUERY_KEY, ["demo-replay", "NVDAx", "weekend_divergence", EVIDENCE_SEMANTICS_V2]);
   } finally { global.fetch = original; }
 });
 
@@ -165,7 +181,7 @@ function appWith({result, rows, chain, error, assetList, profile = "legacy_xperp
     latest_observation_freshness:"unavailable",onchain_binding_configured:true,
     readiness_error_codes:[],
   }]);
-  query.setQueryData(["demo-replay","NVDAx","canonical"],{results:fixture,source:"offline-fixture"});
+  query.setQueryData(client.DEMO_REPLAY_QUERY_KEY,{results:consoleV2Fixture,source:"console-backup"});
   const operationalKey = client.assetQueryKeys.operational("NVDAx",profile);
   if (result) query.setQueryData(operationalKey,result);
   if (rows) query.setQueryData(client.assetQueryKeys.history("NVDAx",OPERATIONAL_HISTORY_MAX,profile),rows);
@@ -327,13 +343,113 @@ test("Console deep links select a known evidence context and fail closed to Oper
   assert.equal(consoleContextFromSearch("?view=console&context=unknown"), "Operational");
 });
 
-test("Cold Operational stays unavailable even when Demo is cached", () => {
+test("Demo uses canonical NVDAx data, hides selection, and preserves each operational asset selection", () => {
+  for (const selectedAsset of ["SPYx", "AAPLx", "NVDAx"]) {
+    assert.equal(effectiveContextAsset("Demo", selectedAsset), "NVDAx");
+    assert.equal(effectiveContextAsset("Operational", selectedAsset), selectedAsset);
+    assert.equal(effectiveContextAsset("Historical", selectedAsset), selectedAsset);
+  }
+
+  const originalWindow = global.window;
+  global.window = { location: { search: "?view=console&context=demo", pathname: "/" } };
+  try {
+    const html = appWith({});
+    assert.doesNotMatch(html, /asset-picker/);
+    assert.match(html, /NVDAx Validation Timeline/);
+    assert.match(html, /Demo Backup · 6 Synthetic Steps/);
+    assert.match(html, /Demo Evidence → Demo Policy/);
+    assert.match(html, /Policy Proposal/);
+    assert.match(html, /Evidence State v2/);
+    assert.doesNotMatch(html, /Research prototype|No transaction capability in this prototype|Demo fixture|backend|fixture/i);
+  } finally {
+    if (originalWindow === undefined) delete global.window;
+    else global.window = originalWindow;
+  }
+});
+
+test("Detector score formatting preserves units and refuses mixed-unit peaks", () => {
+  assert.equal(modelDistanceLabel("disagreement_z", 0.84), "0.8σ");
+  assert.equal(modelDistanceLabel("disagreement_bps", 37.24), "37.2 bps");
+  assert.equal(modelDistanceLabel("disagreement_bps", 21.06), "21.1 bps");
+  assert.equal(modelDistanceLabel("innovation_abs_z", 1.2), "—");
+  assert.equal(modelDistanceLabel("disagreement_z", null), "—");
+  assert.equal(modelDistanceLabel("disagreement_z", consoleV2Fixture[0].standardized_deviation), "—");
+  assert.equal(peakModelDistance(consoleV2Fixture), "4.2σ");
+  assert.equal(peakModelDistance([
+    consoleV2Fixture[0],
+    {...consoleV2Fixture[1], challenger_detector: {...consoleV2Fixture[1].challenger_detector, score_name:"disagreement_bps"}},
+  ]), "—");
+  assert.equal(peakModelDistance([{...consoleV2Fixture[0], challenger_detector:null}]), "—");
+  assert.equal(peakModelDistance([
+    {...consoleV2Fixture[0], standardized_deviation:null, challenger_detector:{score_name:"disagreement_bps",score:21.06}},
+    {...consoleV2Fixture[1], standardized_deviation:null, challenger_detector:{score_name:"disagreement_bps",score:37.24}},
+  ]), "37.2 bps");
+});
+
+test("Console Model Distance reads the backend detector score rather than standardized deviation", () => {
+  const cases = [
+    ["NVDAx", "disagreement_z", 0.84, "0.8σ"],
+    ["SPYx", "disagreement_bps", 37.24, "37.2 bps"],
+    ["AAPLx", "disagreement_bps", 21.06, "21.1 bps"],
+  ];
+  for (const [asset, scoreName, score, expected] of cases) {
+    const result = {
+      ...consoleV2Fixture[0],asset,standardized_deviation:null,
+      challenger_detector:{...consoleV2Fixture[0].challenger_detector,score_name:scoreName,score},
+    };
+    const html = appWith({result,profile:result.reference_profile});
+    assert.ok(html.includes(expected), `${asset} should show ${expected}`);
+  }
+});
+
+test("Peak Model Distance uses the largest compatible detector score and keeps the asset unit", () => {
+  const rows = [21.06, 37.24, 12].map((score, index) => ({
+    ...consoleV2Fixture[index],standardized_deviation:null,
+    challenger_detector:{...consoleV2Fixture[index].challenger_detector,score_name:"disagreement_bps",score},
+  }));
+  const html = render(ObservationRecord,{results:rows,currentIndex:2,sourceLabelText:"Historical"});
+  assert.match(html,/Peak Model Distance[\s\S]*?37\.2 bps/);
+});
+
+test("Console metrics and interval markers use observed xStock, P1a-C and X-Perp v2 fields", () => {
+  const v2 = consoleV2Fixture[4];
+  const html = appWith({result:v2, profile:v2.reference_profile});
+  for (const label of ["Observed xStock", "Valtide Fair Value", "X-Perp", "xStock Vs P1a-C", "Model Distance", "Last Trusted Underlying"]) assert.match(html, new RegExp(label));
+  assert.match(html, /2\.9σ/);
+  assert.match(html, /xStock ↔ P1a-C/);
+  assert.doesNotMatch(html, /Reference under test|Technical diagnostic/);
+  const numberLine = render(ReferenceNumberLine,{r:v2});
+  for (const marker of ["Observed xStock", "X-Perp / index", "Last Trusted Underlying"]) assert.match(numberLine,new RegExp(marker));
+  assert.doesNotMatch(numberLine,/Constructed/);
+  const chart = buildChartData([v2]);
+  assert.equal(chart[0].token,v2.token_price);
+  assert.equal(chart[0].xperp,v2.xperp_index_price);
+
+  const xstockInside = render(ReferenceComparison,{r:{...v2,token_price:100,xperp_index_price:120, fair_value_lower:99,fair_value_upper:101}});
+  assert.match(xstockInside,/Observed xStock is within the valuation range/);
+  const xstockOutside = render(ReferenceComparison,{r:{...v2,token_price:102,xperp_index_price:100, fair_value_lower:99,fair_value_upper:101}});
+  assert.match(xstockOutside,/Observed xStock is outside the valuation range/);
+});
+
+test("Current semantic copy is shared and old explicit rule generations stay recorded", () => {
+  const current = evidenceCopy(consoleV2Fixture[0]);
+  assert.equal(current.title,"Observed xStock Is Supported");
+  assert.match(current.detail,/SUPPORT band/);
+  const oldRecord = {...consoleV2Fixture[0], evidence_state:"CHALLENGED", reason_codes:["OLD_RECORDED_REASON"], evidence_semantics:"p1a_xstock_challenger_xperp_second_market_v1"};
+  const old = evidenceCopy(oldRecord);
+  assert.match(old.title,/Recorded challenged evidence/);
+  assert.match(old.detail,/not been reclassified/);
+  assert.equal(oldRecord.evidence_state,"CHALLENGED");
+  assert.deepEqual(oldRecord.reason_codes,["OLD_RECORDED_REASON"]);
+});
+
+test("Cold Operational never falls back to cached Demo evidence", () => {
   const html = appWith({error:"503 data_unavailable"});
-  assert.match(html,/Operational unavailable/);
+  assert.match(html,/Operational (?:Loading|Unavailable)/);
   assert.doesNotMatch(html,/Demo Fixture · 6 Observations|Scenario policy|Example demo policy/);
 });
 
-test("Validation Console exposes the three production catalog identities without implying readiness", () => {
+test("Validation Console exposes only the three API-enabled production assets", () => {
   const base = {
     token_source:"okx_onchainos",underlying_source:"alpaca",registered:true,
     api_exposed:true,model_available:false,quant_artifact_ready:false,
@@ -348,29 +464,58 @@ test("Validation Console exposes the three production catalog identities without
     ["SPYx","unified_xstock_p1ac_xperp_evidence_v1"],
     ["AAPLx","unified_xstock_p1ac_xperp_evidence_v1"],
   ].map(([asset,reference_profile]) => ({...base,asset,reference_profile}));
+  catalog.push({...base,asset:"QQQx",reference_profile:"xstock_vs_p1ac_challenger",api_exposed:false});
+  catalog.push({...base,asset:"TSLAx",reference_profile:"xstock_vs_p1ac_challenger",api_exposed:false});
   const html = appWith({assetList:catalog});
   assert.match(html,/aria-haspopup="listbox"/);
-  assert.match(html,/aria-label="Search assets"/);
+  assert.match(html,/aria-label="Search Assets"/);
+  assert.match(html,/aria-label="Available Assets"/);
   assert.match(html,/asset-picker__chevron/);
   assert.match(html,/viewBox="0 0 16 16"/);
   assert.doesNotMatch(html,/⌄/);
   for (const asset of ["NVDAx","SPYx","AAPLx"]) {
     assert.match(html,new RegExp(`>${asset}<`));
   }
-  assert.doesNotMatch(html,/>QQQx</);
+  assert.doesNotMatch(html, />QQQx</);
+  assert.doesNotMatch(html, />TSLAx</);
   assert.match(html,/NVIDIA Tokenized Equity/);
   assert.match(html,/S&amp;P 500 Tokenized ETF/);
-  assert.match(html,/Coming soon/);
-  assert.match(html,/MODEL_FIT_BLOCKED/);
-  assert.match(html,/No other asset/);
+  assert.match(html,/Coming Soon/);
+  assert.match(html,/Model fit blocked/);
+  assert.match(html,/Operational Readiness Issue:/);
+  assert.doesNotMatch(html,/No other asset|readiness is partial/);
 });
 
 test("Asset picker derives readable names and honest availability labels", () => {
   assert.equal(assetDisplayName("NVDAx"), "NVIDIA Tokenized Equity");
-  assert.equal(assetDisplayName("UNKNOWNx"), "Tokenized equity");
+  assert.equal(assetDisplayName("UNKNOWNx"), "Tokenized Equity");
   assert.equal(assetAvailabilityLabel(true), "Available");
-  assert.equal(assetAvailabilityLabel(false), "Coming soon");
+  assert.equal(assetAvailabilityLabel(false), "Coming Soon");
   assert.equal(assetAvailabilityLabel(undefined), "Checking");
+});
+
+test("Historical evidence summary uses the selected asset backtest without deriving new states", () => {
+  const query = new QueryClient({defaultOptions:{queries:{retry:false}}});
+  const asset = "SPYx";
+  const profile = "unified_xstock_p1ac_xperp_evidence_v1";
+  query.setQueryData(client.assetQueryKeys.backtest(asset, profile), {
+    asset,source:"historical",n_observations:4110,
+    evidence_state_counts:{SUPPORTED:4009,INCONCLUSIVE:30,CHALLENGED:71},
+    n_evaluable:3000,mae:1.2,rmse:2.1,interval_coverage:0.9,
+    window_start:"2026-09-21T00:00:00Z",window_end:"2026-10-05T06:25:00Z",
+    model_id:"P1a-C",model_version:"0.3.0",note:"Retrospective diagnostics.",
+  });
+  const html = renderToStaticMarkup(h(QueryClientProvider,{client:query},h(ModelEvidence,{asset,profile})));
+  query.clear();
+  for (const label of [
+    "Selected Historical Evidence", "Evidence States Across Historical Observations",
+    "Observations", "Observations With A Contemporaneous Benchmark", "Benchmark Coverage",
+    "Advanced Point-Error Diagnostics", "Mean Absolute Error", "Root Mean Squared Error",
+  ]) assert.ok(html.includes(label), `missing ${label}`);
+  assert.match(html,/SUPPORTED 4009/);
+  assert.match(html,/INCONCLUSIVE 30/);
+  assert.match(html,/CHALLENGED 71/);
+  assert.doesNotMatch(html,/James|research dashboard|Threshold Selection/);
 });
 
 test("Operational failure preserves cached evidence with a degraded label", () => {
@@ -384,7 +529,7 @@ test("Prior evidence is not paired with current enforcement", () => {
   const policy = {on_supported:"ALLOW",on_inconclusive:"REQUIRE_REVIEW",on_challenged:"RESTRICT_NEW_RISK",on_stale:"REQUIRE_REVIEW",max_age:900};
   const chain = {policy,policy_action:"RESTRICT_NEW_RISK",evidence_state:"CHALLENGED",exists:true,fresh:true,network:"Testnet",chain_id:1952,attestation:null};
   const html = appWith({result:fixture[1],rows:fixture.slice(0,2),chain});
-  assert.match(html,/Prior evidence → current policy/);
+  assert.match(html,/Prior Operational Record → Current Policy/);
   assert.match(html,/Current deployed state — not historical chain state/);
   assert.doesNotMatch(html,/Current RiskGuard ·/);
 });
@@ -393,19 +538,36 @@ test("Current evidence mapping and stale RiskGuard enforcement remain separate",
   const policy = {on_supported:"ALLOW",on_inconclusive:"REQUIRE_REVIEW",on_challenged:"RESTRICT_NEW_RISK",on_stale:"REQUIRE_REVIEW",max_age:900};
   const chain = {policy,policy_action:"REQUIRE_REVIEW",evidence_state:"SUPPORTED",exists:true,fresh:false,network:"Testnet",chain_id:1952,attestation:{publishedAt:Math.floor(Date.now()/1000)-7200}};
   const html = appWith({result:fixture[0],chain});
-  assert.match(html,/Current evidence → policy action/);
+  assert.match(html,/Operational Current Evidence → Policy Action/);
   assert.match(html,/Reason/);
-  assert.match(html,/Evidence supports the validation target/);
+  assert.match(html,/Observed xStock Is Supported/);
   assert.match(html,/RiskGuard data · Stale/);
   assert.match(html,/Last updated 2h ago/);
-  assert.match(html,/Technical details/);
-  assert.match(html,/Evidence state/);
-  assert.match(html,/Mapped policy action/);
-  assert.match(html,/RiskGuard state/);
-  assert.match(html,/Current RiskGuard action/);
+  assert.match(html,/Technical Details/);
+  assert.match(html,/Evidence State/);
+  assert.match(html,/Mapped Policy Action/);
+  assert.match(html,/RiskGuard State/);
+  assert.match(html,/Current RiskGuard Action/);
   assert.match(html,/ALLOW/);
   assert.match(html,/REQUIRE_REVIEW/);
   assert.doesNotMatch(html,/Raw policy value/);
+});
+
+test("Short Console labels and policy actions use consistent title case", () => {
+  const policy = {on_supported:"ALLOW",on_inconclusive:"MONITOR",on_challenged:"REQUIRE_REVIEW",on_stale:"REQUIRE_REVIEW",max_age:900};
+  const chain = {policy,policy_action:"ALLOW",evidence_state:"SUPPORTED",exists:true,fresh:true,network:"Testnet",chain_id:1952,attestation:null};
+  for (const [state,action] of [
+    ["SUPPORTED","Allow New Borrowing"],
+    ["INCONCLUSIVE","Continue Monitoring"],
+    ["CHALLENGED","Pause And Review"],
+  ]) {
+    const html = appWith({result:{...fixture[0],evidence_state:state},chain});
+    assert.ok(html.includes(action), `missing action ${action}`);
+    assert.match(html,/Current Finding/);
+    assert.match(html,/Policy Action/);
+  }
+  const html = appWith({result:fixture[0],chain});
+  for (const phrase of ["Technical Details","Publication Status","Valuation Range","Peak Model Distance","Observation Details","Source Provenance","Market State"]) assert.ok(html.includes(phrase), `missing ${phrase}`);
 });
 
 test("RiskGuard recency uses its publication timestamp and omits unavailable values", () => {
@@ -427,12 +589,13 @@ test("Null reference, all reasons and unavailable policy remain truthful", () =>
   assert.match(render(ReasonCodes,{codes:result.reason_codes,evidenceState:result.evidence_state}),/Global fallback calibration/);
 });
 
-test("unified comparison labels the validation target and source dependence", () => {
-  const xstock = render(ReferenceComparison, { r: fixture[0] });
-  assert.match(xstock, /Unified v2 evidence/);
-  assert.match(xstock, /xStock is the validation target/);
-  assert.match(xstock, /P1a-C is a model-based challenger that has assimilated xStock/);
-  assert.match(xstock, /exact-time X-Perp is a separate second-market signal/);
+test("xStock comparison is labelled model-based evidence, not independent observations", () => {
+  const xstock = render(ReferenceComparison, {
+    r: {...fixture[0], reference_profile:"xstock_vs_p1ac_challenger"},
+  });
+  assert.match(xstock, /Model-based challenger evidence/i);
+  assert.match(xstock, /P1a-C assimilates the current xStock observation/);
+  assert.match(xstock, /not two fully independent observations/);
 
   const legacy = render(ReferenceComparison, {
     r: {...fixture[0], reference_profile:"legacy_xperp_vs_p1ac", validation_target:"reference_under_test", evidence_semantics:"legacy_reference_under_test_v1"},
@@ -441,21 +604,24 @@ test("unified comparison labels the validation target and source dependence", ()
   assert.doesNotMatch(legacy, /xStock observation/);
 });
 
-test("Decision summary explains unified tri-source evidence while retaining legacy compatibility", () => {
-  const xstock = appWith({ result: fixture[0], profile:fixture[0].reference_profile });
-  assert.match(xstock, /Tri-source evidence supports the observed xStock price/);
-  assert.match(xstock, /not proof from two independent votes/);
-  assert.match(xstock, /Current finding/);
+test("Decision summary explains xStock dependence while retaining the legacy profile", () => {
+  const xstock = appWith({
+    result: {...fixture[0], reference_profile:"xstock_vs_p1ac_challenger"},
+    profile:"xstock_vs_p1ac_challenger",
+  });
+  assert.match(xstock, /Model-Based Challenger Evidence Supports the Observed xStock/);
+  assert.match(xstock, /not two fully independent observations/);
+  assert.match(xstock, /Evidence Assessment/);
   assert.doesNotMatch(xstock, /Current finding · Operational/);
 
-  const legacy = appWith({result: {...fixture[0], reference_profile:"legacy_xperp_vs_p1ac", validation_target:"reference_under_test", evidence_semantics:"legacy_reference_under_test_v1"}});
-  assert.match(legacy, /Available independent evidence/);
+  const legacy = appWith({result: {...fixture[0], reference_profile:"legacy_xperp_vs_p1ac"}});
+  assert.match(legacy, /This earlier observation is shown with its recorded reference/);
 });
 
 test("Observation and delivery audit survives unavailable X Layer reads", () => {
   const runtime = {scheduler_enabled:true,last_tick_status:"failure",last_tick_attempt_at:"2026-09-25T10:01:00Z",last_error:"source missing",auto_publish_enabled:true,last_publish_status:"failed",last_publish_attempt_at:"2026-09-25T10:02:00Z",last_publish_observation_ts:"2026-09-25T09:55:00Z",last_published_observation_ts:"2026-09-25T09:50:00Z",last_published_at:1790325969,last_publish_tx_hash:"0xFULL_TRANSACTION_HASH",last_publish_error:"delivery failed"};
   const audit = render(ObservationAudit,{result:fixture[0],context:"Operational",runtime});
-  for (const label of ["5-minute operational observation", "Reference source lag", "Trusted-anchor age", "Source provenance", "Model and version", "Last attempt"]) assert.ok(audit.includes(label));
+  for (const label of ["5-Minute Operational Observation", "X-Perp Source Lag", "Trusted Anchor Age", "Source Provenance", "Model And Version", "Last Update Attempt"]) assert.ok(audit.includes(label));
   assert.match(audit,/source missing/);
   const chain = render(RegistryPanel,{isError:true,mode:"historical",runtime});
   assert.doesNotMatch(chain,/DEMO MAPPING/);
@@ -471,7 +637,7 @@ test("Historical ranges use timestamps and Demo ranges never add observations", 
   assert.ok(filterDemoResults(fixture, "10M").every((row) => fixture.includes(row)));
 });
 
-test("Instrument Passport validates addresses and resolves only the labelled fixture", () => {
+test("Instrument Passport validates addresses and resolves only the labelled Demo address", () => {
   assert.equal(passportStatusFor(""), "idle");
   assert.equal(passportStatusFor("0xnot-an-address"), "invalid");
   assert.equal(passportStatusFor("0x2222222222222222222222222222222222222222"), "unknown");
@@ -479,32 +645,35 @@ test("Instrument Passport validates addresses and resolves only the labelled fix
   const invalid = render(InstrumentPassport, { initialAddress: "0xnot-an-address" });
   assert.match(invalid, /exactly 40 hexadecimal characters/);
   const unknown = render(InstrumentPassport, { initialAddress: "0x2222222222222222222222222222222222222222" });
-  assert.match(unknown, /No verified passport fixture/);
+  assert.match(unknown, /No demo metadata is available/);
   assert.doesNotMatch(unknown, /SHAREHOLDER RIGHTS/);
   const resolved = render(InstrumentPassport, { initialAddress: DEMO_PASSPORT_ADDRESS });
-  for (const value of ["Price exposure", "VERIFIED", "FIXTURE ASSERTION", "Shareholder rights", "NONE", "BALANCE ADJUSTMENT", "xSTOCKS WITHDRAWAL", "Rights profile", "differs from a share"]) assert.match(resolved, new RegExp(value, "i"));
-  assert.match(resolved, /not live address resolution/i);
+  for (const value of ["Price Exposure", "VERIFIED", "Demo Assertion", "Shareholder Rights", "NONE", "BALANCE ADJUSTMENT", "xSTOCKS WITHDRAWAL", "Rights Profile · Differs From A Share"]) assert.match(resolved, new RegExp(value, "i"));
+  assert.match(resolved, /Demo Data · No Live Address Lookup/);
   assert.match(resolved, /type="submit"/);
+  for (const value of ["Token Rights Metadata", "Demo Data", "Check Address", "Load Demo Address", "Collateral Identity", "Dividend Treatment", "Redemption"]) assert.match(resolved, new RegExp(value));
+  assert.doesNotMatch(resolved, /fixture|precomputed|example metadata/i);
 });
 
 test("Policy Foundry renders a deterministic diff and read-only approval boundary", () => {
   const html = render(PolicyFoundry);
-  for (const value of ["Precomputed policy proposal", "not generated live", "900s", "600s", "REQUIRE_REVIEW", "MONITOR", "RESTRICT_NEW_RISK", "Unsigned calldata", "No transaction capability in this prototype"]) assert.match(html, new RegExp(value, "i"));
+  for (const value of ["Policy Proposal", "deterministic demo policy for review", "900s", "600s", "REQUIRE_REVIEW", "MONITOR", "RESTRICT_NEW_RISK", "Unsigned Calldata", "Reference ABI", "Review Only · No Transaction Submission", "This demo does not sign or submit transactions."]) assert.match(html, new RegExp(value, "i"));
   assert.doesNotMatch(html, /Agent Council|ABI SHAPE VERIFIED|Human Approval Required/);
-  assert.match(html, /Not deployed/i);
+  assert.match(html, /Not Deployed/);
+  assert.doesNotMatch(html, /fixture|prototype|--example/i);
   assert.match(POLICY_PROPOSAL.calldata, /^0xf5b39423[0-9a-f]{320}$/);
 });
 
 test("Machine publication statuses use the requested display casing", () => {
-  assert.equal(pipelineStatusLabel("published"), "PUBLISHED");
+  assert.equal(pipelineStatusLabel("published"), "Published");
   assert.equal(deliveryStatusLabel("published"), "Published");
   assert.equal(deliveryStatusLabel("failed"), "Failed");
 });
 
 test("Historical observation audit is labelled as historical evidence", () => {
   const audit = render(ObservationAudit, { result: fixture[0], context: "Historical" });
-  assert.match(audit, /Historical observation/);
-  assert.doesNotMatch(audit, /5-minute operational observation/);
+  assert.match(audit, /Historical Observation/);
+  assert.doesNotMatch(audit, /5-Minute Operational Observation/);
 });
 
 test("Chart viewport zooms around an anchor and pans within the full domain", () => {

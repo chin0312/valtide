@@ -102,18 +102,16 @@ export function sourceLabel(source: string | null | undefined): string {
   if (!source) return DASH;
   const labels: Record<string, string> = {
     okx_onchainos: "OKX OnchainOS",
-    okx_xperp_index: "OKX X-Perp index",
-    alpaca: "Alpaca NVDA",
-    dexscreener: "DexScreener diagnostic",
+    okx_xperp_index: "OKX X-Perp Index",
+    alpaca: "Alpaca",
+    dexscreener: "DexScreener Diagnostic",
   };
   return labels[source] ?? source;
 }
 
 export function pipelineStatusLabel(status: string | null | undefined): string {
-  if (!status) return "UNAVAILABLE";
-  if (status === "READ ONLY") return status;
-  if (status === "published") return "PUBLISHED";
-  return status.replace(/[-\s]+/g, "_").toUpperCase();
+  if (!status) return "Unavailable";
+  return status.replace(/[_-]+/g, " ").toLowerCase().replace(/(^|\s)\w/g, (letter) => letter.toUpperCase());
 }
 
 export function deliveryStatusLabel(status: string | null | undefined): string {
@@ -126,7 +124,7 @@ const REASON_LABELS: Record<string, string> = {
   TOKEN_DATA_UNAVAILABLE: "Tokenized-market observation unavailable",
   COMPARATOR_UNAVAILABLE: "Independent comparator unavailable",
   MODEL_UNCERTAINTY_INVALID: "Model uncertainty unavailable",
-  REFERENCE_UNDER_TEST_OUTSIDE_INTERVAL: "Reference under test is outside the calibrated interval",
+  REFERENCE_UNDER_TEST_OUTSIDE_INTERVAL: "Recorded reference is outside the calibrated interval",
   UNDERLYING_REFERENCE_STALE: "Trusted underlying observation is stale",
   REFERENCE_UNDER_TEST_STALE: "Reference under test is stale",
   TOKEN_MARKET_QUALITY_LOW: "Tokenized-market quality is low",
@@ -134,17 +132,18 @@ const REASON_LABELS: Record<string, string> = {
   TOKEN_UNIT_SUSPECT: "Possible token/underlying unit mismatch",
   MODEL_UNCERTAINTY_HIGH: "Model uncertainty is high",
   CALIBRATION_GLOBAL_FALLBACK: "Global fallback calibration",
-  P1A_XSTOCK_DETECTOR_UNAVAILABLE: "P1a/xStock detector unavailable",
-  P1A_XSTOCK_SUPPORT_BAND: "P1a/xStock disagreement is in the support band",
-  P1A_XSTOCK_WATCH_BAND: "P1a/xStock disagreement is in the watch band",
-  P1A_XSTOCK_REVIEW_BAND: "P1a/xStock disagreement is in the review band",
-  P1A_XSTOCK_SUPPORT_NOT_PROMOTED: "Support state is not enabled for this asset",
-  P1A_XSTOCK_CHALLENGE_NOT_PROMOTED: "Challenge state is not enabled for this asset",
-  XPERP_EVIDENCE_UNAVAILABLE: "Exact-time X-Perp evidence unavailable",
-  XPERP_EVIDENCE_STALE: "X-Perp evidence is stale or not exact-time",
-  XPERP_EVIDENCE_AMBIGUOUS: "X-Perp does not clearly favor xStock or P1a",
-  XPERP_CORROBORATES_XSTOCK: "X-Perp is closer to the observed xStock price",
-  XPERP_CORROBORATES_P1A: "X-Perp directionally corroborates P1a",
+  P1A_XSTOCK_SUPPORT_BAND: "P1a-C / xStock Support Band",
+  P1A_XSTOCK_WATCH_BAND: "P1a-C / xStock Watch Band",
+  P1A_XSTOCK_REVIEW_BAND: "P1a-C / xStock Review Band",
+  XPERP_CORROBORATES_XSTOCK: "X-Perp Supports xStock",
+  XPERP_CORROBORATES_P1A: "X-Perp Supports P1a-C",
+  XPERP_EVIDENCE_AMBIGUOUS: "X-Perp Evidence Is Ambiguous",
+  XPERP_EVIDENCE_UNAVAILABLE: "X-Perp Evidence Is Unavailable",
+  XPERP_EVIDENCE_STALE: "X-Perp Evidence Is Stale",
+  XPERP_EVIDENCE_WRONG_SOURCE: "X-Perp Source Is Not Verified",
+  P1A_XSTOCK_DETECTOR_UNAVAILABLE: "P1a-C / xStock Detector Is Unavailable",
+  P1A_XSTOCK_SUPPORT_NOT_PROMOTED: "P1a-C / xStock Support Is Not Promoted",
+  P1A_XSTOCK_CHALLENGE_NOT_PROMOTED: "P1a-C / xStock Challenge Is Not Promoted",
 };
 
 export function reasonLabel(code: string): string {

@@ -1,14 +1,18 @@
 import type { ValuationResult } from "../api/types";
 import { money } from "../lib/format";
 import { priceToFraction, unitsToFraction } from "../lib/scale";
+import { isXStockValidation } from "../lib/semantics";
 
 export function ReferenceNumberLine({ r }: { r: ValuationResult }) {
-  const unified = r.validation_target === "xstock_observed_price" || r.reference_profile === "unified_xstock_p1ac_xperp_evidence_v1";
+  const xstockProduct = isXStockValidation(r);
   const candidates = [
-    { label: unified ? "X-Perp evidence" : "Reference", price: unified ? r.xperp_index_price : r.reference_under_test, color: "var(--color-series-reference)", shape: "diamond" },
-    { label: unified ? "xStock target" : "Token market", price: r.token_price, color: "var(--color-series-token)", shape: "circle" },
-    { label: "Last trusted price", price: r.last_trusted_reference, color: "var(--color-series-trusted)", shape: "square" },
-    { label: "Constructed", price: r.external_constructed_reference, color: "var(--color-series-valtide)", shape: "circle" },
+    ...(xstockProduct ? [
+      { label: "Observed xStock", price: r.token_price, color: "var(--color-series-token)", shape: "circle" },
+      { label: "X-Perp / index", price: r.xperp_index_price ?? r.reference_under_test, color: "var(--color-series-reference)", shape: "diamond" },
+    ] : [
+      { label: "Reference under test", price: r.reference_under_test, color: "var(--color-series-reference)", shape: "diamond" },
+    ]),
+      { label: "Last Trusted Underlying", price: r.last_trusted_reference, color: "var(--color-series-trusted)", shape: "square" },
   ];
   const markers = candidates.filter((marker): marker is typeof marker & { price: number } => marker.price != null);
   const bandStart = unitsToFraction(-1) * 100;
@@ -18,14 +22,14 @@ export function ReferenceNumberLine({ r }: { r: ValuationResult }) {
     <div>
       <div className="mb-5 flex flex-wrap items-baseline justify-between gap-2">
         <span className="tnum text-xl font-medium tracking-tight text-ink">{money(r.fair_value_lower)} – {money(r.fair_value_upper)}</span>
-        <span className="text-[11px]" style={{ color: "var(--color-series-valtide)" }}>{Math.round(r.interval_coverage_target * 100)}% interval</span>
+        <span className="text-[11px]" style={{ color: "var(--color-series-valtide)" }}>{Math.round(r.interval_coverage_target * 100)}% Calibrated Interval</span>
       </div>
 
       <div className="relative mx-2 h-[130px]" role="img" aria-label={`Fair value ${money(r.valtide_fair_value)}, interval ${money(r.fair_value_lower)} to ${money(r.fair_value_upper)}`}>
         <div className="absolute inset-x-0 top-[60px] h-px" style={{ background: "var(--color-line-strong)" }} />
         <div className="absolute top-[38px] h-11 rounded" style={{ left: `${bandStart}%`, width: `${bandWidth}%`, background: "var(--color-band-fill)", border: "1px solid var(--color-series-valtide)" }} />
         <div className="absolute left-1/2 top-[32px] h-14 w-px" style={{ background: "var(--color-series-valtide)" }} />
-        <div className="absolute inset-x-0 top-0 text-center text-[11px]" style={{ color: "var(--color-muted)" }}>Fair value <span className="tnum ml-1 text-ink">{money(r.valtide_fair_value)}</span></div>
+        <div className="absolute inset-x-0 top-0 text-center text-[11px]" style={{ color: "var(--color-muted)" }}>Valtide Fair Value <span className="tnum ml-1 text-ink">{money(r.valtide_fair_value)}</span></div>
         {markers.map((marker) => (
           <div key={marker.label} data-price-marker={marker.label} className="absolute" style={{ left: `${priceToFraction(marker.price, r) * 100}%`, top: 60, zIndex: marker.shape === "diamond" ? 3 : marker.shape === "square" ? 2 : 1 }} title={`${marker.label}: ${money(marker.price)}`}>
             <svg className="absolute -translate-x-1/2 -translate-y-1/2" width="28" height="28" viewBox="0 0 28 28" aria-hidden="true" style={{ overflow: "visible" }}>
@@ -36,7 +40,7 @@ export function ReferenceNumberLine({ r }: { r: ValuationResult }) {
             </svg>
           </div>
         ))}
-        <div className="absolute inset-x-0 bottom-0 flex justify-between text-[10px]" style={{ color: "var(--color-muted)" }}><span>Below range</span><span>Above range</span></div>
+        <div className="absolute inset-x-0 bottom-0 flex justify-between text-[10px]" style={{ color: "var(--color-muted)" }}><span>Below Range</span><span>Above Range</span></div>
       </div>
 
       <div className="mt-5 grid grid-cols-3 gap-3 border-t pt-4" style={{ borderColor: "var(--color-line-subtle)" }}>
