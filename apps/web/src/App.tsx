@@ -347,14 +347,41 @@ function EvidenceCard({ result }: { result: ValuationResult }) {
 }
 
 function PolicyCard({ state, action, source, label, enforced }: { state?: EvidenceState; action: PolicyAction | null; source: string; label: string; enforced?: OnchainControlPlane }) {
+  const riskGuardState = enforced ? enforced.fresh ? "FRESH" : "STALE" : "UNAVAILABLE";
   return (
     <Panel title="Policy action" icon="shield" right={<span title={source} className="inline-flex items-center gap-1.5 text-[10px] text-muted"><Icon name="chain" size={14} />{label}</span>}>
       <div className="break-words text-xl font-semibold tracking-[-0.03em] text-ink">{plainAction(action)}</div>
-      <div className="technical-mono mt-1 text-xs text-muted">Raw policy value · {action ?? "UNAVAILABLE"}</div>
-      <div className="tnum mt-3 flex items-center gap-2 rounded px-2.5 py-2 text-[10px]" style={{ background: "var(--color-panel-2)", color: "var(--color-ink-dim)", border: "1px solid var(--color-line)" }}>{state ?? "UNREAD"}<Icon name="arrow" size={12} />{action ?? "UNAVAILABLE"}</div>
-      {enforced && <div className="mt-2 flex flex-wrap justify-between gap-2 text-[10px] text-ink-dim"><span>Current RiskGuard status · {enforced.fresh ? "FRESH" : "STALE"}</span><strong className="text-ink">{enforced.policy_action}</strong></div>}
+      <div className="mt-3">
+        <div className="eyebrow text-muted">Reason</div>
+        <div className="mt-1 text-sm text-ink-dim">{plainEvidenceReason(state)}</div>
+      </div>
+      {enforced && <div className="mt-3 text-xs text-ink-dim">RiskGuard data · {plainFreshness(enforced.fresh)}</div>}
+      <details className="mt-3 overflow-hidden rounded" style={{ border: "1px solid var(--color-line)" }}>
+        <summary className="eyebrow flex items-center justify-between px-3 py-2.5" style={{ background: "var(--color-panel-2)", color: "var(--color-muted)" }}><span>Technical details</span><span aria-hidden style={{ color: "var(--color-accent)" }}>＋</span></summary>
+        <dl className="grid gap-2 px-3 py-3 text-xs">
+          <TechnicalPolicyValue label="Evidence state" value={state ?? "UNAVAILABLE"} />
+          <TechnicalPolicyValue label="Mapped policy action" value={action ?? "UNAVAILABLE"} />
+          <TechnicalPolicyValue label="RiskGuard state" value={riskGuardState} />
+          {enforced && <TechnicalPolicyValue label="Current RiskGuard action" value={enforced.policy_action} />}
+        </dl>
+      </details>
     </Panel>
   );
+}
+
+function TechnicalPolicyValue({ label, value }: { label: string; value: string }) {
+  return <div className="flex flex-wrap items-baseline justify-between gap-2"><dt className="text-muted">{label}</dt><dd className="technical-mono text-right text-ink">{value}</dd></div>;
+}
+
+function plainEvidenceReason(state?: EvidenceState): string {
+  if (state === "SUPPORTED") return "Evidence supports the reference";
+  if (state === "INCONCLUSIVE") return "Evidence is inconclusive";
+  if (state === "CHALLENGED") return "Evidence challenges the reference";
+  return "Evidence is unavailable";
+}
+
+function plainFreshness(fresh: boolean): string {
+  return fresh ? "Fresh" : "Stale";
 }
 
 function BasisCard({ result }: { result: ValuationResult }) {

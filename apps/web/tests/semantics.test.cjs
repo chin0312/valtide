@@ -374,9 +374,17 @@ test("Current evidence mapping and stale RiskGuard enforcement remain separate",
   const chain = {policy,policy_action:"REQUIRE_REVIEW",evidence_state:"SUPPORTED",exists:true,fresh:false,network:"Testnet",chain_id:1952,attestation:null};
   const html = appWith({result:fixture[0],chain});
   assert.match(html,/Current evidence → policy action/);
-  assert.match(html,/Current RiskGuard status · STALE/);
+  assert.match(html,/Reason/);
+  assert.match(html,/Evidence supports the reference/);
+  assert.match(html,/RiskGuard data · Stale/);
+  assert.match(html,/Technical details/);
+  assert.match(html,/Evidence state/);
+  assert.match(html,/Mapped policy action/);
+  assert.match(html,/RiskGuard state/);
+  assert.match(html,/Current RiskGuard action/);
   assert.match(html,/ALLOW/);
   assert.match(html,/REQUIRE_REVIEW/);
+  assert.doesNotMatch(html,/Raw policy value/);
 });
 
 test("Null reference, all reasons and unavailable policy remain truthful", () => {
