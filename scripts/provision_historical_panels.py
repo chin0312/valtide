@@ -27,6 +27,7 @@ sys.path.insert(0, str(ROOT / "apps" / "api"))
 resolve_asset_config = import_module("valtide_api.assets").resolve_asset_config
 Settings = import_module("valtide_api.config").Settings
 inspect_panel_readiness = import_module("valtide_api.panel").inspect_panel_readiness
+resolve_quant_runtime = import_module("valtide_api.quant_runtime").resolve_quant_runtime
 
 DEFAULT_MANIFEST = ROOT / "data" / "manifests" / "production_historical_panels.json"
 _ASSETS = ("NVDAx", "SPYx", "QQQx", "AAPLx")
@@ -104,10 +105,16 @@ def _validate_expected_identity(asset: str, expected: dict[str, Any]) -> None:
     for field, value in actual_identity.items():
         if expected.get(field) != value:
             raise PanelProvisioningError(f"manifest {field} does not match registered asset")
-    if expected.get("model_id") != "P1a-C":
-        raise PanelProvisioningError("manifest model identity is invalid")
-    if not isinstance(expected.get("model_version"), str) or not expected["model_version"]:
-        raise PanelProvisioningError("manifest model version is missing")
+    try:
+        runtime = resolve_quant_runtime(config)
+    except (KeyError, TypeError, ValueError) as exc:
+        raise PanelProvisioningError("registered quant runtime is unavailable") from exc
+    if expected.get("model_id") != runtime.model_id:
+        raise PanelProvisioningError("manifest model_id does not match registered quant runtime")
+    if expected.get("model_version") != runtime.model_version:
+        raise PanelProvisioningError(
+            "manifest model_version does not match registered quant runtime"
+        )
 
     persistent_path = Path(str(expected.get("persistent_path", "")))
     if not persistent_path.is_absolute():

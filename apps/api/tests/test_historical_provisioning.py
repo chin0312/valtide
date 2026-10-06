@@ -217,6 +217,25 @@ def test_verifier_rejects_wrong_sha_asset_chain_and_address(tmp_path: Path) -> N
 
 
 @pytest.mark.parametrize(
+    ("field", "wrong_value"),
+    (("model_id", "P1a"), ("model_version", "0.2.0")),
+)
+def test_verifier_rejects_model_binding_mismatch(
+    tmp_path: Path, field: str, wrong_value: str
+) -> None:
+    source = tmp_path / "spyx.csv"
+    _write_fixture(source, "SPYx")
+    expected = _expected("SPYx", source)
+
+    with pytest.raises(PanelProvisioningError, match=field):
+        verify_panel(
+            source,
+            asset="SPYx",
+            expected={**expected, field: wrong_value},
+        )
+
+
+@pytest.mark.parametrize(
     ("identity_field", "wrong_value"),
     (
         ("asset", "QQQx"),
