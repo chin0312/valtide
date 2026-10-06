@@ -256,9 +256,6 @@ def resolve_asset_deployment(
         raise
     except AssetConfigurationError as exc:
         raise PublisherNotConfigured(str(exc)) from exc
-    if not asset_config.capabilities.onchain:
-        raise PublisherNotConfigured(f"onchain binding is unavailable for '{asset}'")
-
     path = settings.resolved_deployment_manifest_path
     manifest = _load_manifest(path)
     contracts = manifest.get("contracts")
@@ -273,6 +270,30 @@ def resolve_asset_deployment(
         raise PublisherNotConfigured(f"deployment manifest has no binding for '{asset}'")
     if not isinstance(contracts, dict) or not isinstance(demo, dict):
         raise PublisherNotConfigured("deployment manifest is missing contracts or demo metadata")
+
+    # A multi-asset manifest is authoritative for every vault address. Reject
+    # accidental reuse of one DemoVault for two identities before any RPC call.
+    # In particular, the legacy DEMO_VAULT_ADDRESS override is intentionally
+    # ignored once the canonical `assets` map exists.
+    if bindings is not None:
+        seen_vaults: dict[str, str] = {}
+        for binding_asset, binding in bindings.items():
+            if not isinstance(binding, dict):
+                raise PublisherNotConfigured(
+                    "deployment manifest contains an invalid asset binding"
+                )
+            try:
+                vault = _validate_address(str(binding["demoVault"]), "demo vault address")
+            except KeyError as exc:
+                raise PublisherNotConfigured(
+                    f"deployment manifest is missing the demo vault for '{binding_asset}'"
+                ) from exc
+            normalized_vault = vault.lower()
+            if normalized_vault in seen_vaults:
+                raise PublisherNotConfigured(
+                    "deployment manifest reuses one DemoVault for multiple asset bindings"
+                )
+            seen_vaults[normalized_vault] = str(binding_asset)
 
     try:
         chain_id = int(settings.xlayer_chain_id or manifest["chainId"])
@@ -1036,6 +1057,9 @@ def publish(
         asset=requested_asset,
         config=config,
     )
+    asset_config = resolve_asset_config(requested_asset, settings)
+    if not asset_config.capabilities.onchain:
+        raise PublisherNotConfigured(f"onchain publication is disabled for '{requested_asset}'")
     if not settings.xlayer_rpc_url or not settings.publisher_private_key:
         raise PublisherNotConfigured(
             "set XLAYER_RPC_URL and PUBLISHER_PRIVATE_KEY for X Layer publication"

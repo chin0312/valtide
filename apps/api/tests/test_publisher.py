@@ -8,6 +8,7 @@ import pytest
 from web3 import Web3
 
 import valtide_api.publisher as publisher_module
+from valtide_api.assets import resolve_asset_config
 from valtide_api.config import Settings
 from valtide_api.models import EvidenceState, ValuationResult
 from valtide_api.publisher import (
@@ -29,7 +30,9 @@ from valtide_api.publisher import (
     load_deployment_config,
     publish,
     read_control_plane,
+    resolve_asset_deployment,
 )
+from valtide_api.quant_runtime import resolve_quant_runtime
 
 REPO_ROOT = Path(__file__).resolve().parents[3]
 
@@ -47,6 +50,35 @@ def _compatible_manifest(tmp_path):
     path = tmp_path / "compatible-xlayer-manifest.json"
     path.write_text(json.dumps(manifest), encoding="utf-8")
     return path
+
+
+def _multi_asset_manifest(tmp_path):
+    source = json.loads((REPO_ROOT / "deployments" / "xlayer-testnet.json").read_text())
+    nvda = source.pop("demo")
+    source["assets"] = {
+        "NVDAx": {**nvda, "demoVault": source["contracts"]["DemoCollateralVault"]}
+    }
+    for index, asset in enumerate(("SPYx", "AAPLx"), start=2):
+        asset_config = resolve_asset_config(asset)
+        runtime = resolve_quant_runtime(asset_config)
+        reference_id = publisher_module.keccak_text(asset_config.xlayer_reference_name)
+        source["assets"][asset] = {
+            "demoVault": "0x" + f"{index:040x}",
+            "assetId": publisher_module.keccak_text(asset),
+            "referenceId": reference_id,
+            "modelVersion": publisher_module.keccak_text(runtime.model_version),
+            "publicationCompatibility": {
+                "asset": asset,
+                "referenceId": reference_id,
+                "referenceProfile": asset_config.reference_profile,
+                "evidenceSemantics": "p1a_xstock_band_with_xperp_review_corroboration_v2",
+                "modelId": runtime.model_id,
+                "modelVersion": runtime.model_version,
+            },
+        }
+    path = tmp_path / "multi-asset-manifest.json"
+    path.write_text(json.dumps(source), encoding="utf-8")
+    return path, source
 
 
 @pytest.fixture()
@@ -132,6 +164,72 @@ def test_future_asset_map_manifest_parses_same_nvdax_binding(tmp_path, deploymen
     path.write_text(json.dumps(source))
     with pytest.raises(publisher_module.PublisherNotConfigured, match="no binding"):
         load_deployment_config(Settings(_env_file=None, deployment_manifest_path=path))
+
+
+def test_multi_asset_manifest_resolves_three_pairs_with_shared_control_plane(tmp_path):
+    path, manifest = _multi_asset_manifest(tmp_path)
+    settings = Settings(
+        _env_file=None,
+        deployment_manifest_path=path,
+        demo_vault_address="0x" + "99" * 20,
+    )
+
+    resolved = {asset: resolve_asset_deployment(asset, settings) for asset in manifest["assets"]}
+
+    assert set(resolved) == {"NVDAx", "SPYx", "AAPLx"}
+    assert len({item.asset_id for item in resolved.values()}) == 3
+    assert len({item.reference_id for item in resolved.values()}) == 3
+    assert len({item.model_version for item in resolved.values()}) == 2
+    assert len({item.demo_vault_address.lower() for item in resolved.values()}) == 3
+    assert resolved["NVDAx"].demo_vault_address == manifest["assets"]["NVDAx"]["demoVault"]
+    assert resolved["SPYx"].demo_vault_address == manifest["assets"]["SPYx"]["demoVault"]
+    assert resolved["AAPLx"].demo_vault_address == manifest["assets"]["AAPLx"]["demoVault"]
+    assert {item.registry_address for item in resolved.values()} == {
+        manifest["contracts"]["ValtideValidationRegistry"]
+    }
+    assert {item.risk_guard_address for item in resolved.values()} == {
+        manifest["contracts"]["ValtideRiskGuard"]
+    }
+    assert {item.chain_id for item in resolved.values()} == {1952}
+    assert {item.manifest_publisher for item in resolved.values()} == {manifest["publisher"]}
+    assert resolved["SPYx"].publication_compatibility.reference_id == resolved["SPYx"].reference_id
+    assert (
+        resolved["AAPLx"].publication_compatibility.reference_id
+        == resolved["AAPLx"].reference_id
+    )
+
+
+@pytest.mark.parametrize(
+    ("asset", "field", "value", "message"),
+    [
+        ("SPYx", "assetId", "0x" + "01" * 32, "asset ID"),
+        ("SPYx", "referenceId", "0x" + "02" * 32, "reference ID"),
+        ("SPYx", "modelVersion", "0x" + "03" * 32, "model version"),
+    ],
+)
+def test_multi_asset_manifest_rejects_wrong_identity_or_model(
+    tmp_path, asset, field, value, message
+):
+    path, manifest = _multi_asset_manifest(tmp_path)
+    manifest["assets"][asset][field] = value
+    path.write_text(json.dumps(manifest), encoding="utf-8")
+
+    with pytest.raises(publisher_module.PublisherNotConfigured, match=message):
+        resolve_asset_deployment(asset, Settings(_env_file=None, deployment_manifest_path=path))
+
+
+def test_multi_asset_manifest_rejects_shared_vault_and_missing_binding(tmp_path):
+    path, manifest = _multi_asset_manifest(tmp_path)
+    manifest["assets"]["SPYx"]["demoVault"] = manifest["assets"]["AAPLx"]["demoVault"]
+    path.write_text(json.dumps(manifest), encoding="utf-8")
+    settings = Settings(_env_file=None, deployment_manifest_path=path)
+    with pytest.raises(publisher_module.PublisherNotConfigured, match="reuses one DemoVault"):
+        resolve_asset_deployment("SPYx", settings)
+
+    manifest["assets"].pop("SPYx")
+    path.write_text(json.dumps(manifest), encoding="utf-8")
+    with pytest.raises(publisher_module.PublisherNotConfigured, match="no binding"):
+        resolve_asset_deployment("SPYx", settings)
 
 
 def test_evidence_hash_input_is_deterministic_and_material(result, deployment_config):
@@ -343,7 +441,7 @@ class _FakeGuardFunctions:
         return _FakeCall(self.guard.registry_address)
 
     def getPolicy(self, _owner, _asset_id, _reference_id):
-        return _FakeCall(((900, 0, 2, 3, 2), True))
+        return _FakeCall((self.guard.policy_values, self.guard.policy_configured))
 
     def evaluateFor(self, _owner, _asset_id, _reference_id):
         return _FakeCall(self.guard.evaluation)
@@ -354,6 +452,8 @@ class _FakeGuard:
         self.functions = _FakeGuardFunctions(self)
         self.registry_address = config.registry_address
         self.evaluation = (1, 2, False, False)
+        self.policy_values = (900, 0, 2, 3, 2)
+        self.policy_configured = True
 
 
 class _FakeVaultFunctions:
@@ -510,6 +610,51 @@ def test_publish_preflight_rejects_demo_vault_bound_to_another_asset(
 
     with pytest.raises(ChainPreflightError, match="asset ID"):
         publish(result, settings=publisher_settings, web3_client=w3)
+
+
+@pytest.mark.parametrize(
+    ("field", "value", "message"),
+    [
+        ("risk_guard_address", "0x" + "99" * 20, "different RiskGuard"),
+        ("reference_id", "0x" + "88" * 32, "reference ID"),
+    ],
+)
+def test_chain_verification_rejects_wrong_vault_binding(
+    publisher_settings, fake_chain, field, value, message
+):
+    config, w3 = fake_chain
+    if field == "risk_guard_address":
+        w3.eth.vault.risk_guard_address = value
+    else:
+        w3.eth.vault.reference_id = value
+
+    with pytest.raises(ChainPreflightError, match=message):
+        publisher_module._verify_deployment(w3, config)
+
+
+def test_read_only_preflight_rejects_unconfigured_asset_policy(publisher_settings, fake_chain):
+    config, w3 = fake_chain
+    w3.eth.guard.policy_configured = False
+
+    with pytest.raises(ChainPreflightError, match="policy is not configured"):
+        publisher_module._verify_deployment(w3, config)
+
+
+def test_unprovisioned_spy_manifest_can_be_resolved_but_not_published(tmp_path, result):
+    path, _manifest = _multi_asset_manifest(tmp_path)
+    settings = Settings(
+        _env_file=None,
+        deployment_manifest_path=path,
+        xlayer_rpc_url="http://must-not-be-used",
+        publisher_private_key="test-private-key",
+        publish_enabled=True,
+    )
+    spy_result = result.model_copy(update={"asset": "SPYx", "model_version": "0.3.0"})
+    resolved = resolve_asset_deployment("SPYx", settings)
+    assert resolved.demo_vault_address == _manifest["assets"]["SPYx"]["demoVault"]
+
+    with pytest.raises(publisher_module.PublisherNotConfigured, match="publication is disabled"):
+        publish(spy_result, settings=settings, web3_client=object(), asset="SPYx")
 
 
 def test_publish_rejects_result_asset_different_from_requested_asset(
