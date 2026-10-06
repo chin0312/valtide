@@ -23,16 +23,16 @@ import json
 import math
 import sys
 from collections import Counter, defaultdict
+from importlib import resources
 from pathlib import Path
 from statistics import mean, median
 from typing import Any
-from importlib import resources
 
 from valtide_api.assets import resolve_asset_config, supported_asset_names
 from valtide_api.challenger_detector import (
+    detector_artifact,
     detector_band,
     detector_score,
-    detector_artifact,
     resolve_challenger_detector,
 )
 from valtide_api.config import Settings
