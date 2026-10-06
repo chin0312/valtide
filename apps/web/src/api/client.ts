@@ -120,7 +120,9 @@ export const assetQueryKeys = {
   assets: ["assets"] as const,
   operational: (asset: string, profile: string) => ["valuation", "operational", asset, profile] as const,
   history: (asset: string, limit: number, profile: string) => ["history", asset, limit, profile] as const,
-  historical: (asset: string, range: string, profile: string) => ["replay", asset, "historical-panel", range, profile] as const,
+  // The replay endpoint returns the complete panel. Time ranges are client-side
+  // views of that same immutable response, so they must share one cache entry.
+  historical: (asset: string, profile: string) => ["replay", asset, "historical-panel", profile] as const,
   runtime: (asset: string) => ["runtime", asset] as const,
   onchain: (asset: string) => ["onchain", asset] as const,
   enforcement: (asset: string) => ["onchain", asset, "enforcement"] as const,

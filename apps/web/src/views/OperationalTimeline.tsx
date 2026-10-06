@@ -12,6 +12,7 @@ export const OPERATIONAL_HISTORY_LIMITS: Record<OperationalRange, number> = {
   "24H": 288,
   "7D": 2016,
 };
+export const OPERATIONAL_HISTORY_MAX = OPERATIONAL_HISTORY_LIMITS["7D"];
 
 const RANGE_MS: Record<OperationalRange, number> = {
   "1H": 60 * 60 * 1000,
@@ -44,6 +45,17 @@ function filterByWindow(results: ValuationResult[], windowMs: number | null): Va
     const timestamp = Date.parse(result.timestamp);
     return Number.isFinite(timestamp) && timestamp > cutoff && timestamp <= latestTimestamp;
   });
+}
+
+export function operationalCoverageNotice(results: ValuationResult[], range: OperationalRange): string | undefined {
+  const timestamps = results.map((result) => Date.parse(result.timestamp)).filter(Number.isFinite).sort((a, b) => a - b);
+  if (!timestamps.length) return undefined;
+  const earliest = timestamps[0];
+  const latest = timestamps[timestamps.length - 1];
+  // A complete 5-minute window has its first sample one cadence after the
+  // mathematical cutoff because filtering intentionally excludes the boundary.
+  if (earliest <= latest - RANGE_MS[range] + 5 * 60_000) return undefined;
+  return `Recorded operational history starts ${dateTimeUTC(new Date(earliest).toISOString())}; no earlier observations are available for the selected ${range} window yet.`;
 }
 
 export function filterOperationalResults(results: ValuationResult[], range: OperationalRange): ValuationResult[] {
