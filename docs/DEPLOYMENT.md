@@ -41,9 +41,51 @@ uvicorn valtide_api.main:app --host 0.0.0.0 --port ${PORT:-8000}
 
 The scheduler must remain single-process because it owns canonical five-minute
 boundaries and the persisted SQLite state. `VALTIDE_STATE_DB_PATH` points to a
-persistent SQLite file under `/data`; the exact filename is configured in
-Railway. `HISTORICAL_PANEL_PATH` points to the provisioned historical panel on
-the same persistent volume for the historical replay path.
+persistent SQLite file under `/data`; it stores operational runtime state and
+history, not historical source panels. Historical CSVs are separately
+provisioned under `/data/historical` on the same persistent volume and remain
+available across container restarts and redeploys.
+
+The three production Historical paths are:
+
+```text
+HISTORICAL_PANEL_PATH=/data/historical/panels/20261005/nvdax_historical_5m.csv
+SPYX_HISTORICAL_PANEL_PATH=/data/historical/panels/20261005/spyx_historical_5m.csv
+AAPLX_HISTORICAL_PANEL_PATH=/data/historical/panels/20261005/aaplx_historical_5m.csv
+```
+
+QQQx remains research-only. A previously uploaded QQQx CSV may remain on the
+volume, but it is not part of the production manifest and must not be bound to
+the production service.
+
+Each file is bound to an asset, Solana chain index/token address, underlying,
+OKX X-Perp/index instrument, canonical panel schema, time window, row count,
+and SHA-256 in
+[`data/manifests/production_historical_panels.json`](../data/manifests/production_historical_panels.json).
+Provision only the exact verified bytes; do not use a different asset's panel
+or an Ethereum research panel as a fallback. A panel file is not considered
+Historical-ready until the backend's canonical identity/replay checks pass.
+The reproducible transfer guard is
+[`scripts/provision_historical_panels.py`](../scripts/provision_historical_panels.py):
+transfer a candidate to a temporary file under the existing volume, then run
+the script in the backend container with `--asset` and `--source`. It verifies
+the committed SHA and identity manifest, uses the canonical panel inspector,
+installs atomically, accepts identical re-provisioning, and refuses to replace
+different destination bytes. The source CSVs remain external to Git.
+
+Panel generations are immutable: if an older valid generation already exists
+at a previous path, preserve it and point the asset setting to the new
+manifest-bound generation instead of overwriting its bytes. For example, after
+placing a transfer copy at `/data/historical/.incoming/nvdax.csv`:
+
+```bash
+python /app/scripts/provision_historical_panels.py \
+  --asset NVDAx \
+  --source /data/historical/.incoming/nvdax.csv
+```
+
+Repeat for the other two manifest entries, then verify `/api/assets` and the
+asset-scoped `source=panel` replay before and after restarting the same service.
 
 ## Backend Variables
 
@@ -70,6 +112,8 @@ LIVE_SETTLEMENT_RETRY_DELAY_SECONDS
 LIVE_UNDERLYING_MAX_AGE_SECONDS
 VALTIDE_STATE_DB_PATH
 HISTORICAL_PANEL_PATH
+SPYX_HISTORICAL_PANEL_PATH
+AAPLX_HISTORICAL_PANEL_PATH
 
 XLAYER_RPC_URL
 XLAYER_CHAIN_ID

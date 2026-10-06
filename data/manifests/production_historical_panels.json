@@ -1,0 +1,62 @@
+{
+  "manifest_version": 1,
+  "generation": "20261005",
+  "panel_schema": "canonical",
+  "provenance": "Existing canonical panels used by the 2026-10-05 retrospective fresh-panel evaluation. Panel bytes are not committed to Git.",
+  "assets": {
+    "NVDAx": {
+      "persistent_path": "/data/historical/panels/20261005/nvdax_historical_5m.csv",
+      "sha256": "7785e47383943beedcdf893680820dbefb8b2370e32d363fbb5ea4074a05d3c3",
+      "rows": 4110,
+      "window_start_utc": "2026-09-21T00:00:00Z",
+      "window_end_utc": "2026-10-05T06:25:00Z",
+      "asset": "NVDAx",
+      "token_source": "okx_onchainos",
+      "chain_index": "501",
+      "token_address": "Xsc9qvGR1efVDFGLrVsmkzv3qi45LTBjeUKSPmx9qEh",
+      "underlying_source": "alpaca",
+      "underlying_symbol": "NVDA",
+      "reference_source": "okx_xperp_index",
+      "reference_instrument": "NVDA-USD",
+      "reference_profile": "unified_xstock_p1ac_xperp_evidence_v1",
+      "model_id": "P1a-C",
+      "model_version": "0.2.0"
+    },
+    "SPYx": {
+      "persistent_path": "/data/historical/panels/20261005/spyx_historical_5m.csv",
+      "sha256": "0ce51834e044d9f3a52682843898833ba3e88d7e25ced82f60def9f1a023a3a0",
+      "rows": 4110,
+      "window_start_utc": "2026-09-21T00:00:00Z",
+      "window_end_utc": "2026-10-05T06:25:00Z",
+      "asset": "SPYx",
+      "token_source": "okx_onchainos",
+      "chain_index": "501",
+      "token_address": "XsoCS1TfEyfFhfvj8EtZ528L3CaKBDBRqRapnBbDF2W",
+      "underlying_source": "alpaca",
+      "underlying_symbol": "SPY",
+      "reference_source": "okx_xperp_index",
+      "reference_instrument": "SPY-USD",
+      "reference_profile": "unified_xstock_p1ac_xperp_evidence_v1",
+      "model_id": "P1a-C",
+      "model_version": "0.3.0"
+    },
+    "AAPLx": {
+      "persistent_path": "/data/historical/panels/20261005/aaplx_historical_5m.csv",
+      "sha256": "2556cc1ee492a06afcbf6ff0ae6c6a56eaf75f44431f18b94849182d253cbc09",
+      "rows": 4110,
+      "window_start_utc": "2026-09-21T00:00:00Z",
+      "window_end_utc": "2026-10-05T06:25:00Z",
+      "asset": "AAPLx",
+      "token_source": "okx_onchainos",
+      "chain_index": "501",
+      "token_address": "XsbEhLAtcf6HdfpFZ5xEMdqW8nfAvcsP5bdudRLJzJp",
+      "underlying_source": "alpaca",
+      "underlying_symbol": "AAPL",
+      "reference_source": "okx_xperp_index",
+      "reference_instrument": "AAPL-USD",
+      "reference_profile": "unified_xstock_p1ac_xperp_evidence_v1",
+      "model_id": "P1a-C",
+      "model_version": "0.3.0"
+    }
+  }
+}
