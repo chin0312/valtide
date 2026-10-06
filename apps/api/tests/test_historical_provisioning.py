@@ -6,6 +6,7 @@ import json
 from pathlib import Path
 
 import pytest
+
 from scripts.provision_historical_panels import (
     DEFAULT_MANIFEST,
     PanelProvisioningError,
@@ -13,12 +14,11 @@ from scripts.provision_historical_panels import (
     provision_panel,
     verify_panel,
 )
-
 from valtide_api.assets import resolve_asset_config, resolve_historical_panel_path
 from valtide_api.config import Settings
 from valtide_api.quant_runtime import resolve_quant_runtime
 
-_ASSETS = ("NVDAx", "SPYx", "QQQx", "AAPLx")
+_ASSETS = ("NVDAx", "SPYx", "AAPLx")
 _ROOT = Path(__file__).resolve().parents[3]
 _HEADERS = (
     "timestamp_utc",
@@ -147,7 +147,6 @@ def test_each_asset_resolves_only_its_own_configured_panel(tmp_path: Path, asset
     paths = {
         "historical_panel_path": tmp_path / "nvdax.csv",
         "spyx_historical_panel_path": tmp_path / "spyx.csv",
-        "qqqx_historical_panel_path": tmp_path / "qqqx.csv",
         "aaplx_historical_panel_path": tmp_path / "aaplx.csv",
     }
     settings = Settings(_env_file=None, **paths)
@@ -156,7 +155,6 @@ def test_each_asset_resolves_only_its_own_configured_panel(tmp_path: Path, asset
     field = {
         "NVDAx": "historical_panel_path",
         "SPYx": "spyx_historical_panel_path",
-        "QQQx": "qqqx_historical_panel_path",
         "AAPLx": "aaplx_historical_panel_path",
     }[asset]
     assert resolved == paths[field]
@@ -164,7 +162,7 @@ def test_each_asset_resolves_only_its_own_configured_panel(tmp_path: Path, asset
         resolve_historical_panel_path(resolve_asset_config(name, settings), settings)
         for name in _ASSETS
     }
-    assert len(resolved_paths) == 4
+    assert len(resolved_paths) == 3
 
 
 def test_relative_panel_paths_resolve_from_repository_root() -> None:
@@ -172,7 +170,6 @@ def test_relative_panel_paths_resolve_from_repository_root() -> None:
         _env_file=None,
         historical_panel_path=Path("data/panels/nvda.csv"),
         spyx_historical_panel_path=Path("data/panels/spy.csv"),
-        qqqx_historical_panel_path=Path("data/panels/qqq.csv"),
         aaplx_historical_panel_path=Path("data/panels/aapl.csv"),
     )
     paths = {
@@ -182,7 +179,6 @@ def test_relative_panel_paths_resolve_from_repository_root() -> None:
     assert paths == {
         "NVDAx": _ROOT / "data/panels/nvda.csv",
         "SPYx": _ROOT / "data/panels/spy.csv",
-        "QQQx": _ROOT / "data/panels/qqq.csv",
         "AAPLx": _ROOT / "data/panels/aapl.csv",
     }
 
@@ -214,6 +210,15 @@ def test_verifier_rejects_wrong_sha_asset_chain_and_address(tmp_path: Path) -> N
         verify_panel(source, asset="SPYx", expected={**expected, "chain_index": "1"})
     with pytest.raises(PanelProvisioningError, match="token_address"):
         verify_panel(source, asset="SPYx", expected={**expected, "token_address": "wrong"})
+
+
+def test_qqqx_is_not_a_production_provisioning_target() -> None:
+    with pytest.raises(PanelProvisioningError, match="requested asset"):
+        verify_panel(
+            "/does/not/need/to/exist.csv",
+            asset="QQQx",
+            expected={"asset": "QQQx"},
+        )
 
 
 @pytest.mark.parametrize(

@@ -46,14 +46,17 @@ history, not historical source panels. Historical CSVs are separately
 provisioned under `/data/historical` on the same persistent volume and remain
 available across container restarts and redeploys.
 
-The four asset-specific Historical paths are:
+The three production Historical paths are:
 
 ```text
 HISTORICAL_PANEL_PATH=/data/historical/panels/20261005/nvdax_historical_5m.csv
 SPYX_HISTORICAL_PANEL_PATH=/data/historical/panels/20261005/spyx_historical_5m.csv
-QQQX_HISTORICAL_PANEL_PATH=/data/historical/panels/20261005/qqqx_historical_5m.csv
 AAPLX_HISTORICAL_PANEL_PATH=/data/historical/panels/20261005/aaplx_historical_5m.csv
 ```
+
+QQQx remains research-only. A previously uploaded QQQx CSV may remain on the
+volume, but it is not part of the production manifest and must not be bound to
+the production service.
 
 Each file is bound to an asset, Solana chain index/token address, underlying,
 OKX X-Perp/index instrument, canonical panel schema, time window, row count,
@@ -81,7 +84,7 @@ python /app/scripts/provision_historical_panels.py \
   --source /data/historical/.incoming/nvdax.csv
 ```
 
-Repeat for the other three manifest entries, then verify `/api/assets` and the
+Repeat for the other two manifest entries, then verify `/api/assets` and the
 asset-scoped `source=panel` replay before and after restarting the same service.
 
 ## Backend Variables
@@ -110,7 +113,6 @@ LIVE_UNDERLYING_MAX_AGE_SECONDS
 VALTIDE_STATE_DB_PATH
 HISTORICAL_PANEL_PATH
 SPYX_HISTORICAL_PANEL_PATH
-QQQX_HISTORICAL_PANEL_PATH
 AAPLX_HISTORICAL_PANEL_PATH
 
 XLAYER_RPC_URL

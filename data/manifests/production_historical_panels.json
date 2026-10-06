@@ -40,24 +40,6 @@
       "model_id": "P1a-C",
       "model_version": "0.3.0"
     },
-    "QQQx": {
-      "persistent_path": "/data/historical/panels/20261005/qqqx_historical_5m.csv",
-      "sha256": "ed17b78df2929c830c70b8023365ed7e8eef6de95e4839a2ea7f32e4f29eb0a6",
-      "rows": 4110,
-      "window_start_utc": "2026-09-21T00:00:00Z",
-      "window_end_utc": "2026-10-05T06:25:00Z",
-      "asset": "QQQx",
-      "token_source": "okx_onchainos",
-      "chain_index": "501",
-      "token_address": "Xs8S1uUs1zvS2p7iwtsG3b6fkhpvmwz4GYU3gWAmWHZ",
-      "underlying_source": "alpaca",
-      "underlying_symbol": "QQQ",
-      "reference_source": "okx_xperp_index",
-      "reference_instrument": "QQQ-USD",
-      "reference_profile": "unified_xstock_p1ac_xperp_evidence_v1",
-      "model_id": "P1a-C",
-      "model_version": "0.3.0"
-    },
     "AAPLx": {
       "persistent_path": "/data/historical/panels/20261005/aaplx_historical_5m.csv",
       "sha256": "2556cc1ee492a06afcbf6ff0ae6c6a56eaf75f44431f18b94849182d253cbc09",

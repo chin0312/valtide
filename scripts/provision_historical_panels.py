@@ -30,7 +30,7 @@ inspect_panel_readiness = import_module("valtide_api.panel").inspect_panel_readi
 resolve_quant_runtime = import_module("valtide_api.quant_runtime").resolve_quant_runtime
 
 DEFAULT_MANIFEST = ROOT / "data" / "manifests" / "production_historical_panels.json"
-_ASSETS = ("NVDAx", "SPYx", "QQQx", "AAPLx")
+_ASSETS = ("NVDAx", "SPYx", "AAPLx")
 
 
 class PanelProvisioningError(ValueError):
