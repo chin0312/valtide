@@ -239,11 +239,12 @@ test("Landing model proof stays synchronized with the checked-in evaluation repo
 test("Documentation adapts by role and keeps evidence, policy and scope separate", () => {
   const html = render(DocsPage);
   for (const value of ["SUPPORTED", "INCONCLUSIVE", "CHALLENGED", "Operational", "Historical", "Demo", "NVDAx / NVDA", "SPYx · not operationally onboarded"]) assert.match(html, new RegExp(value));
-  assert.match(html, /Valtide.*determines the Evidence State/);
-  assert.match(html, /Curators.*define the Policy Action/);
+  assert.match(html, /Evidence describes\. Policy decides\./);
+  assert.match(html, /A curator maps that state to a Policy Action/);
   assert.match(html, /complete guide below updates/);
   assert.match(html, /six synthetic observations/);
-  assert.match(html, /Every part of the walkthrough is visible/);
+  assert.doesNotMatch(html, /Follow the interface|See what matters, in the order it matters|Every part of the walkthrough is visible/);
+  assert.doesNotMatch(html, /THE BOUNDARY TO REMEMBER|The browser is a read-only observer/);
   assert.match(html, /context product interface example/);
   assert.match(html, /finding product interface example/);
   assert.match(html, /boundary product interface example/);
