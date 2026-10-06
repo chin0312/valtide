@@ -6,7 +6,6 @@ import json
 from pathlib import Path
 
 import pytest
-
 from scripts.provision_historical_panels import (
     DEFAULT_MANIFEST,
     PanelProvisioningError,
@@ -14,6 +13,7 @@ from scripts.provision_historical_panels import (
     provision_panel,
     verify_panel,
 )
+
 from valtide_api.assets import resolve_asset_config, resolve_historical_panel_path
 from valtide_api.config import Settings
 from valtide_api.quant_runtime import resolve_quant_runtime
