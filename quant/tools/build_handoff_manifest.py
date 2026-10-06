@@ -90,8 +90,8 @@ def render_manifest() -> bytes:
         "handoff_version": "1.0.0",
         "generated_date": "2026-10-05",
         "runtime_scope": (
-            "NVDAx P1a-C production bundle plus asset-bound SPYx/QQQx/AAPLx "
-            "runtime bundles; additional assets are not production-promoted"
+            "NVDAx/SPYx/AAPLx production P1a-C bundles; QQQx and TSLAx runtime "
+            "materials are retained for research and are not production-activated"
         ),
         "runtime_artifacts": records("runtime"),
         "research_artifacts": records("research"),

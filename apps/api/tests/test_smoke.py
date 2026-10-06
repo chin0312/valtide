@@ -170,7 +170,8 @@ def test_assets_list():
     assert resp.json()[0]["challenger_detector_status"] == (
         "CHALLENGER_DETECTOR_NOT_PROMOTABLE"
     )
-    assert resp.json()[0]["evidence_state_capability"] == "ABSTAIN_ONLY"
+    assert resp.json()[0]["evidence_state_capability"] == "TRI_SOURCE_SUPPORTED_ONLY"
+    assert [item["asset"] for item in resp.json()] == ["NVDAx", "SPYx", "AAPLx"]
 
 
 def test_runtime_status_is_explicit_when_live_runtime_is_empty(monkeypatch, tmp_path):

@@ -11,7 +11,10 @@ from valtide_api.assets import (
     api_asset_configs,
     inspect_historical_panel,
 )
-from valtide_api.challenger_detector import resolve_challenger_detector
+from valtide_api.challenger_detector import (
+    resolve_challenger_detector,
+    resolve_tri_source_state_capability,
+)
 from valtide_api.config import get_settings, scheduler_asset_enabled
 from valtide_api.quant_runtime import quant_runtime_available
 from valtide_api.runtime_store import (
@@ -78,23 +81,23 @@ def _onchain_binding_configured(config, settings) -> bool:
 
 
 def _evidence_state_capability(asset: str) -> tuple[str, str, bool]:
-    """Expose detector strength separately from live/runtime readiness."""
+    """Expose frozen detector status and the separate tri-source state authority."""
     try:
         detector = resolve_challenger_detector(asset)
+        capability = resolve_tri_source_state_capability(asset)
     except (KeyError, TypeError, ValueError):
         return "DETECTOR_ARTIFACT_INVALID", "ABSTAIN_ONLY", False
-    if detector is None:
+    if detector is None or capability is None:
         return "DETECTOR_UNAVAILABLE", "ABSTAIN_ONLY", False
-    status = detector.promotion_status
-    if status == "CHALLENGER_DETECTOR_PROMOTABLE" and asset == "SPYx":
-        return status, "CHALLENGED_ONLY", True
-    if status == "CHALLENGER_DETECTOR_REVIEW_ONLY":
-        return status, "ABSTAIN_WITH_REVIEW_DIAGNOSTICS", True
-    if status == "CHALLENGER_DETECTOR_NOT_PROMOTABLE":
-        return status, "ABSTAIN_ONLY", True
-    # A newly marked promotable asset is not implicitly granted canonical
-    # challenge authority; that requires an explicit backend review.
-    return status, "ABSTAIN_ONLY", False
+    if capability.support_enabled and capability.challenge_enabled:
+        state_capability = "TRI_SOURCE_SUPPORTED_AND_CHALLENGED"
+    elif capability.support_enabled:
+        state_capability = "TRI_SOURCE_SUPPORTED_ONLY"
+    elif capability.challenge_enabled:
+        state_capability = "TRI_SOURCE_CHALLENGED_ONLY"
+    else:
+        state_capability = "ABSTAIN_ONLY"
+    return detector.promotion_status, state_capability, True
 
 
 @router.get("/assets", response_model=list[AssetInfo])

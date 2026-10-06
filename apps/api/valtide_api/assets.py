@@ -95,6 +95,9 @@ def _xstock_asset_config(
     asset: str, underlying: str, token_address: str, index_instrument: str
 ) -> AssetConfig:
     key = asset.lower()
+    # QQQx stays available to offline quant/historical research but is not
+    # exposed, live-enabled, or runtime-enabled through production HTTP.
+    research_only = asset == "QQQx"
     return AssetConfig(
         asset=asset,
         underlying_symbol=underlying,
@@ -111,12 +114,12 @@ def _xstock_asset_config(
         quant_runtime_key=f"{key}_p1ac_v030",
         historical_panel_key=f"{key}_panel",
         capabilities=AssetCapabilities(
-            live_data=True,
+            live_data=not research_only,
             historical_data=True,
             quant=True,
-            runtime=True,
+            runtime=not research_only,
             onchain=False,
-            api_exposed=True,
+            api_exposed=not research_only,
         ),
     )
 

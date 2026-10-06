@@ -76,20 +76,20 @@ def test_scheduler_worker_selection_is_explicit_and_single_asset(tmp_path, monke
     assert build_enabled_schedulers(settings, store, assets=()) == ()
 
 
-def test_four_ready_workers_require_explicit_asset_selection(tmp_path, monkeypatch):
-    store = RuntimeStore(tmp_path / "four-runtime.sqlite3")
+def test_three_production_workers_require_explicit_asset_selection(tmp_path, monkeypatch):
+    store = RuntimeStore(tmp_path / "three-runtime.sqlite3")
     settings = Settings(
         _env_file=None,
         live_scheduler_enabled=True,
         live_scheduler_asset="NVDAx",
-        live_scheduler_assets="NVDAx,SPYx,QQQx,AAPLx",
+        live_scheduler_assets="NVDAx,SPYx,AAPLx",
         auto_publish_enabled=False,
     )
     monkeypatch.setattr(scheduler_module, "get_settings", lambda: settings)
 
     workers = build_enabled_schedulers(settings, store)
 
-    assert [worker.asset for worker in workers] == ["NVDAx", "SPYx", "QQQx", "AAPLx"]
+    assert [worker.asset for worker in workers] == ["NVDAx", "SPYx", "AAPLx"]
     assert build_enabled_schedulers(settings, store, assets=()) == ()
 
 

@@ -1,0 +1,70 @@
+{
+  "schema": "valtide-tri-source-state-capabilities-v1",
+  "evidence_semantics": "p1a_xstock_challenger_xperp_second_market_v1",
+  "validation_dataset_id": "valtide_solana_xstock_fresh_validation_20260921_20261005_0625",
+  "validation_period_start_utc": "2026-09-21T00:00:00Z",
+  "validation_period_end_utc": "2026-10-05T06:25:00Z",
+  "evaluation_kind": "retrospective_frozen_threshold_diagnostic",
+  "frozen_detector_artifact": "challenger_tail_v1.json",
+  "frozen_detector_artifact_sha256": "695dde83eb927f0010faabe694cb5d2f51003cda3834019dce25ba6b33f8a541",
+  "evidence_manifest": "quant/data_manifest/fresh_validation_20261005.json",
+  "limitations": [
+    "Fresh-panel results are retrospective and do not establish prospective guarantees.",
+    "The underlying is an ex-post truth proxy, not a current Evidence State voter.",
+    "P1a assimilates xStock; xStock-versus-P1a is model-based challenger evidence, not independent-market proof.",
+    "X-Perp corroboration is directional only and has no fitted Gaussian residual threshold."
+  ],
+  "assets": {
+    "NVDAx": {
+      "panel_sha256": "7785e47383943beedcdf893680820dbefb8b2370e32d363fbb5ea4074a05d3c3",
+      "support": {
+        "enabled": true,
+        "capability": "TRI_SOURCE_SUPPORTED",
+        "rule": "frozen_support_band_and_exact_xperp_closer_to_xstock",
+        "evidence_ref": "assets.NVDAx.frozen_challenger_detector.tri_source_state_candidates.tri_source_supported",
+        "rationale": "The retrospective fresh panel had zero raw-xStock tail events in 392 contemporaneously evaluable support-band rows (versus 29/817 overall); the support-subset raw-xStock p95 absolute log error was 12.61 bps."
+      },
+      "challenge": {
+        "enabled": false,
+        "capability": "DISABLED",
+        "rule": "frozen_review_band_and_exact_xperp_closer_to_p1a",
+        "evidence_ref": "assets.NVDAx.frozen_challenger_detector.tri_source_state_candidates.tri_source_challenged",
+        "rationale": "X-Perp filtering improves fresh q95 precision to 5/6, but captures only 5/29 underlying tail events (17.2% recall); the existing detector remains not promotable for canonical CHALLENGED."
+      }
+    },
+    "SPYx": {
+      "panel_sha256": "0ce51834e044d9f3a52682843898833ba3e88d7e25ced82f60def9f1a023a3a0",
+      "support": {
+        "enabled": true,
+        "capability": "TRI_SOURCE_SUPPORTED",
+        "rule": "frozen_support_band_and_exact_xperp_closer_to_xstock",
+        "evidence_ref": "assets.SPYx.frozen_challenger_detector.tri_source_state_candidates.tri_source_supported",
+        "rationale": "The retrospective fresh panel had zero raw-xStock tail events in 431 contemporaneously evaluable support-band rows (versus 21/833 overall); the support-subset raw-xStock p95 absolute log error was 5.38 bps."
+      },
+      "challenge": {
+        "enabled": true,
+        "capability": "TRI_SOURCE_CHALLENGED",
+        "rule": "frozen_review_band_and_exact_xperp_closer_to_p1a",
+        "evidence_ref": "assets.SPYx.frozen_challenger_detector.tri_source_state_candidates.tri_source_challenged",
+        "rationale": "The retrospective fresh panel produced 20 true and 0 false challenges among 20 contemporaneously evaluable tri-source candidates, recovering 20/21 underlying tail events (95.2% recall), consistent with the retained detector promotion."
+      }
+    },
+    "AAPLx": {
+      "panel_sha256": "2556cc1ee492a06afcbf6ff0ae6c6a56eaf75f44431f18b94849182d253cbc09",
+      "support": {
+        "enabled": true,
+        "capability": "TRI_SOURCE_SUPPORTED",
+        "rule": "frozen_support_band_and_exact_xperp_closer_to_xstock",
+        "evidence_ref": "assets.AAPLx.frozen_challenger_detector.tri_source_state_candidates.tri_source_supported",
+        "rationale": "The retrospective fresh panel had zero raw-xStock tail events in 472 contemporaneously evaluable support-band rows (versus 4/817 overall); the support-subset raw-xStock p95 absolute log error was 9.00 bps."
+      },
+      "challenge": {
+        "enabled": true,
+        "capability": "TRI_SOURCE_CHALLENGED",
+        "rule": "frozen_review_band_and_exact_xperp_closer_to_p1a",
+        "evidence_ref": "assets.AAPLx.frozen_challenger_detector.tri_source_state_candidates.tri_source_challenged",
+        "rationale": "Among seven exact-time X-Perp-to-P1a REVIEW candidates, the four with contemporaneous underlying truth were all tail events; the three remaining candidates have no ex-post truth label. Across all truth-evaluable REVIEW rows the frozen detector identified 4/7 tails. This enables a narrow tri-source challenge with a very small retrospective sample; confidence remains limited."
+      }
+    }
+  }
+}
