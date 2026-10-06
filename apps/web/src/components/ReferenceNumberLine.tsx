@@ -7,20 +7,18 @@ export function ReferenceNumberLine({ r }: { r: ValuationResult }) {
   const evidenceStateV2 = isEvidenceStateV2(r);
   const xstockProduct = isXStockValidation(r);
   const xperpPrice = evidenceStateV2 ? r.xperp_index_price : r.xperp_index_price ?? r.reference_under_test;
+  const xstockPrices = [
+    { label: "Observed xStock", price: r.token_price, color: "var(--color-series-token)", shape: "circle" },
+    { label: "Valtide Fair Value", price: r.valtide_fair_value, color: "var(--color-series-valtide)", shape: "square" },
+    { label: "X-Perp", price: xperpPrice, color: "var(--color-series-reference)", shape: "diamond" },
+  ];
   const candidates = [
-    ...(xstockProduct ? [
-      { label: "Observed xStock", price: r.token_price, color: "var(--color-series-token)", shape: "circle" },
-      { label: "X-Perp", price: xperpPrice, color: "var(--color-series-reference)", shape: "diamond" },
-    ] : [
+    ...(xstockProduct ? xstockPrices : [
       { label: "Reference under test", price: r.reference_under_test, color: "var(--color-series-reference)", shape: "diamond" },
     ]),
   ];
   const markers = candidates.filter((marker): marker is typeof marker & { price: number } => marker.price != null);
-  const summary = evidenceStateV2 ? [
-    { label: "Observed xStock", price: r.token_price, color: "var(--color-series-token)", shape: "circle" },
-    { label: "Valtide Fair Value", price: r.valtide_fair_value, color: "var(--color-series-valtide)", shape: "circle" },
-    { label: "X-Perp", price: r.xperp_index_price, color: "var(--color-series-reference)", shape: "diamond" },
-  ] : markers;
+  const summary = xstockProduct ? xstockPrices : markers;
   const bandStart = unitsToFraction(-1) * 100;
   const bandWidth = (unitsToFraction(1) - unitsToFraction(-1)) * 100;
   const rangeLabel = coverageLabel(r.interval_coverage_target);

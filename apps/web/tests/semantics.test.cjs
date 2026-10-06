@@ -28,6 +28,7 @@ const { PolicyFoundry } = load("../src/components/PolicyFoundry.tsx");
 const { DEMO_PASSPORT_ADDRESS, MODEL_EVIDENCE_SUMMARY, POLICY_PROPOSAL } = load("../src/fixtures/prototypeData.ts");
 const { default: App, consoleContextFromSearch, effectiveContextAsset } = load("../src/App.tsx");
 const { coverageLabel, dateTimeUTC, deliveryStatusLabel, lastUpdatedLabel, modelDisplayName, pipelineStatusLabel, sessionLabel } = load("../src/lib/format.ts");
+const { priceToFraction } = load("../src/lib/scale.ts");
 const { modelDistanceLabel, peakModelDistance, evidenceCopy, EVIDENCE_SEMANTICS_V2 } = load("../src/lib/semantics.ts");
 const { buildChartData, chartDomain, chartIntervalLabel, clampViewport, lowerBoundTimestamp, minimumViewportWidth, panViewport, shouldRenderStateDots, sliceChartDataForViewport, upperBoundTimestamp, VALUATION_CHART_LABELS, wheelGestureIntent, wheelZoomScale, zoomSensitivity, zoomViewport } = load("../src/components/EscalationChart.tsx");
 const h = React.createElement;
@@ -424,19 +425,59 @@ test("Console metrics and interval markers use human-facing model labels and xSt
   const numberLine = render(ReferenceNumberLine,{r:v2});
   for (const marker of ["Observed xStock", "X-Perp", "Valtide Fair Value", "90% Valuation Range"]) assert.match(numberLine,new RegExp(marker));
   assert.doesNotMatch(numberLine,/Last Trusted Underlying|Underlying Anchor/);
-  assert.equal((numberLine.match(/data-price-marker=/g) ?? []).length,2);
-  assert.doesNotMatch(numberLine,/data-price-marker="Valtide Fair Value"/);
+  assert.equal((numberLine.match(/data-price-marker=/g) ?? []).length,3);
+  for (const label of ["Observed xStock", "Valtide Fair Value", "X-Perp"]) assert.match(numberLine,new RegExp(`data-price-marker="${label}"`));
   const summary = numberLine.slice(numberLine.indexOf("grid-cols-3"));
   for (const [label,value] of [["Observed xStock",v2.token_price],["Valtide Fair Value",v2.valtide_fair_value],["X-Perp",v2.xperp_index_price]]) {
     assert.match(summary,new RegExp(`${label}[\\s\\S]*?\\$${value.toFixed(2)}`));
+    assert.ok(numberLine.includes(`title="${label}: $${value.toFixed(2)}"`), `${label} marker should expose its bound price`);
   }
   assert.equal((summary.match(/class="min-w-0"/g) ?? []).length,3);
+  const summaryRows = summary.split('<div class="min-w-0">').slice(1);
+  assert.match(summaryRows[0],/background:var\(--color-series-token\);border-radius:50%[\s\S]*Observed xStock/);
+  assert.match(summaryRows[1],/background:var\(--color-series-valtide\);border-radius:1px[\s\S]*Valtide Fair Value/);
+  assert.match(summaryRows[2],/background:var\(--color-series-reference\);border-radius:1px;rotate:45deg[\s\S]*X-Perp/);
+  assert.match(numberLine,/data-price-marker="Observed xStock"[^>]*>\s*<svg[\s\S]*?<circle/);
+  assert.match(numberLine,/data-price-marker="Valtide Fair Value"[^>]*>\s*<svg[\s\S]*?<rect/);
+  assert.match(numberLine,/data-price-marker="X-Perp"[^>]*>\s*<svg[\s\S]*?<path/);
   assert.match(numberLine,/aria-label="Observed xStock[\s\S]*Valtide Fair Value[\s\S]*X-Perp[\s\S]*90% Valuation Range/);
   assert.match(render(ReferenceNumberLine,{r:{...v2,interval_coverage_target:0.95}}),/95% Valuation Range/);
   assert.equal(coverageLabel(0.9),"90% Valuation Range");
   assert.equal(coverageLabel(0.95),"95% Valuation Range");
   assert.doesNotMatch(numberLine,/X-Perp \/ index|Calibrated Interval/);
   assert.doesNotMatch(numberLine,/Constructed/);
+  const markerMarkup = (markup, label) => markup.match(new RegExp(`<div data-price-marker="${label}"[^>]*>[\\s\\S]*?<\\/div>`))?.[0] ?? "";
+  const asymmetric = {...v2,token_price:179.5,valtide_fair_value:180,fair_value_lower:179,fair_value_upper:182,xperp_index_price:181};
+  const asymmetricMarkup = render(ReferenceNumberLine,{r:asymmetric});
+  assert.equal(priceToFraction(asymmetric.valtide_fair_value,asymmetric),0.5);
+  for (const [label,price] of [["Observed xStock",asymmetric.token_price],["Valtide Fair Value",asymmetric.valtide_fair_value],["X-Perp",asymmetric.xperp_index_price]]) {
+    assert.ok(markerMarkup(asymmetricMarkup,label).includes(`left:${priceToFraction(price,asymmetric)*100}%`), `${label} must use the shared band-relative price scale`);
+  }
+  assert.ok(Math.abs((asymmetric.fair_value_lower+asymmetric.fair_value_upper)/2-asymmetric.valtide_fair_value)>0);
+  const coincident = {...v2,token_price:180,valtide_fair_value:180,fair_value_lower:179,fair_value_upper:181,xperp_index_price:180};
+  const coincidentMarkup = render(ReferenceNumberLine,{r:coincident});
+  for (const [label,zIndex,shape] of [["Observed xStock",1,"<circle"],["Valtide Fair Value",2,"<rect"],["X-Perp",3,"<path"]]) {
+    const item = markerMarkup(coincidentMarkup,label);
+    assert.ok(item.includes("left:50%"), `${label} should remain at the shared coincident price`);
+    assert.ok(item.includes(`z-index:${zIndex}`), `${label} should retain nested-marker ordering`);
+    assert.ok(item.includes(shape), `${label} should retain its distinct marker shape`);
+  }
+  const legacyXStock = {...v2,evidence_semantics:"p1a_xstock_challenger_xperp_second_market_v1",token_price:179.75,valtide_fair_value:180,xperp_index_price:180.25};
+  for (const evidence_semantics of ["p1a_xstock_challenger_xperp_second_market_v1",EVIDENCE_SEMANTICS_V2]) {
+    for (const evidence_state of ["SUPPORTED","INCONCLUSIVE","CHALLENGED"]) {
+      const historicalOrOperational = {...legacyXStock,evidence_semantics,evidence_state};
+      const compatibleMarkup = render(ReferenceNumberLine,{r:historicalOrOperational});
+      assert.equal((compatibleMarkup.match(/data-price-marker=/g) ?? []).length,3);
+      for (const [label,value] of [["Observed xStock",historicalOrOperational.token_price],["Valtide Fair Value",historicalOrOperational.valtide_fair_value],["X-Perp",historicalOrOperational.xperp_index_price]]) {
+        assert.match(compatibleMarkup,new RegExp(`data-price-marker="${label}"`));
+        assert.match(compatibleMarkup.slice(compatibleMarkup.indexOf("grid-cols-3")),new RegExp(`${label}[\\s\\S]*?\\$${value.toFixed(2)}`));
+      }
+      assert.match(compatibleMarkup,/aria-label="Observed xStock[\s\S]*Valtide Fair Value[\s\S]*X-Perp/);
+    }
+  }
+  const nullPrices = render(ReferenceNumberLine,{r:{...v2,token_price:null,xperp_index_price:null}});
+  assert.doesNotMatch(nullPrices,/data-price-marker="Observed xStock"|data-price-marker="X-Perp"/);
+  assert.match(nullPrices,/data-price-marker="Valtide Fair Value"/);
   const chart = buildChartData([v2]);
   assert.equal(chart[0].token,v2.token_price);
   assert.equal(chart[0].fair,v2.valtide_fair_value);
