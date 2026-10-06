@@ -113,8 +113,8 @@ function ValidationConsole() {
   const current = results[currentIndex];
   const reviewing = isOperational && !!current && !!operational.data && Date.parse(current.timestamp) < Date.parse(operational.data.timestamp);
   const source = isOperational
-    ? `Operational · ${results.length} in selected window`
-    : context === "Historical" ? `Historical panel · ${results.length} in selected window`
+    ? `Operational · ${results.length} observations`
+    : context === "Historical" ? `Historical · ${results.length} observations`
     : selectedAsset !== DEFAULT_ASSET ? "Demo · NVDAx synthetic fixture only" : !demo.data ? "Demo · Loading" : demo.data.source === "backend-scenario"
       ? `Demo scenario · ${demo.data.results.length} synthetic steps`
       : `Demo fixture · ${demo.data.results.length} synthetic steps`;
@@ -149,7 +149,7 @@ function ValidationConsole() {
           setFollowLatest(true);
         }}
       />
-      <div role="note" className="mb-4 rounded px-3 py-2 text-[11px] font-medium uppercase tracking-[0.06em]" style={{ color: "var(--color-ink-dim)", background: "var(--color-panel)", border: "1px solid var(--color-line-subtle)" }}>Research prototype · X Layer testnet · not production infrastructure</div>
+      <div role="note" className="mb-4 rounded px-3 py-2 text-[11px] font-medium uppercase tracking-[0.06em]" style={{ color: "var(--color-ink-dim)", background: "var(--color-panel)", border: "1px solid var(--color-line-subtle)" }}>Research prototype · X Layer testnet · Not for production use</div>
       {selectedAssetInfo && selectedAssetInfo.readiness_error_codes.length > 0 && <div role="status" className="mb-4 rounded px-3 py-2 text-xs" style={{ color: "var(--color-ink-dim)", background: "var(--color-inconclusive-soft)", border: "1px solid var(--color-line-subtle)" }}>
         {selectedAsset} readiness is partial: {selectedAssetInfo.readiness_error_codes.join(" · ")}. No other asset's prices, model, history, or X Layer binding are substituted.
       </div>}
@@ -196,7 +196,7 @@ function ValidationConsole() {
             <PolicyCard
               state={current.evidence_state}
               action={policyAction}
-              label={context === "Demo" ? controlPlane ? "Scenario · deployed policy mapping" : "Example demo policy · not deployed" : context === "Historical" ? "Historical · current policy mapping" : reviewing ? "Prior observation · current policy mapping" : "Current evidence · policy mapping"}
+              label={context === "Demo" ? controlPlane ? "Scenario → deployed policy" : "Example demo policy · not deployed" : context === "Historical" ? "Historical evidence → current policy" : reviewing ? "Prior evidence → current policy" : "Current evidence → policy action"}
               source={context === "Demo" ? "Scenario projection only; does not represent deployed state" : context === "Historical" || reviewing ? "Selected evidence under today's policy; not a historical on-chain decision" : "Curator mapping for this evidence; current RiskGuard action is shown separately"}
               enforced={isOperational && !reviewing ? controlPlane : undefined}
             />
@@ -238,7 +238,7 @@ function ValidationConsole() {
         />
 
         <footer className="border-t pt-3 font-mono text-[10px] tracking-[0.05em]" style={{ borderColor: "var(--color-line-subtle)", color: "var(--color-muted)" }}>
-          {current ? `${current.model_id} ${current.model_version} · ` : ""}Independent Validation Control
+          {current ? `Model ${current.model_id} · v${current.model_version}` : ""}
         </footer>
       </main>
     </div>
@@ -272,8 +272,8 @@ function AppHeader({ backendUp, chainUp, source, context, onContextChange, asset
           </select>
         </label>
         <span className="rounded px-2 py-1 font-mono" style={{ color: "var(--color-accent)", background: "var(--color-accent-soft)" }}>{source}</span>
-        <ConnectionLabel active={backendUp} activeText="API Connected" inactiveText="API Unavailable" />
-        <ConnectionLabel active={chainUp} activeText="X Layer Read" inactiveText="On-Chain Unread" />
+        <ConnectionLabel active={backendUp} activeText="API connected" inactiveText="API unavailable" />
+        <ConnectionLabel active={chainUp} activeText="X Layer connected" inactiveText="X Layer unavailable" />
       </div>
     </header>
   );
@@ -295,25 +295,25 @@ function DecisionSummary({ current, action, context }: { current: ValuationResul
     CHALLENGED: { title: "Model-based challenger evidence challenges the observed xStock price", detail: "P1a has assimilated this same xStock observation before the comparison. This is not an independent-source test and does not prove which price is correct." },
   } : {
     SUPPORTED: { title: "Evidence supports the reference", detail: "Available independent evidence does not provide a material reason to challenge the price being tested." },
-    INCONCLUSIVE: { title: "Evidence needs review", detail: "The available evidence is not strong or consistent enough to support or materially challenge the reference." },
-    CHALLENGED: { title: "Evidence challenges the reference", detail: "The reference is materially inconsistent with sufficiently strong independent evidence." },
+    INCONCLUSIVE: { title: "Evidence needs review", detail: "The available evidence is not strong enough for a confident conclusion." },
+    CHALLENGED: { title: "Evidence challenges the reference", detail: "Available evidence materially challenges the tested price." },
   };
   const finding = findings[current.evidence_state];
   return <section className="grid gap-4 rounded-[10px] p-5 md:grid-cols-[minmax(0,1fr)_minmax(220px,.45fr)]" style={{ background: "var(--color-panel)", border: "1px solid var(--color-line-subtle)", borderLeft: `3px solid ${EVIDENCE[current.evidence_state].fg}` }}>
     <div><div className="eyebrow" style={{ color: "var(--color-muted)" }}>Current finding · {context}</div><h2 className="mt-2 text-2xl font-semibold tracking-[-0.03em] text-ink">{finding.title}</h2><p className="mt-2 max-w-3xl text-sm leading-6 text-ink-dim">{finding.detail}</p></div>
-    <div className="md:border-l md:pl-4" style={{ borderColor: "var(--color-line-subtle)" }}><div className="eyebrow" style={{ color: "var(--color-muted)" }}>Configured policy response</div><div className="mt-2 text-lg font-semibold text-ink">{plainAction(action)}</div><div className="technical-mono mt-1 text-xs text-muted">{action ?? "POLICY UNAVAILABLE"}</div></div>
+    <div className="md:border-l md:pl-4" style={{ borderColor: "var(--color-line-subtle)" }}><div className="eyebrow" style={{ color: "var(--color-muted)" }}>Policy action</div><div className="mt-2 text-lg font-semibold text-ink">{plainAction(action)}</div><div className="technical-mono mt-1 text-xs text-muted">{action ?? "POLICY UNAVAILABLE"}</div></div>
   </section>;
 }
 
 function MetricGrid({ current, isDemo, observationCount }: { current: ValuationResult; isDemo: boolean; observationCount: number }) {
   return (
     <section aria-label={`${observationCount} observations in the selected window; classification count, not performance`} className="grid grid-cols-2 overflow-hidden rounded-[10px] md:grid-cols-3 xl:grid-cols-6" style={{ background: "var(--color-panel)", border: "1px solid var(--color-line-subtle)" }}>
-      <Metric label="Reference Under Test" value={money(current.reference_under_test)} sub="Under Test" />
-      <Metric label="Valtide Fair Value" value={money(current.valtide_fair_value)} sub={`${money(current.fair_value_lower)}–${money(current.fair_value_upper)}`} />
-      <Metric label="Token Market" value={money(current.token_price)} sub={current.token_source ? sourceLabel(current.token_source) : isDemo ? "Demo Scenario" : "Source Unavailable"} />
+      <Metric label="Reference under test" value={money(current.reference_under_test)} sub="Under test" />
+      <Metric label="Valtide fair value" value={money(current.valtide_fair_value)} sub={`${money(current.fair_value_lower)}–${money(current.fair_value_upper)}`} />
+      <Metric label="Token market" value={money(current.token_price)} sub={current.token_source ? sourceLabel(current.token_source) : isDemo ? "Demo scenario" : "Source unavailable"} />
       <Metric label="Deviation" value={pct(current.reference_deviation_pct)} sub={current.evidence_state} accent={EVIDENCE[current.evidence_state].fg} />
-      <Metric label="Model Distance" value={sigma(current.standardized_deviation)} sub="Technical diagnostic" />
-      <Metric label="Last Trusted" value={money(current.last_trusted_reference)} sub={`${ageLabel(current.reference_age_seconds)} Old`} />
+      <Metric label="Model distance" value={sigma(current.standardized_deviation)} sub="Technical diagnostic" />
+      <Metric label="Last trusted price" value={money(current.last_trusted_reference)} sub={`${ageLabel(current.reference_age_seconds)} old`} />
     </section>
   );
 }
@@ -334,9 +334,9 @@ function EvidenceCard({ result }: { result: ValuationResult }) {
       ? "The reference is not materially challenged by the available independent evidence."
       : result.evidence_state === "CHALLENGED"
         ? "The reference is materially inconsistent with the available independent evidence."
-        : "The evidence is too weak or mixed for a confident conclusion.";
+        : "The available evidence is not strong enough for a confident conclusion.";
   return (
-    <Panel title="Evidence" icon="evidence">
+    <Panel title="Evidence assessment" icon="evidence">
       <div className="text-2xl font-semibold tracking-[-0.03em]" style={{ color: state.fg }}>{state.label}</div>
       <p className="mt-2 text-sm leading-6 text-ink-dim">{detail}</p>
       <div className="mt-4"><ReasonCodes codes={result.reason_codes} evidenceState={result.evidence_state} /></div>
@@ -346,11 +346,11 @@ function EvidenceCard({ result }: { result: ValuationResult }) {
 
 function PolicyCard({ state, action, source, label, enforced }: { state?: EvidenceState; action: PolicyAction | null; source: string; label: string; enforced?: OnchainControlPlane }) {
   return (
-    <Panel title="Policy" icon="shield" right={<span title={source} className="inline-flex items-center gap-1.5 text-[10px] text-muted"><Icon name="chain" size={14} />{label}</span>}>
+    <Panel title="Policy action" icon="shield" right={<span title={source} className="inline-flex items-center gap-1.5 text-[10px] text-muted"><Icon name="chain" size={14} />{label}</span>}>
       <div className="break-words text-xl font-semibold tracking-[-0.03em] text-ink">{plainAction(action)}</div>
       <div className="technical-mono mt-1 text-xs text-muted">Raw policy value · {action ?? "UNAVAILABLE"}</div>
       <div className="tnum mt-3 flex items-center gap-2 rounded px-2.5 py-2 text-[10px]" style={{ background: "var(--color-panel-2)", color: "var(--color-ink-dim)", border: "1px solid var(--color-line)" }}>{state ?? "UNREAD"}<Icon name="arrow" size={12} />{action ?? "UNAVAILABLE"}</div>
-      {enforced && <div className="mt-2 flex flex-wrap justify-between gap-2 text-[10px] text-ink-dim"><span>Current RiskGuard · {enforced.fresh ? "FRESH" : "STALE"}</span><strong className="text-ink">{enforced.policy_action}</strong></div>}
+      {enforced && <div className="mt-2 flex flex-wrap justify-between gap-2 text-[10px] text-ink-dim"><span>Current RiskGuard status · {enforced.fresh ? "FRESH" : "STALE"}</span><strong className="text-ink">{enforced.policy_action}</strong></div>}
     </Panel>
   );
 }
@@ -380,8 +380,8 @@ function actionFor(policy: OnchainPolicy, state: EvidenceState): PolicyAction {
 
 function plainAction(action: PolicyAction | null): string {
   if (action === "ALLOW") return "Allow new borrowing";
-  if (action === "MONITOR") return "Proceed while monitoring";
+  if (action === "MONITOR") return "Continue monitoring";
   if (action === "REQUIRE_REVIEW") return "Pause and review";
-  if (action === "RESTRICT_NEW_RISK") return "Block new borrowing";
+  if (action === "RESTRICT_NEW_RISK") return "Restrict new borrowing";
   return "Policy unavailable";
 }

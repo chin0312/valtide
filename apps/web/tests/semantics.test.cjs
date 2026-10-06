@@ -297,11 +297,11 @@ test("Operational failure preserves cached evidence with a degraded label", () =
   assert.doesNotMatch(html,/Demo Fixture · 6 Observations|Example demo policy/);
 });
 
-test("Prior operational evidence is not paired with current enforcement", () => {
+test("Prior evidence is not paired with current enforcement", () => {
   const policy = {on_supported:"ALLOW",on_inconclusive:"REQUIRE_REVIEW",on_challenged:"RESTRICT_NEW_RISK",on_stale:"REQUIRE_REVIEW",max_age:900};
   const chain = {policy,policy_action:"RESTRICT_NEW_RISK",evidence_state:"CHALLENGED",exists:true,fresh:true,network:"Testnet",chain_id:1952,attestation:null};
   const html = appWith({result:fixture[1],rows:fixture.slice(0,2),chain});
-  assert.match(html,/Prior observation/);
+  assert.match(html,/Prior evidence → current policy/);
   assert.match(html,/Current deployed state — not historical chain state/);
   assert.doesNotMatch(html,/Current RiskGuard ·/);
 });
@@ -310,8 +310,8 @@ test("Current evidence mapping and stale RiskGuard enforcement remain separate",
   const policy = {on_supported:"ALLOW",on_inconclusive:"REQUIRE_REVIEW",on_challenged:"RESTRICT_NEW_RISK",on_stale:"REQUIRE_REVIEW",max_age:900};
   const chain = {policy,policy_action:"REQUIRE_REVIEW",evidence_state:"SUPPORTED",exists:true,fresh:false,network:"Testnet",chain_id:1952,attestation:null};
   const html = appWith({result:fixture[0],chain});
-  assert.match(html,/Current evidence · policy mapping/);
-  assert.match(html,/Current RiskGuard · STALE/);
+  assert.match(html,/Current evidence → policy action/);
+  assert.match(html,/Current RiskGuard status · STALE/);
   assert.match(html,/ALLOW/);
   assert.match(html,/REQUIRE_REVIEW/);
 });
