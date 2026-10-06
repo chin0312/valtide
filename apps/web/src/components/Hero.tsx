@@ -215,7 +215,7 @@ export function Hero() {
       <div className="valtide-hero__copy">
         <p className="valtide-hero__eyebrow">Independent valuation evidence for tokenized collateral</p>
         <h1 id="valtide-hero-title">Take control of your protocol's<br /><span className="valtide-hero__title-accent">collateral risk.</span></h1>
-        <p className="valtide-hero__lede">Continuously verify whether on-chain equity prices are supported by off-chain evidence, then let consuming protocols enforce their own risk rules when markets disagree.</p>
+        <p className="valtide-hero__lede">Valtide evaluates whether tokenized-equity prices are supported by model-based challenger evidence, then returns an Evidence State that protocols can map to their own risk policy.</p>
         <div className="valtide-hero__actions">
           <a className="valtide-hero__action" href="?view=console">Open validation console <span aria-hidden="true">↗</span></a>
           <a className="valtide-hero__secondary" href="#incident">See how it works <span aria-hidden="true">↓</span></a>

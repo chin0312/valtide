@@ -241,8 +241,9 @@ test("Clean divergence hero restores the product framing and opens the validatio
   assert.match(html, /Independent valuation evidence for tokenized collateral/);
   assert.match(html, /Take control of your protocol&#x27;s/);
   assert.match(html, /collateral risk/);
-  assert.match(html, /Continuously verify whether on-chain equity prices are supported by off-chain evidence/);
-  assert.match(html, /let consuming protocols enforce their own risk rules when markets disagree/);
+  assert.match(html, /tokenized-equity prices are supported by model-based challenger evidence/);
+  assert.match(html, /returns an Evidence State that protocols can map to their own risk policy/);
+  assert.doesNotMatch(html, /cryptographically verified collateral valuation|enforce their own risk rules/);
   assert.match(html, /Open validation console/);
   assert.match(html, /See how it works/);
   assert.match(html, /Animated market divergence/);
@@ -277,7 +278,14 @@ test("Prototype landing uses canonical demo values and preserves product boundar
   assert.match(html, /Valtide preserves the disagreement/);
   assert.match(html, /An xStock price separates from its model-based challenger/);
   assert.match(html, /exact-time X-Perp provides a second market view/);
-  assert.match(html, /Valtide says what the evidence supports/);
+  for (const heading of [
+    "Watch a synthetic collateral reference diverge from market evidence",
+    "Test the price already in use with model-based challenger evidence",
+    "Calibrated ranges make uncertainty explicit",
+    "Protocol-owned policy, evaluated on X Layer",
+  ]) assert.match(html, new RegExp(heading.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")));
+  assert.match(html, /RiskGuard evaluates the protocol’s configured mapping/);
+  assert.match(html, /decides how—and whether—to enforce the returned action/);
   assert.match(html, /CURATOR \/ PROTOCOL/);
   assert.match(html, /RESTRICT_NEW_RISK/);
   assert.match(html, /Every conclusion leaves a trail/);
@@ -285,6 +293,12 @@ test("Prototype landing uses canonical demo values and preserves product boundar
   assert.match(html, /Evidence hash/);
   assert.match(html, /browser is read-only/);
   assert.match(html, /X Layer testnet/);
+  assert.match(html, /For NVDAx, SPYx, and AAPLx, the machine interface can publish authorized attestations/);
+  assert.match(html, /href="\/\?view=console&amp;context=demo"/);
+  assert.match(html, /Inspect this synthetic incident in the Validation Console/);
+  assert.match(html, /aria-label="Pause demo playback"/);
+  assert.match(html, /Playing the six observations · 4\.5 seconds per frame/);
+  assert.doesNotMatch(html, /verified contract|RiskGuard enforces/i);
   assert.match(html, /does not custody assets, lend, trade, calculate LTV, or liquidate/);
   assert.match(html, /href="\/methodology"/);
   assert.doesNotMatch(html, /step-explorer|explorer-signal/);
@@ -294,6 +308,12 @@ test("Prototype landing uses canonical demo values and preserves product boundar
   assert.match(html, /\/docs\?profile=everyone#role-guide/);
   assert.match(html, /aria-label="Documentation by audience"/);
   assert.match(html, /role="tabpanel"/);
+
+  const landingSource = fs.readFileSync(path.resolve(__dirname, "../src/components/LandingPage.tsx"), "utf8");
+  assert.match(landingSource, /setInterval\([^]*4500\)/);
+  assert.match(landingSource, /prefers-reduced-motion: reduce/);
+  assert.match(landingSource, /onFocusCapture=\{\(\) => pauseDemo\("focus"\)\}/);
+  assert.match(landingSource, /pauseDemo\("manual"\)/);
 });
 
 test("Landing model proof stays synchronized with the checked-in evaluation report", () => {

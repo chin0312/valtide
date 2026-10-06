@@ -53,7 +53,13 @@
 .incident-timeline .is-supported { color: var(--color-supported); }
 .incident-timeline .is-inconclusive { color: var(--color-inconclusive); }
 .incident-timeline .is-challenged { color: var(--color-challenged); }
-.incident-instruction { margin: 0; padding: 12px 18px; color: var(--color-muted); border-top: 1px solid var(--color-line-subtle); font-size: 10px; text-align: right; }
+.incident-playback { display: flex; justify-content: space-between; gap: 18px; align-items: center; min-height: 48px; padding: 8px 12px 8px 18px; color: var(--color-muted); border-top: 1px solid var(--color-line-subtle); }
+.incident-playback p { margin: 0; font-size: 10px; }
+.incident-playback button { display: inline-flex; gap: 8px; align-items: center; min-height: 32px; padding: 0 11px; color: var(--color-ink); background: var(--color-panel-2); border: 1px solid var(--color-line); border-radius: 4px; font: inherit; font-size: 10px; cursor: pointer; }
+.incident-playback button:hover { border-color: var(--color-ink-dim); }
+.incident-playback button:focus-visible { outline: 1px solid var(--color-accent); outline-offset: 2px; }
+.incident-playback button span { color: var(--color-accent); font-size: 9px; }
+.incident-actions { display: flex; justify-content: flex-end; margin-top: 18px; }
 
 .reasoning-grid { display: grid; grid-template-columns: repeat(4, 1fr); border: 1px solid var(--color-line-subtle); }
 .reasoning-grid article { min-height: 320px; padding: 26px; border-left: 1px solid var(--color-line-subtle); }
@@ -521,7 +527,8 @@
   .incident-topline { display: grid; gap: 4px; }
   .incident-metrics { grid-template-columns: 1fr 1fr; }
   .incident-timeline { grid-template-columns: 1fr 1fr; }
-  .incident-instruction { text-align: left; }
+  .incident-playback { align-items: flex-start; flex-direction: column; padding-block: 12px; }
+  .incident-actions { justify-content: flex-start; }
   .reasoning-grid, .role-grid, .docs-flow, .evidence-doc-grid, .context-grid, .glossary-grid { grid-template-columns: 1fr; }
   .role-glossary__heading, .role-glossary__grid { grid-template-columns: 1fr; }
   .role-glossary__heading > p:last-child { grid-column: auto; }

@@ -90,6 +90,22 @@ def test_weekend_demo_uses_v2_classifier_and_naturally_exercises_all_states():
     assert "XPERP_CORROBORATES_P1A" in results[4].reason_codes
 
 
+def test_weekend_demo_stays_synchronized_with_the_frontend_fallback_fixture():
+    """Force an intentional fixture update whenever canonical Demo output changes."""
+    results = replay(load_scenario("weekend_divergence"))
+    fixture_path = (
+        Path(__file__).resolve().parents[3]
+        / "apps"
+        / "web"
+        / "src"
+        / "fixtures"
+        / "weekend_divergence.json"
+    )
+    fixture = json.loads(fixture_path.read_text())
+
+    assert fixture == [result.model_dump(mode="json") for result in results]
+
+
 def test_manual_publish_route_rejects_unverified_legacy_semantics_before_rpc(
     runtime_store, tmp_path, monkeypatch
 ):
