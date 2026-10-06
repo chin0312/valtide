@@ -138,7 +138,7 @@ export function LandingPage() {
             <p className="marketing-kicker">A range, not false precision</p>
             <h2>Valtide does not claim to observe an exact “true” price.</h2>
             <p>Valtide returns a range, not a supposedly exact price. The wider the uncertainty, the less confidently a protocol should rely on the estimate.</p>
-            <a className="text-link" href="/docs?profile=researchers#role-guide">Read the methodology <span aria-hidden="true">↗</span></a>
+            <a className="text-link" href="/methodology">Read the methodology <span aria-hidden="true">→</span></a>
           </div>
           <div className="range-instrument" aria-label="Illustrative interval based on the deterministic demo scenario">
             <div className="range-scale"><span>$178.00</span><span>$179.00</span><span>$180.00</span></div>
@@ -211,6 +211,6 @@ export function MarketingFooter() {
   return <footer className="marketing-footer">
     <a className="marketing-footer__brand" href="/"><span className="valtide-logo-crop"><img src="/valtide-logo.jpg" alt="" /></span>Valtide</a>
     <p>Independent collateral-valuation control for tokenized equities on X Layer.</p>
-    <nav><a href="/docs">Docs</a><a href="/?view=console">Console</a><a href="https://github.com/chin0312/valtide" target="_blank" rel="noreferrer">GitHub ↗</a></nav>
+    <nav><a href="/methodology">Methodology</a><a href="/docs">Docs</a><a href="/?view=console">Console</a><a href="https://github.com/chin0312/valtide" target="_blank" rel="noreferrer">GitHub ↗</a></nav>
   </footer>;
 }

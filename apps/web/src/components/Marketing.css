@@ -369,11 +369,125 @@
 .role-guide__cta { display: inline-flex; min-height: 52px; align-items: center; gap: 46px; margin-top: 44px; padding: 0 20px; color: #071006; background: var(--color-ink); border-radius: 4px; font-size: 12px; font-weight: 700; text-decoration: none; }
 .docs-section--glossary { scroll-margin-top: 70px; }
 
+/* Methodology */
+.methodology-page main { max-width: 1480px; margin: 0 auto; padding-inline: clamp(24px, 5vw, 80px); }
+.methodology-hero { display: grid; min-height: 660px; grid-template-columns: minmax(0, 1.35fr) minmax(300px, .65fr); gap: clamp(52px, 8vw, 120px); align-items: center; padding: 88px 0; }
+.methodology-hero h1 { max-width: 930px; margin: 0; font-size: clamp(48px, 5.4vw, 78px); font-weight: 500; letter-spacing: -.06em; line-height: .98; }
+.methodology-hero > div > p:not(.marketing-kicker) { max-width: 750px; margin: 28px 0 0; color: var(--color-ink-dim); font-size: 16px; line-height: 1.75; }
+.methodology-hero__actions { display: flex; align-items: center; gap: 28px; margin-top: 34px; }
+.methodology-hero aside { padding: 28px; background: var(--color-panel); border: 1px solid var(--color-line); border-radius: 10px; }
+.methodology-hero aside > span { color: var(--color-accent); font-size: 9px; font-weight: 600; letter-spacing: .12em; }
+.methodology-hero dl { margin: 28px 0 0; }
+.methodology-hero dl div { display: grid; grid-template-columns: 1fr auto; gap: 20px; padding: 14px 0; border-top: 1px solid var(--color-line-subtle); }
+.methodology-hero dt, .methodology-hero dd { font-size: 11px; }
+.methodology-hero dt { color: var(--color-muted); }
+.methodology-hero dd { margin: 0; color: var(--color-ink); text-align: right; }
+.methodology-section { padding: 96px 0; border-top: 1px solid var(--color-line-subtle); }
+.methodology-heading { display: grid; grid-template-columns: 70px minmax(0, 1fr); margin-bottom: 56px; }
+.methodology-heading > span { padding-top: 2px; color: var(--color-accent); font-size: 10px; letter-spacing: .12em; }
+.methodology-heading h2 { max-width: 900px; margin: 0; font-size: clamp(38px, 4.3vw, 64px); font-weight: 500; letter-spacing: -.055em; line-height: 1; }
+.methodology-heading > div > p:last-child { max-width: 770px; margin: 24px 0 0; color: var(--color-ink-dim); font-size: 15px; line-height: 1.7; }
+.boundary-cards, .methodology-lenses, .methodology-pipeline { display: grid; grid-template-columns: repeat(3, 1fr); border: 1px solid var(--color-line); }
+.boundary-cards article, .methodology-lenses article, .methodology-pipeline article { min-height: 300px; padding: 26px; border-left: 1px solid var(--color-line); }
+.boundary-cards article:first-child, .methodology-lenses article:first-child, .methodology-pipeline article:first-child { border-left: 0; }
+.boundary-cards article > span, .methodology-lenses article > span, .methodology-pipeline article > span { color: var(--color-accent); font-size: 9px; font-weight: 600; letter-spacing: .1em; text-transform: uppercase; }
+.boundary-cards h3, .methodology-lenses h3, .methodology-pipeline h3 { margin: 72px 0 18px; font-size: 23px; font-weight: 500; letter-spacing: -.04em; line-height: 1.15; }
+.boundary-cards p, .methodology-lenses p, .methodology-pipeline p { margin: 0; color: var(--color-muted); font-size: 12px; line-height: 1.7; }
+.methodology-note { display: grid; grid-template-columns: .45fr 1.55fr; gap: 44px; margin-top: 24px; padding: 24px 26px; background: var(--color-panel); border-left: 2px solid var(--color-challenged); }
+.methodology-note strong { font-size: 13px; font-weight: 500; }
+.methodology-note p { margin: 0; color: var(--color-ink-dim); font-size: 12px; line-height: 1.7; }
+.methodology-lenses, .methodology-pipeline { grid-template-columns: repeat(4, 1fr); }
+.methodology-lenses article { min-height: 330px; }
+.methodology-lenses h3 { margin-top: 64px; font-size: 20px; }
+.methodology-pipeline article { min-height: 350px; background: var(--color-panel); }
+.methodology-pipeline h3 { margin-top: 94px; }
+.profile-table { border: 1px solid var(--color-line); }
+.profile-table > div { display: grid; grid-template-columns: .55fr 1.25fr 1.2fr; }
+.profile-table > div + div { border-top: 1px solid var(--color-line); }
+.profile-table > div > * { margin: 0; padding: 22px; border-left: 1px solid var(--color-line); font-size: 12px; line-height: 1.65; }
+.profile-table > div > *:first-child { border-left: 0; }
+.profile-table__head { color: var(--color-muted); background: var(--color-panel); font-size: 9px; font-weight: 600; letter-spacing: .09em; text-transform: uppercase; }
+.profile-table__head span { font-size: 9px; }
+.profile-table strong { font-weight: 500; }
+.profile-table p { color: var(--color-ink-dim); }
+.source-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 14px; margin-top: 48px; }
+.source-grid article { min-height: 220px; padding: 26px; background: var(--color-panel); border: 1px solid var(--color-line); }
+.source-grid span { color: var(--color-accent); font-size: 9px; font-weight: 600; letter-spacing: .09em; text-transform: uppercase; }
+.source-grid h3 { margin: 55px 0 13px; font-size: 19px; font-weight: 500; letter-spacing: -.025em; }
+.source-grid p { max-width: 570px; margin: 0; color: var(--color-muted); font-size: 12px; line-height: 1.65; }
+.model-layout { display: grid; grid-template-columns: minmax(0, 1.25fr) minmax(300px, .75fr); gap: 16px; }
+.equation-stack, .causal-order { background: var(--color-panel); border: 1px solid var(--color-line); border-radius: 10px; }
+.equation-stack > div { display: grid; grid-template-columns: 190px 1fr; gap: 20px; padding: 24px; border-top: 1px solid var(--color-line-subtle); }
+.equation-stack > div:first-child { border-top: 0; }
+.equation-stack span { color: var(--color-muted); font-size: 10px; letter-spacing: .06em; text-transform: uppercase; }
+.equation-stack code { display: block; color: var(--color-ink); font-family: var(--font-mono); font-size: clamp(12px, 1.2vw, 16px); line-height: 1.65; }
+.equation-stack code + code { margin-top: 9px; }
+.causal-order { padding: 28px; }
+.causal-order ol { margin: 30px 0 26px; padding: 0; list-style: none; counter-reset: causal; }
+.causal-order li { position: relative; padding: 14px 0 14px 34px; color: var(--color-ink-dim); border-top: 1px solid var(--color-line-subtle); font-size: 12px; counter-increment: causal; }
+.causal-order li::before { position: absolute; left: 0; color: var(--color-accent); content: "0" counter(causal); font-size: 9px; }
+.causal-order > p:last-child { color: var(--color-muted); font-size: 11px; line-height: 1.7; }
+.calibration-strip { display: grid; grid-template-columns: repeat(4, 1fr); margin-top: 16px; border: 1px solid var(--color-line); }
+.calibration-strip div { min-height: 110px; padding: 20px; border-left: 1px solid var(--color-line); }
+.calibration-strip div:first-child { border-left: 0; }
+.calibration-strip span, .calibration-strip strong { display: block; }
+.calibration-strip span { color: var(--color-muted); font-size: 9px; letter-spacing: .07em; text-transform: uppercase; }
+.calibration-strip strong { margin-top: 30px; font-size: 14px; font-weight: 500; }
+.methodology-states { display: grid; grid-template-columns: repeat(3, 1fr); gap: 14px; }
+.methodology-states article { min-height: 250px; padding: 27px; background: var(--color-panel); border: 1px solid var(--color-line); border-top: 2px solid currentColor; }
+.methodology-states .supported { color: var(--color-supported); }
+.methodology-states .inconclusive { color: var(--color-inconclusive); }
+.methodology-states .challenged { color: var(--color-challenged); }
+.methodology-states span { font-size: 11px; font-weight: 600; letter-spacing: .06em; }
+.methodology-states p { margin: 78px 0 0; color: var(--color-ink-dim); font-size: 13px; line-height: 1.7; }
+.methodology-rule { display: grid; grid-template-columns: .4fr 1.6fr; gap: 46px; margin-top: 20px; padding: 26px; border: 1px solid var(--color-line); }
+.methodology-rule > span { color: var(--color-accent); font-size: 9px; font-weight: 600; letter-spacing: .1em; }
+.methodology-rule p { margin: 0; color: var(--color-ink-dim); font-size: 12px; line-height: 1.75; }
+.methodology-rule strong { color: var(--color-ink); font-weight: 600; }
+.evaluation-metrics { display: grid; grid-template-columns: repeat(4, 1fr); border: 1px solid var(--color-line); }
+.evaluation-metrics article { min-height: 260px; padding: 24px; border-left: 1px solid var(--color-line); }
+.evaluation-metrics article:first-child { border-left: 0; }
+.evaluation-metrics span { color: var(--color-muted); font-size: 9px; font-weight: 600; letter-spacing: .08em; }
+.evaluation-metrics strong { display: block; margin-top: 74px; font-size: clamp(25px, 2.7vw, 40px); font-weight: 500; letter-spacing: -.045em; }
+.evaluation-metrics p { margin: 15px 0 0; color: var(--color-muted); font-size: 11px; line-height: 1.6; }
+.evaluation-caveats { display: grid; grid-template-columns: .4fr 1.6fr; gap: 46px; margin-top: 20px; padding: 28px; background: var(--color-panel); }
+.evaluation-caveats strong { font-size: 13px; font-weight: 500; }
+.evaluation-caveats ul { margin: 0; padding: 0; list-style: none; }
+.evaluation-caveats li { padding: 12px 0 12px 19px; color: var(--color-muted); border-top: 1px solid var(--color-line-subtle); font-size: 12px; line-height: 1.6; }
+.evaluation-caveats li::before { display: inline-block; width: 19px; margin-left: -19px; color: var(--color-accent); content: "—"; }
+.audit-layout { display: grid; grid-template-columns: 1.15fr .85fr; gap: 16px; }
+.audit-layout > ol, .audit-layout > div { margin: 0; padding: 26px; background: var(--color-panel); border: 1px solid var(--color-line); border-radius: 10px; }
+.audit-layout ol { list-style: none; }
+.audit-layout li { display: grid; grid-template-columns: 45px 1fr; padding: 20px 0; border-top: 1px solid var(--color-line-subtle); }
+.audit-layout li:first-child { border-top: 0; }
+.audit-layout li > span { grid-row: 1 / 3; color: var(--color-accent); font-size: 9px; }
+.audit-layout strong { font-size: 14px; font-weight: 500; }
+.audit-layout small { margin-top: 7px; color: var(--color-muted); font-size: 10px; }
+.audit-layout > div > span { display: block; padding: 15px 0; color: var(--color-ink-dim); border-top: 1px solid var(--color-line-subtle); font-size: 11px; }
+.methodology-links { display: grid; grid-template-columns: 1.3fr repeat(4, .7fr); margin-top: 48px; border-block: 1px solid var(--color-line); }
+.methodology-links > * { min-height: 190px; padding: 22px; border-left: 1px solid var(--color-line); }
+.methodology-links > *:first-child { border-left: 0; }
+.methodology-links h3 { max-width: 260px; margin: 56px 0 0; font-size: 20px; font-weight: 500; letter-spacing: -.035em; }
+.methodology-links > a { display: flex; flex-direction: column; justify-content: space-between; color: var(--color-ink-dim); font-size: 12px; text-decoration: none; transition: color 160ms ease, background 160ms ease; }
+.methodology-links > a:hover { color: var(--color-ink); background: var(--color-panel); }
+.methodology-links > a span { align-self: flex-end; color: var(--color-accent); }
+.methodology-closing { display: grid; grid-template-columns: 1fr 1fr; gap: 80px; align-items: end; padding: 110px 0 135px; border-top: 1px solid var(--color-line-subtle); }
+.methodology-closing h2 { max-width: 680px; margin: 0; font-size: clamp(38px, 4.5vw, 68px); font-weight: 500; letter-spacing: -.055em; line-height: 1; }
+.methodology-closing > p { margin: 0; color: var(--color-ink-dim); font-size: 14px; line-height: 1.75; }
+
 @media (max-width: 980px) {
   .story-heading--split, .story-section--interval, .docs-section--scope { grid-template-columns: 1fr; gap: 42px; }
   .docs-section__lead, .role-guide__intro { grid-template-columns: 1fr; gap: 42px; }
   .role-glossary__heading { grid-template-columns: 1fr 1fr; }
   .role-glossary__heading > p:last-child { grid-column: 2; }
+  .methodology-hero { grid-template-columns: 1fr; min-height: 0; }
+  .methodology-lenses, .methodology-pipeline, .evaluation-metrics { grid-template-columns: repeat(2, 1fr); }
+  .methodology-lenses article:nth-child(3), .methodology-pipeline article:nth-child(3), .evaluation-metrics article:nth-child(3) { border-top: 1px solid var(--color-line); border-left: 0; }
+  .evaluation-metrics article:nth-child(4) { border-top: 1px solid var(--color-line); }
+  .model-layout, .audit-layout { grid-template-columns: 1fr; }
+  .methodology-links { grid-template-columns: repeat(2, 1fr); }
+  .methodology-links > * { border-top: 1px solid var(--color-line); }
+  .methodology-links > div { grid-column: 1 / -1; min-height: 150px; }
   .guide-walkthrough__row, .guide-walkthrough__row:nth-child(even) { grid-template-columns: 1fr; gap: 44px; min-height: 0; }
   .guide-walkthrough__row:nth-child(even) .guide-walkthrough__copy, .guide-walkthrough__row:nth-child(even) .guide-shot { grid-column: auto; grid-row: auto; }
   .guide-shot { min-height: 340px; }
@@ -449,6 +563,30 @@
   .docs-section__title { grid-template-columns: 36px 1fr; }
   .docs-section__title h2 { font-size: 34px; }
   .docs-section__lead h2, .docs-section__lead--compact h2 { font-size: 34px; }
+  .methodology-page main { padding-inline: 20px; }
+  .methodology-hero { padding: 70px 0; }
+  .methodology-hero h1 { font-size: 43px; }
+  .methodology-hero__actions { align-items: flex-start; flex-direction: column; }
+  .methodology-section { padding: 70px 0; }
+  .methodology-heading { grid-template-columns: 34px 1fr; }
+  .methodology-heading h2 { font-size: 36px; }
+  .boundary-cards, .methodology-lenses, .methodology-pipeline, .source-grid, .methodology-states, .evaluation-metrics { grid-template-columns: 1fr; }
+  .boundary-cards article, .methodology-lenses article, .methodology-pipeline article, .evaluation-metrics article { min-height: 240px; border-top: 1px solid var(--color-line); border-left: 0; }
+  .boundary-cards article:first-child, .methodology-lenses article:first-child, .methodology-pipeline article:first-child, .evaluation-metrics article:first-child { border-top: 0; }
+  .boundary-cards h3, .methodology-lenses h3, .methodology-pipeline h3 { margin-top: 50px; }
+  .methodology-note, .methodology-rule, .evaluation-caveats { grid-template-columns: 1fr; gap: 20px; }
+  .profile-table > div { grid-template-columns: 1fr; }
+  .profile-table > div > * { border-top: 1px solid var(--color-line-subtle); border-left: 0; }
+  .profile-table > div > *:first-child { border-top: 0; }
+  .profile-table__head { display: none !important; }
+  .equation-stack > div { grid-template-columns: 1fr; }
+  .calibration-strip { grid-template-columns: 1fr 1fr; }
+  .calibration-strip div:nth-child(3) { border-top: 1px solid var(--color-line); border-left: 0; }
+  .calibration-strip div:nth-child(4) { border-top: 1px solid var(--color-line); }
+  .methodology-links { grid-template-columns: 1fr; }
+  .methodology-links > div { grid-column: auto; }
+  .methodology-links > * { min-height: 130px; border-left: 0; }
+  .methodology-closing { grid-template-columns: 1fr; gap: 38px; padding: 86px 0 105px; }
   .role-guide__intro h2 { font-size: 40px; }
   .guide-walkthrough { margin-top: 40px; }
   .guide-walkthrough__row { padding: 44px 0; }

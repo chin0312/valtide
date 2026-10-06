@@ -18,6 +18,7 @@ const { assetAvailabilityLabel, assetDisplayName } = load("../src/components/Ass
 const { Hero } = load("../src/components/Hero.tsx");
 const { LandingPage } = load("../src/components/LandingPage.tsx");
 const { DocsPage } = load("../src/components/DocsPage.tsx");
+const { MethodologyPage } = load("../src/components/MethodologyPage.tsx");
 const { InstrumentPassport, passportStatusFor } = load("../src/components/InstrumentPassport.tsx");
 const { PolicyFoundry } = load("../src/components/PolicyFoundry.tsx");
 const { DEMO_PASSPORT_ADDRESS, MODEL_EVIDENCE_SUMMARY, POLICY_PROPOSAL } = load("../src/fixtures/prototypeData.ts");
@@ -194,6 +195,7 @@ test("Clean divergence hero restores the product framing and opens the validatio
   assert.match(html, /Coverage above target is not automatically better/);
   assert.match(html, /Historical results are not production guarantees or comparisons with oracle providers/);
   assert.match(html, /href="\?view=console"/);
+  assert.match(html, /href="\/methodology"/);
   assert.match(html, /href="\/docs"/);
   assert.match(html, /logo-motion-panel--left/);
   assert.match(html, /logo-motion-diamond/);
@@ -216,6 +218,7 @@ test("Prototype landing uses canonical demo values and preserves product boundar
   assert.match(html, /browser is read-only/);
   assert.match(html, /X Layer testnet/);
   assert.match(html, /does not custody assets, lend, trade, calculate LTV, or liquidate/);
+  assert.match(html, /href="\/methodology"/);
   assert.doesNotMatch(html, /step-explorer|explorer-signal/);
   assert.doesNotMatch(html, /weekend_divergence|P1a-C|Standardized deviation/);
   assert.doesNotMatch(html, /Always-on assets need always-on evidence|Tokenization 2030|\$5\.5T|\$2\.6T/);
@@ -264,6 +267,36 @@ test("Documentation adapts by role and keeps evidence, policy and scope separate
   assert.match(html, /Also useful for/);
   const profileSource = fs.readFileSync(path.join(__dirname, "../src/components/documentationProfiles.ts"), "utf8");
   for (const profile of ["everyone", "curators", "developers", "researchers"]) assert.match(profileSource, new RegExp(`${profile}:`));
+  assert.match(fs.readFileSync(path.join(__dirname, "../src/components/DocsPage.tsx"), "utf8"), /cta: "Read the methodology", href: "\/methodology"/);
+});
+
+test("Methodology is a first-class, source-grounded page with one canonical method", () => {
+  const html = render(MethodologyPage);
+  for (const value of [
+    "Public research methodology · v0.3",
+    "A validation control—not a lending protocol",
+    "One method, four lenses",
+    "P1a-C is a causal state-space estimate",
+    "SUPPORTED",
+    "INCONCLUSIVE",
+    "CHALLENGED",
+    "11,828",
+    "94.3%",
+    "X Layer testnet",
+  ]) assert.match(html, new RegExp(value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")));
+  assert.match(html, /interval quality—not production oracle accuracy/);
+  assert.match(html, /xStock and P1a-C are model-based challenger evidence, not two independent observations/);
+  assert.match(html, /does not observe an exact true price|does not observe an exact “true” price/);
+  assert.match(html, /href="\/docs\?profile=developers#role-guide"/);
+  assert.match(html, /docs\/METHODOLOGY\.md/);
+});
+
+test("Market Basis is visible without an advanced diagnostics disclosure", () => {
+  const html = appWith({ result: fixture[0] });
+  assert.match(html, /Market Basis/);
+  assert.doesNotMatch(html, /Advanced market diagnostics/);
+  const source = fs.readFileSync(path.join(__dirname, "../src/App.tsx"), "utf8");
+  assert.doesNotMatch(source, /<summary[^>]*>Advanced market diagnostics<\/summary>/);
 });
 
 test("Console deep links select a known evidence context and fail closed to Operational", () => {

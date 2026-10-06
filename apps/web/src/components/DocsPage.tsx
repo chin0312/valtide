@@ -60,7 +60,7 @@ const guides: readonly Guide[] = [
     id: "researchers", label: documentationProfiles.researchers.label, eyebrow: "Model and evaluation review", title: "Audit the challenger without overstating the evidence.",
     summary: "Inspect the point-in-time inputs, uncertainty construction, and evaluation design before drawing conclusions from coverage or interval width.",
     outcome: "You will understand what the challenger estimates, how its range is evaluated, and which claims the evidence cannot support.",
-    cta: "Read the methodology", href: "https://github.com/chin0312/valtide/blob/main/docs/METHODOLOGY.md",
+    cta: "Read the methodology", href: "/methodology",
     walkthrough: [
       { eyebrow: "Reconstruct the information set", title: "Keep every signal point-in-time correct.", body: "The reference profile identifies the observed source and its relationship to model inputs. NVDAx's legacy X-Perp comparator is separate; the xStock profile compares the observed token with model-based challenger evidence after P1a has assimilated that same token observation.", tip: "The xStock and challenger values are not two fully independent observations; disagreement alone does not prove which price is correct.", visual: "signals" },
       { eyebrow: "Inspect uncertainty", title: "Evaluate the interval, not just its center.", body: "Valtide returns a fair-value estimate with a calibrated prediction interval. Wider ranges express greater uncertainty rather than false precision.", tip: "Coverage and interval width must be read together. Neither establishes point-price truth.", visual: "interval" },
