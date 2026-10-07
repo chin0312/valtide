@@ -390,12 +390,32 @@ test("Methodology is a first-class, source-grounded page with one canonical meth
     "X Layer testnet",
   ]) assert.match(html, new RegExp(value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")));
   assert.match(html, /interval quality—not production oracle accuracy/);
-  assert.match(html, /xStock-versus-P1a is model-based evidence, not two independent observations/);
-  assert.match(html, /CURRENT V2 RULE BOUNDARY/);
-  assert.match(html, /emits <strong>SUPPORTED<\/strong> when the asset-authorized support band applies/);
+  assert.match(html, /current unified profile/i);
+  assert.doesNotMatch(html, /current production profile/i);
+  assert.match(html, /Disagreements are preserved, not averaged away/);
+  assert.match(html, /X-Perp is the separate market comparison/);
+  assert.match(html, /<details class="methodology-equations">/);
+  assert.match(html, /View the P1a-C equations/);
+  assert.match(html, /aria-label="Current unified Evidence State rules"/);
+  assert.match(html, /The asset-specific support band applies/);
+  assert.match(html, /required evidence is missing, stale, ambiguous, or below the quality threshold/);
+  assert.match(html, /exact-time X-Perp is closer to P1a-C than to xStock/);
+  assert.match(html, /asset-bound tri-source capability artifact authorizes which Evidence States/);
+  assert.match(html, /View these states in the Validation Console/);
+  assert.match(html, /19% narrower than the conventional Gaussian baseline while achieving 94\.3% empirical coverage against a 90% target/);
+  assert.doesNotMatch(html, /narrower interval reduces false-positive alerts|preventing unnecessary trading restrictions/i);
+  assert.match(html, /Current unified-v2 results are not published through the legacy binding/);
+  assert.match(html, /Explore the current X Layer testnet integration/);
+  assert.match(html, /correctness still depends on the underlying sources, model, and validation rule/);
   assert.match(html, /does not observe an exact true price|does not observe an exact “true” price/);
   assert.match(html, /href="\/docs\?profile=developers#role-guide"/);
+  assert.match(html, /href="\/\?view=console&amp;context=demo"/);
   assert.match(html, /docs\/METHODOLOGY\.md/);
+  for (const path of [
+    "docs/METHODOLOGY.md",
+    "valtide-quant-service-p1ac/evidence",
+    "valtide-quant-service-p1ac/artifacts",
+  ]) assert.match(html, new RegExp(path.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")));
 });
 
 test("Vercel serves first-class documentation routes through the SPA entry point", () => {

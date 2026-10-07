@@ -421,7 +421,7 @@
 .source-grid span { color: var(--color-accent); font-size: 9px; font-weight: 600; letter-spacing: .09em; text-transform: uppercase; }
 .source-grid h3 { margin: 55px 0 13px; font-size: 19px; font-weight: 500; letter-spacing: -.025em; }
 .source-grid p { max-width: 570px; margin: 0; color: var(--color-muted); font-size: 12px; line-height: 1.65; }
-.model-layout { display: grid; grid-template-columns: minmax(0, 1.25fr) minmax(300px, .75fr); gap: 16px; }
+.model-layout { display: grid; grid-template-columns: minmax(0, 1.25fr) minmax(300px, .75fr); gap: 16px; align-items: start; }
 .equation-stack, .causal-order { background: var(--color-panel); border: 1px solid var(--color-line); border-radius: 10px; }
 .equation-stack > div { display: grid; grid-template-columns: 190px 1fr; gap: 20px; padding: 24px; border-top: 1px solid var(--color-line-subtle); }
 .equation-stack > div:first-child { border-top: 0; }
@@ -433,19 +433,34 @@
 .causal-order li { position: relative; padding: 14px 0 14px 34px; color: var(--color-ink-dim); border-top: 1px solid var(--color-line-subtle); font-size: 12px; counter-increment: causal; }
 .causal-order li::before { position: absolute; left: 0; color: var(--color-accent); content: "0" counter(causal); font-size: 9px; }
 .causal-order > p:last-child { color: var(--color-muted); font-size: 11px; line-height: 1.7; }
+.methodology-equations { overflow: hidden; background: var(--color-panel); border: 1px solid var(--color-line); border-radius: 10px; }
+.methodology-equations summary { display: flex; justify-content: space-between; align-items: center; min-height: 104px; padding: 24px; cursor: pointer; list-style: none; }
+.methodology-equations summary::-webkit-details-marker { display: none; }
+.methodology-equations summary > span:first-child { display: flex; flex-direction: column; gap: 9px; color: var(--color-ink); font-size: 16px; font-weight: 500; }
+.methodology-equations summary small { color: var(--color-accent); font-size: 9px; font-weight: 600; letter-spacing: .1em; text-transform: uppercase; }
+.methodology-equations summary > span:last-child { color: var(--color-accent); font-size: 18px; transition: transform 160ms ease; }
+.methodology-equations[open] summary > span:last-child { transform: rotate(45deg); }
+.methodology-equations .equation-stack { border-inline: 0; border-bottom: 0; border-radius: 0; }
+.methodology-equations > a { display: flex; justify-content: space-between; padding: 18px 24px; color: var(--color-ink-dim); border-top: 1px solid var(--color-line-subtle); font-size: 11px; text-decoration: none; }
+.methodology-equations > a:hover { color: var(--color-ink); }
 .calibration-strip { display: grid; grid-template-columns: repeat(4, 1fr); margin-top: 16px; border: 1px solid var(--color-line); }
 .calibration-strip div { min-height: 110px; padding: 20px; border-left: 1px solid var(--color-line); }
 .calibration-strip div:first-child { border-left: 0; }
 .calibration-strip span, .calibration-strip strong { display: block; }
 .calibration-strip span { color: var(--color-muted); font-size: 9px; letter-spacing: .07em; text-transform: uppercase; }
 .calibration-strip strong { margin-top: 30px; font-size: 14px; font-weight: 500; }
-.methodology-states { display: grid; grid-template-columns: repeat(3, 1fr); gap: 14px; }
-.methodology-states article { min-height: 250px; padding: 27px; background: var(--color-panel); border: 1px solid var(--color-line); border-top: 2px solid currentColor; }
-.methodology-states .supported { color: var(--color-supported); }
-.methodology-states .inconclusive { color: var(--color-inconclusive); }
-.methodology-states .challenged { color: var(--color-challenged); }
-.methodology-states span { font-size: 11px; font-weight: 600; letter-spacing: .06em; }
-.methodology-states p { margin: 78px 0 0; color: var(--color-ink-dim); font-size: 13px; line-height: 1.7; }
+.state-rule-table { border: 1px solid var(--color-line); }
+.state-rule-table > div { display: grid; grid-template-columns: .55fr 1.35fr 1.1fr; }
+.state-rule-table > div + div { border-top: 1px solid var(--color-line); }
+.state-rule-table > div > * { margin: 0; padding: 22px; border-left: 1px solid var(--color-line); font-size: 12px; line-height: 1.65; }
+.state-rule-table > div > *:first-child { border-left: 0; }
+.state-rule-table__head { color: var(--color-muted); background: var(--color-panel); font-size: 9px; font-weight: 600; letter-spacing: .09em; text-transform: uppercase; }
+.state-rule-table__head span { font-size: 9px; }
+.state-rule-table strong { font-weight: 600; letter-spacing: .04em; }
+.state-rule-table p { color: var(--color-ink-dim); }
+.state-rule-table .supported strong { color: var(--color-supported); }
+.state-rule-table .inconclusive strong { color: var(--color-inconclusive); }
+.state-rule-table .challenged strong { color: var(--color-challenged); }
 .methodology-rule { display: grid; grid-template-columns: .4fr 1.6fr; gap: 46px; margin-top: 20px; padding: 26px; border: 1px solid var(--color-line); }
 .methodology-rule > span { color: var(--color-accent); font-size: 9px; font-weight: 600; letter-spacing: .1em; }
 .methodology-rule p { margin: 0; color: var(--color-ink-dim); font-size: 12px; line-height: 1.75; }
@@ -456,6 +471,9 @@
 .evaluation-metrics span { color: var(--color-muted); font-size: 9px; font-weight: 600; letter-spacing: .08em; }
 .evaluation-metrics strong { display: block; margin-top: 74px; font-size: clamp(25px, 2.7vw, 40px); font-weight: 500; letter-spacing: -.045em; }
 .evaluation-metrics p { margin: 15px 0 0; color: var(--color-muted); font-size: 11px; line-height: 1.6; }
+.evaluation-interpretation, .methodology-integration-note { display: grid; grid-template-columns: .4fr 1.6fr; gap: 46px; margin-top: 20px; padding: 26px 28px; border: 1px solid var(--color-line); }
+.evaluation-interpretation strong, .methodology-integration-note strong { font-size: 13px; font-weight: 500; }
+.evaluation-interpretation p, .methodology-integration-note p { margin: 0; color: var(--color-ink-dim); font-size: 12px; line-height: 1.75; }
 .evaluation-caveats { display: grid; grid-template-columns: .4fr 1.6fr; gap: 46px; margin-top: 20px; padding: 28px; background: var(--color-panel); }
 .evaluation-caveats strong { font-size: 13px; font-weight: 500; }
 .evaluation-caveats ul { margin: 0; padding: 0; list-style: none; }
@@ -470,7 +488,10 @@
 .audit-layout strong { font-size: 14px; font-weight: 500; }
 .audit-layout small { margin-top: 7px; color: var(--color-muted); font-size: 10px; }
 .audit-layout > div > span { display: block; padding: 15px 0; color: var(--color-ink-dim); border-top: 1px solid var(--color-line-subtle); font-size: 11px; }
-.methodology-links { display: grid; grid-template-columns: 1.3fr repeat(4, .7fr); margin-top: 48px; border-block: 1px solid var(--color-line); }
+.methodology-inline-cta { display: inline-flex; align-items: center; gap: 18px; margin-top: 24px; color: var(--color-ink); font-size: 13px; font-weight: 500; text-decoration: none; }
+.methodology-inline-cta span { color: var(--color-accent); transition: transform 160ms ease; }
+.methodology-inline-cta:hover span { transform: translateX(3px); }
+.methodology-links { display: grid; grid-template-columns: 1.3fr repeat(3, .7fr); margin-top: 48px; border-block: 1px solid var(--color-line); }
 .methodology-links > * { min-height: 190px; padding: 22px; border-left: 1px solid var(--color-line); }
 .methodology-links > *:first-child { border-left: 0; }
 .methodology-links h3 { max-width: 260px; margin: 56px 0 0; font-size: 20px; font-weight: 500; letter-spacing: -.035em; }
@@ -581,11 +602,15 @@
   .boundary-cards article, .methodology-lenses article, .methodology-pipeline article, .evaluation-metrics article { min-height: 240px; border-top: 1px solid var(--color-line); border-left: 0; }
   .boundary-cards article:first-child, .methodology-lenses article:first-child, .methodology-pipeline article:first-child, .evaluation-metrics article:first-child { border-top: 0; }
   .boundary-cards h3, .methodology-lenses h3, .methodology-pipeline h3 { margin-top: 50px; }
-  .methodology-note, .methodology-rule, .evaluation-caveats { grid-template-columns: 1fr; gap: 20px; }
+  .methodology-note, .methodology-rule, .evaluation-interpretation, .methodology-integration-note, .evaluation-caveats { grid-template-columns: 1fr; gap: 20px; }
   .profile-table > div { grid-template-columns: 1fr; }
   .profile-table > div > * { border-top: 1px solid var(--color-line-subtle); border-left: 0; }
   .profile-table > div > *:first-child { border-top: 0; }
   .profile-table__head { display: none !important; }
+  .state-rule-table > div { grid-template-columns: 1fr; }
+  .state-rule-table > div > * { border-top: 1px solid var(--color-line-subtle); border-left: 0; }
+  .state-rule-table > div > *:first-child { border-top: 0; }
+  .state-rule-table__head { display: none !important; }
   .equation-stack > div { grid-template-columns: 1fr; }
   .calibration-strip { grid-template-columns: 1fr 1fr; }
   .calibration-strip div:nth-child(3) { border-top: 1px solid var(--color-line); border-left: 0; }
