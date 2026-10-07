@@ -139,7 +139,7 @@ export function MethodologyPage() {
             <ol><li><span>01</span><strong>P1a-C runtime</strong><small>Estimate, bounds, calibration metadata</small></li><li><span>02</span><strong>Backend validation</strong><small>Quality gates, Evidence State, reason codes</small></li><li><span>03</span><strong>ValidationRegistry</strong><small>Latest authorized compatible attestation</small></li><li><span>04</span><strong>RiskGuard + consumer</strong><small>Curator policy and application enforcement</small></li></ol>
             <div><p className="marketing-kicker">Audit fields</p>{auditFields.map((field) => <span key={field}>{field}</span>)}</div>
           </div>
-          <div className="methodology-integration-note"><strong>Current deployment boundary</strong><p>Current unified-v2 results are not published through the legacy binding until compatible evidence semantics are declared. The deployed X Layer testnet contracts remain available for inspection.</p></div>
+          <div className="methodology-integration-note"><strong>Current testnet scope</strong><p>NVDAx, SPYx, and AAPLx have asset-specific publication bindings to the shared ValidationRegistry and RiskGuard on X Layer testnet. Publication remains a backend responsibility; the browser is read-only.</p></div>
           <a className="methodology-inline-cta" href="/docs?profile=developers#role-guide">Explore the current X Layer testnet integration <span aria-hidden="true">→</span></a>
           <div className="methodology-links">
             <div><p className="marketing-kicker">Primary sources</p><h3>Inspect the method behind the page.</h3></div>

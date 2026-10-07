@@ -176,7 +176,11 @@ function ValidationConsole() {
       <main className="space-y-4">
         {isDegraded && current && <div role="status" className="rounded px-4 py-3 text-xs text-ink-dim" style={{ background: "var(--color-inconclusive-soft)" }}>{context} degraded · showing last available observations. {history.isError && isOperational ? "History unavailable. " : ""}{activeQuery.isError ? statusMessage : runtime.data?.last_error}</div>}
         {!current ? <Panel title={`${context} ${activeQuery.isLoading ? "Loading" : "Unavailable"}`}><p role="status" className="text-xs text-ink-dim">{activeQuery.isLoading ? `Loading ${contextAsset} ${context.toLowerCase()} observations…` : runtimeNotWarmed ? "Runtime not warmed yet." : statusMessage}</p></Panel> : <>
-        <DecisionSummary current={current} action={policyAction} />
+        <DecisionSummary
+          current={current}
+          action={policyAction}
+          policyLabel={context === "Demo" ? "Demo policy" : context === "Historical" || reviewing || !isEvidenceStateV2(current) ? "Current policy mapping" : "Policy action"}
+        />
         <MetricGrid current={current} isDemo={context === "Demo"} observationCount={results.length} />
 
         <div className="grid items-stretch gap-4 xl:grid-cols-[minmax(0,1.3fr)_minmax(0,1fr)]">
@@ -215,7 +219,7 @@ function ValidationConsole() {
             <PolicyCard
               state={current.evidence_state}
               action={policyAction}
-              label={context === "Demo" ? "Demo Policy" : "Current Policy Mapping"}
+              label={context === "Demo" ? "Demo policy" : "Current policy mapping"}
               source={context === "Demo" ? "Demo policy only; it is not a deployed policy or action" : context === "Historical" || reviewing ? "Selected evidence under today's policy; not a historical onchain decision" : "Curator mapping for this evidence; current RiskGuard action is shown separately"}
               enforced={isOperational && !reviewing ? controlPlane : undefined}
             />
@@ -297,11 +301,11 @@ function ConnectionLabel({ active, activeText, inactiveText }: { active: boolean
   return <span className="inline-flex items-center gap-1.5" style={{ color: active ? "var(--color-supported)" : "var(--color-muted)" }}><i className="h-1.5 w-1.5 rounded-full" style={{ background: "currentColor" }} />{active ? activeText : inactiveText}</span>;
 }
 
-function DecisionSummary({ current, action }: { current: ValuationResult; action: PolicyAction | null }) {
+function DecisionSummary({ current, action, policyLabel }: { current: ValuationResult; action: PolicyAction | null; policyLabel: string }) {
   const finding = evidenceCopy(current);
   return <section className="grid gap-4 rounded-[10px] p-5 md:grid-cols-[minmax(0,1fr)_minmax(220px,.45fr)]" style={{ background: "var(--color-panel)", border: "1px solid var(--color-line-subtle)", borderLeft: `3px solid ${EVIDENCE[current.evidence_state].fg}` }}>
-    <div><div className="eyebrow" style={{ color: "var(--color-muted)" }}>Current Finding</div><h2 className="mt-2 text-2xl font-semibold tracking-[-0.03em] text-ink">{finding.title}</h2><p className="mt-2 max-w-3xl text-sm leading-6 text-ink-dim">{finding.detail}</p></div>
-    <div className="md:border-l md:pl-4" style={{ borderColor: "var(--color-line-subtle)" }}><div className="eyebrow" style={{ color: "var(--color-muted)" }}>Policy Action</div><div className="mt-2 text-lg font-semibold text-ink">{plainAction(action)}</div></div>
+    <div><div className="eyebrow" style={{ color: "var(--color-muted)" }}>Current finding</div><h2 className="mt-2 text-2xl font-semibold tracking-[-0.03em] text-ink">{finding.title}</h2><p className="mt-2 max-w-3xl text-sm leading-6 text-ink-dim">{finding.detail}</p></div>
+    <div className="md:border-l md:pl-4" style={{ borderColor: "var(--color-line-subtle)" }}><div className="eyebrow" style={{ color: "var(--color-muted)" }}>{policyLabel}</div><div className="mt-2 text-lg font-semibold text-ink">{plainAction(action)}</div></div>
   </section>;
 }
 
@@ -327,7 +331,7 @@ function Metric({ label, value, sub, accent }: { label: string; value: string; s
 function EvidenceCard({ result }: { result: ValuationResult }) {
   const state = EVIDENCE[result.evidence_state];
   return (
-    <Panel title="Evidence Assessment" icon="evidence">
+    <Panel title="Evidence assessment" icon="evidence">
       <div className="text-2xl font-semibold tracking-[-0.03em]" style={{ color: state.fg }}>{state.label}</div>
       <div className="mt-4"><ReasonCodes codes={result.reason_codes} evidenceState={result.evidence_state} /></div>
     </Panel>
@@ -336,7 +340,7 @@ function EvidenceCard({ result }: { result: ValuationResult }) {
 
 function PolicyCard({ state, action, source, label, enforced }: { state?: EvidenceState; action: PolicyAction | null; source: string; label: string; enforced?: OnchainControlPlane }) {
   return (
-    <Panel title="Policy Action" icon="shield" right={<span title={source} className="inline-flex items-center gap-1.5 text-[10px] text-muted"><Icon name="chain" size={14} />{label}</span>}>
+    <Panel title="Policy action" icon="shield" right={<span title={source} className="inline-flex items-center gap-1.5 text-[10px] text-muted"><Icon name="chain" size={14} />{label}</span>}>
       <div className="break-words text-xl font-semibold tracking-[-0.03em] text-ink">{plainAction(action)}</div>
       <div className="mt-3">
         <div className="eyebrow text-muted">Reason</div>
@@ -344,10 +348,10 @@ function PolicyCard({ state, action, source, label, enforced }: { state?: Eviden
       </div>
       {!action && <p className="mt-3 text-xs text-ink-dim">No curator policy is connected for this asset.</p>}
       <dl className="mt-3 grid gap-2 rounded px-3 py-3 text-xs" style={{ border: "1px solid var(--color-line)" }}>
-        <PolicyDetail label="Evidence State" value={state ?? "—"} />
-        <PolicyDetail label="Policy Mapping" value={action ? plainAction(action) : "No Policy Connected"} />
-        {enforced && <PolicyDetail label="RiskGuard Status" value={enforced.fresh ? "Fresh" : "Stale"} />}
-        {enforced && <PolicyDetail label="Enforced Action" value={plainAction(enforced.policy_action)} />}
+        <PolicyDetail label="Evidence state" value={state ?? "—"} />
+        <PolicyDetail label="Policy mapping" value={action ? plainAction(action) : "No policy connected"} />
+        {enforced && <PolicyDetail label="RiskGuard status" value={enforced.fresh ? "Fresh" : "Stale"} />}
+        {enforced && <PolicyDetail label="Enforced action" value={plainAction(enforced.policy_action)} />}
       </dl>
     </Panel>
   );
@@ -358,10 +362,10 @@ function PolicyDetail({ label, value }: { label: string; value: string }) {
 }
 
 function plainEvidenceReason(state?: EvidenceState): string {
-  if (state === "SUPPORTED") return "Observed xStock Is Supported";
-  if (state === "INCONCLUSIVE") return "Evidence Is Inconclusive";
-  if (state === "CHALLENGED") return "Observed xStock Is Challenged";
-  return "Evidence Is Unavailable";
+  if (state === "SUPPORTED") return "Observed xStock is supported";
+  if (state === "INCONCLUSIVE") return "Evidence is inconclusive";
+  if (state === "CHALLENGED") return "Observed xStock is challenged";
+  return "Evidence is unavailable";
 }
 
 function BasisCard({ result }: { result: ValuationResult }) {
@@ -388,9 +392,9 @@ function actionFor(policy: OnchainPolicy, state: EvidenceState): PolicyAction {
 }
 
 function plainAction(action: PolicyAction | null): string {
-  if (action === "ALLOW") return "Allow New Borrowing";
-  if (action === "MONITOR") return "Continue Monitoring";
-  if (action === "REQUIRE_REVIEW") return "Pause And Review";
-  if (action === "RESTRICT_NEW_RISK") return "Restrict New Borrowing";
-  return "No Policy Connected";
+  if (action === "ALLOW") return "Allow new borrowing";
+  if (action === "MONITOR") return "Continue monitoring";
+  if (action === "REQUIRE_REVIEW") return "Pause and review";
+  if (action === "RESTRICT_NEW_RISK") return "Restrict new borrowing";
+  return "No policy connected";
 }

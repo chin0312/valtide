@@ -25,30 +25,30 @@ export interface EvidenceCopy {
 
 const V2_COPY: Record<EvidenceState, EvidenceCopy> = {
   SUPPORTED: {
-    title: "Observed xStock Is Supported",
-    detail: "Model disagreement is low and required market data passes quality checks.",
+    title: "Observed xStock is supported",
+    detail: "Model disagreement is low, exact-time X-Perp is available, and required quality checks pass.",
   },
   INCONCLUSIVE: {
-    title: "Evidence Is Inconclusive",
-    detail: "Model disagreement is elevated, evidence conflicts, or a required market check is unavailable.",
+    title: "Evidence is inconclusive",
+    detail: "The result is in the watch band, or a required market check is unavailable, stale, ambiguous, or below the quality threshold.",
   },
   CHALLENGED: {
-    title: "Observed xStock Is Challenged",
-    detail: "Model disagreement is high and X-Perp independently supports the model-side challenge. This does not prove the xStock price is wrong.",
+    title: "Observed xStock is challenged",
+    detail: "Model disagreement is high, and exact-time X-Perp is closer to P1a-C than to xStock. Review the price before using it in a risk decision.",
   },
 };
 
 const LEGACY_XSTOCK_COPY: Record<EvidenceState, EvidenceCopy> = {
   SUPPORTED: {
-    title: "Model-Based Challenger Evidence Supports the Observed xStock",
+    title: "Model-based challenger evidence supports the observed xStock",
     detail: "This earlier model-based result is shown as recorded and has not been reclassified.",
   },
   INCONCLUSIVE: {
-    title: "Model-Based Challenger Evidence Needs Review",
+    title: "Model-based challenger evidence needs review",
     detail: "This earlier model-based result is shown as recorded and has not been reclassified.",
   },
   CHALLENGED: {
-    title: "Model-Based Challenger Evidence Challenges the Observed xStock",
+    title: "Model-based challenger evidence challenges the observed xStock",
     detail: "This earlier model-based result is shown as recorded and has not been reclassified.",
   },
 };
@@ -63,8 +63,8 @@ export function evidenceCopy(result: ValuationResult): EvidenceCopy {
   }
   if (result.reference_profile === "xstock_vs_p1ac_challenger") return LEGACY_XSTOCK_COPY[result.evidence_state];
   return {
-    title: result.evidence_state === "SUPPORTED" ? "Evidence Supports the Reference"
-      : result.evidence_state === "CHALLENGED" ? "Evidence Challenges the Reference" : "Evidence Needs Review",
+    title: result.evidence_state === "SUPPORTED" ? "Evidence supports the reference"
+      : result.evidence_state === "CHALLENGED" ? "Evidence challenges the reference" : "Evidence needs review",
     detail: "This earlier observation is shown with its recorded reference and Evidence State. It has not been reclassified by the current Console.",
   };
 }

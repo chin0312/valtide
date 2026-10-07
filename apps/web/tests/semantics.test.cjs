@@ -405,7 +405,9 @@ test("Methodology is a first-class, source-grounded page with one canonical meth
   assert.match(html, /View these states in the Validation Console/);
   assert.match(html, /19% narrower than the conventional Gaussian baseline while achieving 94\.3% empirical coverage against a 90% target/);
   assert.doesNotMatch(html, /narrower interval reduces false-positive alerts|preventing unnecessary trading restrictions/i);
-  assert.match(html, /Current unified-v2 results are not published through the legacy binding/);
+  assert.match(html, /NVDAx, SPYx, and AAPLx have asset-specific publication bindings/);
+  assert.match(html, /Publication remains a backend responsibility; the browser is read-only/);
+  assert.doesNotMatch(html, /unified-v2 results are not published through the legacy binding/);
   assert.match(html, /Explore the current X Layer testnet integration/);
   assert.match(html, /correctness still depends on the underlying sources, model, and validation rule/);
   assert.match(html, /does not observe an exact true price|does not observe an exact “true” price/);
@@ -457,7 +459,7 @@ test("Demo uses canonical NVDAx data, hides selection, and preserves each operat
     assert.doesNotMatch(html, /asset-picker/);
     assert.match(html, /NVDAx Validation Timeline/);
     assert.match(html, /Demo Backup · 6 Synthetic Steps/);
-    assert.match(html, /Demo Policy/);
+    assert.match(html, /Demo policy/);
     assert.match(html, /Policy Proposal/);
     assert.equal((html.match(/Advanced: Policy Proposal/g) ?? []).length,1);
     assert.doesNotMatch(html, /Evidence State v2|X Layer Not Configured/);
@@ -545,7 +547,7 @@ test("Console metrics and interval markers use human-facing model labels and xSt
   assert.match(html, /xStock ↔ Valtide Model/);
   assert.match(html, /Model Move/);
   assert.match(html, /Valtide Model · v0\.2\.0/);
-  assert.doesNotMatch(html, /P1a-C/);
+  assert.match(html, /exact-time X-Perp is closer to P1a-C than to xStock/);
   assert.doesNotMatch(html, /Reference under test|Technical diagnostic/);
   const numberLine = render(ReferenceNumberLine,{r:v2});
   for (const marker of ["Observed xStock", "X-Perp", "Valtide Fair Value", "90% Valuation Range"]) assert.match(numberLine,new RegExp(marker));
@@ -754,10 +756,10 @@ test("Equal-height Timeline card alignment keeps the chart fixed and Policy Prop
 
 test("Current semantic copy is shared and old explicit rule generations stay recorded", () => {
   const current = evidenceCopy(consoleV2Fixture[0]);
-  assert.equal(current.title,"Observed xStock Is Supported");
-  assert.equal(current.detail,"Model disagreement is low and required market data passes quality checks.");
-  assert.equal(evidenceCopy(consoleV2Fixture[3]).detail,"Model disagreement is elevated, evidence conflicts, or a required market check is unavailable.");
-  assert.equal(evidenceCopy(consoleV2Fixture[4]).detail,"Model disagreement is high and X-Perp independently supports the model-side challenge. This does not prove the xStock price is wrong.");
+  assert.equal(current.title,"Observed xStock is supported");
+  assert.equal(current.detail,"Model disagreement is low, exact-time X-Perp is available, and required quality checks pass.");
+  assert.equal(evidenceCopy(consoleV2Fixture[3]).detail,"The result is in the watch band, or a required market check is unavailable, stale, ambiguous, or below the quality threshold.");
+  assert.equal(evidenceCopy(consoleV2Fixture[4]).detail,"Model disagreement is high, and exact-time X-Perp is closer to P1a-C than to xStock. Review the price before using it in a risk decision.");
   const oldRecord = {...consoleV2Fixture[0], evidence_state:"CHALLENGED", reason_codes:["OLD_RECORDED_REASON"], evidence_semantics:"p1a_xstock_challenger_xperp_second_market_v1"};
   const old = evidenceCopy(oldRecord);
   assert.match(old.title,/Recorded challenged evidence/);
@@ -852,7 +854,7 @@ test("Prior evidence is not paired with current enforcement", () => {
   const policy = {on_supported:"ALLOW",on_inconclusive:"REQUIRE_REVIEW",on_challenged:"RESTRICT_NEW_RISK",on_stale:"REQUIRE_REVIEW",max_age:900};
   const chain = {policy,policy_action:"RESTRICT_NEW_RISK",evidence_state:"CHALLENGED",exists:true,fresh:true,network:"Testnet",chain_id:1952,attestation:null};
   const html = appWith({result:fixture[1],rows:fixture.slice(0,2),chain});
-  assert.match(html,/Current Policy Mapping/);
+  assert.match(html,/Current policy mapping/);
   assert.match(html,/Current deployed state — not historical chain state/);
   assert.doesNotMatch(html,/Current RiskGuard ·/);
 });
@@ -861,14 +863,14 @@ test("Current evidence mapping and stale RiskGuard enforcement remain separate",
   const policy = {on_supported:"ALLOW",on_inconclusive:"REQUIRE_REVIEW",on_challenged:"RESTRICT_NEW_RISK",on_stale:"REQUIRE_REVIEW",max_age:900};
   const chain = {policy,policy_action:"REQUIRE_REVIEW",evidence_state:"SUPPORTED",exists:true,fresh:false,network:"Testnet",chain_id:1952,attestation:{publishedAt:Math.floor(Date.now()/1000)-7200}};
   const html = appWith({result:fixture[0],chain});
-  assert.match(html,/Current Policy Mapping/);
+  assert.match(html,/Current policy mapping/);
   assert.match(html,/Reason/);
-  assert.match(html,/Observed xStock Is Supported/);
-  assert.match(html,/RiskGuard Status/);
-  assert.match(html,/Evidence State/);
-  assert.match(html,/Policy Mapping/);
-  assert.match(html,/Enforced Action/);
-  const policyStart = html.indexOf(">Policy Action</h2>");
+  assert.match(html,/Observed xStock is supported/);
+  assert.match(html,/RiskGuard status/);
+  assert.match(html,/Evidence state/);
+  assert.match(html,/Policy mapping/);
+  assert.match(html,/Enforced action/);
+  const policyStart = html.indexOf(">Policy action</h2>");
   const policyEnd = html.indexOf("</section>", policyStart);
   assert.ok(policyStart >= 0 && policyEnd > policyStart);
   assert.doesNotMatch(html.slice(policyStart, policyEnd),/Technical Details/);
@@ -877,29 +879,29 @@ test("Current evidence mapping and stale RiskGuard enforcement remain separate",
   assert.doesNotMatch(html,/Raw policy value/);
 });
 
-test("Short Console labels and policy actions use consistent title case", () => {
+test("Evidence and policy panels use consistent sentence case", () => {
   const policy = {on_supported:"ALLOW",on_inconclusive:"MONITOR",on_challenged:"REQUIRE_REVIEW",on_stale:"REQUIRE_REVIEW",max_age:900};
   const chain = {policy,policy_action:"ALLOW",evidence_state:"SUPPORTED",exists:true,fresh:true,network:"Testnet",chain_id:1952,attestation:null};
   for (const [state,action] of [
-    ["SUPPORTED","Allow New Borrowing"],
-    ["INCONCLUSIVE","Continue Monitoring"],
-    ["CHALLENGED","Pause And Review"],
+    ["SUPPORTED","Allow new borrowing"],
+    ["INCONCLUSIVE","Continue monitoring"],
+    ["CHALLENGED","Pause and review"],
   ]) {
     const html = appWith({result:{...fixture[0],evidence_state:state},chain});
     assert.ok(html.includes(action), `missing action ${action}`);
-    assert.match(html,/Current Finding/);
-    assert.match(html,/Policy Action/);
+    assert.match(html,/Current finding/);
+    assert.match(html,/Policy action/);
   }
   const html = appWith({result:fixture[0],chain});
   for (const phrase of ["Publication Status","Valuation Range","Range View","Peak Model Distance","Observation Details","Source Provenance","Market State"]) assert.ok(html.includes(phrase), `missing ${phrase}`);
 });
 
-test("Policy Action exposes its core rows without a disclosure and keeps missing policy non-alarming", () => {
+test("Policy action exposes its core rows without a disclosure and keeps missing policy non-alarming", () => {
   const policy = {on_supported:"ALLOW",on_inconclusive:"REQUIRE_REVIEW",on_challenged:"RESTRICT_NEW_RISK",on_stale:"REQUIRE_REVIEW",max_age:900};
   const chain = {policy,policy_action:"REQUIRE_REVIEW",evidence_state:"SUPPORTED",exists:true,fresh:true,network:"Testnet",chain_id:1952,attestation:null};
   const bound = appWith({result:consoleV2Fixture[0],profile:consoleV2Fixture[0].reference_profile,chain});
-  for (const row of ["Evidence State", "Policy Mapping", "RiskGuard Status", "Enforced Action"]) assert.match(bound, new RegExp(row));
-  const policyStart = bound.indexOf(">Policy Action</h2>");
+  for (const row of ["Evidence state", "Policy mapping", "RiskGuard status", "Enforced action"]) assert.match(bound, new RegExp(row));
+  const policyStart = bound.indexOf(">Policy action</h2>");
   const policyEnd = bound.indexOf("</section>", policyStart);
   assert.ok(policyStart >= 0 && policyEnd > policyStart);
   assert.doesNotMatch(bound.slice(policyStart, policyEnd),/Technical Details/);
@@ -914,7 +916,7 @@ test("Policy Action exposes its core rows without a disclosure and keeps missing
     onchain_binding_configured:false,readiness_error_codes:[],
   };
   const unbound = appWith({result:consoleV2Fixture[0],profile:consoleV2Fixture[0].reference_profile,assetList:[noBindingAsset]});
-  assert.match(unbound,/No Policy Connected/);
+  assert.match(unbound,/No policy connected/);
   assert.match(unbound,/No curator policy is connected for this asset\./);
   assert.doesNotMatch(unbound,/X Layer Connected|X Layer Unavailable|X Layer Not Configured|Optional Protocol Deployment|Not Configured|Registry Attestation/);
   assert.equal(render(RegistryPanel,{bindingConfigured:false}),"");
@@ -1036,7 +1038,7 @@ test("Null reference, all reasons and unavailable policy remain truthful", () =>
   const html = appWith({result});
   assert.doesNotMatch(html,/NaN|challenge threshold not met|Example demo policy/);
   for (const code of result.reason_codes) assert.ok(html.includes(code));
-  assert.match(html,/No Policy Connected/);
+  assert.match(html,/No policy connected/);
   assert.match(render(ReasonCodes,{codes:result.reason_codes,evidenceState:result.evidence_state}),/Global Calibration Applied/);
 });
 
@@ -1060,15 +1062,16 @@ test("Decision summary uses concise current language and preserves old recorded 
     result: {...consoleV2Fixture[0], reference_profile:"unified_xstock_p1ac_xperp_evidence_v1"},
     profile:"unified_xstock_p1ac_xperp_evidence_v1",
   });
-  assert.match(xstock, /Observed xStock Is Supported/);
-  assert.match(xstock, /Model disagreement is low and required market data passes quality checks\./);
-  assert.doesNotMatch(xstock, /P1a-C|SUPPORT band|not two fully independent observations/);
-  assert.match(xstock, /Evidence Assessment/);
+  assert.match(xstock, /Observed xStock is supported/);
+  assert.match(xstock, /Model disagreement is low, exact-time X-Perp is available, and required quality checks pass\./);
+  assert.doesNotMatch(xstock, /SUPPORT band|not two fully independent observations/);
+  assert.match(xstock, /Evidence assessment/);
   assert.doesNotMatch(xstock, /Current finding · Operational/);
 
   const legacy = appWith({result: {...fixture[0], reference_profile:"legacy_xperp_vs_p1ac", validation_target:"reference_under_test", evidence_semantics:"legacy_reference_under_test_v1"}});
   assert.match(legacy, /Recorded supported evidence/);
   assert.match(legacy, /has not been reclassified by the current Console/);
+  assert.match(legacy, /Current policy mapping/);
 });
 
 test("Observation and delivery audit survives unavailable X Layer reads", () => {
