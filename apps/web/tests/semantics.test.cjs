@@ -28,7 +28,7 @@ const { PolicyFoundry } = load("../src/components/PolicyFoundry.tsx");
 const { DEMO_PASSPORT_ADDRESS, MODEL_EVIDENCE_SUMMARY, POLICY_PROPOSAL } = load("../src/fixtures/prototypeData.ts");
 const { default: App, consoleContextFromSearch, effectiveContextAsset } = load("../src/App.tsx");
 const { coverageLabel, dateTimeUTC, deliveryStatusLabel, lastUpdatedLabel, modelDisplayName, pipelineStatusLabel, sessionLabel } = load("../src/lib/format.ts");
-const { priceToFraction, rangeViewPriceDomain } = load("../src/lib/scale.ts");
+const { AXIS_MIN, AXIS_MAX, priceToFraction, toBandUnits, unitsToFraction } = load("../src/lib/scale.ts");
 const { modelDistanceLabel, peakModelDistance, evidenceCopy, EVIDENCE_SEMANTICS_V2 } = load("../src/lib/semantics.ts");
 const { buildChartData, chartDomain, chartIntervalLabel, clampViewport, lowerBoundTimestamp, minimumViewportWidth, panViewport, shouldRenderStateDots, sliceChartDataForViewport, upperBoundTimestamp, VALUATION_CHART_LABELS, wheelGestureIntent, wheelZoomScale, zoomSensitivity, zoomViewport } = load("../src/components/EscalationChart.tsx");
 const h = React.createElement;
@@ -503,7 +503,7 @@ test("Demo uses canonical NVDAx data, hides selection, and preserves each operat
 test("Advanced Policy Proposal is one Demo-only full-width row after the primary grid", () => {
   const appSource = fs.readFileSync(path.join(__dirname,"../src/App.tsx"),"utf8");
   assert.equal((appSource.match(/Advanced: Policy Proposal/g) ?? []).length,1);
-  assert.match(appSource,/<div className="grid items-stretch gap-4 xl:grid-cols-\[minmax\(0,1\.3fr\)_minmax\(0,1fr\)\]">[\s\S]*?<ReferenceComparison r=\{current\} domainResults=\{results\} \/>[\s\S]*?<PolicyCard[\s\S]*?<\/div>\s*<\/div>\s*\{context === "Demo" && <details[\s\S]*?Advanced: Policy Proposal[\s\S]*?<PolicyFoundry \/>[\s\S]*?<\/details>\}\s*<div className="grid gap-4 md:grid-cols-2">/);
+  assert.match(appSource,/<div className="grid items-stretch gap-4 xl:grid-cols-\[minmax\(0,1\.3fr\)_minmax\(0,1fr\)\]">[\s\S]*?<ReferenceComparison r=\{current\} \/>[\s\S]*?<PolicyCard[\s\S]*?<\/div>\s*<\/div>\s*\{context === "Demo" && <details[\s\S]*?Advanced: Policy Proposal[\s\S]*?<PolicyFoundry \/>[\s\S]*?<\/details>\}\s*<div className="grid gap-4 md:grid-cols-2">/);
   assert.doesNotMatch(appSource,/asset\s*===\s*["'](?:NVDAx|SPYx|AAPLx)["']/);
   assert.match(appSource,/assetQueryKeys\.onchain\(contextAsset\), queryFn: \(\) => fetchOnchain\(contextAsset\)[\s\S]*?enabled: backendUp && !!selectedAssetInfo\?\.onchain_binding_configured/);
   assert.match(appSource,/assetQueryKeys\.enforcement\(contextAsset\), queryFn: \(\) => fetchOnchainEnforcement\(contextAsset\)[\s\S]*?enabled: backendUp && !!selectedAssetInfo\?\.onchain_binding_configured/);
@@ -606,28 +606,27 @@ test("Console metrics and interval markers use human-facing model labels and xSt
   const markerMarkup = (markup, label) => markup.match(new RegExp(`<div data-price-marker="${label}"[^>]*>[\\s\\S]*?<\\/div>`))?.[0] ?? "";
   const asymmetric = {...v2,token_price:179.5,valtide_fair_value:180,fair_value_lower:179,fair_value_upper:182,xperp_index_price:181};
   const asymmetricMarkup = render(ReferenceNumberLine,{r:asymmetric});
-  const asymmetricDomain = rangeViewPriceDomain([asymmetric]);
-  const fairFraction = priceToFraction(asymmetric.valtide_fair_value,asymmetricDomain);
-  const lowerFraction = priceToFraction(asymmetric.fair_value_lower,asymmetricDomain);
-  const upperFraction = priceToFraction(asymmetric.fair_value_upper,asymmetricDomain);
+  const fairFraction = priceToFraction(asymmetric.valtide_fair_value,asymmetric);
+  const lowerFraction = priceToFraction(asymmetric.fair_value_lower,asymmetric);
+  const upperFraction = priceToFraction(asymmetric.fair_value_upper,asymmetric);
   assert.ok(lowerFraction < fairFraction && fairFraction < upperFraction);
   assert.notEqual(fairFraction,(lowerFraction+upperFraction)/2,"asymmetric intervals must preserve Fair Value's proportional position");
   for (const [label,price] of [["Observed xStock",asymmetric.token_price],["Valtide Fair Value",asymmetric.valtide_fair_value],["X-Perp",asymmetric.xperp_index_price]]) {
-    assert.ok(markerMarkup(asymmetricMarkup,label).includes(`left:${priceToFraction(price,asymmetricDomain)*100}%`), `${label} must use the shared stable price scale`);
+    assert.ok(markerMarkup(asymmetricMarkup,label).includes(`left:${priceToFraction(price,asymmetric)*100}%`), `${label} must use the same interval-relative scale`);
   }
   const fairLeft = `${fairFraction*100}%`;
   assert.ok(markerMarkup(asymmetricMarkup,"Valtide Fair Value").includes(`left:${fairLeft}`));
   assert.ok(asymmetricMarkup.includes(`class="absolute top-[32px] h-14 w-px transition-[left] duration-200 ease-out" style="left:${fairLeft};`),"Fair Value line must share the square's raw-price position and transition only horizontally");
   assert.ok(asymmetricMarkup.includes(`class="absolute top-0 -translate-x-1/2 whitespace-nowrap text-center text-[11px] transition-[left] duration-200 ease-out" style="left:${fairLeft};`),"Fair Value label must share the square and line position");
-  assert.doesNotMatch(asymmetricMarkup,/data-range-midpoint/,"a fixed global midpoint is not meaningful on a stable price domain");
-  assert.equal((asymmetricMarkup.match(/data-price-marker=/g) ?? []).length,3,"the midpoint does not change the three-source marker set");
+  assert.doesNotMatch(asymmetricMarkup,/data-range-midpoint/,"the minimal range view does not add a separate midpoint marker");
+  assert.equal((asymmetricMarkup.match(/data-price-marker=/g) ?? []).length,3,"the three-source marker set remains unchanged");
   for (const label of ["Observed xStock","Valtide Fair Value","X-Perp"]) {
     assert.match(markerMarkup(asymmetricMarkup,label),/transition-\[left\] duration-200 ease-out/);
   }
-  const bandMatch = asymmetricMarkup.match(/class="absolute top-\[38px\] h-11 rounded transition-\[left,width\] duration-200 ease-out" style="left:([^;]+);width:([^;]+);/);
+  const bandMatch = asymmetricMarkup.match(/class="absolute top-\[38px\] h-11 rounded" style="left:([^;]+);width:([^;]+);/);
   assert.ok(bandMatch);
-  assert.ok(Math.abs(Number.parseFloat(bandMatch[1])/100-lowerFraction)<1e-12);
-  assert.ok(Math.abs(Number.parseFloat(bandMatch[2])/100-(upperFraction-lowerFraction))<1e-12);
+  assert.ok(Math.abs(Number.parseFloat(bandMatch[1])/100-0.25)<1e-12);
+  assert.ok(Math.abs(Number.parseFloat(bandMatch[2])/100-0.5)<1e-12);
   const coincident = {...v2,token_price:180,valtide_fair_value:180,fair_value_lower:179,fair_value_upper:181,xperp_index_price:180};
   const coincidentMarkup = render(ReferenceNumberLine,{r:coincident});
   for (const [label,zIndex,shape] of [["Observed xStock",1,"<circle"],["Valtide Fair Value",2,"<rect"],["X-Perp",3,"<path"]]) {
@@ -679,91 +678,117 @@ test("Console metrics and interval markers use human-facing model labels and xSt
   assert.doesNotMatch(xstockInside,/P1a-C|SUPPORT|WATCH|REVIEW|not two fully independent observations/);
 });
 
-test("Range View plots the selected snapshot on one stable active-window price domain", () => {
+test("Range View uses a fixed centered interval-relative scale for the selected observation", () => {
   const base = consoleV2Fixture[0];
-  const observations = [
-    {...base,timestamp:"2026-10-01T12:00:00Z",fair_value_lower:178,valtide_fair_value:180,fair_value_upper:182,token_price:179,xperp_index_price:181},
-    {...base,timestamp:"2026-10-01T12:05:00Z",fair_value_lower:188,valtide_fair_value:190,fair_value_upper:192,token_price:189,xperp_index_price:191},
-    {...base,timestamp:"2026-10-01T12:10:00Z",fair_value_lower:198,valtide_fair_value:200,fair_value_upper:202,token_price:199,xperp_index_price:201},
-  ];
   const markerBlock = (markup,label) => markup.match(new RegExp(`<div data-price-marker="${label}"[^>]*>[\\s\\S]*?<\\/div>`))?.[0] ?? "";
   const markerFraction = (markup,label) => {
     const match = markerBlock(markup,label).match(/left:([^;]+);/);
-    assert.ok(match,`${label} marker should have a stable-domain position`);
+    assert.ok(match,`${label} marker should have an interval-relative position`);
     return Number.parseFloat(match[1])/100;
   };
   const rangePosition = (markup) => {
-    const match = markup.match(/class="absolute top-\[38px\] h-11 rounded transition-\[left,width\] duration-200 ease-out" style="left:([^;]+);width:([^;]+);/);
-    assert.ok(match,"valuation band edges should use the shared stable price domain");
+    const match = markup.match(/class="absolute top-\[38px\] h-11 rounded" style="left:([^;]+);width:([^;]+);/);
+    assert.ok(match,"valuation band should use fixed interval-relative boundaries");
     return {left:Number.parseFloat(match[1])/100,width:Number.parseFloat(match[2])/100};
   };
   const close = (actual,expected,message) => assert.ok(Math.abs(actual-expected)<1e-12,message);
-  const domain = rangeViewPriceDomain(observations);
-  assert.deepEqual(rangeViewPriceDomain(observations),domain,"selection changes do not alter a domain derived from the same active window");
-  const rendered = observations.map((r) => render(ReferenceNumberLine,{r,domainResults:observations}));
-  const fairFractions = [];
-  const bandPositions = [];
 
-  for (let index=0; index<observations.length; index++) {
-    const r = observations[index];
-    const markup = rendered[index];
-    for (const [label,price] of [["Observed xStock",r.token_price],["Valtide Fair Value",r.valtide_fair_value],["X-Perp",r.xperp_index_price]]) {
-      close(markerFraction(markup,label),priceToFraction(price,domain),`${label} uses the same active-window price domain`);
-    }
-    assert.ok(markerFraction(markup,"Observed xStock") < markerFraction(markup,"Valtide Fair Value") && markerFraction(markup,"Valtide Fair Value") < markerFraction(markup,"X-Perp"),"shared-domain mapping preserves raw market/model price order");
+  for (const [units,fraction] of [[AXIS_MIN,0],[-1,0.25],[0,0.5],[1,0.75],[AXIS_MAX,1]]) {
+    close(unitsToFraction(units),fraction,`display anchor ${units} maps to ${fraction}`);
+  }
+  close(unitsToFraction(AXIS_MIN-10),0,"values below the viewport clamp to its left edge");
+  close(unitsToFraction(AXIS_MAX+10),1,"values above the viewport clamp to its right edge");
+
+  const observations = [
+    {...base,timestamp:"2026-10-01T12:00:00Z",fair_value_lower:99,fair_value_upper:101,valtide_fair_value:100,token_price:100.4,xperp_index_price:99.8},
+    {...base,timestamp:"2026-10-01T12:05:00Z",fair_value_lower:199,fair_value_upper:201,valtide_fair_value:200,token_price:201.5,xperp_index_price:199.3},
+    {...base,timestamp:"2026-10-01T12:10:00Z",fair_value_lower:500,fair_value_upper:510,valtide_fair_value:503,token_price:499,xperp_index_price:508},
+  ];
+  const expectedBand = {left:0.25,width:0.5};
+  for (const r of observations) {
+    const markup = render(ReferenceNumberLine,{r});
     const band = rangePosition(markup);
-    close(band.left,priceToFraction(r.fair_value_lower,domain),"band lower edge is mapped on the shared domain");
-    close(band.left+band.width,priceToFraction(r.fair_value_upper,domain),"band upper edge is mapped on the shared domain");
-    fairFractions.push(markerFraction(markup,"Valtide Fair Value"));
-    bandPositions.push(band);
+    close(band.left,expectedBand.left,"valid valuation intervals always begin at 25% of the track");
+    close(band.width,expectedBand.width,"valid valuation intervals always occupy exactly 50% of the track");
+    assert.match(markup,new RegExp(`${Math.round(r.interval_coverage_target*100)}% Valuation Range`));
+    assert.doesNotMatch(markup,/data-range-midpoint/);
   }
 
-  assert.ok(fairFractions[0] < fairFractions[1] && fairFractions[1] < fairFractions[2],"absolute Fair Value movement is visible across Timeline selection");
-  assert.ok(bandPositions[0].left < bandPositions[1].left && bandPositions[1].left < bandPositions[2].left,"the full valuation range moves on the same stable ruler");
-  close(fairFractions[0],(priceToFraction(178,domain)+priceToFraction(182,domain))/2,"symmetric observation A Fair Value is centered inside its own range");
-  close(fairFractions[1],(priceToFraction(188,domain)+priceToFraction(192,domain))/2,"symmetric observation B Fair Value is centered inside its own range");
-  assert.notEqual(fairFractions[0],fairFractions[1],"symmetric Fair Values can be centered in their own ranges while moving across the card");
+  const symmetric = {...base,token_price:180,valtide_fair_value:180,fair_value_lower:179,fair_value_upper:181,xperp_index_price:180};
+  close(priceToFraction(symmetric.valtide_fair_value,symmetric),0.5,"symmetric Fair Value remains centered");
+  const symmetricMarkup = render(ReferenceNumberLine,{r:symmetric});
+  close(markerFraction(symmetricMarkup,"Valtide Fair Value"),0.5,"symmetric Fair Value square remains at the track center");
 
-  const narrow = {...base,fair_value_lower:179,valtide_fair_value:180,fair_value_upper:181,token_price:180.2,xperp_index_price:180.5};
-  const wide = {...base,fair_value_lower:179,valtide_fair_value:180.5,fair_value_upper:183,token_price:180,xperp_index_price:182.5};
-  const widthDomain = rangeViewPriceDomain([narrow,wide]);
-  const narrowBand = rangePosition(render(ReferenceNumberLine,{r:narrow,domainResults:[narrow,wide]}));
-  const wideBand = rangePosition(render(ReferenceNumberLine,{r:wide,domainResults:[narrow,wide]}));
-  assert.ok(wideBand.width > narrowBand.width,"a wider raw valuation interval renders wider on the same domain");
-  const single = rangeViewPriceDomain([narrow]);
-  const singleRangeFraction = (narrow.fair_value_upper-narrow.fair_value_lower)/(single.max-single.min);
-  assert.ok(singleRangeFraction <= 0.5,"single-observation fallback expands the display domain so its band is at most half the track");
-  assert.ok(widthDomain.max > widthDomain.min);
+  const spy = {...base,token_price:732.4,valtide_fair_value:732.5197,fair_value_lower:731.4333,fair_value_upper:733.3522,xperp_index_price:732.7};
+  assert.ok(spy.fair_value_lower <= spy.valtide_fair_value && spy.valtide_fair_value <= spy.fair_value_upper,"valid Fair Value remains inside its valuation interval");
+  const spyRawPosition = (spy.valtide_fair_value-spy.fair_value_lower)/(spy.fair_value_upper-spy.fair_value_lower);
+  close(spyRawPosition,0.5661576945124331,"SPY raw position is independently calculated from the interval bounds");
+  const spyRendered = priceToFraction(spy.valtide_fair_value,spy);
+  close(spyRendered,0.25+spyRawPosition*0.5,"SPY rendering preserves its raw proportional interval position");
+  close(spyRendered,0.5330788472562166,"SPY Fair Value renders near 53.3079%, right of track center");
+  assert.ok(spyRendered > 0.5);
 
-  const outside = {...base,fair_value_lower:179,valtide_fair_value:180,fair_value_upper:181,token_price:182,xperp_index_price:178};
-  const outsideDomain = rangeViewPriceDomain([outside]);
-  const outsideMarkup = render(ReferenceNumberLine,{r:outside,domainResults:[outside]});
+  const asymmetric = {...base,token_price:179.5,valtide_fair_value:180,fair_value_lower:179,fair_value_upper:182,xperp_index_price:181};
+  const asymmetricMarkup = render(ReferenceNumberLine,{r:asymmetric});
+  const rawPosition = (asymmetric.valtide_fair_value-asymmetric.fair_value_lower)/(asymmetric.fair_value_upper-asymmetric.fair_value_lower);
+  const fair = priceToFraction(asymmetric.valtide_fair_value,asymmetric);
+  close(rawPosition,1/3,"generic asymmetric Fair Value is one-third through the interval");
+  close(fair,0.25+rawPosition*0.5,"asymmetric Fair Value uses its actual interval position");
+  close(fair,0.4166666666666667,"generic asymmetric Fair Value renders near 41.667%, not 50%");
+  assert.notEqual(fair,0.5);
+  const lower = priceToFraction(asymmetric.fair_value_lower,asymmetric);
+  const upper = priceToFraction(asymmetric.fair_value_upper,asymmetric);
+  assert.ok(lower < fair && fair < upper);
+
+  for (const [label,price] of [["Observed xStock",asymmetric.token_price],["Valtide Fair Value",asymmetric.valtide_fair_value],["X-Perp",asymmetric.xperp_index_price]]) {
+    close(markerFraction(asymmetricMarkup,label),priceToFraction(price,asymmetric),`${label} uses the same interval-relative transform`);
+  }
+  const ascending = {...base,token_price:179,valtide_fair_value:180,xperp_index_price:181,fair_value_lower:178,fair_value_upper:182};
+  assert.ok(priceToFraction(ascending.token_price,ascending)<priceToFraction(ascending.valtide_fair_value,ascending));
+  assert.ok(priceToFraction(ascending.valtide_fair_value,ascending)<priceToFraction(ascending.xperp_index_price,ascending));
+  const descending = {...ascending,token_price:181,xperp_index_price:179};
+  assert.ok(priceToFraction(descending.token_price,descending)>priceToFraction(descending.valtide_fair_value,descending));
+  assert.ok(priceToFraction(descending.valtide_fair_value,descending)>priceToFraction(descending.xperp_index_price,descending));
+
+  const outside = {...base,token_price:182,valtide_fair_value:180,xperp_index_price:178,fair_value_lower:179,fair_value_upper:181};
+  const outsideMarkup = render(ReferenceNumberLine,{r:outside});
   const outsideBand = rangePosition(outsideMarkup);
-  assert.ok(markerFraction(outsideMarkup,"Observed xStock") > outsideBand.left+outsideBand.width,"xStock outside the interval is not clamped to its edge");
-  assert.ok(markerFraction(outsideMarkup,"X-Perp") < outsideBand.left,"X-Perp outside the interval is not clamped to its edge");
-  close(markerFraction(outsideMarkup,"Observed xStock"),priceToFraction(182,outsideDomain));
+  assert.ok(markerFraction(outsideMarkup,"Observed xStock")>outsideBand.left+outsideBand.width,"xStock may remain to the right outside the range");
+  assert.ok(markerFraction(outsideMarkup,"X-Perp")<outsideBand.left,"X-Perp may remain to the left outside the range");
+  const beyondViewport = {...outside,token_price:190,xperp_index_price:170};
+  const beyondMarkup = render(ReferenceNumberLine,{r:beyondViewport});
+  close(markerFraction(beyondMarkup,"Observed xStock"),1,"only values beyond the full positive viewport clamp to 100%");
+  close(markerFraction(beyondMarkup,"X-Perp"),0,"only values beyond the full negative viewport clamp to 0%");
 
-  const identical = {...base,fair_value_lower:100,valtide_fair_value:100,fair_value_upper:100,token_price:100,xperp_index_price:null};
-  const invalid = {...identical,fair_value_lower:101,fair_value_upper:99};
-  const sparse = {...base,fair_value_lower:99,valtide_fair_value:100,fair_value_upper:101,token_price:null,xperp_index_price:null};
-  const nonFinite = {...sparse,token_price:Infinity,xperp_index_price:Infinity};
-  for (const result of [identical,invalid,sparse,nonFinite]) {
-    const resultDomain = rangeViewPriceDomain([result]);
-    const markup = render(ReferenceNumberLine,{r:result,domainResults:[result]});
-    assert.ok(Number.isFinite(resultDomain.min) && Number.isFinite(resultDomain.max) && resultDomain.max > resultDomain.min);
-    assert.doesNotMatch(markup,/NaN|Infinity/);
+  const coincident = {...base,token_price:180,valtide_fair_value:180,xperp_index_price:180,fair_value_lower:179,fair_value_upper:181};
+  const coincidentMarkup = render(ReferenceNumberLine,{r:coincident});
+  const coincidentFractions = ["Observed xStock","Valtide Fair Value","X-Perp"].map((label) => markerFraction(coincidentMarkup,label));
+  assert.deepEqual(coincidentFractions,[0.5,0.5,0.5]);
+  assert.equal((coincidentMarkup.match(/data-price-marker=/g)??[]).length,3);
+
+  for (const invalid of [
+    {...coincident,fair_value_lower:180,fair_value_upper:180},
+    {...coincident,fair_value_lower:181,fair_value_upper:179},
+    {...coincident,token_price:Infinity,xperp_index_price:Infinity},
+  ]) {
+    const invalidMarkup = render(ReferenceNumberLine,{r:invalid});
+    assert.doesNotMatch(invalidMarkup,/NaN|Infinity/);
+    assert.equal(Number.isFinite(priceToFraction(invalid.valtide_fair_value,invalid)),true);
   }
-  assert.doesNotMatch(render(ReferenceNumberLine,{r:identical}),/data-price-marker="X-Perp"/);
+  assert.match(render(ReferenceNumberLine,{r:{...coincident,fair_value_lower:180,fair_value_upper:180}}),/style="left:50%;width:0%;/);
+  assert.doesNotMatch(render(ReferenceNumberLine,{r:{...coincident,xperp_index_price:null}}),/data-price-marker="X-Perp"/);
 
-  const activeWindow = observations.slice(0,2);
-  const distantOutsideWindow = {...base,fair_value_lower:1_000_000,valtide_fair_value:1_000_001,fair_value_upper:1_000_002,token_price:1_000_001,xperp_index_price:1_000_001};
-  const activeDomain = rangeViewPriceDomain(activeWindow);
-  assert.deepEqual(rangeViewPriceDomain(activeWindow),activeDomain,"an observation outside the selected window is absent from its domain input");
-  assert.notDeepEqual(rangeViewPriceDomain([...activeWindow,distantOutsideWindow]),activeDomain,"only observations explicitly included in the active window can affect its domain");
+  const legacyFallback = {...ascending,evidence_semantics:"p1a_xstock_challenger_xperp_second_market_v1",xperp_index_price:null,reference_under_test:184};
+  close(markerFraction(render(ReferenceNumberLine,{r:legacyFallback}),"X-Perp"),priceToFraction(184,legacyFallback),"legacy X-Perp fallback uses the selected observation's same interval scale");
+
   const appSource = fs.readFileSync(path.join(__dirname,"../src/App.tsx"),"utf8");
-  assert.match(appSource,/const results = isOperational \? operationalResults : context === "Historical" \? historicalResults : demoResults;/);
-  assert.match(appSource,/<ReferenceComparison r=\{current\} domainResults=\{results\} \/>/,"Range View receives the existing active filtered observation list");
-  assert.doesNotMatch(appSource,/domainResults=\{allOperationalResults\}/,"unfiltered Operational history cannot leak into the Range View domain");
+  const comparisonSource = fs.readFileSync(path.join(__dirname,"../src/views/ReferenceComparison.tsx"),"utf8");
+  const numberLineSource = fs.readFileSync(path.join(__dirname,"../src/components/ReferenceNumberLine.tsx"),"utf8");
+  assert.match(appSource,/<ReferenceComparison r=\{current\} \/>/);
+  assert.doesNotMatch(appSource,/domainResults=/);
+  assert.match(comparisonSource,/<ReferenceNumberLine r=\{r\} \/>/);
+  assert.doesNotMatch(comparisonSource,/domainResults/);
+  assert.match(numberLineSource,/ReferenceNumberLine\(\{ r \}: \{ r: ValuationResult \}\)/);
 });
 
 test("Equal-height Timeline card alignment keeps the chart fixed and Policy Proposal independent", () => {

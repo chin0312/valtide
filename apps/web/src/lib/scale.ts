@@ -1,80 +1,34 @@
+// Range View compares each selected observation against its own valuation interval.
+
 import type { ValuationResult } from "../api/types";
-import { isEvidenceStateV2, isXStockValidation, validationTargetPrice } from "./semantics";
+import { validationTargetPrice } from "./semantics";
 
-export type PriceDomain = { min: number; max: number };
+/** Fixed normalized viewport; prices outside the interval can extend to its edges. */
+export const AXIS_MIN = -3.5;
+export const AXIS_MAX = 3.5;
 
-const DOMAIN_PADDING_RATIO = 0.1;
-const MAX_INTERVAL_FRACTION = 0.5;
-const ZERO_SPAN_FALLBACK = 1e-9;
-
-function plottedPrices(result: ValuationResult): number[] {
-  const xstockValidation = isXStockValidation(result);
-  const referencePrice = xstockValidation
-    ? rangeViewXperpPrice(result)
-    : result.reference_under_test;
-  const prices = [
-    result.fair_value_lower,
-    result.fair_value_upper,
-    result.valtide_fair_value,
-    ...(xstockValidation ? [result.token_price, referencePrice] : [referencePrice]),
-  ];
-  return prices.filter((price): price is number => price != null && Number.isFinite(price));
+/** Map a price linearly across the selected result's valuation interval. */
+export function toBandUnits(price: number, r: ValuationResult): number {
+  const lower = r.fair_value_lower;
+  const upper = r.fair_value_upper;
+  const interval = upper - lower;
+  if (!Number.isFinite(price) || !Number.isFinite(lower) || !Number.isFinite(upper) || !Number.isFinite(interval) || !(interval > 0)) return 0;
+  const units = -1 + (2 * (price - lower)) / interval;
+  return Number.isFinite(units) ? units : 0;
 }
 
-/** Preserve the Range View's existing explicit-X-Perp and legacy-reference fallback contract. */
-export function rangeViewXperpPrice(result: ValuationResult): number | null {
-  return result.xperp_index_price ?? (isEvidenceStateV2(result) ? null : result.reference_under_test);
+/** Map band-units to a 0..1 fraction across the fixed axis (for CSS %). */
+export function unitsToFraction(units: number): number {
+  if (!Number.isFinite(units)) return 0.5;
+  const clamped = Math.max(AXIS_MIN, Math.min(AXIS_MAX, units));
+  if (clamped <= -1) return ((clamped - AXIS_MIN) / (-1 - AXIS_MIN)) * 0.25;
+  if (clamped <= 1) return 0.25 + ((clamped + 1) / 2) * 0.5;
+  return 0.75 + ((clamped - 1) / (AXIS_MAX - 1)) * 0.25;
 }
 
-/** Derive one padded raw-price domain from the already-filtered active timeline window. */
-export function rangeViewPriceDomain(results: ValuationResult[]): PriceDomain {
-  const prices = results.flatMap(plottedPrices);
-  if (prices.length === 0) return { min: -0.5, max: 0.5 };
-
-  const rawMin = Math.min(...prices);
-  const rawMax = Math.max(...prices);
-  const rawSpan = rawMax - rawMin;
-  const center = rawMin / 2 + rawMax / 2;
-  const widestInterval = results.reduce((widest, result) => {
-    const interval = result.fair_value_upper - result.fair_value_lower;
-    return Number.isFinite(interval) && interval > widest ? interval : widest;
-  }, 0);
-
-  const paddedRawSpan = Number.isFinite(rawSpan) ? rawSpan * (1 + 2 * DOMAIN_PADDING_RATIO) : Number.MAX_VALUE;
-  const intervalMinimumSpan = widestInterval * (1 / MAX_INTERVAL_FRACTION + 0.2);
-  const relativeFallbackSpan = Math.abs(center) * 0.02;
-  const domainSpan = Math.min(Number.MAX_VALUE, Math.max(paddedRawSpan, intervalMinimumSpan, relativeFallbackSpan, ZERO_SPAN_FALLBACK));
-  const halfSpan = domainSpan / 2;
-  let min = center - halfSpan;
-  let max = center + halfSpan;
-
-  if (!Number.isFinite(min) || !Number.isFinite(max) || !(max > min) || min > rawMin || max < rawMax) {
-    min = rawMin;
-    max = rawMax;
-  }
-  if (!(max > min)) {
-    const fallbackSpan = Math.max(Math.abs(center) * 0.02, ZERO_SPAN_FALLBACK);
-    min = center - fallbackSpan / 2;
-    max = center + fallbackSpan / 2;
-  }
-
-  return Number.isFinite(min) && Number.isFinite(max) && max > min
-    ? { min, max }
-    : { min: -0.5, max: 0.5 };
-}
-
-/** Map a raw price to the shared 0..1 fraction used by the Range View. */
-export function priceToFraction(price: number, domain: PriceDomain): number {
-  if (!Number.isFinite(price) || !Number.isFinite(domain.min) || !Number.isFinite(domain.max) || !(domain.max > domain.min)) return 0.5;
-  const span = domain.max - domain.min;
-  let fraction = Number.isFinite(span)
-    ? (price - domain.min) / span
-    : (() => {
-      const scale = Math.max(Math.abs(price), Math.abs(domain.min), Math.abs(domain.max));
-      return (price / scale - domain.min / scale) / (domain.max / scale - domain.min / scale);
-    })();
-  if (!Number.isFinite(fraction)) fraction = price <= domain.min ? 0 : 1;
-  return Math.max(0, Math.min(1, fraction));
+/** Convenience: fraction position of a price directly. */
+export function priceToFraction(price: number, r: ValuationResult): number {
+  return unitsToFraction(toBandUnits(price, r));
 }
 
 /** Is the active validation target outside the actual calibrated interval bounds? */

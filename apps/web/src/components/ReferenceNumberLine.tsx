@@ -1,15 +1,14 @@
 import type { ValuationResult } from "../api/types";
 import { coverageLabel, money } from "../lib/format";
-import { priceToFraction, rangeViewPriceDomain, rangeViewXperpPrice } from "../lib/scale";
-import { isXStockValidation } from "../lib/semantics";
+import { priceToFraction, unitsToFraction } from "../lib/scale";
+import { isEvidenceStateV2, isXStockValidation } from "../lib/semantics";
 
 const displayMoney = (price: number | null | undefined) => money(Number.isFinite(price) ? price : null);
 
-export function ReferenceNumberLine({ r, domainResults = [r] }: { r: ValuationResult; domainResults?: ValuationResult[] }) {
+export function ReferenceNumberLine({ r }: { r: ValuationResult }) {
   const xstockProduct = isXStockValidation(r);
-  const xperpPrice = rangeViewXperpPrice(r);
-  const domain = rangeViewPriceDomain(domainResults);
-  const fairValueFraction = priceToFraction(r.valtide_fair_value, domain);
+  const xperpPrice = isEvidenceStateV2(r) ? r.xperp_index_price : r.xperp_index_price ?? r.reference_under_test;
+  const fairValueFraction = priceToFraction(r.valtide_fair_value, r);
   const xstockPrices = [
     { label: "Observed xStock", price: r.token_price, color: "var(--color-series-token)", shape: "circle" },
     { label: "Valtide Fair Value", price: r.valtide_fair_value, color: "var(--color-series-valtide)", shape: "square" },
@@ -25,9 +24,8 @@ export function ReferenceNumberLine({ r, domainResults = [r] }: { r: ValuationRe
   const validInterval = Number.isFinite(r.fair_value_lower)
     && Number.isFinite(r.fair_value_upper)
     && r.fair_value_upper > r.fair_value_lower;
-  const bandStart = validInterval ? priceToFraction(r.fair_value_lower, domain) * 100 : fairValueFraction * 100;
-  const bandEnd = validInterval ? priceToFraction(r.fair_value_upper, domain) * 100 : bandStart;
-  const bandWidth = validInterval ? Math.max(0, bandEnd - bandStart) : 0;
+  const bandStart = validInterval ? unitsToFraction(-1) * 100 : fairValueFraction * 100;
+  const bandWidth = validInterval ? (unitsToFraction(1) - unitsToFraction(-1)) * 100 : 0;
   const rangeLabel = coverageLabel(r.interval_coverage_target);
   const accessibleLabel = xstockProduct
     ? `Observed xStock ${displayMoney(r.token_price)}; Valtide Fair Value ${displayMoney(r.valtide_fair_value)}; X-Perp ${displayMoney(xperpPrice)}; ${rangeLabel} from ${displayMoney(r.fair_value_lower)} to ${displayMoney(r.fair_value_upper)}`
@@ -42,11 +40,11 @@ export function ReferenceNumberLine({ r, domainResults = [r] }: { r: ValuationRe
 
       <div className="relative mx-2 h-[130px]" role="img" aria-label={accessibleLabel} title={accessibleLabel}>
         <div className="absolute inset-x-0 top-[60px] h-px" style={{ background: "var(--color-line-strong)" }} />
-        <div className="absolute top-[38px] h-11 rounded transition-[left,width] duration-200 ease-out" style={{ left: `${bandStart}%`, width: `${bandWidth}%`, background: "var(--color-band-fill)", border: "1px solid var(--color-series-valtide)" }} />
+        <div className="absolute top-[38px] h-11 rounded" style={{ left: `${bandStart}%`, width: `${bandWidth}%`, background: "var(--color-band-fill)", border: "1px solid var(--color-series-valtide)" }} />
         <div className="absolute top-[32px] h-14 w-px transition-[left] duration-200 ease-out" style={{ left: `${fairValueFraction * 100}%`, background: "var(--color-series-valtide)" }} />
         <div className="absolute top-0 -translate-x-1/2 whitespace-nowrap text-center text-[11px] transition-[left] duration-200 ease-out" style={{ left: `${fairValueFraction * 100}%`, color: "var(--color-muted)" }}>Valtide Fair Value <span className="tnum ml-1 text-ink">{displayMoney(r.valtide_fair_value)}</span></div>
         {markers.map((marker) => {
-          const markerFraction = priceToFraction(marker.price, domain);
+          const markerFraction = marker.label === "Valtide Fair Value" ? fairValueFraction : priceToFraction(marker.price, r);
           return <div key={marker.label} data-price-marker={marker.label} className="absolute transition-[left] duration-200 ease-out" style={{ left: `${markerFraction * 100}%`, top: 60, zIndex: marker.shape === "diamond" ? 3 : marker.shape === "square" ? 2 : 1 }} title={`${marker.label}: ${displayMoney(marker.price)}`}>
             <svg className="absolute -translate-x-1/2 -translate-y-1/2" width="28" height="28" viewBox="0 0 28 28" aria-hidden="true" style={{ overflow: "visible" }}>
               {/* Nested outlines keep equal-price sources visible at their exact position. */}
