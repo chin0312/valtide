@@ -213,7 +213,7 @@ export function Hero() {
       <MarketingHeader />
 
       <div className="valtide-hero__copy">
-        <p className="valtide-hero__eyebrow">Independent reference validation for tokenized equity</p>
+        <p className="valtide-hero__eyebrow">Reference validation for tokenized equity collateral</p>
         <h1 id="valtide-hero-title">Take control of your protocol's<br /><span className="valtide-hero__title-accent">collateral risk.</span></h1>
         <p className="valtide-hero__lede">Compare the observed xStock price with Valtide Fair Value, a Valuation Range, and separately sourced X-Perp evidence. Protocols retain control of the Policy Actions they apply.</p>
         <div className="valtide-hero__actions">

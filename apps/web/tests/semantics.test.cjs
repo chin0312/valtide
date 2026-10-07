@@ -238,7 +238,7 @@ function appWith({result, rows, chain, error, assetList, profile = "legacy_xperp
 
 test("Clean divergence hero restores the product framing and opens the validation console", () => {
   const html = render(Hero);
-  assert.match(html, /Independent reference validation for tokenized equity/);
+  assert.match(html, /Reference validation for tokenized equity collateral/);
   assert.match(html, /Take control of your protocol&#x27;s/);
   assert.match(html, /collateral risk/);
   assert.match(html, /Compare the observed xStock price with Valtide Fair Value, a Valuation Range, and separately sourced X-Perp evidence/);
