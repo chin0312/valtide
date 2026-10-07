@@ -1,30 +1,30 @@
 # Asset Integration Foundation
 
 This note describes the current multi-asset integration seams and their
-readiness limits. Four primary asset identities are visible in the API catalog,
-but only NVDAx has a complete runtime bundle and deployed control-plane binding.
-Catalog visibility is not operational or historical readiness.
+readiness limits. The public API catalog exposes NVDAx, SPYx, and AAPLx; QQQx
+remains offline research-only and TSLAx remains a hidden candidate. The three
+public assets have complete runtime, historical, and X Layer bindings, while
+each readiness dimension remains independently fail-closed.
 
 ## Current state
 
 `apps/api/valtide_api/assets.py` is the canonical application asset registry.
-The public catalog contains `NVDAx`, `SPYx`, `QQQx`, and `AAPLx`; `TSLAx` is a
-registered but hidden candidate. Each entry has separate live-data, historical,
-quant, warmed-runtime, onchain, and API-exposure capabilities. The three new
-primary entries have pinned Solana token identities and adapter configuration,
-but remain unavailable for valuation/replay because no verified compatible
-P1a-C runtime or matching canonical historical panel is present. Only NVDAx is
-currently runtime-ready and deployed on X Layer. Selecting a catalog asset
-never substitutes another asset's prices, model, panel, or onchain state.
+Each entry has separate live-data, historical, quant, warmed-runtime, onchain,
+and API-exposure capabilities. NVDAx, SPYx, and AAPLx have pinned Solana token
+identities, asset-specific P1a-C bundles, canonical historical panels, live
+runtimes, and publication-compatible X Layer bindings. QQQx retains an offline
+quant bundle and historical panel but has no live runtime, public API route, or
+onchain binding. Selecting an asset never substitutes another asset's prices,
+model, panel, or onchain state.
 
-The existing NVDAx behavior remains:
+The public asset path is:
 
 ```text
-OKX OnchainOS NVDAx + Alpaca NVDA + OKX X-Perp NVDA-USD
+OKX OnchainOS xStock + Alpaca underlying + asset-matched OKX X-Perp
     -> packaged P1a-C runtime
     -> backend validation
     -> warmed SQLite runtime/history
-    -> existing X Layer control-plane binding
+    -> asset-specific X Layer control-plane binding
 ```
 
 ## Ownership of configuration
@@ -37,9 +37,10 @@ OKX OnchainOS NVDAx + Alpaca NVDA + OKX X-Perp NVDA-USD
 - The deployment manifest remains authoritative for deployed contract addresses,
   `assetId`, `referenceId`, and the deployed model-version hash. The publisher's
   resolver checks the hashes against asset identity, reference identity, and
-  the registered quant artifact. The current manifest's `demo` binding is
-  supported unchanged; a future manifest can use `assets[asset]` with
-  `assetId`, `referenceId`, `modelVersion`, and `demoVault` per asset.
+  the registered quant artifact. The current manifest uses `assets[asset]` with
+  `assetId`, `referenceId`, `modelVersion`, `demoVault`, and an explicit
+  publication-compatibility declaration per public asset. The legacy
+  single-asset `demo` binding is no longer active.
 - The packaged quant artifact owns model ID and version. `quant_runtime.py`
   registers a factory plus artifact metadata loader under a runtime key. It
   checks the loaded artifact's asset, model ID, and version before inference.
@@ -61,15 +62,14 @@ deployment.
 `market_sources.py` dispatches the underlying symbol and reference instrument
 for live and historical reads. The adapters are Alpaca and the public OKX
 X-Perp index. `live.py` obtains the exact confirmed token candle through the
-generic `token_market` boundary and assembles an asset-scoped snapshot. NVDAx
-retains its explicit `legacy_xperp_vs_p1ac` profile. The four-asset catalog
-declares `xstock_vs_p1ac_challenger`: the observed token is compared with a
-challenger that has already assimilated that same token input, so the comparison
-is model-based challenger evidence, not two fully independent observations;
-disagreement alone does not identify a correct price. The separate NVDAx
-`legacy_xperp_vs_p1ac` profile's historical Evidence States are not comparable
-with states from the xStock profile. The scheduler retries only absence of the
-exact confirmed token candle at the same canonical timestamp.
+generic `token_market` boundary and assembles an asset-scoped snapshot. The
+current `unified_xstock_p1ac_xperp_evidence_v1` profile treats the observed
+xStock as the validation target, P1a-C as a model-based challenger that has
+already assimilated that token input, and exact-time X-Perp as separately
+sourced market evidence. Older `legacy_xperp_vs_p1ac` rows remain readable for
+provenance, but their Evidence States are not comparable with unified-v2
+states. The scheduler retries only absence of the exact confirmed token candle
+at the same canonical timestamp.
 
 New panels use asset-neutral columns (`token_close`, `underlying_close`,
 availability, volumes, exact timestamps, trusted anchor, and reference under
@@ -86,11 +86,11 @@ it `legacy_nvda_panel_diagnostic`, and historical backtest metrics are omitted.
 `build_enabled_schedulers` accepts an explicit asset tuple and builds an
 independent worker only when that asset has a ready runtime and quant bundle.
 The legacy `LIVE_SCHEDULER_ENABLED` plus `LIVE_SCHEDULER_ASSET=NVDAx` settings
-remain the default. `LIVE_SCHEDULER_ASSETS` is an optional explicit list for a
-future multi-worker deployment; unready known assets are skipped with a safe
-readiness log, while unknown assets remain configuration errors. In-process
-publisher calls share a single lock so asset workers cannot race the signer
-nonce.
+remain the local default. `LIVE_SCHEDULER_ASSETS` selects the independently
+ready workers in a multi-asset deployment; unready known assets are skipped
+with a safe readiness log, while unknown assets remain configuration errors.
+In-process publisher calls share a single lock so asset workers cannot race the
+signer nonce.
 
 Adding a config entry alone must never promote an asset to production. Runtime
 support, quant artifact readiness, historical-data availability, scheduler
@@ -99,19 +99,16 @@ independent readiness decisions. `/api/assets` reports these dimensions; a
 catalog entry with `MODEL_FIT_BLOCKED` or `HISTORICAL_DATA_UNAVAILABLE` is not an
 operational product capability.
 
-## Current four-asset blocker
+## Current readiness split
 
-The research handoff's five-asset dataset manifest identifies Solana
-`chainIndex=501` datasets and records their hashes, but the canonical panels and
-metadata are not in Git and their shared-storage locations are still
-`TBD_SHARED_STORAGE/...`. A local untracked research tree was inspected but its
-v3 panels identify Ethereum (`chainIndex=1`) deployments and different token
-addresses; they cannot be used as the Solana production panels. Per-asset
-research parameter files/calibrators tied to those inputs therefore do not
-constitute verified bundles for the pinned Solana identities. No SPYx, QQQx, or
-AAPLx P1a-C runtime has been registered. This PR exposes the identities and
-fail-closed readiness surfaces; it does not claim the four-asset operational
-or historical acceptance gate is met.
+NVDAx, SPYx, and AAPLx have passed the runtime, canonical-panel, public-API,
+scheduler, and X Layer binding gates. QQQx retains offline quant and historical
+research but is deliberately excluded from live data, warmed runtime, public
+HTTP, and onchain publication. TSLAx remains a registered hidden candidate and
+has not passed the quant/runtime/publication gates. The SPYx, QQQx, and AAPLx
+bundles were exported from checksum-verified frozen fits without retraining;
+their original training-panel bytes were not supplied, so the declared
+training dataset hashes have not been independently recomputed.
 
 ## Future promotion checklist
 
@@ -138,6 +135,6 @@ A future asset requires an explicit review and green evidence for each step:
 12. API exposure and frontend activation occur as separate reviewed steps.
 
 Research files or a local panel do not make an asset operational. The Console
-selector exposes the four catalog identities and their readiness status, but
-no additional runtime, quant artifact, X Layer binding, or live-result path is
-activated here.
+selector exposes the three public assets only. QQQx remains available to
+offline quant and historical research, and TSLAx remains hidden until their
+separate readiness gates are explicitly promoted.

@@ -61,12 +61,26 @@ function GuideExplorer() {
 
 export function LandingPage() {
   const [demoFrame, setDemoFrame] = useState(0);
+  const [isDemoPlaying, setIsDemoPlaying] = useState(() => (
+    typeof window === "undefined" || !window.matchMedia("(prefers-reduced-motion: reduce)").matches
+  ));
+  const [pauseReason, setPauseReason] = useState<"manual" | "focus" | null>(null);
 
   useEffect(() => {
-    if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) return;
-    const timer = window.setInterval(() => setDemoFrame((frame) => (frame + 1) % SCENARIO.length), 2200);
+    if (!isDemoPlaying) return;
+    const timer = window.setInterval(() => setDemoFrame((frame) => (frame + 1) % SCENARIO.length), 1000);
     return () => window.clearInterval(timer);
-  }, []);
+  }, [isDemoPlaying]);
+
+  function pauseDemo(reason: "manual" | "focus") {
+    setIsDemoPlaying(false);
+    setPauseReason(reason);
+  }
+
+  function toggleDemoPlayback() {
+    setIsDemoPlaying((playing) => !playing);
+    setPauseReason(null);
+  }
 
   const demo = SCENARIO[demoFrame];
   const observedAt = `${demo.timestamp.slice(0, 10)} ${demo.timestamp.slice(11, 16)} UTC`;
@@ -81,7 +95,7 @@ export function LandingPage() {
           <div className="section-index"><span>01</span><span>DETERMINISTIC DEMO</span></div>
           <div className="story-heading">
             <p className="marketing-kicker">One incident, fully traced</p>
-            <h2>An on-chain price is only useful while the evidence can support it.</h2>
+            <h2>Watch a synthetic collateral reference diverge from market evidence.</h2>
             <p>This six-step synthetic incident shows what happens as the observed NVDAx price separates from its model-based challenger while exact-time X-Perp provides a second market view. It is demonstration data—not live or historical performance.</p>
           </div>
 
@@ -114,20 +128,28 @@ export function LandingPage() {
               <div><span>Expected range · 90% coverage target</span><strong>{money(demo.fair_value_lower)}–{money(demo.fair_value_upper)}</strong></div>
               <div><span>xStock vs. P1a-C</span><strong>{signedPct(demo.xstock_vs_p1ac_deviation_pct)}</strong></div>
             </div>
-            <div className="incident-timeline" aria-label="Choose a demo observation">
-              {SCENARIO.map((observation, index) => <button type="button" key={observation.timestamp} onClick={() => setDemoFrame(index)} aria-pressed={index === demoFrame} className={`is-${observation.evidence_state.toLowerCase()} ${index === demoFrame ? "is-active" : ""}`}>
+            <div className="incident-timeline" aria-label="Choose a demo observation" onFocusCapture={() => pauseDemo("focus")}>
+              {SCENARIO.map((observation, index) => <button type="button" key={observation.timestamp} onClick={() => { setDemoFrame(index); pauseDemo("manual"); }} aria-pressed={index === demoFrame} className={`is-${observation.evidence_state.toLowerCase()} ${index === demoFrame ? "is-active" : ""}`}>
                 <strong>{observation.timestamp.slice(11, 16)}</strong>
                 <em>{observation.evidence_state}</em>
               </button>)}
             </div>
-            <p className="incident-instruction">Auto-playing the six observations. Select any time to inspect it immediately.</p>
+            <div className="incident-playback" aria-live="polite">
+              <p>{isDemoPlaying ? "Playing the six observations · approximately 1 second per observation." : pauseReason === "manual" ? "Paused after manual selection." : pauseReason === "focus" ? "Paused while reviewing the timeline." : "Paused to respect your reduced-motion preference."}</p>
+              <button type="button" onClick={toggleDemoPlayback} aria-pressed={isDemoPlaying} aria-label={`${isDemoPlaying ? "Pause" : "Play"} demo playback`}>
+                <span aria-hidden="true">{isDemoPlaying ? "Ⅱ" : "▶"}</span>{isDemoPlaying ? "Pause" : "Play"}
+              </button>
+            </div>
+          </div>
+          <div className="incident-actions">
+            <a className="text-link" href="/?view=console&context=demo">Inspect this synthetic incident in the Validation Console <span aria-hidden="true">↗</span></a>
           </div>
         </section>
 
         <section id="method" className="story-section story-section--reasoning">
           <div className="section-index"><span>02</span><span>THE REASONING CHAIN</span></div>
           <div className="story-heading story-heading--split">
-            <h2>Not another price.<br />A structured test of the on-chain price.</h2>
+            <h2>Test the price already in use with model-based challenger evidence.</h2>
             <p>Valtide preserves the disagreement rather than averaging every source into one opaque number. P1a assimilates the same xStock observation, so xStock-versus-P1a is model-based challenger evidence—not two fully independent observations. Exact-time X-Perp remains a separate second-market signal.</p>
           </div>
           <div className="reasoning-grid" aria-label="Valtide reasoning chain">
@@ -139,8 +161,8 @@ export function LandingPage() {
           <div className="section-index"><span>03</span><span>UNCERTAINTY</span></div>
           <div className="interval-copy">
             <p className="marketing-kicker">A range, not false precision</p>
-            <h2>Valtide does not claim to observe an exact “true” price.</h2>
-            <p>Valtide returns a range, not a supposedly exact price. The wider the uncertainty, the less confidently a protocol should rely on the estimate.</p>
+            <h2>Calibrated ranges make uncertainty explicit.</h2>
+            <p>Valtide returns a range, not a supposedly exact “true” price. The wider the uncertainty, the less confidently a protocol should rely on the estimate.</p>
             <a className="text-link" href="/methodology">Read the methodology <span aria-hidden="true">→</span></a>
           </div>
           <div className="range-instrument" aria-label="Illustrative interval based on the deterministic demo scenario">
@@ -159,7 +181,8 @@ export function LandingPage() {
           <div className="section-index"><span>04</span><span>OWNERSHIP BOUNDARY</span></div>
           <div className="story-heading story-heading--ownership">
             <p className="marketing-kicker">Evidence is not policy</p>
-            <h2>Valtide says what the evidence supports. It does not prescribe one universal response.</h2>
+            <h2>Protocol-owned policy, evaluated on X Layer.</h2>
+            <p>Valtide determines the Evidence State. RiskGuard evaluates the protocol’s configured mapping. The consuming application decides how—and whether—to enforce the returned action.</p>
           </div>
           <div className="ownership-flow" aria-label="Evidence, policy, and enforcement ownership">
             <article><span>VALTIDE BACKEND</span><h3>Evidence State</h3><div><b>SUPPORTED</b><b>INCONCLUSIVE</b><b>CHALLENGED</b></div></article>
@@ -183,7 +206,7 @@ export function LandingPage() {
           <div className="prototype-scope">
             <div>
               <p className="marketing-kicker">Current prototype scope</p>
-              <dl><div><dt>Operational validation</dt><dd>NVDAx · SPYx · AAPLx</dd></div><div><dt>Validation target</dt><dd>Observed xStock price, with P1a-C and exact-time X-Perp evidence</dd></div><div><dt>Onchain binding</dt><dd>NVDAx · SPYx · AAPLx · X Layer testnet · Chain ID 1952</dd></div><div><dt>Research-only asset</dt><dd>QQQx · not exposed through production HTTP</dd></div><div><dt>Status</dt><dd>Research / hackathon prototype</dd></div></dl>
+              <dl><div><dt>Operational validation</dt><dd>NVDAx · SPYx · AAPLx</dd></div><div><dt>Validation target</dt><dd>Observed xStock price, with P1a-C and exact-time X-Perp evidence</dd></div><div><dt>Onchain binding</dt><dd>NVDAx · SPYx · AAPLx · X Layer testnet · Chain ID 1952</dd></div><div><dt>Research-only asset</dt><dd>QQQx · not exposed through the public HTTP API</dd></div><div><dt>Status</dt><dd>Research / hackathon prototype</dd></div></dl>
             </div>
             <div>
               <p className="marketing-kicker">Deliberate boundaries</p>
@@ -200,7 +223,7 @@ export function LandingPage() {
           </div>
           <GuideExplorer />
           <div className="final-actions">
-            <a className="primary-link" href="?view=console">Open validation console <span>↗</span></a>
+            <a className="primary-link" href="/?view=console">Open validation console <span>↗</span></a>
             <a className="text-link" href="/docs">Explore documentation <span>→</span></a>
           </div>
         </section>

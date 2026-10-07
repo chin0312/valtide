@@ -92,8 +92,9 @@ bytes were not supplied, so their declared training dataset hashes have not
 been independently recomputed. Separate canonical 2026-09-21 through
 2026-10-05 provider-history panels are manifest-bound and persistently
 provisioned for NVDAx, SPYx, and AAPLx; QQQx remains offline research-only.
-The production API and live scheduler expose NVDAx, SPYx, and AAPLx. Only NVDAx
-has an X Layer binding. P1a assimilates the same xStock observation being
+The public API and live scheduler expose NVDAx, SPYx, and AAPLx. All three have
+asset-specific publication bindings to the shared ValidationRegistry and
+RiskGuard on X Layer testnet. P1a assimilates the same xStock observation being
 modeled, so xStock-versus-challenger is model-based evidence rather than an
 independent-observation comparison; the X-Perp/index is separate market
 evidence. `GET /api/history/{asset}` remains limited to successful warmed

@@ -215,7 +215,7 @@ export function Hero() {
       <div className="valtide-hero__copy">
         <p className="valtide-hero__eyebrow">Independent valuation evidence for tokenized collateral</p>
         <h1 id="valtide-hero-title">Take control of your protocol's<br /><span className="valtide-hero__title-accent">collateral risk.</span></h1>
-        <p className="valtide-hero__lede">Continuously verify whether on-chain equity prices are supported by off-chain evidence, then let consuming protocols enforce their own risk rules when markets disagree.</p>
+        <p className="valtide-hero__lede">Valtide evaluates whether tokenized-equity prices are supported by model-based challenger evidence, then returns an Evidence State that protocols can map to their own risk policy.</p>
         <div className="valtide-hero__actions">
           <a className="valtide-hero__action" href="?view=console">Open validation console <span aria-hidden="true">↗</span></a>
           <a className="valtide-hero__secondary" href="#incident">See how it works <span aria-hidden="true">↓</span></a>
@@ -233,9 +233,9 @@ export function Hero() {
         <div className="valtide-hero__proof-intro">
           <span className="valtide-hero__proof-heading">Historical model evidence <MetricInfo id="historical-model-evidence-note" label="About these historical model metrics">Historical evaluation from June–September 2026. Valtide tested 11,828 observations using a 90% prediction-range target. The benchmark is the contemporaneous trusted market price used for evaluation. The ranges captured that benchmark 94.3% of the time and were 19% narrower than a conventional Gaussian range built from the same price estimates. Coverage above target is not automatically better; it must be considered together with range width. Historical results are not production guarantees or comparisons with oracle providers.</MetricInfo></span>
         </div>
-        <div><strong>{MODEL_EVIDENCE_SUMMARY.observations.toLocaleString("en-US")}</strong><span>Historical market observations tested</span></div>
-        <div><strong>{(MODEL_EVIDENCE_SUMMARY.coverage * 100).toFixed(1)}%</strong><span>Benchmark prices captured</span><small>{(MODEL_EVIDENCE_SUMMARY.coverageTarget * 100).toFixed(0)}% target</small></div>
-        <div><strong>{(MODEL_EVIDENCE_SUMMARY.intervalWidthReduction * 100).toFixed(0)}% tighter</strong><span>Risk ranges vs. a conventional Gaussian baseline</span></div>
+        <div><strong>{MODEL_EVIDENCE_SUMMARY.observations.toLocaleString("en-US")}</strong><span>Historical evaluation observations</span></div>
+        <div><strong>{(MODEL_EVIDENCE_SUMMARY.coverage * 100).toFixed(1)}%</strong><span>Empirical interval coverage</span><small>{(MODEL_EVIDENCE_SUMMARY.coverageTarget * 100).toFixed(0)}% target</small></div>
+        <div><strong>{(MODEL_EVIDENCE_SUMMARY.intervalWidthReduction * 100).toFixed(0)}% narrower</strong><span>Mean interval width vs. Gaussian baseline</span></div>
       </div>
     </section>
   );
