@@ -297,7 +297,7 @@ test("Prototype landing uses canonical demo values and preserves product boundar
   assert.match(html, /href="\/\?view=console&amp;context=demo"/);
   assert.match(html, /Inspect this synthetic incident in the Validation Console/);
   assert.match(html, /aria-label="Pause demo playback"/);
-  assert.match(html, /Playing the six observations · 4\.5 seconds per frame/);
+  assert.match(html, /Playing the six observations · approximately 1 second per observation/);
   assert.doesNotMatch(html, /verified contract|RiskGuard enforces/i);
   assert.match(html, /does not custody assets, lend, trade, calculate LTV, or liquidate/);
   assert.match(html, /href="\/methodology"/);
@@ -310,7 +310,7 @@ test("Prototype landing uses canonical demo values and preserves product boundar
   assert.match(html, /role="tabpanel"/);
 
   const landingSource = fs.readFileSync(path.resolve(__dirname, "../src/components/LandingPage.tsx"), "utf8");
-  assert.match(landingSource, /setInterval\([^]*4500\)/);
+  assert.match(landingSource, /setInterval\([^]*1000\)/);
   assert.match(landingSource, /prefers-reduced-motion: reduce/);
   assert.match(landingSource, /onFocusCapture=\{\(\) => pauseDemo\("focus"\)\}/);
   assert.match(landingSource, /pauseDemo\("manual"\)/);

@@ -68,7 +68,7 @@ export function LandingPage() {
 
   useEffect(() => {
     if (!isDemoPlaying) return;
-    const timer = window.setInterval(() => setDemoFrame((frame) => (frame + 1) % SCENARIO.length), 4500);
+    const timer = window.setInterval(() => setDemoFrame((frame) => (frame + 1) % SCENARIO.length), 1000);
     return () => window.clearInterval(timer);
   }, [isDemoPlaying]);
 
@@ -135,7 +135,7 @@ export function LandingPage() {
               </button>)}
             </div>
             <div className="incident-playback" aria-live="polite">
-              <p>{isDemoPlaying ? "Playing the six observations · 4.5 seconds per frame." : pauseReason === "manual" ? "Paused after manual selection." : pauseReason === "focus" ? "Paused while reviewing the timeline." : "Paused to respect your reduced-motion preference."}</p>
+              <p>{isDemoPlaying ? "Playing the six observations · approximately 1 second per observation." : pauseReason === "manual" ? "Paused after manual selection." : pauseReason === "focus" ? "Paused while reviewing the timeline." : "Paused to respect your reduced-motion preference."}</p>
               <button type="button" onClick={toggleDemoPlayback} aria-pressed={isDemoPlaying} aria-label={`${isDemoPlaying ? "Pause" : "Play"} demo playback`}>
                 <span aria-hidden="true">{isDemoPlaying ? "Ⅱ" : "▶"}</span>{isDemoPlaying ? "Pause" : "Play"}
               </button>
