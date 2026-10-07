@@ -40,11 +40,12 @@ export function ReferenceNumberLine({ r }: { r: ValuationResult }) {
       <div className="relative mx-2 h-[130px]" role="img" aria-label={accessibleLabel} title={accessibleLabel}>
         <div className="absolute inset-x-0 top-[60px] h-px" style={{ background: "var(--color-line-strong)" }} />
         <div className="absolute top-[38px] h-11 rounded" style={{ left: `${bandStart}%`, width: `${bandWidth}%`, background: "var(--color-band-fill)", border: "1px solid var(--color-series-valtide)" }} />
-        <div className="absolute top-[32px] h-14 w-px" style={{ left: `${fairValueFraction * 100}%`, background: "var(--color-series-valtide)" }} />
-        <div className="absolute top-0 -translate-x-1/2 whitespace-nowrap text-center text-[11px]" style={{ left: `${fairValueFraction * 100}%`, color: "var(--color-muted)" }}>Valtide Fair Value <span className="tnum ml-1 text-ink">{money(r.valtide_fair_value)}</span></div>
+        <div data-range-midpoint="" aria-hidden="true" className="absolute top-[54px] h-3 w-px -translate-x-1/2" style={{ left: "50%", background: "var(--color-muted)", opacity: 0.45 }} />
+        <div className="absolute top-[32px] h-14 w-px transition-[left] duration-200 ease-out" style={{ left: `${fairValueFraction * 100}%`, background: "var(--color-series-valtide)" }} />
+        <div className="absolute top-0 -translate-x-1/2 whitespace-nowrap text-center text-[11px] transition-[left] duration-200 ease-out" style={{ left: `${fairValueFraction * 100}%`, color: "var(--color-muted)" }}>Valtide Fair Value <span className="tnum ml-1 text-ink">{money(r.valtide_fair_value)}</span></div>
         {markers.map((marker) => {
           const markerFraction = marker.label === "Valtide Fair Value" ? fairValueFraction : priceToFraction(marker.price, r);
-          return <div key={marker.label} data-price-marker={marker.label} className="absolute" style={{ left: `${markerFraction * 100}%`, top: 60, zIndex: marker.shape === "diamond" ? 3 : marker.shape === "square" ? 2 : 1 }} title={`${marker.label}: ${money(marker.price)}`}>
+          return <div key={marker.label} data-price-marker={marker.label} className="absolute transition-[left] duration-200 ease-out" style={{ left: `${markerFraction * 100}%`, top: 60, zIndex: marker.shape === "diamond" ? 3 : marker.shape === "square" ? 2 : 1 }} title={`${marker.label}: ${money(marker.price)}`}>
             <svg className="absolute -translate-x-1/2 -translate-y-1/2" width="28" height="28" viewBox="0 0 28 28" aria-hidden="true" style={{ overflow: "visible" }}>
               {/* Nested outlines keep equal-price sources visible at their exact position. */}
               {marker.shape === "diamond" ? <path d="M14 2 26 14 14 26 2 14Z" fill="none" stroke={marker.color} strokeWidth="2" />

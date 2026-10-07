@@ -17,13 +17,13 @@ export function toBandUnits(price: number, r: ValuationResult): number {
   return Number.isFinite(units) ? units : 0;
 }
 
-/** Map band-units to a 0..1 fraction across the fixed axis (for CSS %). */
+/** Map band-units to a 0..1 fraction, with the valuation interval filling 80% of the track. */
 export function unitsToFraction(units: number): number {
   if (!Number.isFinite(units)) return 0.5;
   const clamped = Math.max(AXIS_MIN, Math.min(AXIS_MAX, units));
-  if (clamped <= -1) return ((clamped - AXIS_MIN) / (-1 - AXIS_MIN)) * 0.25;
-  if (clamped <= 1) return 0.25 + ((clamped + 1) / 2) * 0.5;
-  return 0.75 + ((clamped - 1) / (AXIS_MAX - 1)) * 0.25;
+  if (clamped <= -1) return ((clamped - AXIS_MIN) / (-1 - AXIS_MIN)) * 0.1;
+  if (clamped <= 1) return 0.1 + ((clamped + 1) / 2) * 0.8;
+  return 0.9 + ((clamped - 1) / (AXIS_MAX - 1)) * 0.1;
 }
 
 /** Convenience: fraction position of a price directly. */
