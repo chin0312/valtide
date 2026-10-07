@@ -1,4 +1,4 @@
-// Range View uses an interval-relative scale for the selected observation.
+// Range View compares each selected observation against its own valuation interval.
 
 import type { ValuationResult } from "../api/types";
 import { validationTargetPrice } from "./semantics";
@@ -21,7 +21,9 @@ export function toBandUnits(price: number, r: ValuationResult): number {
 export function unitsToFraction(units: number): number {
   if (!Number.isFinite(units)) return 0.5;
   const clamped = Math.max(AXIS_MIN, Math.min(AXIS_MAX, units));
-  return (clamped - AXIS_MIN) / (AXIS_MAX - AXIS_MIN);
+  if (clamped <= -1) return ((clamped - AXIS_MIN) / (-1 - AXIS_MIN)) * 0.25;
+  if (clamped <= 1) return 0.25 + ((clamped + 1) / 2) * 0.5;
+  return 0.75 + ((clamped - 1) / (AXIS_MAX - 1)) * 0.25;
 }
 
 /** Convenience: fraction position of a price directly. */

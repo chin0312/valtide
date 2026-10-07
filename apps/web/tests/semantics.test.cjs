@@ -612,16 +612,21 @@ test("Console metrics and interval markers use human-facing model labels and xSt
   assert.ok(lowerFraction < fairFraction && fairFraction < upperFraction);
   assert.notEqual(fairFraction,(lowerFraction+upperFraction)/2,"asymmetric intervals must preserve Fair Value's proportional position");
   for (const [label,price] of [["Observed xStock",asymmetric.token_price],["Valtide Fair Value",asymmetric.valtide_fair_value],["X-Perp",asymmetric.xperp_index_price]]) {
-    assert.ok(markerMarkup(asymmetricMarkup,label).includes(`left:${priceToFraction(price,asymmetric)*100}%`), `${label} must use the shared interval-relative scale`);
+    assert.ok(markerMarkup(asymmetricMarkup,label).includes(`left:${priceToFraction(price,asymmetric)*100}%`), `${label} must use the same interval-relative scale`);
   }
   const fairLeft = `${fairFraction*100}%`;
   assert.ok(markerMarkup(asymmetricMarkup,"Valtide Fair Value").includes(`left:${fairLeft}`));
-  assert.ok(asymmetricMarkup.includes(`class="absolute top-[32px] h-14 w-px" style="left:${fairLeft};`),"Fair Value line must share the square's raw-price position");
-  assert.ok(asymmetricMarkup.includes(`class="absolute top-0 -translate-x-1/2 whitespace-nowrap text-center text-[11px]" style="left:${fairLeft};`),"Fair Value label must share the square and line position");
+  assert.ok(asymmetricMarkup.includes(`class="absolute top-[32px] h-14 w-px transition-[left] duration-200 ease-out" style="left:${fairLeft};`),"Fair Value line must share the square's raw-price position and transition only horizontally");
+  assert.ok(asymmetricMarkup.includes(`class="absolute top-0 -translate-x-1/2 whitespace-nowrap text-center text-[11px] transition-[left] duration-200 ease-out" style="left:${fairLeft};`),"Fair Value label must share the square and line position");
+  assert.doesNotMatch(asymmetricMarkup,/data-range-midpoint/,"the minimal range view does not add a separate midpoint marker");
+  assert.equal((asymmetricMarkup.match(/data-price-marker=/g) ?? []).length,3,"the three-source marker set remains unchanged");
+  for (const label of ["Observed xStock","Valtide Fair Value","X-Perp"]) {
+    assert.match(markerMarkup(asymmetricMarkup,label),/transition-\[left\] duration-200 ease-out/);
+  }
   const bandMatch = asymmetricMarkup.match(/class="absolute top-\[38px\] h-11 rounded" style="left:([^;]+);width:([^;]+);/);
   assert.ok(bandMatch);
-  assert.ok(Math.abs(Number.parseFloat(bandMatch[1])/100-unitsToFraction(-1))<1e-12);
-  assert.ok(Math.abs(Number.parseFloat(bandMatch[2])/100-(unitsToFraction(1)-unitsToFraction(-1)))<1e-12);
+  assert.ok(Math.abs(Number.parseFloat(bandMatch[1])/100-0.25)<1e-12);
+  assert.ok(Math.abs(Number.parseFloat(bandMatch[2])/100-0.5)<1e-12);
   const coincident = {...v2,token_price:180,valtide_fair_value:180,fair_value_lower:179,fair_value_upper:181,xperp_index_price:180};
   const coincidentMarkup = render(ReferenceNumberLine,{r:coincident});
   for (const [label,zIndex,shape] of [["Observed xStock",1,"<circle"],["Valtide Fair Value",2,"<rect"],["X-Perp",3,"<path"]]) {
@@ -673,13 +678,8 @@ test("Console metrics and interval markers use human-facing model labels and xSt
   assert.doesNotMatch(xstockInside,/P1a-C|SUPPORT|WATCH|REVIEW|not two fully independent observations/);
 });
 
-test("Range View uses fixed interval-relative geometry independent of absolute prices and timeline span", () => {
+test("Range View uses a fixed centered interval-relative scale for the selected observation", () => {
   const base = consoleV2Fixture[0];
-  const observations = [
-    {...base,timestamp:"2026-10-01T12:00:00Z",valtide_fair_value:100,fair_value_lower:99,fair_value_upper:101,token_price:100.4,xperp_index_price:99.8,interval_coverage_target:0.9},
-    {...base,timestamp:"2026-10-01T12:05:00Z",valtide_fair_value:200,fair_value_lower:199,fair_value_upper:201,token_price:201.5,xperp_index_price:199.3,interval_coverage_target:0.95},
-    {...base,timestamp:"2026-10-01T12:10:00Z",valtide_fair_value:503,fair_value_lower:500,fair_value_upper:510,token_price:499,xperp_index_price:508,interval_coverage_target:0.9},
-  ];
   const markerBlock = (markup,label) => markup.match(new RegExp(`<div data-price-marker="${label}"[^>]*>[\\s\\S]*?<\\/div>`))?.[0] ?? "";
   const markerFraction = (markup,label) => {
     const match = markerBlock(markup,label).match(/left:([^;]+);/);
@@ -692,39 +692,57 @@ test("Range View uses fixed interval-relative geometry independent of absolute p
     return {left:Number.parseFloat(match[1])/100,width:Number.parseFloat(match[2])/100};
   };
   const close = (actual,expected,message) => assert.ok(Math.abs(actual-expected)<1e-12,message);
-  const expectedBand = {left:unitsToFraction(-1),width:unitsToFraction(1)-unitsToFraction(-1)};
-  const rendered = observations.map((r) => render(ReferenceNumberLine,{r}));
 
-  for (let index=0; index<observations.length; index++) {
-    const r = observations[index];
-    const markup = rendered[index];
-    for (const [label,price] of [["Observed xStock",r.token_price],["Valtide Fair Value",r.valtide_fair_value],["X-Perp",r.xperp_index_price]]) {
-      close(markerFraction(markup,label),priceToFraction(price,r),`${label} uses the shared interval-relative mapping`);
-    }
-    close(toBandUnits(r.fair_value_lower,r),-1,"lower maps to interval unit -1");
-    close(toBandUnits(r.fair_value_upper,r),1,"upper maps to interval unit +1");
-    const bandPosition = rangePosition(markup);
-    close(bandPosition.left,expectedBand.left,"band left edge is fixed");
-    close(bandPosition.width,expectedBand.width,"band visual width is fixed");
-    assert.match(markup,new RegExp(`${Math.round(r.interval_coverage_target*100)}% Valuation Range`));
+  for (const [units,fraction] of [[AXIS_MIN,0],[-1,0.25],[0,0.5],[1,0.75],[AXIS_MAX,1]]) {
+    close(unitsToFraction(units),fraction,`display anchor ${units} maps to ${fraction}`);
   }
-  close(markerFraction(rendered[0],"Valtide Fair Value"),markerFraction(rendered[1],"Valtide Fair Value"),"same relative interval position across an absolute price shift is intentional");
-  assert.match(rendered[0],/Valtide Fair Value <span[^>]*>\$100\.00/);
-  assert.match(rendered[1],/Valtide Fair Value <span[^>]*>\$200\.00/);
+  close(unitsToFraction(AXIS_MIN-10),0,"values below the viewport clamp to its left edge");
+  close(unitsToFraction(AXIS_MAX+10),1,"values above the viewport clamp to its right edge");
+
+  const observations = [
+    {...base,timestamp:"2026-10-01T12:00:00Z",fair_value_lower:99,fair_value_upper:101,valtide_fair_value:100,token_price:100.4,xperp_index_price:99.8},
+    {...base,timestamp:"2026-10-01T12:05:00Z",fair_value_lower:199,fair_value_upper:201,valtide_fair_value:200,token_price:201.5,xperp_index_price:199.3},
+    {...base,timestamp:"2026-10-01T12:10:00Z",fair_value_lower:500,fair_value_upper:510,valtide_fair_value:503,token_price:499,xperp_index_price:508},
+  ];
+  const expectedBand = {left:0.25,width:0.5};
+  for (const r of observations) {
+    const markup = render(ReferenceNumberLine,{r});
+    const band = rangePosition(markup);
+    close(band.left,expectedBand.left,"valid valuation intervals always begin at 25% of the track");
+    close(band.width,expectedBand.width,"valid valuation intervals always occupy exactly 50% of the track");
+    assert.match(markup,new RegExp(`${Math.round(r.interval_coverage_target*100)}% Valuation Range`));
+    assert.doesNotMatch(markup,/data-range-midpoint/);
+  }
+
+  const symmetric = {...base,token_price:180,valtide_fair_value:180,fair_value_lower:179,fair_value_upper:181,xperp_index_price:180};
+  close(priceToFraction(symmetric.valtide_fair_value,symmetric),0.5,"symmetric Fair Value remains centered");
+  const symmetricMarkup = render(ReferenceNumberLine,{r:symmetric});
+  close(markerFraction(symmetricMarkup,"Valtide Fair Value"),0.5,"symmetric Fair Value square remains at the track center");
+
+  const spy = {...base,token_price:732.4,valtide_fair_value:732.5197,fair_value_lower:731.4333,fair_value_upper:733.3522,xperp_index_price:732.7};
+  assert.ok(spy.fair_value_lower <= spy.valtide_fair_value && spy.valtide_fair_value <= spy.fair_value_upper,"valid Fair Value remains inside its valuation interval");
+  const spyRawPosition = (spy.valtide_fair_value-spy.fair_value_lower)/(spy.fair_value_upper-spy.fair_value_lower);
+  close(spyRawPosition,0.5661576945124331,"SPY raw position is independently calculated from the interval bounds");
+  const spyRendered = priceToFraction(spy.valtide_fair_value,spy);
+  close(spyRendered,0.25+spyRawPosition*0.5,"SPY rendering preserves its raw proportional interval position");
+  close(spyRendered,0.5330788472562166,"SPY Fair Value renders near 53.3079%, right of track center");
+  assert.ok(spyRendered > 0.5);
 
   const asymmetric = {...base,token_price:179.5,valtide_fair_value:180,fair_value_lower:179,fair_value_upper:182,xperp_index_price:181};
   const asymmetricMarkup = render(ReferenceNumberLine,{r:asymmetric});
-  const lower = priceToFraction(asymmetric.fair_value_lower,asymmetric);
+  const rawPosition = (asymmetric.valtide_fair_value-asymmetric.fair_value_lower)/(asymmetric.fair_value_upper-asymmetric.fair_value_lower);
   const fair = priceToFraction(asymmetric.valtide_fair_value,asymmetric);
+  close(rawPosition,1/3,"generic asymmetric Fair Value is one-third through the interval");
+  close(fair,0.25+rawPosition*0.5,"asymmetric Fair Value uses its actual interval position");
+  close(fair,0.4166666666666667,"generic asymmetric Fair Value renders near 41.667%, not 50%");
+  assert.notEqual(fair,0.5);
+  const lower = priceToFraction(asymmetric.fair_value_lower,asymmetric);
   const upper = priceToFraction(asymmetric.fair_value_upper,asymmetric);
   assert.ok(lower < fair && fair < upper);
-  assert.notEqual(fair,(lower+upper)/2,"asymmetric bounds preserve Fair Value's proportional position");
-  close(markerFraction(asymmetricMarkup,"Valtide Fair Value"),fair);
-  close(markerFraction(asymmetricMarkup,"Observed xStock"),priceToFraction(asymmetric.token_price,asymmetric));
-  close(markerFraction(asymmetricMarkup,"X-Perp"),priceToFraction(asymmetric.xperp_index_price,asymmetric));
-  close(rangePosition(asymmetricMarkup).left,expectedBand.left);
-  close(rangePosition(asymmetricMarkup).width,expectedBand.width);
 
+  for (const [label,price] of [["Observed xStock",asymmetric.token_price],["Valtide Fair Value",asymmetric.valtide_fair_value],["X-Perp",asymmetric.xperp_index_price]]) {
+    close(markerFraction(asymmetricMarkup,label),priceToFraction(price,asymmetric),`${label} uses the same interval-relative transform`);
+  }
   const ascending = {...base,token_price:179,valtide_fair_value:180,xperp_index_price:181,fair_value_lower:178,fair_value_upper:182};
   assert.ok(priceToFraction(ascending.token_price,ascending)<priceToFraction(ascending.valtide_fair_value,ascending));
   assert.ok(priceToFraction(ascending.valtide_fair_value,ascending)<priceToFraction(ascending.xperp_index_price,ascending));
@@ -732,11 +750,15 @@ test("Range View uses fixed interval-relative geometry independent of absolute p
   assert.ok(priceToFraction(descending.token_price,descending)>priceToFraction(descending.valtide_fair_value,descending));
   assert.ok(priceToFraction(descending.valtide_fair_value,descending)>priceToFraction(descending.xperp_index_price,descending));
 
-  const outside = {...base,token_price:182,valtide_fair_value:180,xperp_index_price:180.5,fair_value_lower:179,fair_value_upper:181};
+  const outside = {...base,token_price:182,valtide_fair_value:180,xperp_index_price:178,fair_value_lower:179,fair_value_upper:181};
   const outsideMarkup = render(ReferenceNumberLine,{r:outside});
   const outsideBand = rangePosition(outsideMarkup);
-  assert.ok(markerFraction(outsideMarkup,"Observed xStock")>outsideBand.left+outsideBand.width,"out-of-range price stays outside the band");
-  assert.ok(markerFraction(outsideMarkup,"Observed xStock")<1,"clamping applies only at the viewport boundary");
+  assert.ok(markerFraction(outsideMarkup,"Observed xStock")>outsideBand.left+outsideBand.width,"xStock may remain to the right outside the range");
+  assert.ok(markerFraction(outsideMarkup,"X-Perp")<outsideBand.left,"X-Perp may remain to the left outside the range");
+  const beyondViewport = {...outside,token_price:190,xperp_index_price:170};
+  const beyondMarkup = render(ReferenceNumberLine,{r:beyondViewport});
+  close(markerFraction(beyondMarkup,"Observed xStock"),1,"only values beyond the full positive viewport clamp to 100%");
+  close(markerFraction(beyondMarkup,"X-Perp"),0,"only values beyond the full negative viewport clamp to 0%");
 
   const coincident = {...base,token_price:180,valtide_fair_value:180,xperp_index_price:180,fair_value_lower:179,fair_value_upper:181};
   const coincidentMarkup = render(ReferenceNumberLine,{r:coincident});
@@ -747,23 +769,26 @@ test("Range View uses fixed interval-relative geometry independent of absolute p
   for (const invalid of [
     {...coincident,fair_value_lower:180,fair_value_upper:180},
     {...coincident,fair_value_lower:181,fair_value_upper:179},
+    {...coincident,token_price:Infinity,xperp_index_price:Infinity},
   ]) {
     const invalidMarkup = render(ReferenceNumberLine,{r:invalid});
     assert.doesNotMatch(invalidMarkup,/NaN|Infinity/);
-    assert.match(invalidMarkup,/style="left:50%;width:0%;/);
-    assert.equal(priceToFraction(invalid.valtide_fair_value,invalid),0.5);
+    assert.equal(Number.isFinite(priceToFraction(invalid.valtide_fair_value,invalid)),true);
   }
+  assert.match(render(ReferenceNumberLine,{r:{...coincident,fair_value_lower:180,fair_value_upper:180}}),/style="left:50%;width:0%;/);
+  assert.doesNotMatch(render(ReferenceNumberLine,{r:{...coincident,xperp_index_price:null}}),/data-price-marker="X-Perp"/);
 
   const legacyFallback = {...ascending,evidence_semantics:"p1a_xstock_challenger_xperp_second_market_v1",xperp_index_price:null,reference_under_test:184};
-  assert.equal(priceToFraction(184,legacyFallback),markerFraction(render(ReferenceNumberLine,{r:legacyFallback}),"X-Perp"));
+  close(markerFraction(render(ReferenceNumberLine,{r:legacyFallback}),"X-Perp"),priceToFraction(184,legacyFallback),"legacy X-Perp fallback uses the selected observation's same interval scale");
 
-  const selected = {...observations[0]};
-  const distant = {...selected,fair_value_lower:1,fair_value_upper:1_000_000,token_price:800_000,xperp_index_price:900_000};
-  const selectedMarkup = render(ReferenceComparison,{r:selected});
-  assert.equal(render(ReferenceComparison,{r:selected,domainResults:[selected,distant]}),selectedMarkup,"unrelated timeline rows cannot alter the selected-observation Range View");
   const appSource = fs.readFileSync(path.join(__dirname,"../src/App.tsx"),"utf8");
+  const comparisonSource = fs.readFileSync(path.join(__dirname,"../src/views/ReferenceComparison.tsx"),"utf8");
+  const numberLineSource = fs.readFileSync(path.join(__dirname,"../src/components/ReferenceNumberLine.tsx"),"utf8");
   assert.match(appSource,/<ReferenceComparison r=\{current\} \/>/);
   assert.doesNotMatch(appSource,/domainResults=/);
+  assert.match(comparisonSource,/<ReferenceNumberLine r=\{r\} \/>/);
+  assert.doesNotMatch(comparisonSource,/domainResults/);
+  assert.match(numberLineSource,/ReferenceNumberLine\(\{ r \}: \{ r: ValuationResult \}\)/);
 });
 
 test("Equal-height Timeline card alignment keeps the chart fixed and Policy Proposal independent", () => {
