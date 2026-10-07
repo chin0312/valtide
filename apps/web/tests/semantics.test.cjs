@@ -253,13 +253,14 @@ test("Clean divergence hero restores the product framing and opens the validatio
   assert.doesNotMatch(html, /RESTRICT_NEW_RISK|NEW EXPOSURE (?:OPEN|REVERTED)/);
   assert.match(html, /11,828/);
   assert.match(html, /94.3%/);
-  assert.match(html, /19% tighter/);
+  assert.match(html, /19% narrower/);
   assert.match(html, /aria-describedby="historical-model-evidence-note"/);
   assert.match(html, /role="tooltip"/);
-  assert.match(html, /Historical market observations tested/);
-  assert.match(html, /Benchmark prices captured/);
+  assert.match(html, /Historical evaluation observations/);
+  assert.match(html, /Empirical interval coverage/);
   assert.match(html, /90% target/);
-  assert.match(html, /Risk ranges vs\. a conventional Gaussian baseline/);
+  assert.match(html, /19% narrower/);
+  assert.match(html, /Mean interval width vs\. Gaussian baseline/);
   assert.match(html, /Coverage above target is not automatically better/);
   assert.match(html, /Historical results are not production guarantees or comparisons with oracle providers/);
   assert.match(html, /href="\?view=console"/);

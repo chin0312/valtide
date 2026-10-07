@@ -233,9 +233,9 @@ export function Hero() {
         <div className="valtide-hero__proof-intro">
           <span className="valtide-hero__proof-heading">Historical model evidence <MetricInfo id="historical-model-evidence-note" label="About these historical model metrics">Historical evaluation from June–September 2026. Valtide tested 11,828 observations using a 90% prediction-range target. The benchmark is the contemporaneous trusted market price used for evaluation. The ranges captured that benchmark 94.3% of the time and were 19% narrower than a conventional Gaussian range built from the same price estimates. Coverage above target is not automatically better; it must be considered together with range width. Historical results are not production guarantees or comparisons with oracle providers.</MetricInfo></span>
         </div>
-        <div><strong>{MODEL_EVIDENCE_SUMMARY.observations.toLocaleString("en-US")}</strong><span>Historical market observations tested</span></div>
-        <div><strong>{(MODEL_EVIDENCE_SUMMARY.coverage * 100).toFixed(1)}%</strong><span>Benchmark prices captured</span><small>{(MODEL_EVIDENCE_SUMMARY.coverageTarget * 100).toFixed(0)}% target</small></div>
-        <div><strong>{(MODEL_EVIDENCE_SUMMARY.intervalWidthReduction * 100).toFixed(0)}% tighter</strong><span>Risk ranges vs. a conventional Gaussian baseline</span></div>
+        <div><strong>{MODEL_EVIDENCE_SUMMARY.observations.toLocaleString("en-US")}</strong><span>Historical evaluation observations</span></div>
+        <div><strong>{(MODEL_EVIDENCE_SUMMARY.coverage * 100).toFixed(1)}%</strong><span>Empirical interval coverage</span><small>{(MODEL_EVIDENCE_SUMMARY.coverageTarget * 100).toFixed(0)}% target</small></div>
+        <div><strong>{(MODEL_EVIDENCE_SUMMARY.intervalWidthReduction * 100).toFixed(0)}% narrower</strong><span>Mean interval width vs. Gaussian baseline</span></div>
       </div>
     </section>
   );
