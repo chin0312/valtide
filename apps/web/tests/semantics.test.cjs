@@ -238,17 +238,17 @@ function appWith({result, rows, chain, error, assetList, profile = "legacy_xperp
 
 test("Clean divergence hero restores the product framing and opens the validation console", () => {
   const html = render(Hero);
-  assert.match(html, /Independent valuation evidence for tokenized collateral/);
+  assert.match(html, /Reference validation for tokenized equity collateral/);
   assert.match(html, /Take control of your protocol&#x27;s/);
   assert.match(html, /collateral risk/);
-  assert.match(html, /tokenized-equity prices are supported by model-based challenger evidence/);
-  assert.match(html, /returns an Evidence State that protocols can map to their own risk policy/);
+  assert.match(html, /Compare the observed xStock price with Valtide Fair Value, a Valuation Range, and separately sourced X-Perp evidence/);
+  assert.match(html, /Protocols retain control of the Policy Actions they apply/);
   assert.doesNotMatch(html, /cryptographically verified collateral valuation|enforce their own risk rules/);
   assert.match(html, /Open validation console/);
   assert.match(html, /See how it works/);
   assert.match(html, /Animated market divergence/);
-  assert.match(html, /P1a-C estimate/);
-  assert.match(html, /xStock target/);
+  assert.match(html, /Valtide Fair Value/);
+  assert.match(html, /Observed xStock/);
   assert.doesNotMatch(html, /Run the risk demo|From evidence to protocol response|POSITION (?:OPENED|BLOCKED)/);
   assert.doesNotMatch(html, /RESTRICT_NEW_RISK|NEW EXPOSURE (?:OPEN|REVERTED)/);
   assert.match(html, /11,828/);
@@ -256,13 +256,13 @@ test("Clean divergence hero restores the product framing and opens the validatio
   assert.match(html, /19% narrower/);
   assert.match(html, /aria-describedby="historical-model-evidence-note"/);
   assert.match(html, /role="tooltip"/);
-  assert.match(html, /Historical evaluation observations/);
+  assert.match(html, /NVDAx · P1a-C v0\.2\.0 observations/);
   assert.match(html, /Empirical interval coverage/);
   assert.match(html, /90% target/);
   assert.match(html, /19% narrower/);
-  assert.match(html, /Mean interval width vs\. Gaussian baseline/);
-  assert.match(html, /Coverage above target is not automatically better/);
-  assert.match(html, /Historical results are not production guarantees or comparisons with oracle providers/);
+  assert.match(html, /Mean interval width · same point estimates/);
+  assert.match(html, /This evaluates interval construction—not price accuracy versus raw xStock, three-asset performance, Evidence State accuracy, or production performance/);
+  assert.match(html, /not an untouched test set/);
   assert.match(html, /href="\?view=console"/);
   assert.match(html, /href="\/methodology"/);
   assert.match(html, /href="\/docs"/);
@@ -273,15 +273,21 @@ test("Clean divergence hero restores the product framing and opens the validatio
 
 test("Prototype landing uses canonical demo values and preserves product boundaries", () => {
   const html = render(LandingPage);
+  const landingSource = fs.readFileSync(path.join(__dirname, "../src/components/LandingPage.tsx"), "utf8");
   for (const value of ["$180.00", "$178.20", "$179.13"]) assert.match(html, new RegExp(value.replace("$", "\\$")));
   assert.match(html, /six-step synthetic incident/);
-  assert.match(html, /demonstration data—not live or historical performance/);
-  assert.match(html, /Valtide preserves the disagreement/);
-  assert.match(html, /An xStock price separates from its model-based challenger/);
-  assert.match(html, /exact-time X-Perp provides a second market view/);
+  assert.match(html, /demonstration data—not live evidence or historical performance/);
+  assert.match(html, /Valtide preserves disagreement/);
+  assert.match(html, /The Valtide Model uses Observed xStock as an input/);
+  assert.match(html, /Underlying Anchor provides model context and is not a same-time Evidence State vote/);
+  assert.match(html, /Low Model Disagreement/);
+  assert.match(html, /Global Calibration Applied/);
+  assert.match(landingSource, /import \{ reasonLabel \} from "\.\.\/lib\/format"/);
+  assert.match(landingSource, /reasonLabel\(reason\)/);
+  assert.doesNotMatch(landingSource, /const REASON_LABELS/);
   for (const heading of [
-    "Watch a synthetic collateral reference diverge from market evidence",
-    "Test the price already in use with model-based challenger evidence",
+    "See a synthetic xStock price beside Valtide Fair Value",
+    "Keep the price, estimate, and evidence distinct",
     "Calibrated ranges make uncertainty explicit",
     "Protocol-owned policy, evaluated on X Layer",
   ]) assert.match(html, new RegExp(heading.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")));
@@ -293,6 +299,7 @@ test("Prototype landing uses canonical demo values and preserves product boundar
   assert.match(html, /ValidationRegistry/);
   assert.match(html, /Evidence hash/);
   assert.match(html, /browser is read-only/);
+  assert.match(html, /A separate backend scheduler publishes authorized attestations/);
   assert.match(html, /X Layer testnet/);
   assert.match(html, /For NVDAx, SPYx, and AAPLx, the machine interface can publish authorized attestations/);
   assert.match(html, /href="\/\?view=console&amp;context=demo"/);
@@ -310,7 +317,6 @@ test("Prototype landing uses canonical demo values and preserves product boundar
   assert.match(html, /aria-label="Documentation by audience"/);
   assert.match(html, /role="tabpanel"/);
 
-  const landingSource = fs.readFileSync(path.resolve(__dirname, "../src/components/LandingPage.tsx"), "utf8");
   assert.match(landingSource, /setInterval\([^]*1000\)/);
   assert.match(landingSource, /prefers-reduced-motion: reduce/);
   assert.match(landingSource, /onFocusCapture=\{\(\) => pauseDemo\("focus"\)\}/);
@@ -348,18 +354,22 @@ test("Documentation adapts by role and keeps evidence, policy and scope separate
   assert.match(html, /role="tabpanel"/);
   assert.match(html, /Open the demo result/);
   assert.match(html, /href="\/\?view=console&amp;context=demo"/);
-  assert.match(html, /current unified profile this is the observed xStock price/);
+  assert.match(html, /Observed xStock/);
+  assert.match(html, /tokenized-equity market price being reviewed/);
   assert.match(html, /Public asset selector/);
   assert.match(html, /not exposed through the public HTTP API/);
   assert.doesNotMatch(html, /production unified profile|Production asset selector|production HTTP/);
-  assert.match(html, /P1A_XSTOCK_REVIEW_BAND/);
-  assert.match(html, /XPERP_CORROBORATES_P1A/);
+  assert.match(html, /High Model Disagreement/);
+  assert.match(html, /X-Perp Supports Model Challenge/);
   assert.match(html, /Whether an attestation remains valid under both its valid-until time and the policy owner’s maximum age/);
   assert.match(html, /Structured backend explanations for an Evidence State, preserved by the frontend without recomputation/);
   for (const term of ["Evidence context", "Trusted anchor", "Market state"]) assert.match(html, new RegExp(term));
   assert.match(html, /Short examples show how each term appears/);
   assert.match(html, /Also useful for/);
   const profileSource = fs.readFileSync(path.join(__dirname, "../src/components/documentationProfiles.ts"), "utf8");
+  const docsSource = fs.readFileSync(path.join(__dirname, "../src/components/DocsPage.tsx"), "utf8");
+  assert.match(docsSource, /exposed interval contains 11,828 observations/);
+  assert.match(docsSource, /no longer an untouched test set/);
   for (const profile of ["everyone", "curators", "developers", "researchers"]) assert.match(profileSource, new RegExp(`${profile}:`));
   assert.match(fs.readFileSync(path.join(__dirname, "../src/components/DocsPage.tsx"), "utf8"), /cta: "Read the methodology", href: "\/methodology"/);
 });
@@ -400,15 +410,16 @@ test("Methodology is a first-class, source-grounded page with one canonical meth
     "Public research methodology · v0.3",
     "A validation control—not a lending protocol",
     "One method, four lenses",
-    "P1a-C is a causal state-space estimate",
+    "The Valtide Model estimates Fair Value with calibrated uncertainty",
     "SUPPORTED",
     "INCONCLUSIVE",
     "CHALLENGED",
     "11,828",
     "94.3%",
+    "NVDAx v0.2.0",
     "X Layer testnet",
   ]) assert.match(html, new RegExp(value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")));
-  assert.match(html, /interval quality—not production oracle accuracy/);
+  assert.match(html, /Interval quality—not production oracle accuracy/);
   assert.match(html, /current unified profile/i);
   assert.doesNotMatch(html, /current production profile/i);
   assert.match(html, /Disagreements are preserved, not averaged away/);
@@ -416,15 +427,16 @@ test("Methodology is a first-class, source-grounded page with one canonical meth
   assert.match(html, /<details class="methodology-equations">/);
   assert.match(html, /View the P1a-C equations/);
   assert.match(html, /aria-label="Current unified Evidence State rules"/);
-  assert.match(html, /The asset-specific support band applies/);
-  assert.match(html, /required evidence is missing, stale, ambiguous, or below the quality threshold/);
-  assert.match(html, /exact-time X-Perp is closer to P1a-C than to xStock/);
-  assert.match(html, /asset-bound tri-source capability artifact authorizes which Evidence States/);
+  assert.match(html, /Model Distance is within the asset’s supported range/);
+  assert.match(html, /Required evidence is missing, stale, ambiguous, or below quality requirements/);
+  assert.match(html, /exact-time X-Perp is closer to Valtide Fair Value than to Observed xStock/);
+  assert.match(html, /An asset-bound capability authorizes which Evidence States/);
   assert.match(html, /View these states in the Validation Console/);
-  assert.match(html, /19% narrower than the conventional Gaussian baseline while achieving 94\.3% empirical coverage against a 90% target/);
+  assert.match(html, /NVDAx P1a-C v0\.2\.0 produced intervals 19% narrower than the conventional Gaussian baseline while achieving 94\.3% empirical coverage against a 90% target/);
   assert.doesNotMatch(html, /narrower interval reduces false-positive alerts|preventing unnecessary trading restrictions/i);
   assert.match(html, /NVDAx, SPYx, and AAPLx have asset-specific publication bindings/);
-  assert.match(html, /Publication remains a backend responsibility; the browser is read-only/);
+  assert.match(html, /The backend scheduler publishes authorized attestations; the browser is read-only/);
+  assert.match(html, /X Layer records evidence and evaluates policy—it does not calculate Fair Value/);
   assert.doesNotMatch(html, /unified-v2 results are not published through the legacy binding/);
   assert.match(html, /Explore the current X Layer testnet integration/);
   assert.match(html, /correctness still depends on the underlying sources, model, and validation rule/);
