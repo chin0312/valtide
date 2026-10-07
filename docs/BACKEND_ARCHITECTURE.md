@@ -200,13 +200,14 @@ and `502` for a chain, transaction, or read-back failure.
   delivery while leaving the manual route disabled. A successful write is
   followed by Registry and RiskGuard read-back verification.
 
-Asset identity and public catalog exposure are registry-backed. The production
+Asset identity and public catalog exposure are registry-backed. The public
 API catalog lists `NVDAx`, `SPYx`, and `AAPLx`; `QQQx` remains offline
 research-only and `TSLAx` remains a hidden candidate. `/api/assets` reports
 live, quant, historical, detector/state authority, scheduler, and onchain
 readiness independently. NVDAx, SPYx, and AAPLx have asset-specific P1a-C
 bundles, canonical historical panels, and independently selectable live
-runtimes. Only NVDAx currently has an X Layer binding. Legacy single-worker
+runtimes. All three have asset-specific publication bindings to the shared
+ValidationRegistry and RiskGuard on X Layer testnet. Legacy single-worker
 `LIVE_SCHEDULER_ASSET` configuration remains supported; an explicit
 `LIVE_SCHEDULER_ASSETS` list may select multiple independently ready workers.
 Unready known assets are not started. Unknown assets and cross-asset identities

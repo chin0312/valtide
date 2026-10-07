@@ -348,7 +348,10 @@ test("Documentation adapts by role and keeps evidence, policy and scope separate
   assert.match(html, /role="tabpanel"/);
   assert.match(html, /Open the demo result/);
   assert.match(html, /href="\/\?view=console&amp;context=demo"/);
-  assert.match(html, /production unified profile this is the observed xStock price/);
+  assert.match(html, /current unified profile this is the observed xStock price/);
+  assert.match(html, /Public asset selector/);
+  assert.match(html, /not exposed through the public HTTP API/);
+  assert.doesNotMatch(html, /production unified profile|Production asset selector|production HTTP/);
   assert.match(html, /P1A_XSTOCK_REVIEW_BAND/);
   assert.match(html, /XPERP_CORROBORATES_P1A/);
   assert.match(html, /Whether an attestation remains valid under both its valid-until time and the policy owner’s maximum age/);
@@ -374,6 +377,21 @@ test("Current public X Layer scope names all three bound assets without implying
     assert.doesNotMatch(html,/NVDAx only|Only NVDAx has an X Layer binding/i);
   }
   assert.match(landing,/browser is read-only:[\s\S]*?sign, or submit transactions/);
+});
+
+test("Public repository docs match the three-asset backend and current unified profile", () => {
+  const repoRoot = path.join(__dirname, "../../..");
+  const sources = [
+    "apps/api/README.md",
+    "docs/ASSET_INTEGRATION_FOUNDATION.md",
+    "docs/BACKEND_ARCHITECTURE.md",
+    "docs/METHODOLOGY.md",
+  ].map((filename) => fs.readFileSync(path.join(repoRoot, filename), "utf8"));
+  const combined = sources.join("\n");
+  for (const asset of ["NVDAx", "SPYx", "AAPLx"]) assert.match(combined, new RegExp(asset));
+  assert.match(combined, /All three have asset-specific publication bindings|three public assets have complete runtime, historical, and X Layer bindings/);
+  assert.match(combined, /current unified profile/);
+  assert.doesNotMatch(combined, /Only NVDAx(?: currently)? has an X Layer binding|current production profile|Current four-asset blocker|Production asset selector/);
 });
 
 test("Methodology is a first-class, source-grounded page with one canonical method", () => {

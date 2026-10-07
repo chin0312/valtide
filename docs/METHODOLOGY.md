@@ -12,7 +12,7 @@ The methodology has two layers:
 1. **Challenger valuation** — estimate a latent current equity value and uncertainty using point-in-time market information;
 2. **Target validation** — test whether the observed xStock validation target is supported by the challenger estimate and exact-time X-Perp evidence, with source dependence declared by the active profile.
 
-The current production profile is
+The current unified profile is
 `unified_xstock_p1ac_xperp_evidence_v1`. It treats the observed xStock as the
 validation target, P1a-C as a model-based challenger that has assimilated that
 same xStock observation, and exact-time X-Perp as a separately sourced
@@ -783,7 +783,7 @@ Potential sources include accessible U.S. equity historical data and Chainlink c
 
 ### Constructed / derivative comparators
 
-- [Pyth Indices](https://www.pyth.network/products/pyth-indices)
+- [Pyth U.S. equity price feeds](https://www.pyth.network/price-feeds/equity-us)
 - [Pyth Pro History API](https://docs.pyth.network/price-feeds/pro/api/history)
 - [OKX — Stock and Commodity X-Perps](https://www.okx.com/en-us/help/how-do-stock-and-commodity-x-perps-work)
 

@@ -206,7 +206,7 @@ export function LandingPage() {
           <div className="prototype-scope">
             <div>
               <p className="marketing-kicker">Current prototype scope</p>
-              <dl><div><dt>Operational validation</dt><dd>NVDAx · SPYx · AAPLx</dd></div><div><dt>Validation target</dt><dd>Observed xStock price, with P1a-C and exact-time X-Perp evidence</dd></div><div><dt>Onchain binding</dt><dd>NVDAx · SPYx · AAPLx · X Layer testnet · Chain ID 1952</dd></div><div><dt>Research-only asset</dt><dd>QQQx · not exposed through production HTTP</dd></div><div><dt>Status</dt><dd>Research / hackathon prototype</dd></div></dl>
+              <dl><div><dt>Operational validation</dt><dd>NVDAx · SPYx · AAPLx</dd></div><div><dt>Validation target</dt><dd>Observed xStock price, with P1a-C and exact-time X-Perp evidence</dd></div><div><dt>Onchain binding</dt><dd>NVDAx · SPYx · AAPLx · X Layer testnet · Chain ID 1952</dd></div><div><dt>Research-only asset</dt><dd>QQQx · not exposed through the public HTTP API</dd></div><div><dt>Status</dt><dd>Research / hackathon prototype</dd></div></dl>
             </div>
             <div>
               <p className="marketing-kicker">Deliberate boundaries</p>
