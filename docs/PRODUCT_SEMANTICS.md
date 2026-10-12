@@ -4,9 +4,9 @@ This document is the as-built data-context and interpretation contract for the
 Valtide dashboard. It describes what each visible context means and what the
 browser may claim from the backend. It is not a UI implementation plan.
 
-Valtide is a validation control layer, not an oracle replacement. The frontend
-does not calculate Evidence State, reason codes, model values, or policy
-semantics.
+Valtide is a validation layer for tokenized equity collateral, not an exact
+price oracle or oracle replacement. The frontend does not calculate Evidence
+State, reason codes, model values, or policy semantics.
 
 ## Core Ownership Boundary
 
@@ -20,6 +20,25 @@ Browser                → Read-only observation and explanation
 The canonical Evidence States are `SUPPORTED`, `INCONCLUSIVE`, and
 `CHALLENGED`. Policy Actions are configured by the consuming application and
 are not recommendations made by the frontend.
+
+## Current Model and Evidence Relationship
+
+The current production assets are NVDAx (P1a-C v0.2.0), SPYx (P1a-C v0.3.0),
+and AAPLx (P1a-C v0.3.0). All three have Operational, Historical, and X Layer
+bindings. QQQx remains research-only and is not exposed through the public HTTP
+API; TSLAx remains research-only.
+
+For the current unified profile, Observed xStock is the validation target and
+is assimilated by P1a-C before it emits Valtide Fair Value and the Valuation
+Range. Their disagreement is model-based challenger evidence, not a comparison
+of two independent market observations. Exact-time X-Perp is separately
+sourced second-market evidence. The Underlying Anchor is model context; the
+same-time underlying is not an Evidence State voter.
+
+The frozen detector bands `SUPPORT`, `WATCH`, and `REVIEW` are research
+classifications, not aliases for the canonical Evidence States. Evidence
+State and Policy Action are also distinct; the consuming protocol owns
+enforcement.
 
 ## Three Explicit Data Contexts
 
@@ -102,7 +121,7 @@ operational result.
 The UI keeps these concepts distinct:
 
 - operational observation recency — wall-clock age of the selected result;
-- reference-under-test source lag — age at the valuation observation;
+- X-Perp source lag — age at the valuation observation;
 - trusted-anchor age — age of the underlying anchor at that observation; and
 - Registry/RiskGuard freshness — onchain validity and policy `maxAge`.
 
@@ -145,7 +164,7 @@ DemoCollateralVault or another consumer
 
 The browser observes the deployed control plane and never holds the publisher
 signer, edits policy, signs transactions, or publishes attestations. The
-current hackathon frontend reads the deployed policy rather than editing it.
+backend scheduler owns authorized publication; the browser remains read-only.
 `DemoCollateralVault` is a reference consumer demonstrating composability; it
 is not the Valtide product or a production lending protocol.
 

@@ -1,0 +1,8 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="22 19 56 62" role="img" aria-labelledby="title">
+  <title id="title">Valtide</title>
+  <g fill="#0d0e13">
+    <path d="M26 23 41 33.8v32.4L26 77z" />
+    <path d="M59 33.8 74 23v54L59 66.2z" />
+    <rect x="45" y="45" width="10" height="10" rx="0.5" transform="rotate(45 50 50)" />
+  </g>
+</svg>

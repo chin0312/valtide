@@ -1,7 +1,7 @@
 # Valtide Deployment
 
 This document describes the current hosted topology and the reproducible
-configuration boundary for the deployed hackathon prototype.
+configuration boundary for the deployed Valtide validation layer.
 
 ## Current Hosted Services
 
@@ -140,12 +140,11 @@ or deployment metadata.
 
 Each explicitly enabled asset worker waits for its configured settlement grace,
 fetches the exact confirmed five-minute OKX OnchainOS candle, and persists a
-successful valuation before optional publication is considered. NVDAx is the
-only current asset with an onchain binding, so SPYx and AAPLx remain read-only
-operational validations. Publication is serialized by one in-process worker
-and coalesces pending work to the newest observation. A delivery failure is
-recorded separately and does not invalidate the warmed valuation or stop future
-scheduler ticks.
+successful valuation before optional publication is considered. NVDAx, SPYx,
+and AAPLx each have an asset-specific X Layer binding. Publication is
+serialized by one in-process worker and coalesces pending work to the newest
+observation. A delivery failure is recorded separately and does not invalidate
+the warmed valuation or stop future scheduler ticks.
 
 The backend publishes to the testnet Registry only through its publisher
 boundary. API reads, replay, cold diagnostics, and frontend reads do not

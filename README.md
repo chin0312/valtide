@@ -1,115 +1,92 @@
 # Valtide
 
-**Independent collateral-valuation control for tokenized equities on X Layer.**
+<p align="center">
+  <img src="docs/assets/valtide-logo.svg" alt="Valtide" width="96" />
+</p>
 
-Valtide helps DeFi curators and RWA risk teams independently validate whether a
-collateral reference remains supported by market evidence, then makes that
-Evidence State usable by curator-defined policies on X Layer.
+**A validation layer for tokenized equity collateral.**
 
-[Live App](https://valtide-liard.vercel.app) · [Demo Video](https://youtu.be/HTbjq2vxzHY) · [Backend API](https://valtide-api-production.up.railway.app) · [OpenAPI / API Docs](https://valtide-api-production.up.railway.app/docs) · **Built for OKX Dev Day 2026 — Build a Market**
+Valtide helps DeFi curators and risk teams assess whether an observed xStock
+price has enough supporting evidence for a collateral-risk decision. It does
+not claim to discover an exact “true price.”
 
-## Problem
+[Live App](https://valtide-liard.vercel.app) · [Demo Video](https://youtu.be/HTbjq2vxzHY) · [Backend API](https://valtide-api-production.up.railway.app) · [OpenAPI / API Docs](https://valtide-api-production.up.railway.app/docs) · Originally built for OKX Dev Day 2026 — Build a Market
 
-Tokenized equities can continue trading while the strongest traditional equity
-reference is closed, delayed, or degraded. During those periods:
+## The Problem
 
-- the last trusted underlying reference may become stale;
-- tokenized venues may continue discovering prices;
-- constructed references can disagree; and
-- collateral valuation directly affects protocol risk.
+Tokenized equities can trade around the clock, while their underlying equity
+markets do not provide continuous, equivalent price discovery. This is not
+inherently a trading problem. It matters when a DeFi protocol relies on an
+observed tokenized-equity price for collateral decisions, including while the
+underlying market is closed or its latest reference is stale.
 
-The key question is not whether one feed is universally “correct”: it is
-whether the collateral reference a protocol relies on remains supported by
-independent market evidence.
+Valtide adds a validation and evidence layer to that decision. It helps
+reviewers understand what is observed, what the model estimates, whether
+required sources are available, and when the result should remain
+`INCONCLUSIVE`.
 
-## What Valtide Does
+## Current Product Scope
 
-Valtide combines a quantitative challenger, point-in-time market evidence, and
-backend validation into an auditable control path for tokenized-equity
-collateral.
+| Asset | Model | Operational | Historical replay | X Layer binding |
+|---|---|---:|---:|---:|
+| NVDAx | P1a-C v0.2.0 | Yes | Yes | Yes |
+| SPYx | P1a-C v0.3.0 | Yes | Yes | Yes |
+| AAPLx | P1a-C v0.3.0 | Yes | Yes | Yes |
+| QQQx | Research-only | No public API/runtime | Offline research | No |
 
-> **Valtide determines the Evidence State. The curator or protocol defines the
-> Policy Action. The consumer enforces the resulting action.**
-
-Evidence State is one of:
-
-- `SUPPORTED` — available evidence does not provide a material reason to
-  challenge the reference under test;
-- `INCONCLUSIVE` — evidence is unavailable, stale, weak, or unresolved; or
-- `CHALLENGED` — sufficiently strong evidence materially contradicts the
-  reference under test.
-
-The dashboard is the human interface for operational monitoring and historical
-evidence. The machine interface is the X Layer ValidationRegistry and
-RiskGuard. Policy mappings belong to the consuming curator or protocol; Valtide
-does not prescribe a universal risk action.
+TSLAx remains research-only. The three production assets use asset-specific
+runtime and historical data, and their own bindings to a shared X Layer
+`ValidationRegistry` and `RiskGuard`.
 
 ## How It Works
 
 ```mermaid
-flowchart TD
-    A[OKX OnchainOS<br/>NVDAx market data]
-    B[NVDA trusted anchor]
-    C[OKX X-Perp<br/>reference under test]
-
-    A --> D[P1a-C Challenger Model]
-    B --> D
-    D --> E[Challenger estimate<br/>+ calibrated uncertainty]
-    C --> F[Backend Validation Engine]
-    E --> F
-    F --> G{Evidence State}
-    G -->|SUPPORTED| H[ValtideValidationRegistry]
-    G -->|INCONCLUSIVE| H
-    G -->|CHALLENGED| H
-    H --> I[Curator-defined Policy]
-    I --> J[ValtideRiskGuard]
-    J --> K[Protocol / Vault / Agent Consumer]
-```
-
-The model and validation engine run offchain. The X Layer contracts store the
-attestation, evaluate the configured policy, and expose a result that a
-consumer can enforce. The contracts do not run the quant model, custody user
-funds, or liquidate positions.
-
-## Architecture
-
-```mermaid
 flowchart TB
-    subgraph OFFCHAIN["Offchain Validation Plane"]
-        OKX1[OKX OnchainOS]
-        ALPACA[Alpaca NVDA]
-        OKX2[OKX X-Perp]
-        API[FastAPI Backend]
-        QUANT[P1a-C Quant Runtime]
-        VALIDATION[Validation Engine]
-        DASH[React / Vite Dashboard]
+    X[Observed xStock<br/>validation target + model input]
+    U[Prior Underlying Anchor<br/>model context]
+    M[P1a-C runtime]
+    F[Valtide Fair Value<br/>+ calibrated Valuation Range]
+    P[Exact-time X-Perp<br/>separately sourced]
+    V[Backend validation]
+    E{Evidence State}
+    R[Shared ValidationRegistry]
+    G[Shared RiskGuard<br/>curator-owned policy]
+    C[Asset-specific consumer]
+    N[Current underlying<br/>assimilated for next state]
 
-        OKX1 --> API
-        ALPACA --> API
-        OKX2 --> API
-        API --> QUANT
-        QUANT --> VALIDATION
-        VALIDATION --> API
-        API --> DASH
-    end
-
-    subgraph XLAYER["X Layer Control Plane"]
-        REGISTRY[ValtideValidationRegistry]
-        GUARD[ValtideRiskGuard]
-        CONSUMER[DemoCollateralVault / Protocol Consumer]
-
-        REGISTRY --> GUARD
-        GUARD --> CONSUMER
-    end
-
-    VALIDATION -->|authorized attestation| REGISTRY
+    U --> M
+    X --> M
+    M --> F
+    X --> V
+    F --> V
+    P --> V
+    V --> E --> R --> G --> C
+    N -. next state .-> M
 ```
 
-The P1a-C package owns challenger estimation, uncertainty, calibration
-metadata, and carried state. The backend owns normalized snapshots, reference
-selection, data-quality checks, Evidence State, reason codes, API delivery,
-and publication orchestration. RiskGuard owns policy evaluation only; the
-consumer owns enforcement.
+P1a-C assimilates the current xStock observation, so xStock-versus-model
+disagreement is model-based challenger evidence—not two independent market
+observations. X-Perp is separately sourced market evidence. The Underlying
+Anchor provides model context; the same-time underlying is not an Evidence
+State voter. It may update the model state for the next observation and serve
+as an offline/ex-post benchmark.
+
+Evidence State is one of:
+
+- `SUPPORTED` — the frozen low-disagreement band applies and required sources
+  and quality checks pass;
+- `INCONCLUSIVE` — evidence is unavailable, stale, weak, or unresolved; or
+- `CHALLENGED` — the frozen high-disagreement band applies and exact-time
+  X-Perp sides with the model challenger, with quality checks passing.
+
+`SUPPORT`, `WATCH`, and `REVIEW` are research detector bands, not aliases for
+the canonical Evidence States. Evidence State and Policy Action are separate:
+the curator or protocol defines its policy, and the consuming protocol owns
+enforcement.
+
+The model and validation engine run offchain. The shared X Layer contracts
+store authorized attestations and evaluate configured policy; they do not run
+the quant model, custody user funds, or liquidate positions.
 
 ## Live Deployment
 
@@ -120,9 +97,9 @@ consumer owns enforcement.
 | OpenAPI | [FastAPI docs](https://valtide-api-production.up.railway.app/docs) |
 | Network | X Layer Testnet · Chain ID `1952` |
 
-The deployed dashboard is read-only in the browser. Backend-controlled
-publication is observed through the API; the publisher key is never exposed to
-frontend code.
+The browser is read-only and never signs or submits transactions. The backend
+scheduler owns authorized publication; publisher credentials are never
+exposed to frontend code.
 
 ## X Layer Contracts
 
@@ -131,20 +108,21 @@ The current testnet control plane is recorded in
 
 | Component | Address | Purpose |
 |---|---|---|
-| `ValtideValidationRegistry` | `0x1A53C85C66EA212693d36bF842574643C4d9B635` | Stores the latest authorized validation attestation |
-| `ValtideRiskGuard` | `0x8e17a4eB93074ea74d05D9bc316d85AD3B540CE7` | Applies a consumer-owned Evidence State → Policy Action mapping |
-| `DemoCollateralVault` | `0x4beC6Bc1DF651f36758216cA02db62b5603349ce` | Demonstrates reference-consumer enforcement |
-| Authorized publisher | `0xBb341F8AE72146CEE60Ca0cCFE8C3Db5c90fC30C` | Publishes backend attestations on testnet |
+| `ValtideValidationRegistry` | `0x1A53C85C66EA212693d36bF842574643C4d9B635` | Shared Registry for the three asset bindings |
+| `ValtideRiskGuard` | `0x8e17a4eB93074ea74d05D9bc316d85AD3B540CE7` | Shared policy evaluator; bindings are asset/reference scoped |
 
-These are testnet contracts and a reference consumer, not audited production
-lending infrastructure. `evidenceHash` links an attestation to canonical
-offchain evidence; it is a provenance commitment, not proof that the evidence
-is objectively correct.
+Each asset has its own reference and DemoVault binding recorded in the
+[`deployment manifest`](deployments/xlayer-testnet.json). These are testnet
+contracts and reference consumers, not audited production lending
+infrastructure. `evidenceHash` links an attestation to canonical offchain
+evidence; it is a provenance commitment, not proof that the evidence is
+objectively correct.
 
 ## Key Technical Properties
 
-- **Exact operational observations** — the warmed live runtime uses confirmed
-  five-minute OKX NVDAx candles at settled observation timestamps.
+- **Three-asset operational scope** — NVDAx, SPYx, and AAPLx each have
+  asset-specific live runtime, canonical historical replay, and X Layer
+  bindings; QQQx remains offline research-only.
 - **Point-in-time integrity** — historical replay prevents future-information
   leakage and preserves causal trusted anchors.
 - **Explicit abstention** — unavailable, stale, weak, or conflicting evidence
@@ -158,7 +136,7 @@ is objectively correct.
   research evidence.
 - **Persistent operational state** — the warmed scheduler persists carried
   state, results, gaps, and publication status in SQLite.
-- **Independent chain delivery** — publisher failures are tracked separately
+- **Separate chain delivery** — publisher failures are tracked separately
   from valuation state and do not replace an honest backend result.
 
 ## Local Development
@@ -276,5 +254,5 @@ docs/                        product, architecture, methodology, and deployment 
 
 ## Disclaimer
 
-Valtide is a research and hackathon prototype. It is not a production oracle,
+Valtide is a research prototype. It is not an audited production oracle,
 audited lending system, financial product, or financial advice.

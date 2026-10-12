@@ -24,7 +24,7 @@ export const documentationProfiles = {
     id: "researchers",
     label: "Researchers",
     previewTitle: "Review the methodology",
-    previewBody: "Review model inputs, calibration, historical evidence, and the limits of the current prototype.",
+    previewBody: "Review model inputs, calibration, historical evidence, and the limits of the current implementation.",
     action: "Open researcher guide",
   },
 } as const;

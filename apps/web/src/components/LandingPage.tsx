@@ -198,8 +198,8 @@ export function LandingPage() {
           <p className="trail-disclaimer"><code>evidenceHash</code> is a provenance commitment to canonical offchain evidence. It is not proof that the evidence is objectively correct.</p>
           <div className="prototype-scope">
             <div>
-              <p className="marketing-kicker">Current prototype scope</p>
-              <dl><div><dt>Operational validation</dt><dd>NVDAx · SPYx · AAPLx</dd></div><div><dt>Evidence comparison</dt><dd>Observed xStock · Valtide Fair Value · X-Perp</dd></div><div><dt>Onchain binding</dt><dd>NVDAx · SPYx · AAPLx · X Layer testnet · Chain ID 1952</dd></div><div><dt>Research-only asset</dt><dd>QQQx · not exposed through the public HTTP API</dd></div><div><dt>Status</dt><dd>Research / hackathon prototype</dd></div></dl>
+              <p className="marketing-kicker">Current product scope</p>
+              <dl><div><dt>Operational validation</dt><dd>NVDAx · SPYx · AAPLx</dd></div><div><dt>Evidence comparison</dt><dd>Observed xStock · Valtide Fair Value · X-Perp</dd></div><div><dt>Onchain binding</dt><dd>NVDAx · SPYx · AAPLx · X Layer testnet · Chain ID 1952</dd></div><div><dt>Research-only asset</dt><dd>QQQx · not exposed through the public HTTP API</dd></div><div><dt>Status</dt><dd>Research prototype</dd></div></dl>
             </div>
             <div>
               <p className="marketing-kicker">Deliberate boundaries</p>
@@ -229,7 +229,7 @@ export function LandingPage() {
 export function MarketingFooter() {
   return <footer className="marketing-footer">
     <a className="marketing-footer__brand" href="/"><span className="valtide-logo-crop"><img src="/valtide-logo.jpg" alt="" /></span>Valtide</a>
-    <p>Independent collateral-valuation control for tokenized equities on X Layer.</p>
+    <p>A validation layer for tokenized equity collateral.</p>
     <nav><a href="/methodology">Methodology</a><a href="/docs">Docs</a><a href="/?view=console">Console</a><a href="https://github.com/chin0312/valtide" target="_blank" rel="noreferrer">GitHub ↗</a></nav>
   </footer>;
 }

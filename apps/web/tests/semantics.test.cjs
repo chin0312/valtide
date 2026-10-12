@@ -363,7 +363,7 @@ test("Documentation adapts by role and keeps evidence, policy and scope separate
   assert.match(html, /X-Perp Supports Model Challenge/);
   assert.match(html, /Whether an attestation remains valid under both its valid-until time and the policy owner’s maximum age/);
   assert.match(html, /Structured backend explanations for an Evidence State, preserved by the frontend without recomputation/);
-  for (const term of ["Evidence context", "Trusted anchor", "Market state"]) assert.match(html, new RegExp(term));
+  for (const term of ["Evidence context", "Underlying Anchor", "Market state"]) assert.match(html, new RegExp(term));
   assert.match(html, /Short examples show how each term appears/);
   assert.match(html, /Also useful for/);
   const profileSource = fs.readFileSync(path.join(__dirname, "../src/components/documentationProfiles.ts"), "utf8");
@@ -392,6 +392,11 @@ test("Current public X Layer scope names all three bound assets without implying
 test("Public repository docs match the three-asset backend and current unified profile", () => {
   const repoRoot = path.join(__dirname, "../../..");
   const sources = [
+    "README.md",
+    "docs/PRODUCT_SEMANTICS.md",
+    "docs/ARCHITECTURE.md",
+    "docs/PRD.md",
+    "docs/DEPLOYMENT.md",
     "apps/api/README.md",
     "docs/ASSET_INTEGRATION_FOUNDATION.md",
     "docs/BACKEND_ARCHITECTURE.md",
@@ -402,6 +407,79 @@ test("Public repository docs match the three-asset backend and current unified p
   assert.match(combined, /All three have asset-specific publication bindings|three public assets have complete runtime, historical, and X Layer bindings/);
   assert.match(combined, /current unified profile/);
   assert.doesNotMatch(combined, /Only NVDAx(?: currently)? has an X Layer binding|current production profile|Current four-asset blocker|Production asset selector/);
+});
+
+test("Current-facing product copy stays canonical and avoids superseded deployment claims", () => {
+  const repoRoot = path.join(__dirname, "../../..");
+  const currentFiles = [
+    "README.md",
+    "apps/web/index.html",
+    "apps/web/src/App.tsx",
+    "apps/web/src/components/LandingPage.tsx",
+    "apps/web/src/components/Hero.tsx",
+    "apps/web/src/components/DocsPage.tsx",
+    "apps/web/src/components/MethodologyPage.tsx",
+    "apps/web/src/components/documentationProfiles.ts",
+    "apps/web/src/components/documentationProfiles.ts",
+    "docs/PRODUCT_SEMANTICS.md",
+    "docs/ARCHITECTURE.md",
+    "docs/PRD.md",
+    "docs/DEPLOYMENT.md",
+    "docs/BACKEND_ARCHITECTURE.md",
+    "docs/ASSET_INTEGRATION_FOUNDATION.md",
+    "apps/api/README.md",
+    "contracts/README.md",
+  ];
+  const combined = currentFiles
+    .map(filename => fs.readFileSync(path.join(repoRoot, filename), "utf8"))
+    .join("\n");
+  for (const term of [
+    "Reference validation for tokenized equity collateral",
+    "NVDAx",
+    "SPYx",
+    "AAPLx",
+    "Observed xStock",
+    "Valtide Fair Value",
+    "Valuation Range",
+    "Underlying Anchor",
+    "X-Perp",
+    "Evidence State",
+    "Policy Action",
+  ]) assert.ok(combined.includes(term), `missing current product term: ${term}`);
+  for (const staleClaim of [
+    /Only NVDAx(?: currently)? has an X Layer binding/i,
+    /\bNVDAx only\b/i,
+    /SPYx and AAPLx remain research-only/i,
+    /multi-asset schedulers are not production-enabled/i,
+    /technically curious judges/i,
+    /Valtide\s*[—-]\s*Independent Collateral Validation/i,
+    /Research\s*\/\s*hackathon prototype/i,
+  ]) assert.doesNotMatch(combined, staleClaim);
+  assert.match(combined, /A validation layer for tokenized equity collateral/);
+});
+
+test("The settled Hero mark remains active and the obsolete logo prototype route is removed", () => {
+  const repoRoot = path.join(__dirname, "../../..");
+  const hero = fs.readFileSync(path.join(repoRoot, "apps/web/src/components/Hero.tsx"), "utf8");
+  const mark = fs.readFileSync(path.join(repoRoot, "apps/web/src/components/AnimatedValtideLogo.tsx"), "utf8");
+  const app = fs.readFileSync(path.join(repoRoot, "apps/web/src/App.tsx"), "utf8");
+  const main = fs.readFileSync(path.join(repoRoot, "apps/web/src/main.tsx"), "utf8");
+  const logoCss = fs.readFileSync(path.join(repoRoot, "apps/web/src/components/AnimatedValtideLogo.css"), "utf8");
+  const logoSvg = fs.readFileSync(path.join(repoRoot, "docs/assets/valtide-logo.svg"), "utf8");
+  assert.match(hero, /<AnimatedValtideLogo className="valtide-logo-motion valtide-logo-motion--hero" \/>/);
+  assert.match(mark, /<span className="logo-motion-panel logo-motion-panel--left"\s*\/>/);
+  assert.match(mark, /<span className="logo-motion-diamond"\s*\/>/);
+  assert.match(mark, /<span className="logo-motion-panel logo-motion-panel--right"\s*\/>/);
+  assert.doesNotMatch(app, /LogoMotionPrototype|view === "logo"|Animated Logo Prototype/);
+  assert.match(main, /AnimatedValtideLogo\.css/);
+  assert.doesNotMatch(main, /LogoMotionPrototype\.css/);
+  assert.equal(fs.existsSync(path.join(repoRoot, "apps/web/src/components/LogoMotionPrototype.tsx")), false);
+  assert.equal(fs.existsSync(path.join(repoRoot, "apps/web/src/components/LogoMotionPrototype.css")), false);
+  assert.match(logoCss, /left: 26%;[\s\S]*clip-path: polygon\(0 0, 100% 20%, 100% 80%, 0 100%\)/);
+  assert.match(logoCss, /right: 26%;[\s\S]*clip-path: polygon\(0 20%, 100% 0, 100% 100%, 0 80%\)/);
+  assert.match(logoSvg, /M26 23 L41 33\.8v32\.4L26 77z|M26 23 41 33\.8v32\.4L26 77z/);
+  assert.match(logoSvg, /rotate\(45 50 50\)/);
+  assert.match(fs.readFileSync(path.join(repoRoot, "README.md"), "utf8"), /docs\/assets\/valtide-logo\.svg/);
 });
 
 test("Methodology is a first-class, source-grounded page with one canonical method", () => {

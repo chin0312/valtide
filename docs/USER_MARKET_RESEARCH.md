@@ -1,7 +1,13 @@
 # Valtide — User & Market Research
 
 **Version:** 1.3  
-**Status:** Public reference
+**Status:** Historical market-research snapshot
+
+This report preserves market observations and early product hypotheses from
+its research period. Those figures and descriptions are not a live deployment
+inventory or the current semantic authority. For current product language and
+asset scope, see [`PRODUCT_SEMANTICS.md`](PRODUCT_SEMANTICS.md),
+[`METHODOLOGY.md`](METHODOLOGY.md), and [`BACKEND_ARCHITECTURE.md`](BACKEND_ARCHITECTURE.md).
 
 ## 1. Executive Summary
 
@@ -541,15 +547,26 @@ A negative result is preferable to cosmetic differentiation.
 
 ---
 
-## 13. Current Product Thesis
+## 13. Current Product Positioning
 
-> **Valtide is an independent collateral-valuation control layer for tokenized equities on X Layer. It combines a challenger fair-value model, uncertainty estimates and cross-market evidence to help DeFi risk teams determine whether a reference under test is supported, inconclusive or materially challenged, then make that evidence usable by their own policy.**
+Valtide is a validation layer for tokenized equity collateral. It helps DeFi
+risk teams assess whether an observed xStock price has enough supporting
+evidence for a collateral-risk decision.
+
+In the current product, Observed xStock is the validation target and is
+assimilated by P1a-C before it emits Valtide Fair Value and the Valuation
+Range. Their disagreement is model-based challenger evidence, not two
+independent market observations. X-Perp is separately sourced market evidence;
+the Underlying Anchor is model context and not a same-time Evidence State
+voter. Evidence State remains separate from curator-owned Policy Action and
+consumer enforcement.
 
 Short form:
 
-> **Validate the reference. Understand the evidence. Apply your own risk policy onchain.**
+> **Assess the evidence. Understand the uncertainty. Apply your own risk policy.**
 
-The central research question is now:
+The following research question records the original hypothesis rather than
+the complete current product contract:
 
 > **When production references, tokenized markets and constructed 24/7 prices disagree, can Valtide identify the evidence state of the reference under test well enough for a curator-defined policy to act consistently?**
 
