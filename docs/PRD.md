@@ -557,7 +557,7 @@ Minimum evidence:
 Stronger evidence:
 
 - Valtide is competitive with strong constructed references in defined regimes,
-- or it provides useful independent disagreement signals even when another reference has similar point accuracy,
+- or separately sourced market evidence provides useful disagreement information even when another reference has similar point accuracy,
 - Evidence State challenges identify genuinely weak production-reference periods with acceptable false-challenge rates.
 
 ### Product success
@@ -565,7 +565,7 @@ Stronger evidence:
 A risk professional should be able to understand:
 
 - which reference is being validated,
-- what independent sources say,
+- what separately sourced market evidence says,
 - what Valtide says,
 - how uncertain Valtide is,
 - why the Evidence State is `SUPPORTED`, `INCONCLUSIVE` or `CHALLENGED`,
@@ -717,7 +717,7 @@ through the public HTTP API; TSLAx remains research-only.
 
 ### Current end-to-end path
 
-- three production assets: NVDAx, SPYx, and AAPLx;
+- three operational assets: NVDAx, SPYx, and AAPLx;
 - Observed xStock as the validation target;
 - P1a-C as a model-based challenger that assimilates the current xStock input;
 - exact-time X-Perp as separately sourced market evidence;

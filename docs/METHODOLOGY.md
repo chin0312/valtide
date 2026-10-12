@@ -485,7 +485,8 @@ Use this state when, for example:
 - token-market quality is poor;
 - required comparator data are unavailable;
 - the P1a/xStock score is in the watch band;
-- exact-time X-Perp evidence is missing, stale or ambiguous;
+- required exact-time X-Perp evidence is missing or stale; or, in the REVIEW
+  band, its direction is ambiguous;
 - data are stale; or
 - the observation is near an unresolved decision boundary.
 

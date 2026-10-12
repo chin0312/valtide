@@ -34,7 +34,7 @@ required sources are available, and when the result should remain
 | AAPLx | P1a-C v0.3.0 | Yes | Yes | Yes |
 | QQQx | Research-only | No public API/runtime | Offline research | No |
 
-TSLAx remains research-only. The three production assets use asset-specific
+TSLAx remains research-only. The three operational assets use asset-specific
 runtime and historical data, and their own bindings to a shared X Layer
 `ValidationRegistry` and `RiskGuard`.
 

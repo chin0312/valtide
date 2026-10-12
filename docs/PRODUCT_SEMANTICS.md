@@ -23,7 +23,7 @@ are not recommendations made by the frontend.
 
 ## Current Model and Evidence Relationship
 
-The current production assets are NVDAx (P1a-C v0.2.0), SPYx (P1a-C v0.3.0),
+The current operational assets are NVDAx (P1a-C v0.2.0), SPYx (P1a-C v0.3.0),
 and AAPLx (P1a-C v0.3.0). All three have Operational, Historical, and X Layer
 bindings. QQQx remains research-only and is not exposed through the public HTTP
 API; TSLAx remains research-only.

@@ -420,7 +420,6 @@ test("Current-facing product copy stays canonical and avoids superseded deployme
     "apps/web/src/components/DocsPage.tsx",
     "apps/web/src/components/MethodologyPage.tsx",
     "apps/web/src/components/documentationProfiles.ts",
-    "apps/web/src/components/documentationProfiles.ts",
     "docs/PRODUCT_SEMANTICS.md",
     "docs/ARCHITECTURE.md",
     "docs/PRD.md",
@@ -477,8 +476,12 @@ test("The settled Hero mark remains active and the obsolete logo prototype route
   assert.equal(fs.existsSync(path.join(repoRoot, "apps/web/src/components/LogoMotionPrototype.css")), false);
   assert.match(logoCss, /left: 26%;[\s\S]*clip-path: polygon\(0 0, 100% 20%, 100% 80%, 0 100%\)/);
   assert.match(logoCss, /right: 26%;[\s\S]*clip-path: polygon\(0 20%, 100% 0, 100% 100%, 0 80%\)/);
-  assert.match(logoSvg, /M26 23 L41 33\.8v32\.4L26 77z|M26 23 41 33\.8v32\.4L26 77z/);
+  assert.match(logoSvg, /<rect width="100" height="100" rx="17\.857" fill="#0d0e13"\s*\/>/);
+  assert.match(logoSvg, /<g fill="#fff">/);
+  assert.match(logoSvg, /M26 23 41 33\.8v32\.4L26 77z/);
+  assert.match(logoSvg, /M59 33\.8 74 23v54L59 66\.2z/);
   assert.match(logoSvg, /rotate\(45 50 50\)/);
+  assert.doesNotMatch(logoSvg, /<animate|prototype-stage|animation/i);
   assert.match(fs.readFileSync(path.join(repoRoot, "README.md"), "utf8"), /docs\/assets\/valtide-logo\.svg/);
 });
 
