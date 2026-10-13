@@ -1,6 +1,13 @@
-# Quant runtime and backend handoff
+# Historical Quant runtime and backend handoff snapshot
 
-## Canonical NVDAx package
+This document describes the NVDAx runtime snapshot retained for the 5 October
+2026 handoff; it is not the current production asset inventory. The repository
+now integrates NVDAx, SPYx, and AAPLx operationally with asset-specific P1a-C
+bundles, Historical replay, and X Layer bindings. QQQx remains research-only.
+See [`../../docs/ASSET_INTEGRATION_FOUNDATION.md`](../../docs/ASSET_INTEGRATION_FOUNDATION.md)
+for current integration boundaries.
+
+## NVDAx snapshot package
 
 The production import path is the root package, `valtide-quant-service-p1ac`, installed by the backend environment (for example, `python -m pip install -e ./valtide-quant-service-p1ac`). `quant/runtime/p1ac/code/` is a compatibility snapshot for review and handoff, not a second production import path. The snapshot's source tree and embedded parameter/calibrator files are checked byte-for-byte against the root package; canonical copies also appear under `params/` and `calibration/` for explicit inspection.
 
@@ -18,7 +25,11 @@ next_state = service.export_state()  # m, P, timestamp; restore via FilterState.
 
 ## Frozen artifact identity and causal contract
 
-The sole checked-in runtime is `NVDAx` / `P1a-C` / `0.2.0`, bound in `p1ac/metadata/runtime_binding.json` to dataset SHA-256 `722929383e6ca1aa28382e828879efeccb60faabdf2bd5e05f14a721f7fc740d`. The parameter and calibrator bytes, embedded package copies, and metadata hashes are verified by:
+This handoff snapshot records the `NVDAx` / `P1a-C` / `0.2.0` runtime, bound
+in `p1ac/metadata/runtime_binding.json` to dataset SHA-256
+`722929383e6ca1aa28382e828879efeccb60faabdf2bd5e05f14a721f7fc740d`. The
+parameter and calibrator bytes, embedded package copies, and metadata hashes
+are verified by:
 
 ```bash
 python quant/runtime/p1ac/verify_runtime.py
@@ -31,9 +42,14 @@ The causal update order is frozen: predict state, assimilate the current xStock 
 
 The model returns quantitative estimates only. The backend owns the canonical Evidence States `SUPPORTED`, `INCONCLUSIVE`, and `CHALLENGED`; historical research labels `SUPPORT`, `WATCH`, and `REVIEW` are research classifications, not aliases for those production states or for a curator's Policy Action. Likewise, the five-asset study's raw xStock benchmark is not automatically equivalent to the live OKX X-Perp reference under test.
 
-## Research scope and promotion boundary
+## Historical research scope and original promotion boundary
 
-The study covers NVDAx, SPYx, QQQx, TSLAx, and AAPLx. **Only NVDAx has a checked-in runtime artifact and is approved for the current production runtime.** SPYx, QQQx, AAPLx, and TSLAx remain research-only; a pitch shortlist does not alter that status. The exposed development test windows were inspected during research and are not fresh prospective validation.
+The 5 October handoff covered NVDAx, SPYx, QQQx, TSLAx, and AAPLx. At that
+historical point, only the NVDAx runtime artifact was included in this snapshot
+and approved by that handoff; the other assets were not promoted by it. This
+historical boundary has since been superseded for NVDAx, SPYx, and AAPLx by the
+current repository integration described above. The exposed development test
+windows were inspected during research and are not fresh prospective validation.
 
 Before promoting another asset, the integrator/research owner must:
 
@@ -44,4 +60,7 @@ Before promoting another asset, the integrator/research owner must:
 5. isolate scheduler state and add cross-asset and golden regression tests;
 6. only then separately approve runtime, API, onchain, and frontend exposure.
 
-Do not import rejected lag/dislocation-gate, P1m, or P1m-C experiments, and do not copy the handoff snapshot as a second package. PR #17 can consume the root package interface above and its artifact identity checks; no non-NVDA asset is made production-ready by this handoff.
+Do not import rejected lag/dislocation-gate, P1m, or P1m-C experiments, and do
+not copy the handoff snapshot as a second package. PR #17 could consume the root
+package interface above and its artifact identity checks; the handoff itself did
+not make any non-NVDA asset production-ready.

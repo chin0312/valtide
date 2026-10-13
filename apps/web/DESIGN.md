@@ -1,8 +1,15 @@
 # Valtide Interface Design System
 
-Status: extracted from the current frontend implementation
+Status: Historical frontend design brief; retained for development provenance
 
 Last verified: 25 September 2026 against frontend commit `50f4d9b`
+
+> **Historical frontend design brief.** This document is retained as
+> development provenance; it is not the current semantic or implementation
+> authority. For current meaning and product scope, use
+> [`docs/PRODUCT_SEMANTICS.md`](../../docs/PRODUCT_SEMANTICS.md),
+> [`docs/METHODOLOGY.md`](../../docs/METHODOLOGY.md), and
+> [`docs/BACKEND_ARCHITECTURE.md`](../../docs/BACKEND_ARCHITECTURE.md).
 
 Audience: protocol risk teams, collateral curators, and technically curious judges  
 Product posture: independent evidence and model validation for tokenized-equity collateral

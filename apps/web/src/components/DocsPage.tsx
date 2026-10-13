@@ -87,7 +87,7 @@ const glossary = [
 const glossarySupplements: Record<GuideId, readonly { term: string; definition: string; example: string }[]> = {
   everyone: [
     { term: "Evidence context", definition: "The lane in which a result should be interpreted: Operational, Historical, or Demo.", example: "Demo contains synthetic observations for learning; it is not live evidence." },
-    { term: "Trusted anchor", definition: "An external benchmark used as one independent input to the challenger model.", example: "It helps orient the estimate but does not become an unquestioned true price." },
+    { term: "Underlying Anchor", definition: "The prior trusted underlying price used as model context/state input. A same-time underlying observation is not an Evidence State voter.", example: "It helps orient the estimate but does not become an unquestioned true price." },
     { term: "Market state", definition: "Whether the strongest reference market is open, closed, or otherwise constrained when the observation is made.", example: "A closed market can increase uncertainty and widen the prediction interval." },
   ],
   curators: [
@@ -102,7 +102,7 @@ const glossarySupplements: Record<GuideId, readonly { term: string; definition: 
     { term: "Model provenance", definition: "The model version and associated metadata needed to identify how a result was produced.", example: "Preserve it with timestamps and source provenance when logging a decision." },
   ],
   researchers: [
-    { term: "P1a-C challenger", definition: "The implemented NVDAx model version studied here estimates a center and uncertainty after assimilating the same xStock observation later compared with its output.", example: "Describe the difference as model-based evidence, not two independent observations or proof of a true price." },
+    { term: "P1a-C challenger", definition: "The current Valtide Model estimates a center and uncertainty after assimilating the same xStock observation later compared with its output. The interval study below is specific to NVDAx v0.2.0.", example: "Describe the difference as model-based evidence, not two independent observations or proof of a true price." },
     { term: "Calibration", definition: "The process of aligning an interval’s empirical coverage with its stated coverage target.", example: "A 90% target should be assessed using both observed coverage and interval width." },
     { term: "Point-in-time correctness", definition: "The requirement that every model input was genuinely available at the observation timestamp.", example: "Later revisions or future market data must not leak into a historical evaluation." },
   ],

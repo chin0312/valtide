@@ -23,7 +23,7 @@ schedule = [
 ]
 dev = [
     "pytest>=8.2",
-    "ruff>=0.5",
+    "ruff==0.16.10",
 ]
 
 [tool.ruff]

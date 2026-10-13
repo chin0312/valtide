@@ -1,17 +1,23 @@
 # Valtide — Product Requirements Document
 
 **Version:** 0.5  
-**Status:** Public product reference
+**Status:** Product requirements reference; see `docs/PRODUCT_SEMANTICS.md` for the current implementation contract.
+
+This document retains early product hypotheses and planning notes. Sections
+labelled as future work or historical evaluation are not statements of current
+deployment scope.
 
 ## 1. Product Summary
 
-Valtide is an **independent collateral-valuation control layer for tokenized equities on X Layer**.
+Valtide is a **validation layer for tokenized equity collateral**.
 
-It gives DeFi curators and lending-protocol risk teams an independent view of whether a production collateral valuation remains supported when traditional, tokenized and constructed references diverge.
+It helps DeFi curators and lending-protocol risk teams assess whether an
+observed xStock price has enough supporting evidence for a collateral-risk
+decision. It does not claim to discover an exact “true price.”
 
 Valtide does this through four connected capabilities:
 
-1. an independent challenger fair-value estimate,
+1. a model-based challenger Fair Value estimate,
 2. calibrated uncertainty around that estimate,
 3. validation logic that produces a standardized Evidence State, and
 4. an X Layer control interface through which a curator-configured policy can consume that evidence.
@@ -20,13 +26,14 @@ Valtide is **not** a primary production oracle, lending protocol or automated LT
 
 Its core product question is:
 
-> **“Is the collateral valuation this protocol is relying on supported by independent evidence?”**
+> **“Does the observed xStock price have enough supporting evidence for this collateral-risk decision?”**
 
-The **reference under test** is the explicit reference Valtide validates. In
-the current deployed NVDAx path, it is the OKX X-Perp NVDA index. The
-interface is designed so other protocol-defined or market references can be
-evaluated without changing the Evidence State / Policy Action ownership
-boundary.
+Observed xStock is the validation target and is assimilated by P1a-C before it
+emits Valtide Fair Value and the Valuation Range. Their disagreement is
+model-based challenger evidence, not two independent market observations.
+X-Perp is separately sourced second-market evidence. The Underlying Anchor is
+model context and is not a same-time Evidence State voter. The curator or
+protocol defines Policy Action, and the consuming protocol owns enforcement.
 
 ---
 
@@ -46,7 +53,7 @@ Representative users include:
 
 ### Core job to be done
 
-> **“When I manage a lending market using tokenized equities as collateral and my reference price becomes stale, uncertain or disagrees with other markets, help me independently determine whether that valuation is still supported by market evidence, so I can decide whether to continue normal operations, investigate the discrepancy or restrict additional risk exposure — and have the consuming application apply that policy consistently onchain.”**
+> **“When I manage a lending market using tokenized equities as collateral and the observed xStock price becomes uncertain or disagrees with other evidence, help me assess whether it has enough support for a collateral-risk decision, so I can decide whether to continue normal operations, investigate the discrepancy or restrict additional risk exposure — and have the consuming application apply my policy consistently onchain.”**
 
 The product is structured around four jobs:
 
@@ -55,7 +62,7 @@ VALIDATE
 Is the reference I rely on still supported?
 
 DIAGNOSE
-Why are the reference, tokenized market and independent evidence disagreeing?
+Why do Observed xStock, Valtide Fair Value, and separately sourced X-Perp differ?
 
 TRIAGE
 Is the evidence strong enough to support the reference, challenge it, or is the result inconclusive?
@@ -112,12 +119,12 @@ It is:
 
 ## 4. Product Hypothesis
 
-A specialized independent challenger layer can add value even when strong primary oracle infrastructure already exists.
+A specialized model-based challenger layer can add value even when strong primary oracle infrastructure already exists.
 
 Valtide tests whether:
 
-1. tokenized-market price discovery and related signals contain useful independent information;
-2. an independent challenger estimator can produce calibrated fair-value ranges;
+1. tokenized-market price discovery and related signals contain useful incremental information;
+2. a challenger estimator can produce calibrated Fair Value ranges;
 3. cross-reference disagreement can identify periods when a production reference deserves review;
 4. historical replay can make that validation auditable rather than purely judgmental.
 
@@ -135,11 +142,11 @@ A risk team may use Valtide to become either more aggressive or more conservativ
 
 The value proposition is:
 
-> **Independent evidence for collateral-valuation decisions.**
+> **Evidence for collateral-risk decisions.**
 
 More specifically, Valtide should help a risk team answer:
 
-- Is the current production reference consistent with independent evidence?
+- Does Observed xStock have enough supporting evidence for this decision?
 - How far is it from the challenger estimate?
 - Is that deviation large relative to model uncertainty?
 - Do tokenized and external markets agree with each other?
@@ -150,11 +157,13 @@ More specifically, Valtide should help a risk team answer:
 
 ## 6. Product Principles
 
-### 6.1 Independence over aggregation
+### 6.1 Declared evidence roles over aggregation
 
 Valtide should not simply average every available reference into a new oracle.
-
-The challenger estimator must remain sufficiently independent for disagreement to be informative.
+In the current profile, Observed xStock is both the validation target and an
+input assimilated by P1a-C, so their disagreement is model-based challenger
+evidence. X-Perp is separately sourced market evidence; these roles must not be
+presented as three independent market votes.
 
 ### 6.2 Uncertainty over false precision
 
@@ -180,37 +189,18 @@ If Pyth, the raw token price or a simple blend performs better, the product shou
 
 ## 7. Current Asset Scope
 
-### Supported asset: NVDAx
+The current operational product assets are:
 
-NVDAx is the preferred first research asset because:
+| Asset | Model | Operational | Historical replay | X Layer binding |
+|---|---|---:|---:|---:|
+| NVDAx | P1a-C v0.2.0 | Yes | Yes | Yes |
+| SPYx | P1a-C v0.3.0 | Yes | Yes | Yes |
+| AAPLx | P1a-C v0.3.0 | Yes | Yes | Yes |
 
-- NVDA has meaningful single-name volatility,
-- NVDAx is used in current tokenized-equity vault/lending products,
-- Pyth launch materials included a 24/7 NVDA index,
-- OKX supports an NVDA X-Perp,
-- the asset provides several competing references for validation.
-
-Historical Pyth / venue availability remains an explicit limitation of the
-research methodology and is recorded in the historical diagnostics.
-
-The deployed path uses one supported NVDAx / NVDA asset and one selected
-reference under test.
-
-### Roadmap asset: SPYx
-
-SPYx is strategically important because:
-
-- it is directly relevant to tokenized-equity collateral,
-- the underlying is highly liquid and diversified,
-- OKX supports a SPY X-Perp,
-- it provides a useful lower-idiosyncratic-risk comparison.
-
-SPYx is not currently onboarded and is not represented by fabricated live data.
-
-### Asset-selection rule
-
-Future asset expansion should prioritize **reliable historical data and
-point-in-time comparability** over attachment to a specific ticker.
+QQQx remains research-only and is not exposed through the public HTTP API;
+TSLAx remains research-only. Future asset expansion should prioritize
+**reliable historical data and point-in-time comparability** over attachment
+to a specific ticker.
 
 ---
 
@@ -228,24 +218,24 @@ For replay mode, the user selects a historical observation.
 
 Valtide displays the major relevant references separately.
 
-The current supported path is centered on one reference under test and the
-minimum independent evidence required to make the challenger defensible.
-Additional external comparators remain optional evidence when they are not
-available without compromising point-in-time correctness.
+In the current product, Observed xStock is the validation target. P1a-C
+assimilates that observation and emits a model-based challenger estimate;
+exact-time X-Perp supplies separately sourced market evidence. The model and
+target are not two independent market observations.
 
 Example:
 
 ```text
-Last trusted cash reference    $180.00
-Production collateral price    $190.00
-Tokenized market               $185.10
-Pyth / constructed reference   $185.40
-OKX / derivative reference     $186.00
+Observed xStock                 $185.10
+Valtide Fair Value              $185.70
+Valuation Range                 $184.20–187.20
+X-Perp                          $186.00
+Underlying Anchor               $180.00
 ```
 
 Not every source will always be available.
 
-### Step 3 — Run the independent challenger model
+### Step 3 — Run the P1a-C model-based challenger
 
 Example:
 
@@ -254,29 +244,34 @@ Valtide fair value             $185.70
 90% interval             $184.20–187.20
 ```
 
-### Step 4 — Validate the reference under test
+### Step 4 — Validate the observed xStock
 
-For the current deployed NVDAx path, the reference under test is the OKX
-X-Perp NVDA index. Future adapters may evaluate a protocol collateral
-reference, Chainlink reference, constructed reference, or another named market
-benchmark, provided the reference remains separate from the challenger feature
-set to avoid circular validation.
+The current unified profile validates Observed xStock using its frozen
+P1a-C/xStock disagreement band, required source/model quality checks, and
+exact-time X-Perp evidence. P1a-C has already assimilated the current xStock
+input, so their disagreement is model-based challenger evidence. X-Perp is the
+separately sourced market comparison.
 
 Example:
 
 ```text
-Reference-under-test deviation    +2.32%
-Standardized deviation              2.4σ
-Evidence State                  CHALLENGED
+xStock / model disagreement       reported by detector
+X-Perp direction                  reported as source evidence
+Evidence State                    backend-owned result
 ```
 
 ### Step 5 — Triage and explain the disagreement
 
 Valtide assigns one Evidence State:
 
-- `SUPPORTED` — available independent evidence does not provide a material reason to challenge the reference under test;
+- `SUPPORTED` — the frozen SUPPORT band applies, exact-time X-Perp is healthy and available, and quality checks pass;
 - `INCONCLUSIVE` — evidence is not sufficiently strong or consistent to support or materially challenge the reference; or
-- `CHALLENGED` — the reference under test is materially inconsistent with sufficiently strong independent evidence.
+- `CHALLENGED` — the frozen REVIEW band applies and exact-time X-Perp is closer to P1a-C than to Observed xStock, with quality checks passing.
+
+The frozen `SUPPORT`, `WATCH`, and `REVIEW` detector bands are not aliases for
+Evidence States. WATCH maps to `INCONCLUSIVE`; REVIEW with X-Perp siding with
+xStock also remains `INCONCLUSIVE`. Missing, stale, ambiguous, or quality-gated
+evidence fails closed to `INCONCLUSIVE`.
 
 These are evidence semantics, not action recommendations. Valtide determines the Evidence State. The curator or protocol determines the Policy Action. The consumer enforces the resulting action.
 
@@ -309,10 +304,10 @@ The product should expose the following conceptual result fields.
 - asset,
 - timestamp,
 - market/session state,
-- last trusted underlying reference,
-- age of trusted reference,
-- reference under test being validated,
-- external reference set.
+- Observed xStock, the current validation target,
+- Valtide Fair Value and Valuation Range,
+- Underlying Anchor and its age, as model context,
+- separately sourced X-Perp evidence when available.
 
 ### Challenger valuation
 
@@ -324,11 +319,11 @@ The product should expose the following conceptual result fields.
 
 ### Basis / disagreement analysis
 
-- observed token/reference move,
+- observed xStock move,
 - model-implied move,
 - residual token premium/discount,
-- reference-under-test deviation,
-- standardized deviation.
+- xStock/model disagreement,
+- source age and market session.
 
 ### Validation result
 
@@ -375,18 +370,21 @@ The product should remain focused around model validation rather than becoming a
 
 Immediately answer:
 
-1. What is the reference under test, preferably the production collateral reference?
-2. What are the independent market references?
-3. What does Valtide estimate?
-4. How uncertain is the estimate?
+1. What is the Observed xStock price?
+2. What does the Valtide Model estimate, and what is its Valuation Range?
+3. What separately sourced X-Perp evidence is available?
+4. Is the evidence fresh and complete?
 5. What is the Evidence State?
-6. What Policy Action would the configured policy return?
+6. What Policy Action does the configured policy return?
 
 ### View 2 — Reference Comparison
 
-Show each reference separately rather than hiding disagreement in one composite score.
+Show Observed xStock, Valtide Fair Value and X-Perp separately rather than
+hiding disagreement in one composite score.
 
-A compact visual should make it obvious when one reference is outside the independent evidence range.
+A compact visual should show where Observed xStock and X-Perp sit relative to
+the Valuation Range without implying that the model and its xStock input are
+independent market observations.
 
 ### View 3 — Basis Analysis
 
@@ -416,7 +414,11 @@ The dashboard serves the human decision-maker. It should explain the Evidence St
 
 ---
 
-## 11. Functional Requirements
+## 11. Original MVP Functional Scope (Historical)
+
+The following requirements preserve the original MVP planning scope. They are
+not a current implementation inventory; see Sections 7 and 16 and the linked
+product semantics and architecture references for current scope.
 
 ### Implemented data capabilities
 
@@ -429,7 +431,7 @@ The dashboard serves the human decision-maker. It should explain the Evidence St
 
 ### Implemented quantitative capabilities
 
-- implement simple baselines and an independent challenger estimator,
+- implement simple baselines and a quantitative challenger estimator,
 - generate defensible calibrated uncertainty and explicit abstention,
 - compute reference deviation and Evidence State,
 - abstain with `INCONCLUSIVE` when evidence quality or uncertainty is insufficient,
@@ -459,9 +461,10 @@ The quant team should still provide enough research evidence to defend the verti
 - enough historical testing to demonstrate methodology,
 - basic model and Evidence State metrics.
 
-Full historical replay UX, rich backtest dashboards, and multiple external
-comparators remain future extensions; the current product uses the implemented
-replay, diagnostics, and reference path.
+Richer historical analytics, expanded backtest dashboards, and additional
+external comparators remain possible extensions; the current product already
+includes canonical Historical replay, diagnostics, and the unified xStock /
+P1a-C / X-Perp evidence path.
 
 ### X Layer control path
 
@@ -511,22 +514,17 @@ The product does not:
 
 ### Required reference baselines
 
-The current evaluation includes:
+The current product evaluation distinguishes:
 
-1. the selected reference under test — the OKX X-Perp NVDA index in the deployed NVDAx path,
-2. last trusted underlying / stale reference,
-3. raw tokenized-equity price,
-4. simple statistical blend,
-5. Valtide challenger estimate.
+1. Observed xStock, the validation target and a P1a-C input;
+2. P1a-C Valtide Fair Value and its calibrated Valuation Range;
+3. exact-time, separately sourced X-Perp evidence; and
+4. a later underlying-market benchmark for offline/ex-post evaluation where
+   available.
 
-Additional comparisons, where data access allows:
-
-6. Pyth 24/7 constructed index,
-7. OKX X-Perp Index / Mark reference or another relevant continuous benchmark.
-
-The first four baselines define the core evaluation set. Pyth, OKX, and other
-additional references remain comparative research inputs rather than a
-prerequisite for the deployed path.
+Other providers or constructed references may appear in historical research
+comparisons. They are not additional current Evidence State voters unless a
+profile explicitly defines them.
 
 ### Ex-post benchmark
 
@@ -559,7 +557,7 @@ Minimum evidence:
 Stronger evidence:
 
 - Valtide is competitive with strong constructed references in defined regimes,
-- or it provides useful independent disagreement signals even when another reference has similar point accuracy,
+- or separately sourced market evidence provides useful disagreement information even when another reference has similar point accuracy,
 - Evidence State challenges identify genuinely weak production-reference periods with acceptable false-challenge rates.
 
 ### Product success
@@ -567,7 +565,7 @@ Stronger evidence:
 A risk professional should be able to understand:
 
 - which reference is being validated,
-- what independent sources say,
+- what separately sourced market evidence says,
 - what Valtide says,
 - how uncertain Valtide is,
 - why the Evidence State is `SUPPORTED`, `INCONCLUSIVE` or `CHALLENGED`,
@@ -712,19 +710,23 @@ The contract layer must not:
 
 ## 16. Current and Future Scope
 
-Valtide currently prioritizes a defensible NVDAx vertical slice over broad but
-partial asset coverage.
+The current operational scope is NVDAx, SPYx, and AAPLx, each with an
+asset-specific model/runtime, canonical historical replay, live scheduler,
+and X Layer binding. QQQx remains offline research-only and is not exposed
+through the public HTTP API; TSLAx remains research-only.
 
 ### Current end-to-end path
 
-- one primary asset: NVDAx / NVDA;
-- one reference under test;
+- three operational assets: NVDAx, SPYx, and AAPLx;
+- Observed xStock as the validation target;
+- P1a-C as a model-based challenger that assimilates the current xStock input;
+- exact-time X-Perp as separately sourced market evidence;
 - real or reproducible point-in-time market inputs;
-- a simple independent challenger estimator;
+- a quantitative challenger estimator;
 - defensible uncertainty and abstention logic;
 - Evidence State generation;
-- the backend/API path required by the demo;
-- a focused frontend demonstration;
+- the operational backend/API path;
+- the Validation Console for Operational monitoring, Historical replay, and Demo;
 - X Layer `ValtideValidationRegistry.sol`;
 - X Layer `ValtideRiskGuard.sol`;
 - a minimal `DemoCollateralVault.sol` or equivalent reference consumer;
@@ -742,7 +744,7 @@ platform remains outside the current deployed scope.
 
 ### Future extensions
 
-- SPYx or a second asset;
+- additional assets after their separate evidence and readiness gates pass;
 - richer historical replay and backtest UX;
 - richer cross-market features and multiple external comparators;
 - multiple reference-under-test adapters;
@@ -766,7 +768,9 @@ Kamino Scope, KRAF, Pyth and exchange indices are sophisticated.
 
 Pyth and OKX have stronger data access and production infrastructure.
 
-**Response:** Valtide's differentiation is independent validation, not a claim that it is always the most accurate price source.
+**Response:** Valtide's differentiation is transparent evidence for
+collateral-risk decisions, not a claim that it is always the most accurate
+price source.
 
 ### Historical data may be too short
 
@@ -792,7 +796,7 @@ Protocol exposure simulation is attractive but overlaps with mature incumbents.
 
 ### Public positioning
 
-> **Valtide is an independent collateral-valuation control layer for tokenized equities on X Layer, helping DeFi risk teams determine whether a reference under test is supported, inconclusive or materially challenged when traditional, tokenized and constructed markets diverge.**
+> **Valtide is a validation layer for tokenized equity collateral. It helps DeFi risk teams assess whether an observed xStock price has enough supporting evidence for a collateral-risk decision.**
 
 ### Short pitch
 
@@ -800,7 +804,7 @@ Protocol exposure simulation is attractive but overlaps with mature incumbents.
 
 ### Technical thesis
 
-> **Use an independent challenger model and calibrated uncertainty to turn cross-market price disagreement into an auditable Evidence State and configurable X Layer control.**
+> **Use a model-based challenger, calibrated uncertainty, and separately sourced X-Perp evidence to produce an auditable Evidence State for curator-owned policy.**
 
 ### What Valtide is not
 

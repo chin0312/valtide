@@ -35,7 +35,6 @@ import { ObservationAudit } from "./components/ObservationAudit";
 import { LandingPage } from "./components/LandingPage";
 import { DocsPage } from "./components/DocsPage";
 import { MethodologyPage } from "./components/MethodologyPage";
-import { LogoMotionPrototype } from "./components/LogoMotionPrototype";
 import { AnimatedValtideLogo } from "./components/AnimatedValtideLogo";
 import { AssetPicker } from "./components/AssetPicker";
 import { InstrumentPassport } from "./components/InstrumentPassport";
@@ -58,20 +57,16 @@ export function effectiveContextAsset(context: Context, selectedAsset: string): 
 export default function App() {
   const view = typeof window === "undefined" ? "console" : new URLSearchParams(window.location.search).get("view");
   const showConsole = view === "console";
-  const showLogoPrototype = view === "logo";
   const path = typeof window === "undefined" ? "/" : window.location.pathname.replace(/\/+$/, "") || "/";
   useEffect(() => {
-    document.title = showLogoPrototype
-      ? "Valtide — Animated Logo Prototype"
-      : showConsole
+    document.title = showConsole
       ? "Valtide — Validation Console"
       : path === "/docs" || path.startsWith("/docs/")
         ? "Valtide Docs — Collateral Validation Evidence"
         : path === "/methodology" || path.startsWith("/methodology/")
           ? "Valtide Methodology — Collateral Validation Evidence"
-        : "Valtide — Independent Collateral Validation";
-  }, [path, showConsole, showLogoPrototype]);
-  if (showLogoPrototype) return <LogoMotionPrototype />;
+        : "Valtide — Tokenized Equity Collateral Validation";
+  }, [path, showConsole]);
   if (showConsole) return <ValidationConsole />;
   if (path === "/docs" || path.startsWith("/docs/")) return <DocsPage />;
   if (path === "/methodology" || path.startsWith("/methodology/")) return <MethodologyPage />;

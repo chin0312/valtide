@@ -6,8 +6,8 @@
   "runtime_artifacts": [
     {
       "path": "runtime/README.md",
-      "bytes": 4654,
-      "sha256": "aeb12749563eccfd9869e53d120731b6ac60358231389a0d035ef79c5189df65"
+      "bytes": 5268,
+      "sha256": "62fb62bbe62adb612603605f752360db3e44ba3dbb8526fd73c97c674a0473ce"
     },
     {
       "path": "runtime/p1ac/README.md",

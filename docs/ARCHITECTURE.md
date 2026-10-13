@@ -2,10 +2,11 @@
 
 **Status:** Public architecture reference
 
-Valtide is an independent validation and control layer for tokenized-equity
-collateral. It compares a reference under test with a challenger estimate and
-independent market evidence, produces a backend-owned Evidence State, and
-makes that state available to curator-owned policy controls on X Layer.
+Valtide is a validation layer for tokenized-equity collateral. It assesses
+whether an observed xStock price has enough supporting evidence for a
+collateral-risk decision and makes the backend-owned Evidence State available
+to curator-owned policy controls on X Layer. It does not claim to discover an
+exact true price.
 
 The system is deliberately split across two planes:
 
@@ -23,43 +24,39 @@ The quantitative model remains offchain. Contracts do not calculate fair value,
 recompute intervals, determine Evidence State, set universal LTVs, custody
 assets, or liquidate positions.
 
-The only currently operational product path is NVDAx with:
-
-- OKX OnchainOS tokenized-market observations;
-- trusted underlying NVDA observations from the configured equity adapter;
-- OKX X-Perp as the reference under test in the live path;
-- the packaged P1a-C challenger runtime;
-- backend validation and reason codes; and
-- the deployed X Layer Registry, RiskGuard, and DemoCollateralVault.
-
-The API asset catalog also lists SPYx, QQQx, and AAPLx so the Console can select
-their identities and report readiness without substituting NVDAx data. They do
-not yet have verified Solana-matched P1a-C bundles or canonical historical
-panels, so they are not operational or historically ready. TSLAx remains hidden
-as a research candidate. See
+The current operational product assets are NVDAx, SPYx, and AAPLx. Each has an
+asset-specific P1a-C runtime, live scheduler, canonical historical replay, and
+X Layer binding. Their model versions are P1a-C v0.2.0 for NVDAx and v0.3.0
+for SPYx and AAPLx. QQQx remains research-only and is not exposed through the
+public API; TSLAx remains research-only. See
 [`docs/ASSET_INTEGRATION_FOUNDATION.md`](ASSET_INTEGRATION_FOUNDATION.md) for
-the evidence and promotion gates.
+asset identity and readiness boundaries.
 
 ## 2. As-Built System Flow
 
 ```mermaid
 flowchart TB
     subgraph OFFCHAIN["Offchain Validation Plane"]
-        OKX[OKX OnchainOS / NVDAx]
-        UNDERLYING[Trusted NVDA adapter]
-        REF[OKX X-Perp reference under test]
+        XSTOCK[OKX OnchainOS / asset xStock]
+        UNDERLYING[Prior trusted Underlying Anchor]
+        CURRENT_U[Current underlying observation]
+        XPERP[Exact-time OKX X-Perp]
         NORMALIZE[Snapshot normalization]
         QUANT[P1a-C QuantService]
+        FAIR[Valtide Fair Value + Valuation Range]
         VALIDATE[Backend Validation Engine]
         STORE[SQLite warmed runtime]
         API[FastAPI API]
         WEB[Vite + React dashboard]
 
-        OKX --> NORMALIZE
+        XSTOCK --> NORMALIZE
         UNDERLYING --> NORMALIZE
-        REF --> NORMALIZE
+        XPERP --> NORMALIZE
+        CURRENT_U -. assimilated for next state .-> QUANT
         NORMALIZE --> QUANT
-        QUANT --> VALIDATE
+        NORMALIZE --> VALIDATE
+        QUANT --> FAIR
+        FAIR --> VALIDATE
         VALIDATE --> STORE
         VALIDATE --> API
         STORE --> API
@@ -76,6 +73,13 @@ flowchart TB
 
     VALIDATE -->|authorized publication| REGISTRY
 ```
+
+Observed xStock is both the validation target and an input assimilated by
+P1a-C before it emits Fair Value and the Valuation Range. Their disagreement
+is model-based challenger evidence, not two independent market observations.
+Exact-time X-Perp is separately sourced second-market evidence. The current
+underlying observation is assimilated only after classification for the next
+state; it is not a same-time Evidence State voter.
 
 The backend publisher is separate from valuation state. A publication failure
 does not replace or invalidate a successfully persisted operational result.
@@ -117,9 +121,9 @@ quality gates, Evidence State, and reason codes. It preserves the distinction
 between:
 
 ```text
-challenger estimate
-reference under test
-independent evidence
+Observed xStock validation target
+P1a-C model-based challenger estimate
+separately sourced X-Perp evidence
 Evidence State
 ```
 
@@ -137,14 +141,14 @@ fabricated observation.
 ### Warmed live runtime
 
 `scheduler.py` runs one in-process scheduler per explicitly selected, ready
-asset on canonical UTC five-minute boundaries. The existing
-`LIVE_SCHEDULER_ENABLED` / `LIVE_SCHEDULER_ASSET` configuration remains the
-single-NVDAx compatibility path; `LIVE_SCHEDULER_ASSETS` is an optional list
-for future ready assets. Unready known assets do not start, and do not prevent
-another ready worker from starting. `runtime_store.py` persists carried state,
-the latest result, gap steps, scheduler status, and publication status by asset
-in SQLite. Restart restores each persisted state; a failed tick preserves that
-asset's last good result.
+asset on canonical UTC five-minute boundaries. NVDAx, SPYx, and AAPLx are the
+current operational assets. `LIVE_SCHEDULER_ASSETS` selects configured workers;
+the legacy `LIVE_SCHEDULER_ENABLED` / `LIVE_SCHEDULER_ASSET` NVDAx setting
+remains a compatibility path. Unready known assets do not start, and do not
+prevent another ready worker from starting. `runtime_store.py` persists carried
+state, the latest result, gap steps, scheduler status, and publication status
+by asset in SQLite. Restart restores each persisted state; a failed tick
+preserves that asset's last good result.
 
 `GET /api/valuation/{asset}` reads the latest warmed result. The `/live` route
 is a cold-start diagnostic and does not mutate or replace the warmed state.
@@ -279,6 +283,6 @@ runtime context.
 
 ## 12. Architecture Principle
 
-> Keep the challenger independent, keep disagreement visible, keep historical
+> Keep evidence roles explicit, keep disagreement visible, keep historical
 > replay point-in-time correct, and keep the protocol interface strong without
 > moving statistical computation onchain.

@@ -5,7 +5,8 @@
 
 ## 1. Objective
 
-Valtide is designed to validate tokenized-equity collateral valuations using an independent quantitative methodology.
+Valtide is designed to validate tokenized-equity collateral valuations using a
+point-in-time quantitative methodology.
 
 The methodology has two layers:
 
@@ -16,11 +17,17 @@ The current unified profile is
 `unified_xstock_p1ac_xperp_evidence_v1`. It treats the observed xStock as the
 validation target, P1a-C as a model-based challenger that has assimilated that
 same xStock observation, and exact-time X-Perp as a separately sourced
-second-market signal. This is not a comparison of three fully independent
-observations and does not prove which price is correct. Older
+second-market signal. This is model-based challenger evidence plus separately
+sourced market evidence, not a three-independent-vote classifier, and it does
+not prove which price is correct. Older
 `legacy_xperp_vs_p1ac` rows remain readable for provenance but are not the
 current operational classifier. Evidence and historical results must remain
 identified by their profile and `evidence_semantics`.
+
+The prior trusted Underlying Anchor supplies model context. A same-time
+underlying observation is not an Evidence State voter; it is assimilated only
+after the current result for the next model state and may support offline or
+ex-post evaluation.
 
 The product is therefore not asking only:
 
@@ -40,9 +47,13 @@ This is a nowcasting and model-validation problem, not a long-horizon equity for
 
 For an observation timestamp `t` during a closed, fragmented or lower-quality market period:
 
-> **Is the reference under test supported by the evidence available under its declared profile?**
+> **Does the observed xStock price have enough support from the model-based challenger and separately sourced X-Perp evidence available under the current profile?**
 
-In the primary real-world workflow, the reference under test is the production collateral reference.
+For the current unified profile, Observed xStock is the validation target and
+is assimilated by P1a-C. Generic `reference under test` notation below remains
+useful for historical and alternative-profile research, but it must be read
+according to the explicitly declared profile rather than as a statement that
+X-Perp is the current target.
 
 ### Supporting quantitative questions
 
@@ -60,22 +71,25 @@ Let:
 
 - `R0` = last trusted underlying/reference price before the target period,
 - `Tt` = tokenized-equity price at observation time `t`,
-- `Xt` = independent point-in-time market features,
+- `Xt` = additional point-in-time model features as defined by the active artifact,
 - `Ft` = Valtide challenger fair-value estimate,
 - `[Lt, Ut]` = Valtide prediction interval,
-- `Pt` = reference under test at timestamp `t`, preferably the production collateral reference,
+- `Pt` = Observed xStock in the current unified profile; other research profiles must declare their own validation target,
 - `Ej,t` = external reference `j` such as Pyth / OKX / Chainlink,
 - `B` = later liquid-market benchmark used only for evaluation.
 
 The system intentionally distinguishes:
 
 ```text
-challenger estimate Ft
+Observed xStock Pt (also assimilated by P1a-C)
         from
-reference under test Pt
+model-based challenger estimate Ft
         from
-external evidence Ej,t
+separately sourced market evidence Ej,t
 ```
+
+The first two are not independent market observations. Exact-time X-Perp is
+separately sourced evidence in the current unified profile.
 
 The purpose is not to average these into one opaque number. The disagreement itself is an output.
 
@@ -255,7 +269,7 @@ After `Ft` is produced, Valtide may compare:
 
 ### 7.3 Augmented experiments
 
-A second experimental model may use Pyth or OKX as a feature, but it must be labeled separately and must not be presented as the independent challenger model.
+A second experimental model may use Pyth or OKX as a feature, but it must be labeled separately and must not be presented as the standalone challenger estimate.
 
 ---
 
@@ -365,13 +379,16 @@ Do not automatically call it:
 
 It means only:
 
-> **the tokenized market is trading above or below the independent challenger estimate by this amount.**
+> **the tokenized market is trading above or below the model-based challenger estimate by this amount.**
 
 ---
 
 ## 11. Reference-Under-Test Validation
 
-Let `Pt` be the reference under test being validated. In the primary product use case, `Pt` is the production collateral reference.
+This section retains a general research notation. In the current unified
+profile, `Pt` is Observed xStock; P1a-C has assimilated that input, and
+separately sourced exact-time X-Perp supplies the market comparison. Older
+`reference under test` fields remain for compatibility and provenance.
 
 ### 11.1 Raw reference deviation
 
@@ -379,7 +396,7 @@ Let `Pt` be the reference under test being validated. In the primary product use
 referenceDeviation = Pt / Ft - 1
 ```
 
-This shows the difference between the reference-under-test valuation and the independent challenger center.
+This shows the difference between the selected valuation target and the model-based challenger center.
 
 ### 11.2 Standardized deviation
 
@@ -468,7 +485,8 @@ Use this state when, for example:
 - token-market quality is poor;
 - required comparator data are unavailable;
 - the P1a/xStock score is in the watch band;
-- exact-time X-Perp evidence is missing, stale or ambiguous;
+- required exact-time X-Perp evidence is missing or stale; or, in the REVIEW
+  band, its direction is ambiguous;
 - data are stale; or
 - the observation is near an unresolved decision boundary.
 
@@ -682,7 +700,7 @@ Valtide's core methodology does **not** claim to solve the protocol's entire tra
 
 Instead it quantifies:
 
-- how far production valuation is from independent evidence,
+- how far production valuation is from separately sourced market evidence,
 - how uncertain that evidence is,
 - how similar disagreement behaved historically.
 
@@ -858,19 +876,17 @@ Valtide's methodology can be summarized as:
 ```text
 Point-in-time market data
         ↓
-Independent challenger model
+P1a-C model-based challenger
         ↓
-Fair value + calibrated uncertainty
+Valtide Fair Value + Valuation Range
         ↓
-Compare with production + external references
-        ↓
-Quantify disagreement
+Validate Observed xStock with exact-time X-Perp evidence
         ↓
 SUPPORTED / INCONCLUSIVE / CHALLENGED
         ↓
-Historical replay and out-of-sample validation
+Curator-owned Policy Action and consumer enforcement
 ```
 
 The key methodological principle is:
 
-> **Valtide does not need to replace the production oracle to be useful. It needs to independently determine whether the reference under test is SUPPORTED, INCONCLUSIVE or CHALLENGED, so a curator-defined policy can respond consistently.**
+> **Valtide does not need to replace a production price source to be useful. It assesses whether an observed xStock price has enough supporting evidence for a collateral-risk decision, so a curator-defined policy can respond consistently.**

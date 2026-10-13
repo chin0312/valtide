@@ -9,7 +9,28 @@ This directory is the auditable handoff for the 5 October 2026 feature freeze. I
 
 The original source archives/canonical panels are not included in this Git handoff, and the durable shared-storage URIs are still `TBD_SHARED_STORAGE/...`. Do not assume the original archives exist in a checkout or invent storage locations. Dataset identity and metadata consistency can be checked from committed manifests; source-panel hashes and original training lineage require restored source material.
 
-The packaged runtime bundles on this branch are NVDAx P1a-C 0.2.0 plus frozen, asset-bound SPYx, QQQx, and AAPLx P1a-C 0.3.0 research runtimes. The additional bundles are not a claim of production promotion: fresh panels remain external/local, multi-asset schedulers are not production-enabled, and only NVDAx has an X Layer binding. TSLAx remains research-only with no fitted runtime. The five-asset study's raw xStock benchmark is not automatically equivalent to the live OKX X-Perp reference under test. Historical `SUPPORT / WATCH / REVIEW` labels are research classifications; production backend Evidence States are `SUPPORTED / INCONCLUSIVE / CHALLENGED` and are not curator Policy Actions.
+## Current repository integration
+
+The repository now integrates NVDAx, SPYx, and AAPLx as operational assets,
+with asset-specific P1a-C versions (NVDAx v0.2.0; SPYx and AAPLx v0.3.0), live
+scheduler/API support, canonical Historical replay, and asset-specific X Layer
+bindings. QQQx remains research-only and is not exposed through the public API;
+TSLAx remains research-only. Current product semantics are documented in
+[`../docs/PRODUCT_SEMANTICS.md`](../docs/PRODUCT_SEMANTICS.md).
+
+## Historical 5 October 2026 handoff snapshot
+
+At that freeze, the handoff described the packaged NVDAx P1a-C 0.2.0 runtime
+and frozen, asset-bound SPYx, QQQx, and AAPLx P1a-C 0.3.0 research runtimes.
+The additional bundles were not a production-promotion claim at that time:
+fresh panels remained external/local, the multi-asset scheduler was not yet
+enabled, and the X Layer binding was NVDAx-only. TSLAx remained research-only
+with no fitted runtime. This is preserved as handoff provenance, not the current
+repository deployment state. The five-asset study's raw xStock benchmark is not
+automatically equivalent to a live OKX X-Perp observation. Historical
+`SUPPORT / WATCH / REVIEW` labels are research classifications, not aliases for
+the production Evidence States `SUPPORTED / INCONCLUSIVE / CHALLENGED` or for
+curator Policy Actions.
 
 The June–September 2026 test windows were inspected repeatedly during development; they are exposed development evidence, not fresh untouched validation. Any future promotion or parameter change requires a genuinely newer chronological holdout.
 
@@ -37,15 +58,14 @@ PYTHONPATH=apps/api python quant/tools/evaluate_fresh_panels.py \\
 ```
 
 The evaluator uses the backend's identity-checked panel loader and chronological
-P1a-C replay. It reports current Evidence State and reason-code counts. The
-backend now abstains as `INCONCLUSIVE` for the registered OKX X-Perp/index
-comparator because the P1a-C predictive uncertainty is not calibrated for
-X-Perp residuals. Pairwise xStock/model and xStock/X-Perp figures remain
-descriptive; there is not yet a research-validated combined three-source
-Evidence State rule. P1a assimilates xStock, so xStock/model disagreement is
-model-based evidence, not independent market confirmation. The 2026-09-21 to
-2026-10-05 panel bytes are not committed; the manifest hashes are reproducible
-only if those exact external files are available.
+P1a-C replay. This frozen evaluator snapshot uses its recorded capability
+artifact and research semantics; it is not a migration or exact reproduction of
+the current production Evidence State v2 classifier. P1a assimilates xStock, so
+xStock/model disagreement is model-based challenger evidence, while X-Perp is
+separately sourced market evidence. The 2026-09-21 to 2026-10-05 panel bytes are
+not committed; the manifest hashes are reproducible only if those exact
+external files are available. The evaluator, its v1 capability artifact, and
+the frozen fresh-validation manifest are intentionally left unchanged here.
 
 QQQx's frozen fit is retained without refitting. Its token measurement variance
 is at the optimizer upper bound across sessions. In the 4,068-token fresh replay,
